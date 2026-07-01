@@ -1,0 +1,1117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Global touch-friendly minimum tap targets */
+  button:not(.swal2-confirm):not(.swal2-cancel),
+  a,
+  [role="button"],
+  .btn,
+  .chip-nav-item,
+  .nav-item,
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    @media (hover: none) and (pointer: coarse) {
+      min-height: 44px;
+    }
+  }
+
+  /* Prevent text-size adjust on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-white text-gray-900 dark:bg-app dark:text-gray-100;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent zooming and horizontal moving on phones */
+    touch-action: manipulation;
+    overflow-x: hidden;
+    position: relative;
+    width: 100%;
+    /* Improved mobile typography */
+    font-size: 14px;
+
+    @screen sm {
+      font-size: 16px;
+    }
+  }
+
+  /* Force disable zooming on all inputs for mobile to prevent automatic zoom focus */
+  @media screen and (max-width: 768px) {
+
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+
+    html,
+    body {
+      overflow-x: hidden;
+      width: 100%;
+    }
+
+    #root {
+      position: relative;
+      height: 100dvh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  /* Mobile-first spacing scale & Color System */
+  :root {
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+
+    --color-primary: #10b981;       /* emerald - brand color */
+    --color-primary-hover: #059669;
+    --color-bg: #ffffff;            /* app background, light mode */
+    --color-surface: #ffffff;       /* cards, modals, dropdowns */
+    --color-text: #0f172a;
+    --color-text-muted: #6b7280;
+    --color-border: #e5e7eb;
+    --color-danger: #ef4444;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-overlay: rgba(15, 23, 42, 0.5);
+  }
+
+  .dark {
+    --color-primary: #10b981;
+    --color-primary-hover: #059669;
+    --color-bg: #0A0A0A;
+    --color-surface: #171717;
+    --color-text: #ffffff;
+    --color-text-muted: #9ca3af;
+    --color-border: rgba(255, 255, 255, 0.1);
+    --color-danger: #ef4444;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-overlay: rgba(0, 0, 0, 0.6);
+  }
+
+  .modal-open {
+    overflow: hidden !important;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Global Input Visibility Fix */
+  input,
+  select,
+  textarea {
+    @apply text-gray-900 dark:text-white !important;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-400 dark:text-gray-500 !important;
+  }
+
+  /* Date Picker UI Fixes */
+  input[type="date"] {
+    position: relative;
+    min-height: 42px;
+    @apply text-gray-900 dark:text-white !important;
+  }
+
+  /* Force shadow DOM text colors to ensure visibility */
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="date"]::-webkit-datetime-edit-text,
+  input[type="date"]::-webkit-datetime-edit-month-field,
+  input[type="date"]::-webkit-datetime-edit-day-field,
+  input[type="date"]::-webkit-datetime-edit-year-field {
+    color: #111827 !important;
+    opacity: 1 !important;
+  }
+
+  .dark input[type="date"]::-webkit-datetime-edit,
+  .dark input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  .dark input[type="date"]::-webkit-datetime-edit-text,
+  .dark input[type="date"]::-webkit-datetime-edit-month-field,
+  .dark input[type="date"]::-webkit-datetime-edit-day-field,
+  .dark input[type="date"]::-webkit-datetime-edit-year-field {
+    color: #ffffff !important;
+    opacity: 1 !important;
+  }
+
+  /* Force native date picker popup to respect dark mode */
+  input[type="date"] {
+    color-scheme: light;
+  }
+
+  .dark input[type="date"] {
+    color-scheme: dark !important;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    padding: 0.25rem;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.7;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  /* Global Touch Scroll Fix — all scrollable areas get momentum scrolling on iOS */
+  [class*="overflow-y-auto"],
+  [class*="overflow-y-scroll"],
+  .overflow-y-auto,
+  .overflow-y-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  /* Global Content Visibility Boost */
+  .main-content-scroll,
+  .modal-overlay {
+    --label-gray-400: #6b7280;
+    /* text-gray-500 */
+    --label-gray-500: #4b5563;
+    /* text-gray-600 */
+  }
+
+  .dark .main-content-scroll,
+  .dark .modal-overlay {
+    --label-gray-400: #9ca3af;
+    /* text-gray-400 */
+    --label-gray-500: #d1d5db;
+    /* text-gray-300 */
+  }
+
+  .main-content-scroll .text-gray-400:not(svg):not(.opacity-20),
+  .modal-overlay .text-gray-400:not(svg):not(.opacity-20) {
+    color: var(--label-gray-400) !important;
+  }
+
+  .main-content-scroll .text-gray-500:not(svg):not(.opacity-20),
+  .modal-overlay .text-gray-500:not(svg):not(.opacity-20) {
+    color: var(--label-gray-500) !important;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white dark:bg-surface rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-md hover:border-gray-200 dark:hover:border-white/10;
+  }
+
+  .btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl font-bold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
+  min-height: 44px; /* touch target minimum */
+}
+  .btn-primary  { @apply bg-primary hover:bg-primary-hover text-white shadow-lg; }
+  .btn-secondary{ @apply bg-surface border border-default text-default hover:bg-gray-50 dark:hover:bg-white/5; }
+  .btn-danger   { @apply bg-danger text-white shadow-lg hover:opacity-90; }
+  .btn-ghost    { @apply bg-transparent text-default hover:bg-app; }
+
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+  .btn-md { @apply px-4 py-2.5 text-sm; }
+  .btn-lg { @apply px-6 py-3.5 text-base; }
+
+  .input {
+    @apply w-full px-4 py-3 border border-gray-200 dark:border-white/5 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-[#1C1C1C] text-gray-900 dark:text-white;
+  }
+
+  .input-sm {
+    @apply px-3 py-2 text-sm;
+  }
+
+  .select {
+    @apply w-full px-4 py-3 border border-gray-200 dark:border-white/5 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-[#1C1C1C] text-gray-900 dark:text-white;
+  }
+
+  .textarea {
+    @apply w-full px-4 py-3 border border-gray-200 dark:border-white/5 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-[#1C1C1C] text-gray-900 dark:text-white resize-none;
+  }
+
+  .stat-card {
+    @apply relative overflow-hidden rounded-[1.25rem] sm:rounded-[1.5rem] transition-all duration-300 hover:scale-[1.02] shadow-xl border border-white/10;
+    min-height: 80px;
+    background-size: 200% 200%;
+  }
+
+  .stat-card-inner {
+    @apply relative z-10 p-2.5 sm:p-5 flex flex-col justify-between h-full;
+  }
+
+  .stat-card-label {
+    @apply text-[8px] sm:text-[10px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em] text-white/60 mb-0.5 block leading-tight truncate;
+  }
+
+  .stat-card-value {
+    @apply text-base sm:text-2xl lg:text-2xl xl:text-3xl font-black text-white tracking-[-0.05em] leading-none block whitespace-nowrap drop-shadow-md;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .premium-card {
+    @apply relative overflow-hidden rounded-[1.75rem] sm:rounded-[3rem] border border-white/5 bg-white dark:bg-surface shadow-2xl transition-all duration-500;
+  }
+
+  .glass-card {
+    @apply bg-white/5 border border-white/10 rounded-[1.5rem] sm:rounded-[2rem] shadow-xl;
+  }
+
+  .stat-card-icon {
+    @apply absolute -bottom-2 -right-2 sm:-bottom-4 sm:-right-4 opacity-10 pointer-events-none transition-all duration-700 group-hover:scale-110 group-hover:opacity-20 group-hover:-rotate-12 h-16 w-16 sm:h-24 sm:w-24;
+  }
+
+  .chip-nav-container {
+    @apply flex items-center gap-1.5 p-1 bg-white dark:bg-zinc-900/50 rounded-[1.25rem] border border-gray-200/50 dark:border-white/5 overflow-x-auto scrollbar-hide shadow-sm;
+  }
+
+  .chip-nav-item {
+    @apply flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 relative z-10 whitespace-nowrap active:scale-95;
+  }
+
+  /* --- Content Layout (scroll is handled by main tag in App.tsx) --- */
+  .main-content-scroll {
+    @apply flex-1 flex flex-col pb-[80px] sm:pb-[90px] lg:pb-4 min-h-0 w-full;
+  }
+
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/80 dark:bg-app-[6px] flex items-start justify-center z-[250] p-0 sm:p-6 overflow-y-auto;
+    padding-top: max(env(safe-area-inset-top, 16px), 24px);
+    padding-bottom: max(env(safe-area-inset-bottom, 16px), 80px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Z-Index Stack Constants */
+  .z-base-modal {
+    @apply z-[250];
+  }
+
+  .z-nested-modal {
+    @apply z-[300];
+  }
+
+  .z-toast {
+    @apply z-[350];
+  }
+
+  .z-tooltip {
+    @apply z-[400];
+  }
+
+  .modal {
+    @apply bg-white dark:bg-surface shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] border dark:border-white/5 transition-all duration-300;
+    width: 360px;
+    max-width: 360px !important;
+    max-height: 90dvh;
+    min-height: 0;
+    transform-origin: center center;
+    overscroll-behavior: contain;
+    border-radius: 2.5rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    /* Interactive fix for mobile keyboard */
+    position: relative;
+    z-index: 50;
+  }
+
+  /* Responsive Modal Pattern (Mobile Bottom Sheet) */
+  @media (max-width: 767px) {
+    .modal-overlay {
+      @apply items-end p-0;
+      touch-action: none;
+    }
+
+    .modal,
+    .modal-xl {
+      @apply w-full max-w-full !important;
+      border-radius: 1.75rem 1.75rem 0 0 !important;
+      max-height: calc(100dvh - 16px) !important;
+      margin-bottom: 0 !important;
+      height: auto;
+      flex-shrink: 0;
+    }
+
+    .modal-body {
+      max-height: 75dvh !important;
+      touch-action: pan-y;
+    }
+  }
+
+  /* Universal 360px modal — identical on desktop, tablet, and mobile */
+  @media (min-width: 640px) {
+    .modal {
+      width: 360px;
+      max-width: 360px !important;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .modal {
+      max-width: 360px !important;
+    }
+  }
+
+  /* Expansive Modal for Reports/Checkouts */
+  .modal-xl {
+    @apply w-full max-w-[1400px] !important;
+    max-height: 95dvh;
+    min-height: 0;
+    @apply bg-white dark:bg-surface shadow-2xl overflow-hidden flex flex-col rounded-[2.5rem];
+  }
+
+  @media (max-width: 1024px) {
+    .modal-xl {
+      @apply max-w-[95%] !important;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .modal-xl {
+      @apply max-w-full !important;
+      border-radius: 0;
+      height: 100dvh;
+      max-height: 100dvh;
+    }
+  }
+
+
+  .modal-header {
+    @apply px-5 py-3.5 border-b border-gray-100 dark:border-white/5 flex items-center justify-between flex-shrink-0 bg-white dark:bg-surface;
+  }
+
+  .modal-body {
+    @apply p-4 sm:p-8 scrollbar-hide overflow-y-auto;
+    max-height: 85dvh;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    scroll-behavior: smooth;
+  }
+
+  .modal-footer {
+    @apply px-6 py-3.5 border-t border-gray-100 dark:border-white/5 flex justify-end space-x-3 flex-shrink-0 bg-gray-50/30 dark:bg-black/20;
+  }
+
+  .table {
+    @apply w-full divide-y divide-gray-200 dark:divide-white/5;
+  }
+
+  .table-header {
+    @apply bg-gray-100/80 dark:bg-white/[0.02];
+  }
+
+  .table-header-cell {
+    @apply px-3 py-4 text-left text-[10px] font-black text-gray-900 dark:text-gray-400 uppercase tracking-widest overflow-hidden text-ellipsis whitespace-nowrap border-b border-gray-200 dark:border-white/5;
+  }
+
+  .table-row {
+    @apply hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors break-words;
+  }
+
+  .table-cell {
+    @apply px-3 py-3 text-sm text-gray-900 dark:text-gray-100 overflow-hidden text-ellipsis break-words;
+  }
+
+  /* Premium Mobile Card Layout */
+  @media (max-width: 768px) {
+
+    table.table,
+    table.table thead,
+    table.table tbody,
+    table.table tr,
+    table.table th,
+    table.table td {
+      display: block;
+      width: 100%;
+    }
+
+    table.table thead {
+      display: none;
+    }
+
+    table.table tr.table-row {
+      margin-bottom: 0.625rem;
+      background: #ffffff;
+      border-radius: 0.875rem;
+      box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.05), 0 1px 3px -2px rgba(0, 0, 0, 0.03);
+      padding: 0.75rem;
+      border: 1px solid #f3f4f6;
+    }
+
+    .dark table.table tr.table-row {
+      background: #1c1c1c;
+      border-color: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
+    }
+
+    table.table td.table-cell {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0 !important;
+      border-bottom: 1px dashed #e5e7eb !important;
+      text-align: right;
+    }
+
+    .dark table.table td.table-cell {
+      border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    table.table td.table-cell:last-child {
+      border-bottom: none !important;
+      padding-bottom: 0 !important;
+    }
+
+    table.table td.table-cell:first-child {
+      padding-top: 0 !important;
+    }
+
+    table.table td.table-cell::before {
+      content: attr(data-label);
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      font-size: 0.65rem;
+      text-align: left;
+      flex-shrink: 0;
+      margin-right: 0.75rem;
+      max-width: 40%;
+    }
+
+    .dark table.table td.table-cell::before {
+      color: #9ca3af;
+    }
+
+    table.table td.table-cell[data-label="Checkbox"]::before,
+    table.table td.table-cell[data-label=""]::before {
+      display: none;
+    }
+
+    table.table td.hidden,
+    table.table th.hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 639px) {
+
+      /* sm breakpoint */
+      table.table td.sm\:table-cell,
+      table.table th.sm\:table-cell,
+      table.table td.hidden.sm\:table-cell {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 767px) {
+
+      /* md breakpoint */
+      table.table td.md\:table-cell,
+      table.table th.md\:table-cell,
+      table.table td.hidden.md\:table-cell {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 1023px) {
+
+      /* lg breakpoint */
+      table.table td.lg\:table-cell,
+      table.table th.lg\:table-cell,
+      table.table td.hidden.lg\:table-cell {
+        display: none !important;
+      }
+    }
+  }
+
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400;
+  }
+
+  .badge-warning {
+    @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400;
+  }
+
+  .badge-danger {
+    @apply bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400;
+  }
+
+  .badge-info {
+    @apply bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400;
+  }
+
+  .badge-purple {
+    @apply bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400;
+  }
+
+  .sidebar {
+    @apply bg-white dark:bg-app border-r border-gray-100 dark:border-white/5 flex flex-col;
+  }
+
+  .nav-item {
+    @apply flex items-center space-x-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-colors rounded-xl mx-2;
+  }
+
+  .nav-item-active {
+    @apply bg-emerald-50 dark:bg-primary text-emerald-700 dark:text-primary font-medium;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    .touch-friendly {
+      min-height: 48px;
+      min-width: 48px;
+    }
+  }
+
+  .no-spinners::-webkit-inner-spin-button,
+  .no-spinners::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .no-spinners {
+    -moz-appearance: textfield;
+  }
+}
+
+/* Enhanced Electron-safe dark mode dropdown fix — OS overrides need !important */
+.dark select:not([class*="bg-[#f8f9fa]"]):not([class*="bg-white"]),
+.dark select:not([class*="bg-[#f8f9fa]"]):not([class*="bg-white"]) option,
+.dark .select:not([class*="bg-[#f8f9fa]"]):not([class*="bg-white"]),
+.dark .select:not([class*="bg-[#f8f9fa]"]):not([class*="bg-white"]) option {
+  background-color: #1a1a2e !important;
+  color: #ffffff !important;
+  border-color: #6366f1 !important;
+}
+
+/* Ensure selects on light backgrounds stay visible even in dark mode context */
+select[class*="bg-[#f8f9fa]"],
+select[class*="bg-white"],
+.select[class*="bg-[#f8f9fa]"],
+.select[class*="bg-white"] {
+  background-color: white !important;
+  color: #111827 !important;
+}
+
+/* Prevent OS-level blue highlights from making text unreadable */
+.dark select option:hover,
+.dark select option:checked,
+.dark select option:focus {
+  background-color: #6366f1 !important;
+  color: #000000 !important;
+}
+
+/* Target internal listbox rendering for Webkit/Electron */
+.dark select::-webkit-listbox {
+  background-color: #1a1a2e !important;
+}
+
+select option {
+  padding: 10px 14px !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-white/10 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-white/20;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-in {
+  animation-duration: 250ms;
+  animation-fill-mode: forwards;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-in {
+  animation-name: fadeIn;
+}
+
+.zoom-in-95 {
+  animation-name: scaleIn;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #000;
+    background: white;
+  }
+
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}
+
+/* Focus styles for accessibility */
+.focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Loading states */
+.loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent);
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    left: -100%;
+  }
+
+  100% {
+    left: 100%;
+  }
+}
+
+/* Responsive grid utilities */
+.grid-responsive {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.grid-responsive-sm {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.grid-responsive-lg {
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+}
+
+/* Mobile-first responsive design */
+@media (max-width: 640px) {
+  .mobile-stack {
+    flex-direction: column;
+  }
+
+  .mobile-full {
+    width: 100%;
+  }
+
+  .mobile-hidden {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .tablet-show {
+    display: block;
+  }
+}
+
+@media (min-width: 1024px) {
+  .desktop-show {
+    display: block;
+  }
+}
+
+/* SweetAlert2 High-Priority Z-Index Fix */
+.swal2-container {
+  z-index: 100000 !important;
+  pointer-events: auto !important;
+}
+
+.swal2-popup {
+  pointer-events: auto !important;
+}
+
+body.swal2-shown {
+  overflow: hidden !important;
+}
+
+/* Hide Mobile Nav when Modal/Drawer is open to prevent overlap */
+body[style*="overflow:hidden"] .md\:hidden.lg\:hidden.bg-white.dark\:bg-\[\#0A0A0A\] {
+  display: none !important;
+}
+
+.swal2-container {
+  z-index: 11000 !important;
+}
+
+.swal2-popup {
+  @apply !rounded-[2rem] !bg-white dark:!bg-surface !border !border-gray-100 dark:!border-white/5 !shadow-2xl !p-6 sm:!p-8 !w-[92%] sm:!w-full !max-w-[420px] transition-all duration-300;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
+}
+
+.swal2-title {
+  @apply !text-[16px] sm:!text-[18px] !font-black !text-gray-900 dark:!text-white !uppercase !tracking-wider !mb-2;
+}
+
+.swal2-html-container {
+  @apply !text-[12px] sm:!text-[14px] !font-medium !text-gray-500 dark:!text-gray-400 !leading-relaxed !mt-2;
+}
+
+.swal2-actions {
+  @apply !mt-8 !gap-3 !w-full;
+}
+
+.swal2-confirm {
+  @apply !bg-primary !text-white !rounded-xl !px-8 !py-3 !text-[11px] !font-black !uppercase !tracking-widest !border-none !shadow-lg !shadow-emerald-500/20 !order-2 !flex-1 !transition-all active:!scale-95 !outline-none !ring-0 !m-0;
+}
+
+.swal2-cancel {
+  @apply !bg-gray-100 dark:!bg-white/5 !text-gray-600 dark:!text-gray-400 !rounded-xl !px-8 !py-3 !text-[11px] !font-black !uppercase !tracking-widest !border-none !order-1 !flex-1 !transition-all active:!scale-95 !outline-none !ring-0 !m-0;
+}
+
+.swal2-icon {
+  @apply !border-2 !w-[60px] !h-[60px] !mb-4;
+}
+
+.swal2-icon.swal2-success {
+  @apply !border-primary;
+}
+
+.swal2-icon.swal2-success [class^='swal2-success-line'] {
+  @apply !bg-primary;
+}
+
+.swal2-icon.swal2-success .swal2-success-ring {
+  @apply !border-primary;
+}
+
+.swal2-input {
+  @apply !bg-gray-50 dark:!bg-black/75 !border-none !rounded-xl !text-sm !font-medium dark:!text-white !px-4 !py-3 !shadow-inner !mt-4 !mb-0 !w-full !transition-all focus:!ring-2 focus:!ring-emerald-500/20;
+}
+
+.swal2-styled.swal2-confirm,
+.swal2-styled.swal2-cancel {
+  border: none !important;
+  outline: none !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.swal2-styled.swal2-confirm:hover,
+.swal2-styled.swal2-cancel:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.swal2-input {
+  border: 1px solid #e5e7eb !important;
+  border-radius: 0.75rem !important;
+  padding: 0.75rem 1rem !important;
+  font-size: 0.875rem !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.swal2-input:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+  outline: none !important;
+}
+
+.swal2-timer-progress-bar {
+  height: 3px !important;
+}
+
+@keyframes swal2-show {
+  0% {
+    transform: scale(0.7) translateY(20px);
+    opacity: 0;
+  }
+
+  45% {
+    transform: scale(1.05) translateY(-5px);
+    opacity: 1;
+  }
+
+  80% {
+    transform: scale(0.95) translateY(2px);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.swal2-show {
+  animation: swal2-show 0.3s ease-out !important;
+}
+
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes neural-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+
+  50% {
+    transform: scale(1.1);
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-neural-pulse {
+  animation: neural-pulse 4s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 12s linear infinite;
+}
+
+@keyframes progress {
+  from {
+    width: 0%;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+.animate-progress {
+  animation: progress 1.2s linear forwards;
+}
+
+.glass-fancy {
+  @apply bg-gray-950/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.8)];
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Custom scrollbar styles for WebKit browsers */
+.dark ::-webkit-scrollbar-track {
+  background: #171717;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Camera Scanner Fixes */
+#reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 2.5rem !important;
+}
+
+#reader {
+  border: none !important;
+  background: black !important;
+}
+
+#reader__scan_region {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@keyframes scan {
+
+  0%,
+  100% {
+    top: 10%;
+  }
+
+  50% {
+    top: 90%;
+  }
+}
+
+.animate-scan {
+  animation: scan 2s linear infinite;
+  position: absolute;
+  width: calc(100% - 32px);
+  left: 16px;
+}

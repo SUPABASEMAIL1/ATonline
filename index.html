@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="logo.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#10b981" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ZaynahsPOS">
+    <title>Zaynahs POS</title>
+    <meta name="description" content="Zaynahs POS - A modern point of sale system" />
+    <meta name="robots" content="index, follow" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="manifest" href="site.webmanifest">
+    
+    <meta property="og:title" content="ZaynahsPos" />
+    <meta property="og:description" content="A modern point of sale system for retail and e-commerce." />
+    <meta property="og:image" content="logo.png" />
+    <meta property="og:url" content="https://zaynahspos.com" />
+    <meta property="og:type" content="website" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ZaynahsPos" />
+    <meta name="twitter:description" content="A modern point of sale system for retail and e-commerce." />
+    <meta name="twitter:image" content="logo.png" />
+    <meta name="twitter:site" content="@zaynahs_pos" />
+    <meta name="twitter:creator" content="@iamchandira" />
+    <script>
+      // Apply dark theme immediately to prevent flashing
+      const theme = localStorage.getItem('theme') || 'dark'; // Always default to dark
+      if (theme !== 'light') {
+        document.documentElement.classList.add('dark');
+      }
+
+      // Unregister any active service worker in local development mode to prevent white screens on refresh
+      if (
+        location.hostname === 'localhost' || 
+        location.hostname === '127.0.0.1' || 
+        location.hostname.startsWith('192.168.') || 
+        location.hostname.startsWith('10.') || 
+        location.port !== ''
+      ) {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister().then(function(success) {
+                if (success) {
+                  console.log('Unregistered active service worker for local development');
+                  location.reload();
+                }
+              });
+            }
+          });
+        }
+      }
+    </script>
+  </head>
+  <body class="bg-[#0A0A0A] text-gray-100 transition-colors duration-300">
+    <div id="root"></div>
+    <script type="module" src="src/main.tsx"></script>
+  </body>
+</html>
