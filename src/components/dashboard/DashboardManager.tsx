@@ -44,25 +44,29 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
     return {
       total: todaySales.reduce((sum, s) => {
         if (s.status === 'completed' || s.status === 'credit') return sum + s.total;
-        if (s.status === 'refunded') return sum - s.total;
+        if (s.status === 'refunded') return sum - (s.total || 0);
+    if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
         return sum;
       }, 0),
       cash: todaySales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'cash');
         if (s.status === 'completed' || s.status === 'credit') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
+        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
       }, 0),
       card: todaySales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'card');
         if (s.status === 'completed' || s.status === 'credit') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
+        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
       }, 0),
       digital: todaySales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'digital');
         if (s.status === 'completed' || s.status === 'credit') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
+        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
       }, 0),
     };
@@ -78,7 +82,8 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
         return ts >= todayStart && ts <= todayEnd;
       }).reduce((sum, s) => {
         if (s.status === 'completed' || s.status === 'credit') return sum + s.total;
-        if (s.status === 'refunded') return sum - s.total;
+        if (s.status === 'refunded') return sum - (s.total || 0);
+    if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
         return sum;
       }, 0),
       purchases: 0,
@@ -102,7 +107,10 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
     todaySales.forEach(sale => {
       const date = new Date(sale.createdAt || sale.timestamp || new Date());
       const hour = date.getUTCHours();
-      const amount = sale.status === 'refunded' ? -sale.total : ((sale.status === 'completed' || sale.status === 'credit') ? sale.total : 0);
+      let amount = 0;
+      if (sale.status === 'refunded') amount = -(sale.total || 0);
+      else if (sale.status === 'partially_refunded') amount = (sale.total || 0) - (sale.refundedAmount || 0);
+      else if (sale.status === 'completed' || sale.status === 'credit') amount = sale.total || 0;
       hours[hour].value += amount;
     });
 

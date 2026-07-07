@@ -75,7 +75,7 @@ export function Modal({
           relative flex flex-col w-full sm:w-[90vw] bg-surface border-default border
           rounded-2xl shadow-2xl
           ${maxWidthClasses[maxWidth]}
-          max-h-[90vh] sm:max-h-[90vh]
+          max-h-[85dvh] sm:max-h-[90dvh]
           transition-all duration-250 ease-out
           ${isOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-4 scale-95 opacity-0'}
         `}
@@ -100,7 +100,7 @@ export function Modal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 pb-6 sm:pb-6 text-default">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 sm:p-6 pb-6 sm:pb-6 text-default">
           {children}
         </div>
 

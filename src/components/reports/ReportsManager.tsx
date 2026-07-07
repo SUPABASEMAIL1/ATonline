@@ -48,7 +48,7 @@ export const getItemCOGS = (item: any): { cost: number; isEstimated: boolean } =
 export function getItemRevenue(item: any, sale: Sale): number {
   const extraChargesTotal = (sale.extraCharges || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   // Net Bill Total = Total - Tax - Extra Charges (This is the amount actually paid for products)
-  const netBillTotal = (Number(sale.total) || 0) - (Number(sale.taxAmount) || 0) - extraChargesTotal;
+  const netBillTotal = (getEffectiveTotal(sale)) - (Number(sale.taxAmount) || 0) - extraChargesTotal;
 
   // Total of all item subtotals (price * qty - line_discount)
   const saleItemsSubtotal = sale.items?.reduce((sum, i) => sum + (Number(i.subtotal) || 0), 0) || 0;
@@ -436,7 +436,7 @@ export function ReportsManager() {
       if (isNaN(saleDate.getTime())) return;
       const date = formatAppDateChart(saleDate, state.settings?.country);
       if (salesByDay[date]) {
-        salesByDay[date].sales += Number(sale.total || 0);
+        salesByDay[date].sales += getEffectiveTotal(sale);
         // Count returns as negative transactions or just don't increment as a positive sale
         salesByDay[date].transactions += (sale.total < 0 ? -1 : 1);
       }
@@ -542,7 +542,7 @@ export function ReportsManager() {
       if (!sale) return;
       const type = sale.saleType || 'retail';
       if (types[type]) {
-        types[type].value += Number(sale.total || 0);
+        types[type].value += getEffectiveTotal(sale);
       }
     });
 
@@ -603,7 +603,8 @@ export function ReportsManager() {
   // Summary Stats - Net Revenue (Completed minus Refunds)
   const totalRevenue = filteredSales.reduce((sum, s) => {
     if (s.status === 'completed') return sum + s.total;   // cash/card sales
-    if (s.status === 'refunded') return sum - s.total;
+    if (s.status === 'refunded') return sum - (s.total || 0);
+    if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
     return sum; // credit sales NOT counted as received cash
   }, 0);
 
@@ -649,7 +650,19 @@ export function ReportsManager() {
       const collections = reportPayments.filter(p => p.method === method).reduce((a, p) => a + (p.amount || 0), 0);
       
       const expenses = filteredExpenses.filter(e => e.paymentMethod === method).reduce((a, x) => a + Number(x.amount), 0);
-      const refunds = filteredSales.filter(s => s.status === 'refunded').reduce((a, x) => a + getAmountByMethod(x, method), 0);
+      const refunds = filteredSales.reduce((a, x) => {
+        if (x.status === 'refunded') return a + getAmountByMethod(x, method);
+        if (x.status === 'partially_refunded') {
+          // Approximate proportional refund for split, or direct for others
+          if (x.paymentMethod === 'split') {
+            const ratio = getAmountByMethod(x, method) / (x.total || 1);
+            return a + (x.refundedAmount || 0) * ratio;
+          } else if (x.paymentMethod === method || (!x.paymentMethod && method === 'cash')) {
+            return a + (x.refundedAmount || 0);
+          }
+        }
+        return a;
+      }, 0);
       
       return {
         method,
@@ -716,8 +729,8 @@ export function ReportsManager() {
       if (!sale) return;
       const customerId = sale.customerId || 'walk-in';
       if (customerStats[customerId]) {
-        customerStats[customerId].totalSpent += Number(sale.total || 0);
-        customerStats[customerId].periodSpent += Number(sale.total || 0);
+        customerStats[customerId].totalSpent += getEffectiveTotal(sale);
+        customerStats[customerId].periodSpent += getEffectiveTotal(sale);
         customerStats[customerId].totalTransactions += 1;
         customerStats[customerId].totalItems += (sale.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
         const sTime = new Date(sale.timestamp);
@@ -883,7 +896,7 @@ export function ReportsManager() {
         let row = `"${formattedDate}","${formattedTime}","${clean(sale.invoiceNumber)}","${clean(sale.receiptNumber)}","${customerName}","${customerPhone}","${cashierName}","${cashierAt}","${clean(itemsList)}",${totalQty},"${clean(sale.saleType || 'retail')}","${clean(sale.paymentMethod)}",${formatNumberWithPrecision(sale.subtotal)},${formatNumberWithPrecision(sale.discountAmount)},${formatNumberWithPrecision(sale.taxAmount)},${formatNumberWithPrecision(sale.total)}`;
 
         if (isAdmin) {
-          row += `,${formatNumberWithPrecision(totalCostLocal)},${formatNumberWithPrecision(sale.total - totalCostLocal)}`;
+          row += `,${formatNumberWithPrecision(totalCostLocal)},${formatNumberWithPrecision(getEffectiveTotal(sale) - totalCostLocal)}`;
         }
         return row;
       }).join('\n');

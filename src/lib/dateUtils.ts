@@ -73,12 +73,16 @@ export function formatAppDateChart(date: Date | string, timezone?: string): stri
   if (!date) return '';
   const d = new Date(date);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: timezone || 'UTC' });
+  try {
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: safeTZ(timezone) });
+  } catch {
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  }
 }
 
 export function getStartOfDayInTimezone(date: Date, timezone: string): Date {
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
+    timeZone: safeTZ(timezone),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -92,7 +96,7 @@ export function getStartOfDayInTimezone(date: Date, timezone: string): Date {
   const guess = new Date(Date.UTC(year, month, day, 0, 0, 0));
 
   const guessParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
+    timeZone: safeTZ(timezone),
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
   }).formatToParts(guess);
@@ -124,7 +128,7 @@ export function getStartOfInputDayInTimezone(dateStr: string, timezone: string):
   const guess = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
 
   const guessParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
+    timeZone: safeTZ(timezone),
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
   }).formatToParts(guess);
@@ -156,5 +160,5 @@ export function formatInTimeZone(date: Date | string, tz: string, format: string
   if (!date) return "";
   const d = new Date(date);
   if (isNaN(d.getTime())) return "";
-  try { return d.toLocaleDateString("en-GB", { timeZone: tz }); } catch { return d.toLocaleDateString(); }
+  try { return d.toLocaleDateString("en-GB", { timeZone: safeTZ(tz) }); } catch { return d.toLocaleDateString(); }
 }

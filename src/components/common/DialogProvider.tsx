@@ -87,12 +87,12 @@ export const DialogProvider: React.FC = () => {
       />
 
       {/* Dialog Card */}
-      <div className={`relative w-full max-w-[400px] max-h-[90dvh] bg-white dark:bg-surface rounded-[2rem] shadow-2xl border border-white/10 overflow-hidden transform transition-all duration-200 ${isVisible ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}>
+      <div className={`relative w-full max-w-[400px] max-h-[85dvh] sm:max-h-[90dvh] bg-white dark:bg-surface rounded-[2rem] shadow-2xl border border-white/10 overflow-hidden transform transition-all duration-200 ${isVisible ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}>
 
         {/* Progress bar for premium feel */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 animate-pulse shrink-0" />
 
-        <div className="p-8 flex flex-col items-center text-center overflow-y-auto">
+        <div className="p-8 flex flex-col items-center text-center overflow-y-auto overscroll-contain touch-pan-y">
           {/* Icon Header */}
           <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${dialog.type === 'delete' ? 'bg-rose-500/10 text-rose-500' :
               dialog.type === 'loading' ? 'bg-primary/10 text-primary' :

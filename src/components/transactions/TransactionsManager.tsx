@@ -13,6 +13,8 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { getDealCountBreakdown } from '../../lib/utils';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { Modal } from '../common/Modal';
+import RefundSaleModal from './RefundSaleModal';
+import { RefundRequest } from '../../types';
 
 
 const isDraftSale = (sale: Sale) =>
@@ -241,26 +243,26 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [isCloudSearch, cloudResults, dateFiltered, searchTerm, paymentFilter, saleTypeFilter, selectedCashier]);
 
-  const totalRevenue = filteredTransactions.reduce((s, x) => s + x.total, 0);
+  const totalRevenue = filteredTransactions.reduce((s, x) => s + (x.total - (x.refundedAmount || 0)), 0);
   const totalTransactions = filteredTransactions.length;
-  const totalItemsSold = filteredTransactions.reduce((s, x) => s + x.items.reduce((i, item) => i + item.quantity, 0), 0);
+  const totalItemsSold = filteredTransactions.reduce((s, x) => s + (x.items || []).reduce((i, item) => i + item.quantity, 0), 0);
 
   const retailSalesTotal = useMemo(() => {
     return filteredTransactions
       .filter(t => t.saleType === 'retail' || !t.saleType)
-      .reduce((sum, t) => sum + t.total, 0);
+      .reduce((sum, t) => sum + (t.total - (t.refundedAmount || 0)), 0);
   }, [filteredTransactions]);
 
   const wholesaleSalesTotal = useMemo(() => {
     return filteredTransactions
       .filter(t => t.saleType === 'wholesale')
-      .reduce((sum, t) => sum + t.total, 0);
+      .reduce((sum, t) => sum + (t.total - (t.refundedAmount || 0)), 0);
   }, [filteredTransactions]);
 
   const estoreSalesTotal = useMemo(() => {
     return filteredTransactions
       .filter(t => t.saleType === 'estore')
-      .reduce((sum, t) => sum + t.total, 0);
+      .reduce((sum, t) => sum + (t.total - (t.refundedAmount || 0)), 0);
   }, [filteredTransactions]);
 
   const walletTotals = useMemo(() => {
@@ -327,6 +329,7 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
       case 'completed': return 'bg-emerald-100/80 text-emerald-700 dark:bg-primary/10 dark:text-emerald-400 border border-emerald-200/50 dark:border-primary/20';
       case 'pending': return 'bg-amber-100/80 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200/50 dark:border-amber-500/20';
       case 'refunded': return 'bg-rose-100/80 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border border-rose-200/50 dark:border-rose-500/20';
+      case 'partially_refunded': return 'bg-orange-100/80 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 border border-orange-200/50 dark:border-orange-500/20';
       case 'credit': return 'bg-blue-100/80 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200/50 dark:border-blue-500/20';
       case 'draft': return 'bg-emerald-100/80 text-emerald-700 dark:bg-primary/10 dark:text-emerald-400 border border-emerald-200/50 dark:border-primary/20';
       default: return 'bg-gray-100 text-gray-700 border border-gray-200';
@@ -837,37 +840,37 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
     }
   };
 
-  const handleRefundSale = async () => {
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+
+  const handleRefundSale = () => {
     if (!canRefundSale) return;
     if (transaction.status === 'refunded') {
-      sonner.error('Sale is already refunded.');
+      sonner.error('Sale is already fully refunded.');
       return;
     }
+    setIsRefundModalOpen(true);
+  };
 
-    const result = await sonner.confirm(
-      'Refund Sale?',
-      'This will create a refund record and revert stock to original batches.',
-      'Yes, refund'
-    );
-    if (!result.isConfirmed) return;
-
+  const executeRefund = async (request: RefundRequest) => {
     setIsReconciling(true);
     try {
       // 1. Process refund in service (handles stock reversal)
-      await salesService.returnSale(transaction.id, {
-        status: 'refunded'
-      }, profile?.name || 'Cashier');
+      await salesService.returnSale(transaction.id, request, profile?.name || 'Cashier');
 
       // 2. Update local state
+      // Find out if it's completely refunded based on the items in transaction + request
+      // But it's easier to just trigger a local reload or optimistically update
       dispatch({
         type: 'UPDATE_SALE',
         payload: {
           ...transaction,
-          status: 'refunded'
+          status: request.type === 'full' ? 'refunded' : 'partially_refunded',
+          refundedAmount: (transaction.refundedAmount || 0) + request.totalRefundAmount
         }
       });
 
       sonner.success('Sale successfully refunded.');
+      setIsRefundModalOpen(false);
       onClose();
     } catch (error) {
       console.error('[RefundError]', error);
@@ -998,6 +1001,7 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
           </div>
         }
       >
+        {/* Modal body... */}
         <div className="space-y-4">
           <div className="flex items-center justify-center mb-0">
             <span className="text-[9px] font-black bg-primary/10 text-primary dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest">
@@ -1224,6 +1228,16 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
             // Note: setShowCheckout(false) and onClose() are now handled by the modal's 
             // internal onClose lifecycle after the receipt is processed.
           }}
+        />
+      )}
+
+      {isRefundModalOpen && (
+        <RefundSaleModal
+          isOpen={isRefundModalOpen}
+          onClose={() => setIsRefundModalOpen(false)}
+          sale={transaction}
+          onConfirmRefund={executeRefund}
+          isProcessing={isReconciling}
         />
       )}
     </>

@@ -189,6 +189,7 @@ export interface CartItem {
   bundleId?: string;   // Which bundle this item came from (for grouping in cart/receipt)
   bundleName?: string; // Display name of the bundle deal
   bundleHideItemPrices?: boolean; // When true, this item's original price is hidden; only deal total shown
+  refundedQuantity?: number; // Quantity of this item that was refunded
 }
 
 export interface Discount {
@@ -237,7 +238,7 @@ export interface Sale {
   billDiscountType?: 'percentage' | 'fixed';
   paymentMethod: 'cash' | 'card' | 'digital' | 'credit' | 'cheque' | 'split';
   cardDetails?: CardDetails;
-  status: 'pending' | 'completed' | 'refunded' | 'credit' | 'draft';
+  status: 'pending' | 'completed' | 'refunded' | 'partially_refunded' | 'credit' | 'draft';
   cashier: string;
   timestamp: Date;
   receiptNumber: string;
@@ -252,6 +253,18 @@ export interface Sale {
   extraCharges?: { name: string; amount: number }[];
   splitPayments?: SplitPayment[];
   refundedAt?: string;
+  refundedAmount?: number; // Total amount refunded from this sale
+}
+
+export interface RefundRequest {
+  type: 'full' | 'partial';
+  items: {
+    index: number;
+    productId: string;
+    qty: number;
+    refundAmount: number;
+  }[];
+  totalRefundAmount: number;
 }
 
 export interface AppliedDiscount {
