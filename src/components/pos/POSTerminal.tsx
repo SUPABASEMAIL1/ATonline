@@ -545,7 +545,6 @@ export function POSTerminal() {
         {/* Mobile + Tablet Cart Drawer */}
         {isMobileCartOpen && (
           <div 
-            onTouchMove={(e) => e.preventDefault()}
             onClick={() => setIsMobileCartOpen(false)}
             className="md:hidden fixed inset-0 z-[80] bg-black/80 transition-opacity flex items-center justify-center p-4"
           >

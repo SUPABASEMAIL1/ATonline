@@ -1115,3 +1115,15 @@ body[style*="overflow:hidden"] .md\:hidden.lg\:hidden.bg-white.dark\:bg-\[\#0A0A
   width: calc(100% - 32px);
   left: 16px;
 }
+
+/* --- Sonner Toaster Mobile Notch / Status Bar Fix --- */
+@media (max-width: 640px) {
+  [data-sonner-toaster] {
+    top: calc(env(safe-area-inset-top, 0px) + 24px) !important;
+  }
+}
+
+/* Smooth momentum scrolling for iOS/Safari */
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
