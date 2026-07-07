@@ -45,6 +45,12 @@ export const getItemCOGS = (item: any): { cost: number; isEstimated: boolean } =
 };
 
 
+export function getEffectiveTotal(sale: any): number {
+  if (sale.status === 'refunded' || sale.status === 'deleted') return 0;
+  if (sale.status === 'partially_refunded') return (sale.total || 0) - (sale.refundedAmount || 0);
+  return sale.total || 0;
+}
+
 export function getItemRevenue(item: any, sale: Sale): number {
   const extraChargesTotal = (sale.extraCharges || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   // Net Bill Total = Total - Tax - Extra Charges (This is the amount actually paid for products)
