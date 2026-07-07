@@ -1009,7 +1009,13 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
   // ═══════════════════════════════════════════════════
   const renderReceiptBody = () => {
     // For new layouts, delegate to shared renderer
-    if (isNewLayout) return renderNewLayout();
+    if (isNewLayout) {
+      return (
+        <div id="receipt-content" style={{ width: paperWidthPx, maxWidth: paperWidthPx, margin: '0 auto' }}>
+          {renderNewLayout()}
+        </div>
+      );
+    }
     // Dynamic border stylings based on template instead of raw strings
     const dividerStyle = {
       borderTop: headerBorder,
