@@ -338,7 +338,9 @@ export interface AppSettings {
   receiptShowCustomerPhone: boolean;
   receiptShowNotes: boolean;
   receiptShowBarcode?: boolean;
-  receiptTemplate: 'modern' | 'minimal' | 'classic' | 'professional' | 'compact' | 'ultra_compact';
+  receiptTemplate: 'modern' | 'minimal' | 'classic' | 'professional' | 'compact' | 'ultra_compact'
+    | 'horizontal_header' | 'centered_flow' | 'left_grid' | 'split_columns' | 'floating_totals'
+    | 'offset_logo' | 'boxed_sections' | 'tear_off' | 'vertical_line' | 'emphasized_total';
   receiptFontScale: number;
   receiptFontBold: boolean;
   receiptFontWeight?: number;

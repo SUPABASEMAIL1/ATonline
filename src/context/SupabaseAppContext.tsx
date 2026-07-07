@@ -714,6 +714,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const { user, profile } = useAuth();
   const [initialized, setInitialized] = useState(false);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
   // 💾 POS State Persistence: Load from localStorage on mount
   useEffect(() => {
@@ -838,8 +839,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     };
     const handleOnline = () => {
-      console.log('[Realtime] Online — subscriptions will re-initialize on next render.');
-      subscriptionsInitialized.current = false; // Allow re-init on next effect run
+      console.log('[Realtime] Online — tearing down stale subscription for re-init.');
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current).catch(() => {});
+        subscriptionRef.current = null;
+      }
+      subscriptionsInitialized.current = false;
+      setReconnectTrigger(prev => prev + 1);
     };
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
@@ -853,14 +859,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user || !profile) return;
 
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Clean up any stale channel before re-init (e.g. after online reconnect)
+    if (subscriptionRef.current) {
+      supabase.removeChannel(subscriptionRef.current).catch(() => {});
+      subscriptionRef.current = null;
+    }
+
     if (subscriptionsInitialized.current) return;
     subscriptionsInitialized.current = true;
-
-    // Prevent duplicate subscriptions
-    if (subscriptionRef.current) {
-      console.log('[Realtime] Subscription already active, skipping...');
-      return;
-    }
 
     // Get workspace_id for filtering — MUST be set before subscriptions init
     const workspaceId = profile?.workspace_id ||
@@ -1047,15 +1055,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_USERS', payload: all });
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn(`[Realtime] Subscription status: ${status} — will retry in 5s.`);
+          subscriptionsInitialized.current = false;
+          subscriptionRef.current = null;
+          retryTimer = setTimeout(() => {
+            if (user && profile && !subscriptionsInitialized.current && !subscriptionRef.current) {
+              setReconnectTrigger(prev => prev + 1);
+            }
+          }, 5000);
+        } else if (status === 'SUBSCRIBED') {
+          console.log(`[Realtime] Subscription active for workspace: ${workspaceId}`);
+        }
+      });
 
     subscriptionRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
       subscriptionRef.current = null;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [user, profile]);
+  }, [user, profile, reconnectTrigger]);
 
   // AUTO-PERSIST ACTIVE TAB TO DB
   useEffect(() => {
@@ -1158,10 +1180,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (localSettingsArr.length > 0) {
         const localSettings = localSettingsArr[0];
-        if (!localSettings.theme || localSettings.theme === 'light') {
-          localSettings.theme = 'dark';
-          localDb.appSettings.put(localSettings);
-        }
         dispatch({ type: 'SET_SETTINGS', payload: { ...initialState.settings, ...localSettings } });
       }
 
@@ -1534,7 +1552,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
           setTimeout(() => dispatch({ type: 'SET_SYNC_PROGRESS', payload: null }), 1000);
         }
-        console.log('✅ Full Sync Complete.');
+        const remainingAfterFetch = await localDb.pendingOps.count();
+        if (remainingAfterFetch === 0) {
+          console.log('✅ Full Sync Complete.');
+        } else {
+          console.log(`📋 Background fetch done (${remainingAfterFetch} pending ops still in queue).`);
+        }
       } catch (err) {
         console.error('❌ Sync Failed:', err);
         dispatch({ type: 'SET_SYNC_PROGRESS', payload: null });

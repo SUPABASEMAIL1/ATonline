@@ -97,15 +97,15 @@ export function SyncQueueModal({ onClose }: SyncQueueModalProps) {
             subtitle={t('items_waiting_to_sync', '{count} ITEMS WAITING TO SYNC').replace('{count}', queue.length.toString())}
             maxWidth="sm"
             footer={
-                <div>
+                <div className="flex items-center justify-between w-full">
                     <p className="text-[9px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest leading-tight hidden sm:block max-w-[180px]">
                         {t('sync_stuck_info', "ITEMS ARE AUTOMATICALLY RETRIED 5 TIMES BEFORE BEING MARKED AS 'STUCK'.")}
                     </p>
-                    <div className="flex items-center gap-3 ml-auto">
+                    <div className="flex items-center justify-end gap-2 sm:gap-3 flex-1">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-6 py-2.5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 text-[10px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95"
+                            className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3.5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
                         >
                             {t('close', 'CLOSE')}
                         </button>
@@ -113,9 +113,9 @@ export function SyncQueueModal({ onClose }: SyncQueueModalProps) {
                             type="button"
                             onClick={handleRetryAll}
                             disabled={isSyncing || queue.length === 0}
-                            className="btn btn-md btn-primary group"
+                            className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[200px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
                         >
-                            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''} shrink-0`} />
+                            <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 ${isSyncing ? 'animate-spin' : ''} shrink-0`} />
                             <span>{isSyncing ? t('syncing', 'SYNCING...') : t('force_resync', 'RETRY ALL')}</span>
                         </button>
                     </div>

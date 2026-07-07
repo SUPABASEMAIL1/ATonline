@@ -24,11 +24,16 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
 
     useEffect(() => {
         refresh();
-        const interval = setInterval(refresh, 3000);
+        const interval = setInterval(refresh, 2000);
         window.addEventListener('pendingops-changed', refresh);
+        window.addEventListener('sync-status-changed', refresh);
+        const onVisible = () => { if (!document.hidden) refresh(); };
+        document.addEventListener('visibilitychange', onVisible);
         return () => {
             clearInterval(interval);
             window.removeEventListener('pendingops-changed', refresh);
+            window.removeEventListener('sync-status-changed', refresh);
+            document.removeEventListener('visibilitychange', onVisible);
         };
     }, []);
 
@@ -67,7 +72,7 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
     };
 
     const handleClear = async () => {
-        if (!confirm('This will delete all items that have failed 5+ times. Are you sure?')) return;
+        if (!confirm('This will delete all items that have failed 10+ times. Are you sure?')) return;
         await clearStuckOps();
         window.dispatchEvent(new Event('pendingops-changed'));
         refresh();
@@ -143,11 +148,11 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
     };
 
     const footer = (
-        <div className="flex items-center gap-3 w-full">
+        <div className="flex items-center gap-2 sm:gap-3 w-full">
             <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-3.5 border border-rose-200 dark:border-rose-900/30 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95 bg-white dark:bg-transparent"
+                className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 bg-white dark:bg-transparent shrink-0"
             >
                 {t('close', 'CLOSE')}
             </button>
@@ -155,9 +160,9 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                 type="button"
                 onClick={handleRetry}
                 disabled={loading || ops.length === 0}
-                className="btn btn-md btn-primary flex-[2] group"
+                className="btn btn-md btn-primary flex-[2] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
             >
-                <RefreshCw className={cn("h-4 w-4 shrink-0", loading && "animate-spin")} />
+                <RefreshCw className={cn("h-4 w-4 sm:h-5 sm:w-5 shrink-0", loading && "animate-spin")} />
                 <span>{loading ? t('syncing', 'SYNCING...') : t('force_resync', 'FORCE RE-SYNC')}</span>
             </button>
         </div>

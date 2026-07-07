@@ -99,19 +99,20 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
   };
 
   const footer = (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between gap-2 sm:gap-3 w-full">
       {customer.creditUsed > 0 && (
         <button
           onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all active:scale-95"
+          className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-2xl sm:rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all active:scale-95 shrink-0"
         >
-          <ArrowDownLeft className="h-3.5 w-3.5" />
-          Collect Payment
+          <ArrowDownLeft className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Collect Payment</span>
+          <span className="sm:hidden">Collect</span>
         </button>
       )}
       <button
         onClick={onClose}
-        className="ml-auto px-8 py-3 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 text-[11px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95"
+        className="ml-auto px-4 sm:px-8 py-2.5 sm:py-3 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl sm:rounded-full transition-all active:scale-95 shrink-0"
       >
         {t('close')}
       </button>
@@ -119,20 +120,20 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
   );
 
   const paymentFooter = (
-    <div className="flex items-center justify-end gap-4">
+    <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
       <button
         type="button"
         onClick={() => setShowPaymentModal(false)}
-        className="px-6 py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[11px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95"
+        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
       >
         {t('discard')}
       </button>
       <button
         onClick={handleAddPayment}
         disabled={isSubmitting || !paymentAmount}
-        className="btn btn-md btn-primary flex-1 hover:bg-emerald-700"
+        className="btn btn-md btn-primary flex-1 hover:bg-emerald-700 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
       >
-        {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+        {isSubmitting ? <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
         <span>{isSubmitting ? 'Saving...' : 'Confirm Receipt'}</span>
       </button>
     </div>

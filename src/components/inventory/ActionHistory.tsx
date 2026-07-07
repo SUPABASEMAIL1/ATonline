@@ -9,6 +9,11 @@ import { formatAppTime, formatAppDate } from '../../lib/dateUtils';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { useTranslation } from '../../hooks/useTranslation';
 
+/**
+ * @deprecated Use AuditTimeline instead. AuditTimeline unifies stockHistory + purchaseRecords
+ * from localDb into a single chronological view with search, pagination, and bill links.
+ * ActionHistory fetches server-side only and doesn't show purchase records or returns.
+ */
 interface ActionHistoryProps {
   onViewProduct: (productId: string) => void;
 }
@@ -42,8 +47,9 @@ export function ActionHistory({ onViewProduct }: ActionHistoryProps) {
 
   const usersList = useMemo(() => {
     const list = history.map(entry => entry.cashierName || entry.cashier_name || entry.user).filter(Boolean);
-    return ['all', ...Array.from(new Set(list))];
-  }, [history]);
+    const userNames = state.users.map(u => u.name).filter(Boolean);
+    return ['all', ...Array.from(new Set([...userNames, ...list]))];
+  }, [history, state.users]);
 
   const filteredHistory = useMemo(() => {
     return history.filter(entry => {

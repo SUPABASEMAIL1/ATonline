@@ -1205,7 +1205,17 @@ export function Settings() {
                               { id: 'minimal', label: 'Minimalist' },
                               { id: 'professional', label: 'Enterprise Pro' },
                               { id: 'compact', label: 'Ultra Compact' },
-                              { id: 'classic', label: 'Legacy System' }
+                              { id: 'classic', label: 'Legacy System' },
+                              { id: 'horizontal_header', label: 'Horizontal Header' },
+                              { id: 'centered_flow', label: 'Centered Flow' },
+                              { id: 'left_grid', label: 'Left-Aligned Grid' },
+                              { id: 'split_columns', label: 'Split Columns' },
+                              { id: 'floating_totals', label: 'Floating Totals' },
+                              { id: 'offset_logo', label: 'Offset Logo' },
+                              { id: 'boxed_sections', label: 'Boxed Sections' },
+                              { id: 'tear_off', label: 'Tear-Off Slip' },
+                              { id: 'vertical_line', label: 'Vertical Line Header' },
+                              { id: 'emphasized_total', label: 'Emphasized Total' }
                             ]}
                             value={formData.receiptTemplate}
                             onChange={(val) => {

@@ -15,6 +15,7 @@
 5. **🎨 UI TASKS (MANDATORY)**: Before touching ANY UI/UX code (styling, components, layouts, responsiveness, animations), YOU MUST READ [docs/UI_RULES.md](docs/UI_RULES.md) FIRST. Failure to do so is a violation of the Prime Directive.
 6. **📏 SIZING RULE (MANDATORY)**: For all new pages and components, Modals MUST use `maxWidth="lg"` or `"xl"` (never sm or md for forms) with a 2-column grid (`md:grid-cols-2`), and ALL buttons MUST include `.btn-md` by default unless specifically overriding.
 7. **📱 MOBILE MODAL RULE (MANDATORY)**: All Modals, Popups, and Drawers (including Cart) MUST be displayed in the center of the screen on mobile devices (`items-center justify-center`). NEVER use bottom sheets (`items-end` or `justify-end`) for modals.
+8. **STRICT DATABASE POLICY (NO PRISMA)**: Direct DB connections, Postgres connection strings (`DATABASE_URL`, `DIRECT_URL`), and Prisma ORM are completely banned. You must strictly use the Supabase Management API via HTTP/curl for all database schema and data control. Refer to [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) for the exact API specifications.
 
 ---
 

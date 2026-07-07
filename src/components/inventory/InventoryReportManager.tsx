@@ -3,7 +3,7 @@ import { getItemCOGS, getItemRevenue } from '../reports/ReportsManager';
 import {
   Package, AlertTriangle, XCircle, CheckCircle2, TrendingUp, TrendingDown,
   Search, Download, ArrowUpDown, Tag, DollarSign, BarChart3,
-  ChevronRight, ChevronDown, Calendar, Database, Clock
+  ChevronRight, ChevronDown, Calendar, Database, Clock, Wrench
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
@@ -11,6 +11,7 @@ import { formatAppDate } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { auditStockIntegrity } from '../../lib/services';
 import { localDb } from '../../lib/localDb';
+import { sonner } from '../../lib/sonner';
 
 type SortField = 'name' | 'stock' | 'stockValue' | 'profitMargin' | 'status' | 'soldQty' | 'revenue' | 'cogs' | 'grossProfit';
 type SortDir = 'asc' | 'desc';
@@ -45,6 +46,7 @@ export default function InventoryReportManager({
   const [integrityResults, setIntegrityResults] = useState<Array<{productId: string; name: string; type: 'batch_drift' | 'history_drift'; productStock: number; expectedStock: number; diff: number}>>([]);
   const [showIntegrity, setShowIntegrity] = useState(false);
   const [isCheckingIntegrity, setIsCheckingIntegrity] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
 
   const runIntegrityCheck = async () => {
     setIsCheckingIntegrity(true);
@@ -91,6 +93,28 @@ export default function InventoryReportManager({
 
     setIntegrityResults(results);
     setIsCheckingIntegrity(false);
+  };
+
+  const repairIntegrity = async () => {
+    setIsRepairing(true);
+    try {
+      const fixed: string[] = [];
+      for (const issue of integrityResults) {
+        const product = state.products.find(p => p.id === issue.productId);
+        if (!product) continue;
+
+        const correctStock = issue.expectedStock;
+        await localDb.products.update(issue.productId, { stock: correctStock });
+        dispatch({ type: 'UPDATE_PRODUCT', payload: { ...product, stock: correctStock } });
+        fixed.push(issue.name);
+      }
+      setIntegrityResults([]);
+      sonner.success(`Repaired ${fixed.length} product(s). Stock values corrected to match batch/history sums.`);
+    } catch (e) {
+      console.error('[RepairIntegrity] Error:', e);
+      sonner.error('Repair failed — see console.');
+    }
+    setIsRepairing(false);
   };
 
   const toggleRow = (id: string) => {
@@ -430,16 +454,26 @@ export default function InventoryReportManager({
               {t('integrity_clean', 'All checks passed — stock, batches, and history agree.')}
             </div>
           ) : (
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {integrityResults.map((r, i) => (
-                <div key={i} className="flex items-center gap-3 p-2 bg-rose-500/10 rounded-xl text-[10px] font-bold">
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                  <span className="text-gray-900 dark:text-white truncate">{r.name}</span>
-                  <span className="text-rose-500 shrink-0 ml-auto">
-                    {r.type === 'batch_drift' ? 'Batch' : 'History'}: stock={r.productStock}, expected={r.expectedStock}, diff={r.diff > 0 ? '+':''}{r.diff}
-                  </span>
-                </div>
-              ))}
+            <div>
+              <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
+                {integrityResults.map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2 bg-rose-500/10 rounded-xl text-[10px] font-bold">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <span className="text-gray-900 dark:text-white truncate">{r.name}</span>
+                    <span className="text-rose-500 shrink-0 ml-auto">
+                      {r.type === 'batch_drift' ? 'Batch' : 'History'}: stock={r.productStock}, expected={r.expectedStock}, diff={r.diff > 0 ? '+':''}{r.diff}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={repairIntegrity}
+                disabled={isRepairing}
+                className="btn btn-md btn-ghost w-full hover:scale-105"
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                {isRepairing ? 'Repairing...' : `Repair All (${integrityResults.length} issues)`}
+              </button>
             </div>
           )}
         </div>

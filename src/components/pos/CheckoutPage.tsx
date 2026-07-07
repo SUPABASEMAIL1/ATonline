@@ -12,6 +12,7 @@ import { formatCurrency } from '../../lib/currencies';
 import { Modal } from '../common/Modal';
 import { HelpTooltip } from '../common/HelpTooltip';
 import { cn } from '../../lib/utils';
+import { CompactItemRow } from './CompactItemRow';
 import { ShortcutsModal } from './ShortcutsModal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { usePOSKeyboard } from '../../hooks/usePOSKeyboard';
@@ -365,7 +366,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   }
 
   const headerActions = (
-    <div className="flex items-center gap-2 sm:gap-4">
+    <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
       <button
         onClick={() => setIsShortcutsModalOpen(true)}
         className="p-2 sm:p-3 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-400 rounded-2xl hover:bg-emerald-50 dark:hover:bg-primary/10 hover:text-primary transition-all active:scale-90 flex items-center gap-1.5"
@@ -378,10 +379,10 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
       <button
         onClick={handlePayment}
         disabled={!canProcessPayment() || isProcessing}
-        className="btn btn-md btn-primary md:hidden"
+        className="btn btn-md btn-primary md:hidden !px-3 !py-2 !text-[8px] max-w-[120px]"
       >
-        {isProcessing ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-        <span>{t("save_to_device", "SAVE")}</span>
+        {isProcessing ? <RefreshCw className="h-3 w-3 animate-spin shrink-0" /> : <Check className="h-3.5 w-3.5 shrink-0" />}
+        <span className="truncate">{t("save_to_device", "SAVE")}</span>
       </button>
 
       <div className="hidden sm:flex flex-col items-end">
@@ -416,19 +417,19 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
           </span>
         ))}
       </div>
-      <div className="flex w-full items-center gap-3">
+      <div className="flex w-full items-center gap-2 sm:gap-3">
         <button onClick={onClose} disabled={isProcessing}
-          className="px-6 sm:px-8 py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[10px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0">
+          className="px-4 sm:px-8 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0">
           {t("cancel", "Cancel")}
         </button>
         <button onClick={handlePayment} disabled={!canProcessPayment() || isProcessing}
-          className="btn btn-md btn-primary flex-1 disabled:grayscale active:scale-[0.98] touch-manipulation">
+          className="btn btn-md btn-primary flex-1 disabled:grayscale active:scale-[0.98] touch-manipulation !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]">
           {isProcessing ? (
-            <RefreshCw className="h-5 w-5 animate-spin" />
+            <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
           ) : (
             <>
-              <Check className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span>{t("process_payment", "Complete Payment")}</span>
+              <Check className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span>{t("process_payment", "Process Payment")}</span>
             </>
           )}
         </button>
@@ -766,48 +767,32 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
               const renderedBundlesHeader = bundles.length > 0 ? (
                 <div className="flex items-center gap-1.5 px-1 text-[8px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest mb-1">
                   <Gift className="h-3 w-3 text-violet-500 shrink-0" />
-                  <span>{t('combo_deals_sec', 'Bundle / Deal Items')}</span>
+                  <span>{t('combo_deals_sec', 'Bundle / Deal Items')} ({bundles.length})</span>
                 </div>
               ) : null;
 
               const renderedStandalonesHeader = bundles.length > 0 && standaloneItems.length > 0 ? (
                 <div className="flex items-center gap-1.5 px-1 pt-2 text-[8px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest border-t border-gray-100 dark:border-white/5 mt-2 mb-1">
                   <ShoppingBag className="h-3 w-3 text-gray-400 shrink-0" />
-                  <span>{t('standalone_items_sec', 'Other / Standalone Items')}</span>
+                  <span>{t('standalone_items_sec', 'Other / Standalone Items')} ({standaloneItems.length})</span>
                 </div>
               ) : null;
 
-              const renderedBundles = bundles.map((b) => (
-                <div key={`checkout-page-bundle-${b.bundleId}`} className="p-3 my-2 rounded-2xl border border-dashed border-violet-500/30 bg-violet-500/[0.01] space-y-2">
-                  <div className="flex items-center justify-between text-[9px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest px-1">
-                    <span>🎁 BUNDLE: {b.bundleName}</span>
+              const bundleThumb = (b: typeof bundles[number]) => b.items[0]?.product?.image || null;
+
+              const renderedBundles = bundles.map((b) => {
+                const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
+                return (
+                  <div key={`checkout-page-bundle-${b.bundleId}`} className="p-2 my-1.5 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/[0.01]">
+                    <CompactItemRow
+                      image={bundleThumb(b)}
+                      name={b.bundleName}
+                      price={formatCurrency(b.totalSubtotal, state.settings.currency)}
+                      discount={discountStr}
+                    />
                   </div>
-                  <div className="space-y-1.5 pl-2 border-l border-dotted border-violet-500/30">
-                    {b.items.map((item, iIdx) => {
-                      const isLast = iIdx === b.items.length - 1;
-                      const prefix = isLast ? '└── ' : '├── ';
-                      return (
-                        <div key={`bi-${iIdx}`} className="flex items-start gap-1">
-                          <span className="text-[9px] text-violet-400 font-mono mt-1 shrink-0">{prefix}</span>
-                          <div className="flex-1">{renderItemCard(item, iIdx, true)}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {showDiscount && b.totalDiscount > 0 && (
-                    <div className="flex justify-between items-center px-1.5 pt-1.5 border-t border-dashed border-violet-500/10 text-[9px] font-black text-rose-500 uppercase tracking-widest">
-                      <span>Deal Discount</span>
-                      <span>-{formatCurrency(b.totalDiscount, state.settings.currency)}</span>
-                    </div>
-                  )}
-                  {b.items.some(bi => bi.bundleHideItemPrices === true) && (
-                    <div className="flex justify-between items-center px-1.5 pt-1.5 border-t border-dashed border-violet-500/10 text-[9px] font-black text-violet-700 dark:text-violet-300 uppercase tracking-widest">
-                      <span>Deal Price</span>
-                      <span className="text-primary dark:text-emerald-400">{formatCurrency(b.totalSubtotal, state.settings.currency)}</span>
-                    </div>
-                  )}
-                </div>
-              ));
+                );
+              });
 
               const renderedStandalones = standaloneItems.map((item, iIdx) => renderItemCard(item, iIdx));
 

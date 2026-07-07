@@ -373,14 +373,14 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
           ) : (
             <div className={getGridClasses()}>
               {filteredProducts.map((product) => {
-                const cartItem = state.cart.find(item => item.product.id === product.id);
+                const cartItem = state.cart.find(item => !item.bundleId && !item.bundle_id && item.product.id === product.id);
                 return (
                   <ProductCard
                     key={product.id}
                     product={product}
                     onAddToCart={onAddToCart}
                     onUpdateQuantity={(p, d) => {
-                      const idx = state.cart.findIndex(item => item.product.id === p.id);
+                      const idx = state.cart.findIndex(item => !item.bundleId && !item.bundle_id && item.product.id === p.id);
                       if (idx >= 0) {
                         const item = state.cart[idx];
                         const newQty = item.quantity + d;
@@ -613,11 +613,11 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
 
       const itemsToDispatch = isReturnMode
         ? cartItems.map(item => ({
-            ...item,
-            quantity: -Math.abs(item.quantity),
-            discount: -Math.abs(item.discount),
-            subtotal: -Math.abs(item.subtotal),
-          }))
+          ...item,
+          quantity: -Math.abs(item.quantity),
+          discount: -Math.abs(item.discount),
+          subtotal: -Math.abs(item.subtotal),
+        }))
         : cartItems;
 
       console.log('[Bundle] Items to dispatch:', itemsToDispatch.length);
@@ -734,10 +734,24 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           }).filter(Boolean);
           const visibleProducts = bundleProducts.slice(0, 4);
 
+          // Check if bundle is in cart + compute quantity
+          let bundleQty = 0;
+          const bundleDef = state.bundles?.find((x: any) => x.id === bundle.id);
+          if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+            const firstBi = bundleDef.items[0];
+            const cartItem = state.cart.find((x: any) => (x.bundleId || x.bundle_id) === bundle.id && x.product.id === firstBi.productId);
+            if (cartItem) {
+              bundleQty = Math.round(cartItem.quantity / firstBi.quantity);
+            }
+          } else {
+            const anyBundleItem = state.cart.find((x: any) => (x.bundleId || x.bundle_id) === bundle.id);
+            if (anyBundleItem) bundleQty = 1;
+          }
+
           return (
             <div
               key={bundle.id}
-              className="group relative bg-white dark:bg-[#1C1C1C] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+              className={`group relative bg-white dark:bg-[#1C1C1C] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer ${bundleQty > 0 ? 'ring-2 ring-emerald-500 shadow-md shadow-emerald-500/10' : ''}`}
               style={{
                 minHeight: (typeof window !== 'undefined' && window.innerWidth >= 1024)
                   ? (gridCols === 0 || gridCols >= 4 ? (isTouchMode ? '120px' : '140px') :
@@ -810,6 +824,50 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
                 <div className="absolute top-1 right-1 flex items-center bg-violet-500/90 text-white p-1 rounded-lg text-[8px] font-black shadow-md z-10">
                   <Gift className="h-2.5 w-2.5" />
                 </div>
+
+                {/* Bundle Qty Stepper Overlay */}
+                {bundleQty > 0 && (
+                  <div className="absolute inset-x-0.5 bottom-0.5 flex items-center justify-between bg-white/95 dark:bg-black/95 rounded-lg p-0.5 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-300 z-20">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        let newCart = [...state.cart];
+                        if (bundleQty <= 1) {
+                          newCart = newCart.filter((x: any) => (x.bundleId || x.bundle_id) !== bundle.id);
+                        } else {
+                          const baseItems = bundlesService.getBundleCartItems(bundle, state.products);
+                          for (const baseItem of baseItems) {
+                            const idx = newCart.findIndex((x: any) => (x.bundleId || x.bundle_id) === bundle.id && x.product.id === baseItem.product.id);
+                            if (idx >= 0) {
+                              const cartItem = newCart[idx];
+                              const newQty = cartItem.quantity - baseItem.quantity;
+                              if (newQty <= 0) {
+                                newCart.splice(idx, 1);
+                              } else {
+                                const newDiscount = (cartItem.discount || 0) - (baseItem.discount || 0);
+                                newCart[idx] = { ...cartItem, quantity: newQty, discount: newDiscount, subtotal: cartItem.product.price * newQty - newDiscount };
+                              }
+                            }
+                          }
+                        }
+                        dispatch({ type: 'SET_CART', payload: newCart });
+                      }}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-gray-600 dark:text-gray-400"
+                    >
+                      <Minus className="h-2.5 w-2.5" />
+                    </button>
+                    <span className="font-black text-[9px] sm:text-xs text-gray-900 dark:text-white px-0.5">{bundleQty}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddBundle(bundle);
+                      }}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-primary"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* ───── Info Area (same layout as product card) ───── */}

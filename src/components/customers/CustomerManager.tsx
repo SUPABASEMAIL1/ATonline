@@ -5,7 +5,7 @@ import { Customer } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { CustomerModal } from './CustomerModal';
 import { CustomerDetailModal } from './CustomerDetailModal';
-import { formatAppDate, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone } from '../../lib/dateUtils';
+import { formatAppDate, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -26,47 +26,49 @@ export function CustomerManager() {
 
   // validStartDate/validEndDate MUST be computed before filteredCustomers uses them
   const { validStartDate, validEndDate } = useMemo(() => {
-    let endDate = new Date();
-    let startDate = subDays(endDate, 30);
+    const timezone = getTimezone(state.settings.country);
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date;
 
     if (dateFilter === 'custom') {
-      if (endDateInput) {
-        const [y, m, d] = endDateInput.split('-').map(Number);
-        endDate = new Date(y, m - 1, d, 23, 59, 59, 999);
-      }
-      if (startDateInput) {
-        const [y, m, d] = startDateInput.split('-').map(Number);
-        startDate = new Date(y, m - 1, d, 0, 0, 0, 0);
-      }
+      startDate = startDateInput
+        ? new Date(getStartOfInputDayInTimezone(startDateInput, timezone).getTime())
+        : new Date(getStartOfDayInTimezone(now, timezone).getTime());
+      endDate = endDateInput
+        ? new Date(getEndOfInputDayInTimezone(endDateInput, timezone).getTime())
+        : new Date(getEndOfDayInTimezone(now, timezone).getTime());
     } else if (dateFilter === 'today') {
-      startDate = startOfDay(new Date());
-      endDate = endOfDay(new Date());
+      startDate = getStartOfDayInTimezone(now, timezone);
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else if (dateFilter === 'yesterday') {
-      const yesterday = subDays(new Date(), 1);
-      startDate = startOfDay(yesterday);
-      endDate = endOfDay(yesterday);
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      startDate = getStartOfDayInTimezone(yesterday, timezone);
+      endDate = getEndOfDayInTimezone(yesterday, timezone);
     } else if (dateFilter === 'last7') {
-      startDate = startOfDay(subDays(new Date(), 6));
-      endDate = endOfDay(new Date());
+      const last7 = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+      startDate = getStartOfDayInTimezone(last7, timezone);
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else if (dateFilter === 'thisMonth') {
-      startDate = startOfMonth(new Date());
-      endDate = endOfDay(new Date());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate = getStartOfDayInTimezone(startOfMonth, timezone);
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else if (dateFilter === 'lastMonth') {
-      const prevMonth = subMonths(new Date(), 1);
-      startDate = startOfMonth(prevMonth);
-      endDate = endOfMonth(prevMonth);
+      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      startDate = getStartOfDayInTimezone(lm, timezone);
+      endDate = getEndOfDayInTimezone(lmEnd, timezone);
     } else if (dateFilter === 'all') {
-      startDate = new Date(2000, 0, 1);
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999);
+      startDate = new Date(Date.UTC(2000, 0, 1));
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else {
-      startDate = new Date(2000, 0, 1);
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999);
+      // Fallback
+      startDate = new Date(Date.UTC(2000, 0, 1));
+      endDate = getEndOfDayInTimezone(now, timezone);
     }
 
     return { validStartDate: startDate, validEndDate: endDate };
-  }, [dateFilter, startDateInput, endDateInput]);
+  }, [dateFilter, startDateInput, endDateInput, state.settings.country]);
 
   const filteredCustomers = useMemo(() => {
     const timezone = getTimezone(state.settings.country);

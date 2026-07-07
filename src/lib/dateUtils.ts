@@ -1,114 +1,81 @@
-import { getCountryByCode } from './countries';
+import { format } from 'date-fns';
 
-/**
- * Formats a date/time string according to the selected country's timezone
- * and enforces a 12-hour format (AM/PM).
- */
-export function formatInTimeZone(
-  date: Date | string | number,
-  options: Intl.DateTimeFormatOptions = {},
-  countryCode?: string
-): string {
-  if (!date) return '-';
+const DEFAULT_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const COUNTRY_CODE_TZ: Record<string, string> = {
+  PK: 'Asia/Karachi', AE: 'Asia/Dubai', SA: 'Asia/Riyadh',
+  QR: 'Asia/Qatar', KW: 'Asia/Kuwait', OM: 'Asia/Muscat',
+  BH: 'Asia/Bahrain', GB: 'Europe/London', US: 'America/New_York',
+  CA: 'America/Toronto', AU: 'Australia/Sydney', LK: 'Asia/Colombo',
+  BD: 'Asia/Dhaka', IN: 'Asia/Kolkata', AF: 'Asia/Kabul',
+  TR: 'Europe/Istanbul', MY: 'Asia/Kuala_Lumpur', SG: 'Asia/Singapore',
+  ID: 'Asia/Jakarta', PH: 'Asia/Manila', VN: 'Asia/Ho_Chi_Minh',
+  EG: 'Africa/Cairo', ZA: 'Africa/Johannesburg', NG: 'Africa/Lagos',
+};
+
+function safeTZ(timezone?: string): string {
+  if (!timezone) return DEFAULT_TZ;
+  if (timezone.length === 2) return COUNTRY_CODE_TZ[timezone] || DEFAULT_TZ;
   try {
-    const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
-    if (!(d instanceof Date) || isNaN(d.getTime())) return '-';
-
-    const country = countryCode ? getCountryByCode(countryCode) : undefined;
-    const timezone = country?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    return new Intl.DateTimeFormat('en-US', {
-      ...options,
-      timeZone: timezone,
-    }).format(d);
-  } catch (err) {
-    console.error('Error formatting date in timezone:', err);
-    return '-';
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+    return timezone;
+  } catch {
+    return DEFAULT_TZ;
   }
 }
 
-/**
- * Standard Date Format: MMM dd, yyyy
- * Example: Apr 07, 2026
- */
-export function formatAppDate(date: Date | string | number, countryCode?: string): string {
-  return formatInTimeZone(date, {
-    month: 'short',
-    day: '2-digit',
+export function getTimezone(countryName: string): string {
+  const timezones: Record<string, string> = {
+    'Pakistan': 'Asia/Karachi',
+    'United Arab Emirates': 'Asia/Dubai',
+    'Saudi Arabia': 'Asia/Riyadh',
+    'United Kingdom': 'Europe/London',
+    'United States': 'America/New_York',
+    'India': 'Asia/Kolkata',
+    'Australia': 'Australia/Sydney',
+    'Canada': 'America/Toronto',
+    'Singapore': 'Asia/Singapore',
+    'Malaysia': 'Asia/Kuala_Lumpur'
+  };
+  return timezones[countryName] || DEFAULT_TZ;
+}
+
+export function formatAppDate(date: Date | string, timezone?: string): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: safeTZ(timezone),
     year: 'numeric',
-  }, countryCode);
-}
-
-/**
- * Standard Time Format: hh:mm:ss AM/PM
- * Example: 03:45:10 PM
- */
-export function formatAppTime(date: Date | string | number, countryCode?: string, showSeconds = true): string {
-  return formatInTimeZone(date, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: showSeconds ? '2-digit' : undefined,
-    hour12: true,
-  }, countryCode);
-}
-
-/**
- * Standard Full Format: MMM dd, yyyy, hh:mm AM/PM
- * Example: Apr 07, 2026, 03:45 PM
- */
-export function formatAppDateTime(date: Date | string | number, countryCode?: string): string {
-  return formatInTimeZone(date, {
     month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
+    day: 'numeric'
+  }).format(d);
+}
+
+export function formatAppTime(date: Date | string, timezone?: string): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: safeTZ(timezone),
+    hour: 'numeric',
     minute: '2-digit',
-    hour12: true,
-  }, countryCode);
+    hour12: true
+  }).format(d);
 }
 
-/**
- * Short Date Format for tables/compact views
- */
-export function formatAppDateShort(date: Date | string | number, countryCode?: string): string {
-    return formatInTimeZone(date, {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-    }, countryCode);
+export function formatAppDateTime(date: Date | string, timezone?: string): string {
+  if (!date) return '';
+  return `${formatAppDate(date, timezone)} ${formatAppTime(date, timezone)}`;
 }
 
-/**
- * Chart Date Format: MM/dd
- */
-export function formatAppDateChart(date: Date | string | number, countryCode?: string): string {
-  return formatInTimeZone(date, {
-    month: '2-digit',
-    day: '2-digit',
-  }, countryCode);
+export function formatAppDateChart(date: Date | string, timezone?: string): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: timezone || 'UTC' });
 }
 
-/**
- * Get the configured country timezone string from a country code.
- * Falls back to system timezone if no country code or country not found.
- */
-export function getTimezone(countryCode?: string): string {
-  if (countryCode) {
-    const country = getCountryByCode(countryCode);
-    if (country?.timezone) return country.timezone;
-  }
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-/**
- * Returns the start of the given date's day (midnight 00:00:00.000) in the
- * target timezone, expressed as a UTC Date object suitable for comparison
- * against ISO UTC timestamps stored in the database.
- *
- * Example: if timezone is Asia/Karachi (UTC+5) and the current local time there
- * is 2026-06-29, this returns `new Date('2026-06-29T00:00:00.000Z')` — i.e. the
- * UTC epoch at which that day *starts* in Karachi.
- */
 export function getStartOfDayInTimezone(date: Date, timezone: string): Date {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -116,36 +83,78 @@ export function getStartOfDayInTimezone(date: Date, timezone: string): Date {
     month: '2-digit',
     day: '2-digit',
   });
-  const parts = formatter.formatToParts(date);
-  const year = parseInt(parts.find(p => p.type === 'year')!.value);
-  const month = parseInt(parts.find(p => p.type === 'month')!.value) - 1;
-  const day = parseInt(parts.find(p => p.type === 'day')!.value);
-  return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+
+  const [yearStr, monthStr, dayStr] = formatter.format(date).split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10) - 1;
+  const day = parseInt(dayStr, 10);
+
+  const guess = new Date(Date.UTC(year, month, day, 0, 0, 0));
+
+  const guessParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(guess);
+
+  let gYear = 0, gMonth = 0, gDay = 0, gHour = 0, gMinute = 0, gSecond = 0;
+  for (const part of guessParts) {
+    if (part.type === 'year') gYear = parseInt(part.value, 10);
+    if (part.type === 'month') gMonth = parseInt(part.value, 10) - 1;
+    if (part.type === 'day') gDay = parseInt(part.value, 10);
+    if (part.type === 'hour') gHour = parseInt(part.value, 10) % 24;
+    if (part.type === 'minute') gMinute = parseInt(part.value, 10);
+    if (part.type === 'second') gSecond = parseInt(part.value, 10);
+  }
+
+  const localWeGot = Date.UTC(gYear, gMonth, gDay, gHour, gMinute, gSecond);
+  const localWeWant = Date.UTC(year, month, day, 0, 0, 0);
+  const diffMs = localWeGot - localWeWant;
+
+  return new Date(guess.getTime() - diffMs);
 }
 
-/**
- * Returns the end of the given date's day (23:59:59.999) in the target
- * timezone, expressed as a UTC Date object.
- */
 export function getEndOfDayInTimezone(date: Date, timezone: string): Date {
   const start = getStartOfDayInTimezone(date, timezone);
   return new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
 }
 
-/**
- * Returns the very end of a given Day.js-style string date (YYYY-MM-DD parsed
- * as local date input) at 23:59:59.999 in the configured timezone as a UTC Date.
- */
-export function getEndOfInputDayInTimezone(dateStr: string, timezone: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
-}
-
-/**
- * Returns midnight (00:00:00.000) of a given date string (YYYY-MM-DD parsed as
- * local date input) in the configured timezone as a UTC Date.
- */
 export function getStartOfInputDayInTimezone(dateStr: string, timezone: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  const guess = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+
+  const guessParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(guess);
+
+  let gYear = 0, gMonth = 0, gDay = 0, gHour = 0, gMinute = 0, gSecond = 0;
+  for (const part of guessParts) {
+    if (part.type === 'year') gYear = parseInt(part.value, 10);
+    if (part.type === 'month') gMonth = parseInt(part.value, 10) - 1;
+    if (part.type === 'day') gDay = parseInt(part.value, 10);
+    if (part.type === 'hour') gHour = parseInt(part.value, 10) % 24;
+    if (part.type === 'minute') gMinute = parseInt(part.value, 10);
+    if (part.type === 'second') gSecond = parseInt(part.value, 10);
+  }
+
+  const localWeGot = Date.UTC(gYear, gMonth, gDay, gHour, gMinute, gSecond);
+  const localWeWant = Date.UTC(y, m - 1, d, 0, 0, 0);
+  const diffMs = localWeGot - localWeWant;
+
+  return new Date(guess.getTime() - diffMs);
+}
+
+export function getEndOfInputDayInTimezone(dateStr: string, timezone: string): Date {
+  const start = getStartOfInputDayInTimezone(dateStr, timezone);
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+
+export function formatInTimeZone(date: Date | string, tz: string, format: string): string {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  try { return d.toLocaleDateString("en-GB", { timeZone: tz }); } catch { return d.toLocaleDateString(); }
 }

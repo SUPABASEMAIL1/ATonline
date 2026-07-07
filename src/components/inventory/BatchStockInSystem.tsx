@@ -217,61 +217,28 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
 
           dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
         }
-      }
 
-      const supplierTotals: Record<string, { total: number, supplierId?: string, items: string[] }> = {};
-
-      selectedItems.forEach(item => {
-        const sName = item.batchSupplier || item.supplier || 'DIRECT ENTRY';
-        if (!supplierTotals[sName]) supplierTotals[sName] = { total: 0, items: [] };
-        supplierTotals[sName].total += (Number(item.quantity) * Number(item.costPrice));
-        supplierTotals[sName].items.push(item.name);
-      });
-
-      for (const [sName, data] of Object.entries(supplierTotals)) {
-        const supplier = state.suppliers.find(s => s.name === sName);
-        if (supplier) {
-          const txId = generateId();
-          const stx = {
-            id: txId,
-            supplier_id: supplier.id,
-            amount: data.total,
-            type: 'purchase',
-            reference_type: 'batch_stock_in',
-            note: batchData.notes || `Stock In: ${data.items.slice(0, 3).join(', ')}${data.items.length > 3 ? '...' : ''}`,
-            created_at: timestamp.toISOString()
-          };
-          await localDb.supplierTransactions.put(stx as any);
-          queueOp('supplier_transactions', 'create', txId, toRemoteSupplierTransaction(stx));
-
-          const isMainSupplier = Object.keys(supplierTotals).length === 1 || Object.keys(supplierTotals)[0] === sName;
-
-          if (isMainSupplier && batchData.paidAmount > 0) {
-            await suppliersService.recordPayment({
-              supplier_id: supplier.id,
-              amount: batchData.paidAmount,
-              payment_type: batchData.paymentMethod,
-              note: `Payment for Invoice on ${batchData.date}`
-            });
-
-            const expId = generateId();
-            const expense = {
-              id: expId,
-              date: timestamp,
-              description: `Supplier Payout: ${supplier.name}`,
-              amount: batchData.paidAmount,
-              category: 'Supplies',
-              paymentMethod: batchData.paymentMethod,
-              notes: `Auto-generated from Stock Entry on ${batchData.date}`,
-              addedBy: state.currentUser?.name,
-              createdAt: now
-            };
-            await localDb.expenses.put(expense);
-            queueOp('expenses', 'create', expId, toRemoteExpense(expense));
-            dispatch({ type: 'ADD_EXPENSE', payload: expense as any });
+        // Record supplier ledger transaction if a supplier is associated
+        const supplierName = item.batchSupplier || item.supplier;
+        if (supplierName && supplierName !== 'DIRECT ENTRY') {
+          const matchedSupplier = state.suppliers.find(
+            s => s.name.toLowerCase() === supplierName.toLowerCase()
+          );
+          if (matchedSupplier) {
+            try {
+              await suppliersService.recordBill({
+                supplierId: matchedSupplier.id,
+                amount: qty * cost,
+                note: `Stock In: ${item.name} x${qty}`,
+                referenceId: recordId,
+              });
+            } catch (ledgerErr) {
+              console.warn('[BatchStockIn] Failed to record supplier ledger entry:', ledgerErr);
+            }
           }
         }
       }
+
 
       sonner.success('Batch stock-in completed successfully.');
       setSelectedItems([]);
@@ -298,22 +265,22 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
         </div>
       </div>
 
-      <div className="flex items-center gap-3 ml-auto">
+      <div className="flex items-center justify-end gap-2 sm:gap-3 flex-1">
         <button
           onClick={onClose}
-          className="px-6 py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[11px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95 shrink-0"
+          className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
         >
           {t('abort_inflow')}
         </button>
         <button
           onClick={handleCommit}
           disabled={selectedItems.length === 0 || isCommitting}
-          className="btn btn-md btn-primary w-full sm:w-auto sm:min-w-[280px]"
+          className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[280px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
         >
           {isCommitting ? (
-            <RefreshCw className="h-5 w-5 animate-spin" />
+            <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
           ) : (
-            <Save className="h-5 w-5" />
+            <Save className="h-4 w-4 sm:h-5 sm:w-5" />
           )}
           <span>{t('commit_inventory')}</span>
         </button>

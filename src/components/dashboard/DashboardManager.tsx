@@ -138,12 +138,12 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
   const loading = false; // Placeholder
 
   return (
-    <div className="main-content-scroll p-2.5 sm:p-6 bg-gray-50/50 dark:bg-app space-y-4 sm:space-y-8">
+    <div className="main-content-scroll p-2.5 sm:p-6 bg-gray-50/50 dark:bg-app flex flex-col gap-4 sm:gap-8">
       {/* --- PREMIUM HERO SECTION --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 items-stretch animate-in fade-in slide-in-from-top-4 duration-1000">
+      <div className="order-2 lg:order-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 items-stretch animate-in fade-in slide-in-from-top-4 duration-1000">
 
         {/* Left: Identity & Greeting */}
-        <div className="lg:col-span-2 flex flex-col justify-between p-6 sm:p-10 bg-gradient-to-br from-indigo-950 via-[#0A0A0A] to-black rounded-[3rem] border border-indigo-500/20 shadow-2xl relative overflow-hidden group">
+        <div className="lg:col-span-2 order-2 lg:order-1 flex flex-col justify-between p-6 sm:p-10 bg-gradient-to-br from-indigo-950 via-[#0A0A0A] to-black rounded-[3rem] border border-indigo-500/20 shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none group-hover:scale-110 transition-transform duration-1000">
             <TrendingUp className="w-64 h-64 -mr-16 -mt-16 text-indigo-500" />
           </div>
@@ -187,7 +187,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
         </div>
 
         {/* Right: The Magical Watch (Analytic Hub) */}
-        <div className="bg-gradient-to-b from-indigo-950 to-black rounded-[3rem] p-6 border border-indigo-500/20 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center min-h-[320px] group">
+        <div className="order-1 lg:order-2 bg-gradient-to-b from-indigo-950 to-black rounded-[3rem] p-6 border border-indigo-500/20 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center min-h-[320px] group">
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-indigo-500/5 rounded-full" />
           </div>
@@ -208,7 +208,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="bg-gray-100 dark:bg-white/[0.03] rounded-2xl animate-pulse aspect-square" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+        <div className="order-1 lg:order-2 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500">
           {/* 1. Collections */}
           <div
             className="stat-card bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-800 group cursor-pointer !min-h-[100px] sm:!min-h-[120px]"
@@ -314,7 +314,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
 
       {/* --- BUSINESS PULSE & LIVE FEED (THE ANALYTICS) --- */}
       {!loading && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 animate-in slide-in-from-bottom-6 duration-1000 delay-500">
+        <div className="order-3 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 animate-in slide-in-from-bottom-6 duration-1000 delay-300">
 
           {/* Live Business Pulse Chart */}
           <div className="lg:col-span-2 bg-white dark:bg-[#080808] rounded-[3rem] p-6 sm:p-10 border border-primary/10 dark:border-white/5 shadow-2xl relative overflow-hidden group min-h-[350px]">
@@ -426,6 +426,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -132,10 +132,10 @@ export function CameraScanner({
           Html5QrcodeSupportedFormats.PDF_417,
         ];
 
-        const targetFormats = scanMode === 'fast' 
-          ? fastFormats 
-          : scanMode === 'industrial' 
-            ? industrialFormats 
+        const targetFormats = scanMode === 'fast'
+          ? fastFormats
+          : scanMode === 'industrial'
+            ? industrialFormats
             : allSupportedFormats;
 
         const html5QrCode = new Html5Qrcode(CONTAINER_ID, {
@@ -274,9 +274,9 @@ export function CameraScanner({
       {/* Scan Mode Switcher */}
       <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5">
         {(['fast', 'industrial', 'all'] as const).map((mode) => (
-          <button 
-            key={mode} 
-            onClick={() => setScanMode(mode)} 
+          <button
+            key={mode}
+            onClick={() => setScanMode(mode)}
             className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${scanMode === mode ? 'bg-primary text-white shadow-lg shadow-emerald-500/20 scale-[1.02]' : 'text-gray-600 hover:text-white'}`}
           >
             {mode === 'fast' ? '⚡ Fast' : mode === 'industrial' ? '📦 Industrial' : '🌍 All World'}
@@ -287,27 +287,27 @@ export function CameraScanner({
       {/* Hardware Controls */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2.5">
-          <button 
-            onClick={handleRetry} 
+          <button
+            onClick={handleRetry}
             className="p-3.5 bg-white/5 hover:bg-white/10 rounded-2xl transition-all active:scale-90 border border-white/5"
             title="Refresh Engine"
           >
             <RefreshCw className={`w-5 h-5 text-gray-600 ${isInitializing ? 'animate-spin' : ''}`} />
           </button>
-          
+
           {availableCameras.length > 1 && (
-            <button 
-              onClick={switchCamera} 
+            <button
+              onClick={switchCamera}
               className="p-3.5 bg-white/5 hover:bg-white/10 rounded-2xl transition-all active:scale-90 border border-white/5 flex items-center gap-2"
             >
               <Smartphone className="w-5 h-5 text-gray-600" />
               <span className="text-[9px] font-black text-gray-600 uppercase tracking-tighter">{currentCameraIndex + 1}/{availableCameras.length}</span>
             </button>
           )}
-          
+
           {hasTorch && (
-            <button 
-              onClick={toggleTorch} 
+            <button
+              onClick={toggleTorch}
               className={`p-3.5 rounded-2xl transition-all active:scale-90 border ${isTorchOn ? 'bg-amber-500 border-amber-600 text-white shadow-lg shadow-amber-500/20' : 'bg-white/5 border-white/5 text-gray-600'}`}
             >
               {isTorchOn ? <ZapOff className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
@@ -315,8 +315,8 @@ export function CameraScanner({
           )}
         </div>
 
-        <button 
-          onClick={() => setContinuousMode(!continuousMode)} 
+        <button
+          onClick={() => setContinuousMode(!continuousMode)}
           className={`px-5 py-3.5 rounded-2xl flex items-center gap-3 transition-all active:scale-95 border ${continuousMode ? 'bg-primary/10 border-primary/30 ring-1 ring-emerald-500/20' : 'bg-white/5 border-white/5'}`}
         >
           <div className={`w-2.5 h-2.5 rounded-full ${continuousMode ? 'bg-primary animate-pulse shadow-[0_0_10px_rgba(16,185,129,1)]' : 'bg-gray-600'}`} />
@@ -334,7 +334,7 @@ export function CameraScanner({
       onClose={onClose}
       title={title}
       maxWidth="sm"
-      
+
       footer={footer}
     >
       <style>{`
@@ -342,7 +342,7 @@ export function CameraScanner({
         #${CONTAINER_ID} video { object-fit: cover !important; width: 100% !important; height: 100% !important; min-height: 380px !important; }
         #${CONTAINER_ID} { overflow: hidden !important; border-radius: 1.5rem !important; min-height: 380px !important; }
       `}</style>
-      
+
       <div className="relative bg-[#000] overflow-hidden flex-1 min-h-[380px] sm:min-h-[420px] flex items-center justify-center rounded-[2rem]">
         {isInitializing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20 bg-[#000]">
@@ -350,7 +350,7 @@ export function CameraScanner({
             <p className="text-[10px] font-black text-primary uppercase tracking-widest animate-pulse">Initializing Engine...</p>
           </div>
         )}
-        
+
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 gap-6 z-20 bg-[#000]">
             <div className="w-16 h-16 bg-rose-500/10 rounded-3xl flex items-center justify-center">
@@ -360,8 +360,8 @@ export function CameraScanner({
               <p className="text-white font-black text-sm uppercase tracking-tight">Access Restricted</p>
               <p className="text-gray-600 text-[10px] font-bold uppercase leading-relaxed max-w-[200px] mx-auto">{error}</p>
             </div>
-            <button 
-              onClick={handleRetry} 
+            <button
+              onClick={handleRetry}
               className="btn btn-md btn-primary"
             >
               Restart Engine
@@ -370,7 +370,7 @@ export function CameraScanner({
         )}
 
         <div id={CONTAINER_ID} ref={containerRef} className="w-full h-full absolute inset-0 z-0" style={{ visibility: (isInitializing || error) ? 'hidden' : 'visible' }} />
-        
+
         {!isInitializing && !error && (
           <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
             <div className="relative" style={{ width: isMobile ? '90%' : '300px', height: isMobile ? '140px' : '180px', maxWidth: '340px' }}>

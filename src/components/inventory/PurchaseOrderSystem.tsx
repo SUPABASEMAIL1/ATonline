@@ -151,6 +151,27 @@ export function PurchaseOrderSystem() {
 
         dispatch({ type: 'ADD_PURCHASE_RECORD', payload: newRecord });
 
+        // Record supplier ledger transaction if a supplier is associated
+        const supplierName = item.supplier;
+        if (supplierName && supplierName !== 'PO TRANSIT' && supplierName !== 'DIRECT ENTRY') {
+          const matchedSupplier = state.suppliers.find(
+            s => s.name.toLowerCase() === supplierName.toLowerCase()
+          );
+          if (matchedSupplier) {
+            try {
+              const { suppliersService } = await import('../../lib/services');
+              await suppliersService.recordBill({
+                supplierId: matchedSupplier.id,
+                amount: qty * cost,
+                note: `PO Stock In: ${item.name} x${qty}`,
+                referenceId: newRecord.id,
+              });
+            } catch (ledgerErr) {
+              console.warn('[PO] Failed to record supplier ledger entry:', ledgerErr);
+            }
+          }
+        }
+
         // Read fresh product from localDb so we get the updated stock from within the service
         const { localDb: ldb } = await import('../../lib/localDb');
         const freshProduct = await ldb.products.get(item.id);

@@ -14,6 +14,14 @@ import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 
+if (typeof window !== 'undefined') {
+  console.warn(
+    '[SECURITY] UserModal imports adminSupabase (service_role key) in client bundle. ' +
+    'This is required for auth user creation but exposes the key in browser JS. ' +
+    'For production, move adminSupabase.auth.admin calls to a server/edge function.'
+  );
+}
+
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -105,7 +113,8 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
 
         if (formData.password && formData.password.length >= 6) {
           try {
-            if (!adminSupabase) throw new Error('Admin client not initialized');
+            if (state.currentUser?.role !== 'admin') throw new Error('Only admins can update user passwords');
+            if (!adminSupabase) throw new Error('Admin client not initialized (missing service key)');
             const { error: authError } = await adminSupabase.auth.admin.updateUserById(user.id, {
               password: formData.password
             });
@@ -165,6 +174,9 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           return;
         }
 
+        if (state.currentUser?.role !== 'admin') {
+          throw new Error('Permission denied — only admins can create users');
+        }
         if (!adminSupabase) {
           throw new Error('Permission denied — admin access required (missing service key)');
         }
@@ -288,11 +300,11 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
   };
 
   const footer = (
-    <div className="flex items-center justify-end gap-3 sm:gap-6">
+    <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
       <button
         type="button"
         onClick={onClose}
-        className="px-6 py-3 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95 shrink-0"
+        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
       >
         {t('discard_upper', 'DISCARD')}
       </button>
@@ -300,9 +312,9 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
         type="button"
         onClick={handleSubmit}
         disabled={loading}
-        className="btn btn-md btn-primary w-full sm:w-auto sm:min-w-[240px] flex-1"
+        className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
       >
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+        {loading ? <Loader2 className="w-4 h-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <Save className="w-4 h-4 sm:h-5 sm:w-5 shrink-0" />}
         <span className="leading-none ml-2">
           {user ? t('commit_changes', 'COMMIT CHANGES') : t('register_operator', 'REGISTER OPERATOR')}
         </span>

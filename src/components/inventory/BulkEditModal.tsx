@@ -118,11 +118,11 @@ export function BulkEditModal({ isOpen, onClose, selectedIds, categories, suppli
         subtitle={t('executing_bulk_protocols').replace('{count}', selectedIds.length.toString())}
         maxWidth="lg"
         footer={
-          <div>
+          <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 sm:px-8 py-3 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95 shrink-0"
+              className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
             >
               {t('abort_protocol')}
             </button>
@@ -130,9 +130,9 @@ export function BulkEditModal({ isOpen, onClose, selectedIds, categories, suppli
               type="button"
               onClick={handleApply}
               disabled={isUpdating}
-              className="btn btn-md btn-primary w-full sm:w-auto sm:min-w-[240px] flex-1 group"
+              className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
             >
-              {isUpdating ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
+              {isUpdating ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
               <span>{isUpdating ? t('executing') : t('commit_protocols')}</span>
             </button>
           </div>

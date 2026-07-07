@@ -336,10 +336,42 @@ async function executeOp(op: PendingOp): Promise<void> {
             }
             // Standard CRUD Fallback
             else if (opType === 'upsert' || opType === 'create') {
+                // Basic conflict resolution: skip if remote has newer updated_at
+                const conflictEntities = ['products', 'customers', 'suppliers', 'app_settings'];
+                if (conflictEntities.includes(op.entity) && (opType === 'upsert' || opType === 'update')) {
+                    const { data: remote } = await supabase
+                        .from(table as any)
+                        .select('updated_at')
+                        .eq('id', entityId)
+                        .maybeSingle();
+                    if (remote?.updated_at) {
+                        const localUpdatedAt = payload.updated_at || payload.updatedAt;
+                        if (localUpdatedAt && new Date(localUpdatedAt).getTime() < new Date(remote.updated_at).getTime()) {
+                            console.log(`[SyncEngine] Conflict: remote ${op.entity}/${entityId} is newer. Skipping local update.`);
+                            return; // Remote is newer, skip
+                        }
+                    }
+                }
                 const result = await supabase.from(table as any).upsert(payload, { onConflict: 'id' });
                 error = result.error;
             } else if (opType === 'update') {
                 // Use upsert even for updates to ensure the record exists (self-healing for lost CREATE ops)
+                // Basic conflict resolution: skip if remote has newer updated_at
+                const conflictEntities = ['products', 'customers', 'suppliers', 'app_settings'];
+                if (conflictEntities.includes(op.entity)) {
+                    const { data: remote } = await supabase
+                        .from(table as any)
+                        .select('updated_at')
+                        .eq('id', entityId)
+                        .maybeSingle();
+                    if (remote?.updated_at) {
+                        const localUpdatedAt = payload.updated_at || payload.updatedAt;
+                        if (localUpdatedAt && new Date(localUpdatedAt).getTime() < new Date(remote.updated_at).getTime()) {
+                            console.log(`[SyncEngine] Conflict: remote ${op.entity}/${entityId} is newer. Skipping local update.`);
+                            return; // Remote is newer, skip
+                        }
+                    }
+                }
                 const result = await supabase.from(table as any).upsert({ ...payload, id: entityId }, { onConflict: 'id' });
                 error = result.error;
             } else if (opType === 'delete') {
@@ -666,6 +698,13 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
             clearTimeout(_offlineTimer);
             _offlineTimer = null;
         }
+        // Confirm queue is truly empty before logging completion
+        const remainingAfterSync = await localDb.pendingOps.count();
+        if (remainingAfterSync === 0) {
+            console.log('✅ Full Sync Complete.');
+        } else {
+            console.log(`📋 Sync cycle finished (${remainingAfterSync} pending ops remain).`);
+        }
         await updateSyncTime();
         // Supabase is reachable (sync succeeded) — re-enable full auth init
         enableFullAuthInit();
@@ -706,8 +745,55 @@ async function autoRecoverErrors() {
     }
 }
 
+/**
+ * Removes pending ops older than 7 days and enforces a hard size cap.
+ */
+async function pruneStaleOps() {
+    const sevenDays = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const stale = await localDb.pendingOps.where('createdAt').below(sevenDays).delete();
+    if (stale > 0) {
+        console.log(`[POS SYNC] Pruned ${stale} stale pending ops (older than 7 days).`);
+        window.dispatchEvent(new Event('pendingops-changed'));
+    }
+    const count = await localDb.pendingOps.count();
+    if (count > 800) {
+        // If still over 800, remove oldest until under 500
+        const excess = count - 500;
+        const oldest = await localDb.pendingOps.orderBy('createdAt').limit(excess).toArray();
+        const idsToDelete = oldest.map(o => o.id).filter(Boolean) as number[];
+        if (idsToDelete.length > 0) {
+            await localDb.pendingOps.bulkDelete(idsToDelete);
+            console.log(`[POS SYNC] Hard-capped queue from ${count} to ${count - idsToDelete.length} items.`);
+            window.dispatchEvent(new Event('pendingops-changed'));
+        }
+    }
+}
+
+async function pruneOldStockHistory() {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const all = await localDb.stockHistory.toArray();
+    const old = all.filter(h => h.createdAt && new Date(h.createdAt).getTime() < ninetyDaysAgo.getTime());
+    if (old.length > 0) {
+        await localDb.stockHistory.bulkDelete(old.map(h => h.id));
+        console.log(`[POS MAINT] Pruned ${old.length} stock history entries older than 90 days.`);
+    }
+    const remaining = await localDb.stockHistory.count();
+    if (remaining > 10000) {
+        const sorted = all
+            .filter(h => !old.find(o => o.id === h.id))
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        const excess = sorted.slice(0, Math.min(sorted.length - 5000, sorted.length));
+        if (excess.length > 0) {
+            await localDb.stockHistory.bulkDelete(excess.map(h => h.id));
+            console.log(`[POS MAINT] Hard-capped stock history to 5000 items (removed ${excess.length}).`);
+        }
+    }
+}
+
 export function startSyncEngine() {
     clearBlacklist();
+    pruneStaleOps();
+    pruneOldStockHistory();
     syncToCloud().catch(() => { });
 
     window.addEventListener('online', () => {
@@ -732,6 +818,8 @@ export function startSyncEngine() {
     setInterval(() => {
         if (navigator.onLine) {
             autoRecoverErrors();
+            pruneStaleOps();
+            pruneOldStockHistory();
         }
     }, 10 * 60 * 1000);
 

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useApp } from '../../context/SupabaseAppContext';
-import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone } from '../../lib/dateUtils';
+import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
 import { expensesService } from '../../lib/services';
 import { Expense, EXPENSE_CATEGORIES } from '../../types';
 import { ExpenseModal } from './ExpenseModal';
@@ -63,50 +63,55 @@ export function ExpenseManager() {
   };
 
   const { validStartDate, validEndDate } = useMemo(() => {
-    let endDate = new Date();
-    let startDate = subDays(endDate, parseInt(dateRange) || 1);
+    const timezone = getTimezone(state.settings.country);
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date;
 
     if (dateRange === 'custom') {
-      if (endDateInput) {
-        const [y, m, d] = endDateInput.split('-').map(Number);
-        endDate = new Date(y, m - 1, d, 23, 59, 59, 999);
-      }
-      if (startDateInput) {
-        const [y, m, d] = startDateInput.split('-').map(Number);
-        startDate = new Date(y, m - 1, d, 0, 0, 0, 0);
-      }
+      startDate = startDateInput
+        ? new Date(getStartOfInputDayInTimezone(startDateInput, timezone).getTime())
+        : new Date(getStartOfDayInTimezone(now, timezone).getTime());
+      endDate = endDateInput
+        ? new Date(getEndOfInputDayInTimezone(endDateInput, timezone).getTime())
+        : new Date(getEndOfDayInTimezone(now, timezone).getTime());
     } else if (dateRange === 'today') {
-      startDate = startOfDay(new Date());
-      endDate = endOfDay(new Date());
+      startDate = getStartOfDayInTimezone(now, timezone);
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else if (dateRange === 'yesterday') {
-      const yesterday = subDays(new Date(), 1);
-      startDate = startOfDay(yesterday);
-      endDate = endOfDay(yesterday);
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      startDate = getStartOfDayInTimezone(yesterday, timezone);
+      endDate = getEndOfDayInTimezone(yesterday, timezone);
     } else if (dateRange === 'last7') {
-      startDate = startOfDay(subDays(new Date(), 6));
-      endDate = endOfDay(new Date());
+      const last7 = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+      startDate = getStartOfDayInTimezone(last7, timezone);
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else if (dateRange === 'thisMonth') {
-      startDate = startOfMonth(new Date());
-      endDate = endOfDay(new Date());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate = getStartOfDayInTimezone(startOfMonth, timezone);
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else if (dateRange === 'lastMonth') {
-      const prevMonth = subMonths(new Date(), 1);
-      startDate = startOfMonth(prevMonth);
-      endDate = endOfMonth(prevMonth);
+      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      startDate = getStartOfDayInTimezone(lm, timezone);
+      endDate = getEndOfDayInTimezone(lmEnd, timezone);
     } else if (dateRange === 'all') {
-      startDate = new Date(2000, 0, 1);
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999);
+      startDate = new Date(Date.UTC(2000, 0, 1));
+      endDate = getEndOfDayInTimezone(now, timezone);
     } else {
-      startDate = startOfDay(new Date());
-      endDate = endOfDay(new Date());
+      // Fallback
+      startDate = getStartOfDayInTimezone(now, timezone);
+      endDate = getEndOfDayInTimezone(now, timezone);
     }
 
     return { validStartDate: startDate, validEndDate: endDate };
-  }, [dateRange, startDateInput, endDateInput]);
+  }, [dateRange, startDateInput, endDateInput, state.settings.country]);
 
   const cashiersList = useMemo(() => {
-    return ['all', ...Array.from(new Set(state.expenses.map(e => e.addedBy).filter(Boolean)))];
-  }, [state.expenses]);
+    const userNames = state.users.map(u => u.name).filter(Boolean);
+    const expenseUsers = state.expenses.map(e => e.addedBy).filter(Boolean);
+    return ['all', ...Array.from(new Set([...userNames, ...expenseUsers]))];
+  }, [state.expenses, state.users]);
 
   const filteredExpenses = useMemo(() => {
     const timezone = getTimezone(state.settings.country);

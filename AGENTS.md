@@ -40,6 +40,7 @@
 10. **Fulfill the Request**: Modify, refactor, or create exactly what the user asks without hesitation.
 11. **Design Parity**: Maintain "Expert Density" aesthetic and established design patterns.
 12. **Direct Action**: Find the relevant files and implement the fix directly.
+13. **Strict Database Policy (NO PRISMA)**: Direct DB connections, Postgres connection strings (`DATABASE_URL`, `DIRECT_URL`), and Prisma ORM are completely banned. You must strictly use the Supabase Management API via HTTP/curl for all database schema and data control. Refer to [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) for the exact API specifications.
 
 ---
 

@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import {
   Trash2, Plus, Minus, User, FileText, ShoppingCart, X,
-  UserPlus, Eraser, AlertCircle, Gift, MessageCircle, Edit2, Eye
+  UserPlus, Eraser, AlertCircle, Gift, MessageCircle, Edit2, Eye, Info,
+  Package
 } from 'lucide-react';
 import { CustomerDetailModal } from '../customers/CustomerDetailModal';
 import { customersService, bundlesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
-import { CartItem, Customer } from '../../types';
+import { localDb } from '../../lib/localDb';
+import { Bundle, CartItem, Customer } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, getCurrencySymbol } from '../../lib/currencies';
+import { getDealCountBreakdown } from '../../lib/utils';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { Modal } from '../common/Modal';
 import { HelpTooltip } from '../common/HelpTooltip';
@@ -69,37 +72,37 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
     });
   };
 
-  const updateBundleQuantity = (bundleId: string, newBundleQty: number) => {
+  const updateBundleQuantity = async (bundleId: string, newBundleQty: number) => {
     if (newBundleQty === 0) {
       const newCart = state.cart.filter(x => (x.bundleId || x.bundle_id) !== bundleId);
       dispatch({ type: 'SET_CART', payload: newCart });
       return;
     }
 
-    const bundleDef = state.bundles?.find(b => b.id === bundleId);
+    let bundleDef = state.bundles?.find(b => b.id === bundleId);
     if (!bundleDef) {
-      // Fallback: If bundle definition is not in state.bundles, calculate base multiplier from cart items
-      const bundleCartItems = state.cart.filter(x => (x.bundleId || x.bundle_id) === bundleId);
-      if (bundleCartItems.length === 0) return;
-      
-      const firstBi = bundleCartItems[0];
-      const oldBundleQty = Math.max(1, firstBi.quantity);
-      const ratio = newBundleQty / oldBundleQty;
-
-      const newCart = state.cart.map(item => {
-        if ((item.bundleId || item.bundle_id) === bundleId) {
-          const qty = Math.round(item.quantity * ratio);
-          const discount = (item.discount || 0) * ratio;
-          return {
-            ...item,
-            quantity: qty,
-            discount: discount,
-            subtotal: item.product.price * qty - discount
-          };
-        }
-        return item;
-      });
-      dispatch({ type: 'SET_CART', payload: newCart });
+      const localBundle = await localDb.bundles.get(bundleId);
+      if (localBundle) {
+        const bundleItems = await localDb.bundleItems.where('bundleId').equals(bundleId).toArray();
+        bundleDef = {
+          ...localBundle,
+          workspaceId: localBundle.workspaceId || '',
+          discountValue: Number(localBundle.discountValue) || 0,
+          discountType: localBundle.discountType || 'percentage',
+          active: localBundle.active !== false,
+          hideItemPrices: localBundle.hideItemPrices === true,
+          items: bundleItems.map((bi: any) => ({
+            id: bi.id,
+            bundleId: bi.bundleId,
+            productId: bi.productId,
+            quantity: Number(bi.quantity) || 1,
+          })),
+        } as Bundle;
+      }
+    }
+    if (!bundleDef) {
+      console.warn(`[Cart] Cannot update bundle ${bundleId}: definition not found in state or localDb.`);
+      sonner.error('Bundle definition not found. Try refreshing.');
       return;
     }
 
@@ -197,6 +200,9 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
   const { subtotal, totalDiscount, taxAmount, total, activePromotions, freeGifts, billDiscountAmount, isBelowCost, manualItemDiscountTotal } =
     useCartCalculations();
 
+  const cartItems = state.cart;
+  const { totalPcs, dealsCount, standaloneCount, label: dealLabel } = getDealCountBreakdown(cartItems, state.bundles);
+
   useEffect(() => {
     setBillDiscountInput(state.billDiscountValue > 0 ? String(state.billDiscountValue) : '');
   }, [state.billDiscountValue, state.activeSalesTab]);
@@ -217,16 +223,14 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
       {/* ══ HEADER ══ */}
       <div className="shrink-0 pl-4 pr-5 pt-3 pb-2 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-surface z-30 shadow-sm shadow-gray-200/50 dark:shadow-none">
         {/* Title row */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <h2 className={`font-black text-gray-900 dark:text-white flex items-center ${isTouchMode ? 'text-base' : 'text-sm'}`}>
+          <div className="flex items-start sm:items-center justify-between mb-2">
+            <div className="flex items-start sm:items-center gap-2 flex-wrap">
+              <h2 className={`font-black text-gray-900 dark:text-white flex items-center ${isTouchMode ? 'text-base' : 'text-sm'}`}>
               {t('cart', 'Cart')}
               <HelpTooltip position="bottom" content="Current active cart session. Items scanned or tapped from the catalog are accumulated here." />
             </h2>
-            <span className="text-[9px] font-black bg-primary/10 text-primary dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest">
-              {state.cart.length} {state.cart.length === 1 ? t('item', 'item') : t('items', 'items')}
-              {' · '}
-              {state.cart.reduce((s, i) => s + i.quantity, 0)} {t('pcs', 'pcs')}
+            <span className="text-[9px] font-black bg-primary/10 text-primary dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest whitespace-normal">
+              {dealLabel}
             </span>
           </div>
 
@@ -537,110 +541,90 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
               const { bundles, standaloneItems } = groupCartItems(state.cart);
 
               const renderedBundlesHeader = bundles.length > 0 ? (
-                <div className="flex items-center gap-1.5 px-4 py-2 text-[9px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/[0.03] border-b border-violet-500/10 mb-2">
-                  <Gift className="h-3.5 w-3.5 text-violet-500 shrink-0" />
-                  <span>{t('combo_deals_sec', 'Bundle / Deal Items')}</span>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[8px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest bg-violet-500/[0.03] border-b border-violet-500/10 mb-1">
+                  <Gift className="h-3 w-3 text-violet-500 shrink-0" />
+                  <span>{t('combo_deals_sec', 'Bundle / Deal Items')} ({bundles.length})</span>
                 </div>
               ) : null;
 
               const renderedStandalonesHeader = bundles.length > 0 && standaloneItems.length > 0 ? (
-                <div className="flex items-center gap-1.5 px-4 py-2 text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest bg-gray-50 dark:bg-white/[0.02] border-y border-gray-100 dark:border-white/5 my-2">
-                  <ShoppingCart className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                  <span>{t('standalone_items_sec', 'Other / Standalone Items')}</span>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[8px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest bg-gray-50 dark:bg-white/[0.02] border-y border-gray-100 dark:border-white/5 my-1">
+                  <ShoppingCart className="h-3 w-3 text-gray-400 shrink-0" />
+                  <span>{t('standalone_items_sec', 'Other / Standalone Items')} ({standaloneItems.length})</span>
                 </div>
               ) : null;
 
-              const renderedBundles = bundles.map((b, bIdx) => (
-                <div key={`cart-bundle-${b.bundleId}`} className="p-2.5 my-1 mx-2 rounded-2xl border border-dashed border-violet-500/25 bg-violet-500/[0.01] space-y-1.5 animate-in fade-in duration-200">
-                  {/* Bundle Header */}
-                  <div className="flex items-center justify-between text-[9px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest px-1">
-                    <span className="flex items-center gap-1 min-w-0">
-                      <span className="truncate">🎁 BUNDLE: {b.bundleName}</span>
-                    </span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className="flex items-center bg-violet-500/5 dark:bg-violet-500/10 rounded-full border border-violet-500/20 shrink-0 overflow-hidden">
-                        <button
-                          onClick={() => updateBundleQuantity(b.bundleId, b.bundleQty - 1)}
-                          className="w-5 h-5 flex items-center justify-center text-violet-500 hover:text-red-500 hover:bg-violet-500/10 transition-colors"
-                        >
-                          <Minus className="h-2 w-2" />
-                        </button>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={b.bundleQty || ''}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value.replace(/[^0-9-]/g, ''));
-                            updateBundleQuantity(b.bundleId, isNaN(val) ? 0 : val);
-                          }}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          className={`w-7 bg-transparent text-center text-[8px] font-black focus:outline-none border-0 p-0 no-spinners select-all ${
-                            b.bundleQty < 0 ? 'text-red-500' : 'text-violet-600 dark:text-violet-400'
-                          }`}
-                        />
-                        <button
-                          onClick={() => updateBundleQuantity(b.bundleId, b.bundleQty + 1)}
-                          className="w-5 h-5 flex items-center justify-center text-violet-500 hover:text-primary hover:bg-violet-500/10 transition-colors"
-                        >
-                          <Plus className="h-2 w-2" />
-                        </button>
+              const bundleImage = (b: typeof bundles[number]) => {
+                const firstProductImage = b.items[0]?.item.product.image;
+                return firstProductImage || null;
+              };
+
+              const renderedBundleSummaries = bundles.map((b, bIdx) => (
+                <div key={`cart-bundle-${b.bundleId}`} className="px-2 py-1.5 mx-2 mb-1 rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[0.01] animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5">
+                    {/* Thumbnail */}
+                    <div className="w-9 h-9 rounded-lg overflow-hidden bg-violet-100 dark:bg-violet-900/20 shrink-0 flex items-center justify-center">
+                      {bundleImage(b) ? (
+                        <img src={bundleImage(b)!} alt={b.bundleName} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="h-3.5 w-3.5 text-violet-400" />
+                      )}
+                    </div>
+                    {/* Name + Price */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[9px] font-black text-violet-700 dark:text-violet-300 truncate leading-tight">{b.bundleName}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className={`text-[8px] font-bold ${b.items.some(({ item }) => item.bundleHideItemPrices === true) ? 'text-violet-700 dark:text-violet-300' : 'text-gray-500'}`}>
+                          {formatCurrency(b.totalSubtotal, state.settings.currency)}
+                        </span>
+                        {showDiscount && b.totalDiscount > 0 && (
+                          <span className="text-[7px] font-black text-rose-500 bg-rose-500/10 px-1 py-[1px] rounded leading-none">
+                            -{formatCurrency(b.totalDiscount, state.settings.currency)}
+                          </span>
+                        )}
                       </div>
+                    </div>
+                    {/* Qty stepper */}
+                    <div className="flex items-center bg-violet-500/5 dark:bg-violet-500/10 rounded-full border border-violet-500/20 shrink-0 overflow-hidden">
                       <button
-                        onClick={() =>
-                          sonner.confirm('Remove Bundle?', `Are you sure you want to remove the bundle "${b.bundleName}"?`).then((r) => r.isConfirmed && updateBundleQuantity(b.bundleId, 0))
-                        }
-                        className="p-1 text-violet-400 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                        title="Remove Entire Bundle"
+                        onClick={() => updateBundleQuantity(b.bundleId, b.bundleQty - 1)}
+                        className="w-5 h-5 flex items-center justify-center text-violet-500 hover:text-red-500 hover:bg-violet-500/10 transition-colors"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Minus className="h-2 w-2" />
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={b.bundleQty || ''}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value.replace(/[^0-9-]/g, ''));
+                          updateBundleQuantity(b.bundleId, isNaN(val) ? 0 : val);
+                        }}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className={`w-6 bg-transparent text-center text-[8px] font-black focus:outline-none border-0 p-0 no-spinners select-all ${
+                          b.bundleQty < 0 ? 'text-red-500' : 'text-violet-600 dark:text-violet-400'
+                        }`}
+                      />
+                      <button
+                        onClick={() => updateBundleQuantity(b.bundleId, b.bundleQty + 1)}
+                        className="w-5 h-5 flex items-center justify-center text-violet-500 hover:text-primary hover:bg-violet-500/10 transition-colors"
+                      >
+                        <Plus className="h-2 w-2" />
                       </button>
                     </div>
+                    {/* Delete */}
+                    <button
+                      onClick={() =>
+                        sonner.confirm('Remove Bundle?', `Are you sure you want to remove the bundle "${b.bundleName}"?`).then((r) => { if (r.isConfirmed) updateBundleQuantity(b.bundleId, 0).catch(() => {}); })
+                      }
+                      className="p-1 text-violet-400 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                      title="Remove Entire Bundle"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
                   </div>
-
-                  {/* Items List */}
-                  <div className="space-y-0.5 pl-1.5 border-l border-dotted border-violet-500/20">
-                    {b.items.map(({ item, originalIndex }, iIdx) => {
-                      const isLast = iIdx === b.items.length - 1;
-                      const prefix = isLast ? '└── ' : '├── ';
-                      return (
-                        <div key={`bi-${originalIndex}`} className="flex items-start">
-                          <span className="text-gray-400 dark:text-gray-600 font-bold text-[10px] mr-1 mt-2 select-none">{prefix}</span>
-                          <div className="flex-1">
-                            <CartItemCard
-                              item={item}
-                              index={originalIndex}
-                              onUpdateQuantity={updateQuantity}
-                              onRemove={removeFromCart}
-                              onApplyDiscount={applyDiscount}
-                              currency={state.settings.currency}
-                              dispatch={dispatch}
-                              profile={profile}
-                              isNested={true}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Bundle total discount summary */}
-                  {showDiscount && b.totalDiscount > 0 && (
-                    <div className="flex justify-between items-center px-1 pt-1.5 border-t border-dashed border-violet-500/10 text-[8px] font-black text-rose-500 uppercase tracking-widest">
-                      <span>Deal Discount</span>
-                      <span>-{formatCurrency(b.totalDiscount, state.settings.currency)}</span>
-                    </div>
-                  )}
-
-                  {/* Bundle final deal price when prices are hidden */}
-                  {b.items.some(({ item }) => item.bundleHideItemPrices === true) && (
-                    <div className="flex justify-between items-center px-1 pt-1.5 border-t border-dashed border-violet-500/10 text-[9px] font-black text-violet-700 dark:text-violet-300 uppercase tracking-widest">
-                      <span>Deal Price</span>
-                      <span className="text-primary dark:text-emerald-400">{formatCurrency(b.totalSubtotal, state.settings.currency)}</span>
-                    </div>
-                  )}
                 </div>
               ));
-
 
               const renderedStandalones = standaloneItems.map(({ item, originalIndex }) => (
                 <CartItemCard
@@ -658,8 +642,17 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
 
               return (
                 <>
+                  {/* No Active Promotions Banner */}
+                  {cartItems.length > 0 && activePromotions.length === 0 && (
+                    <div className="px-3 py-1.5 flex items-center gap-1.5 bg-amber-500/[0.03] border-b border-amber-500/10">
+                      <Info className="h-2.5 w-2.5 text-amber-500 shrink-0" />
+                      <span className="text-[7px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
+                        No Active Promotions
+                      </span>
+                    </div>
+                  )}
                   {renderedBundlesHeader}
-                  {renderedBundles}
+                  {renderedBundleSummaries}
                   {renderedStandalonesHeader}
                   {renderedStandalones}
                 </>
@@ -936,9 +929,10 @@ interface CartItemCardProps {
   dispatch: any;
   profile: any;
   isNested?: boolean;
+  isFromBundle?: boolean;
 }
 
-function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount, currency, dispatch, profile, isNested }: CartItemCardProps) {
+function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount, currency, dispatch, profile, isNested, isFromBundle }: CartItemCardProps) {
   const { state } = useApp();
   const showDiscount = state.settings.receiptShowDiscount !== false && 
     !state.cart.some(cartItem => cartItem.bundleHideItemPrices === true || cartItem.bundle_hide_item_prices === true);
@@ -995,31 +989,42 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
   };
 
   return (
-    <div className={`group hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors overflow-hidden ${isNested ? 'pl-0 pr-1 py-0.5 hover:bg-transparent dark:hover:bg-transparent' : 'pl-4 pr-5 py-2'}`}>
+    <div className={`group hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors overflow-hidden ${isNested ? 'pl-0 pr-1 py-0.5 hover:bg-transparent dark:hover:bg-transparent' : isFromBundle ? 'pl-3 pr-4 py-1' : 'pl-3 pr-4 py-1.5'}`}>
       {/* Main row */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        {/* Thumbnail (not for nested items) */}
+        {!isNested && (
+          <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center self-start mt-0.5">
+            {item.product.image ? (
+              <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
+            ) : (
+              <Package className="h-4 w-4 text-gray-300" />
+            )}
+          </div>
+        )}
 
         {/* Product name + price */}
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black text-gray-900 dark:text-gray-100 truncate leading-tight">
-            {item.product.name}
-          </p>
+          <div className="flex items-center gap-1">
+            <p className="text-[10px] font-black text-gray-900 dark:text-gray-100 truncate leading-tight">
+              {item.product.name}
+            </p>
+            {isFromBundle && (
+              <span className="text-[6px] font-black text-violet-500 bg-violet-500/10 px-1 py-0.5 rounded-full uppercase tracking-wider shrink-0 leading-none">
+                deal
+              </span>
+            )}
+          </div>
           {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
-            <div className="flex flex-col gap-0.5 mt-0.5 mb-1">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0 mt-0.5">
               {item.selectedVariant && (
-                <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
-                  {item.selectedVariant}
-                </span>
+                <span className="text-[7px] font-bold text-gray-500 dark:text-gray-400 leading-tight">{item.selectedVariant}</span>
               )}
               {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                <span className="text-[8px] font-bold text-primary dark:text-primary leading-tight truncate">
-                  + {item.selectedModifiers.map(m => m.name).join(', ')}
-                </span>
+                <span className="text-[7px] font-bold text-primary leading-tight">+{item.selectedModifiers.map(m => m.name).join(', ')}</span>
               )}
               {item.serialNumber && (
-                <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
-                  SN: {item.serialNumber}
-                </span>
+                <span className="text-[7px] font-black text-amber-600 bg-amber-500/10 px-1 rounded leading-none">SN: {item.serialNumber}</span>
               )}
             </div>
           )}
@@ -1037,39 +1042,33 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
                     if (e.key === 'Enter') handlePriceSubmit();
                     if (e.key === 'Escape') setIsEditingPrice(false);
                   }}
-                  className="w-16 h-4 text-[9px] font-black bg-white dark:bg-zinc-800 border border-primary rounded px-1 focus:outline-none"
+                  className="w-14 h-4 text-[8px] font-black bg-white dark:bg-zinc-800 border border-primary rounded px-1 focus:outline-none"
                   autoFocus
                 />
               ) : (
                 <div
                   onClick={() => (profile?.role === 'admin' || profile?.canEditPrice) && (setTempPrice(item.product.price.toString()), setIsEditingPrice(true))}
-                  className={`flex flex-col -ml-1.5 px-1.5 py-0.5 rounded-lg transition-all ${(profile?.role === 'admin' || profile?.canEditPrice) ? 'cursor-pointer hover:bg-emerald-50 dark:hover:bg-primary/10 active:scale-95 group/price' : ''}`}
+                  className={`flex items-center gap-1 -ml-1 px-1 py-0.5 rounded-lg transition-all ${(profile?.role === 'admin' || profile?.canEditPrice) ? 'cursor-pointer hover:bg-emerald-50 dark:hover:bg-primary/10 active:scale-95 group/price' : ''}`}
                 >
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className={`text-[10px] font-black ${item.product.price < item.product.cost ? 'text-rose-500' : (profile?.role === 'admin' || profile?.canEditPrice) ? 'text-primary dark:text-emerald-400' : 'text-gray-600'}`}>
-                      {formatCurrency(item.product.price, currency)}
-                    </span>
-                    {item.originalPrice !== undefined && Math.round(item.product.price) !== Math.round(item.originalPrice) && (
-                      <span className="text-[8px] font-bold text-gray-600 line-through opacity-60">
-                        {formatCurrency(item.originalPrice, currency)}
-                      </span>
-                    )}
-                    {item.product.price < item.product.cost && (
-                      <div className="flex items-center gap-1 px-1 bg-rose-500/10 rounded">
-                        <AlertCircle className="h-2 w-2 text-rose-500 animate-pulse" />
-                        <span className="text-[7px] font-black text-rose-500 uppercase tracking-tighter">
-                          Cost: {formatCurrency(item.product.cost, currency)}
-                        </span>
-                      </div>
-                    )}
-                    {(profile?.role === 'admin' || profile?.canEditPrice) && (
-                      <Edit2 className="h-2 w-2 text-primary/50 group-hover/price:text-primary transition-colors" />
-                    )}
-                  </div>
+                  <span className={`text-[9px] font-black ${item.product.price < item.product.cost ? 'text-rose-500' : (profile?.role === 'admin' || profile?.canEditPrice) ? 'text-primary dark:text-emerald-400' : 'text-gray-600'}`}>
+                    {formatCurrency(item.product.price, currency)}
+                  </span>
+                  {item.originalPrice !== undefined && Math.round(item.product.price) !== Math.round(item.originalPrice) && (
+                    <span className="text-[7px] font-bold text-gray-500 line-through">{formatCurrency(item.originalPrice, currency)}</span>
+                  )}
+                  {item.product.price < item.product.cost && (
+                    <div className="flex items-center gap-0.5 px-1 bg-rose-500/10 rounded">
+                      <AlertCircle className="h-2 w-2 text-rose-500" />
+                      <span className="text-[6px] font-black text-rose-500">Cost: {formatCurrency(item.product.cost, currency)}</span>
+                    </div>
+                  )}
+                  {(profile?.role === 'admin' || profile?.canEditPrice) && (
+                    <Edit2 className="h-2 w-2 text-primary/50 group-hover/price:text-primary transition-colors" />
+                  )}
                 </div>
               )}
               {showDiscount && Math.abs(item.discount) > 0 && (
-                <span className="text-[7px] font-black text-primary bg-primary/10 px-1 py-0.5 rounded leading-none">
+                <span className="text-[7px] font-black text-primary bg-primary/10 px-1 py-0.5 rounded leading-none shrink-0">
                   -{(item.bundleId || item.bundle_id) ? Math.abs(item.discount).toLocaleString() : item.discountValue}{(item.bundleId || item.bundle_id) ? getCurrencySymbol(currency) : (item.discountType === 'percentage' ? '%' : getCurrencySymbol(currency))}
                 </span>
               )}
@@ -1077,10 +1076,10 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
           )}
         </div>
 
-        {/* Qty stepper or static Qty display if nested */}
-        {isNested ? (
-          <span className="text-[10px] font-black px-2 py-1 bg-violet-500/5 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-lg shrink-0 self-center select-none">
-            Qty: {Math.abs(item.quantity)}
+        {/* Qty stepper or static Qty display if nested / from bundle */}
+        {(isNested || isFromBundle) ? (
+          <span className="text-[9px] font-black px-1.5 py-0.5 bg-violet-500/5 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded shrink-0 self-center select-none">
+            {Math.abs(item.quantity)}
           </span>
         ) : (
           <div className="flex items-center self-center bg-gray-100 dark:bg-white/5 rounded-full border border-gray-200 dark:border-white/5 shrink-0">
@@ -1096,7 +1095,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               value={item.quantity || ''}
               onChange={(e) => { const v = parseInt(e.target.value.replace(/[^0-9.-]/g, '')); onUpdateQuantity(index, isNaN(v) ? 0 : v); }}
               onKeyDown={(e) => e.stopPropagation()}
-              className={`w-7 bg-transparent text-center text-[10px] font-black focus:outline-none no-spinners ${item.quantity < 0 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}
+              className={`w-6 bg-transparent text-center text-[9px] font-black focus:outline-none no-spinners ${item.quantity < 0 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}
             />
             <button
               onClick={() => onUpdateQuantity(index, item.quantity + 1)}
@@ -1108,18 +1107,19 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
         )}
 
         {/* Subtotal + actions */}
-        <div className="flex flex-col items-end shrink-0 min-w-[70px]">
+        <div className="flex flex-col items-end shrink-0 min-w-[50px]">
           {!hidePrices && (
-            <span className={`text-[10px] font-black leading-tight ${item.quantity < 0 || item.subtotal < (item.product.cost * item.quantity) ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
+            <span className={`text-[9px] font-black leading-tight ${item.quantity < 0 || item.subtotal < (item.product.cost * item.quantity) ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
               {formatCurrency(item.subtotal, currency)}
             </span>
           )}
-          {!isNested && (
-            <div className="flex items-center gap-1 mt-0.5 opacity-100">
+          {!(isNested || isFromBundle) && (
+            <div className="flex items-center gap-0.5 mt-0.5">
               {(profile?.role === 'admin' || profile?.canGiveDiscount) && (
                 <button
                   onClick={() => setShowDiscountInput(!showDiscountInput)}
-                  className={`text-[8px] font-black leading-none px-1 py-0.5 rounded transition-colors ${item.discount > 0 ? 'text-primary bg-emerald-50 dark:bg-primary/10' : 'text-gray-600 hover:text-primary'}`}
+                  className={`w-4 h-4 flex items-center justify-center text-[7px] font-black leading-none rounded transition-colors ${item.discount > 0 ? 'text-primary bg-emerald-50 dark:bg-primary/10' : 'text-gray-500 hover:text-primary'}`}
+                  title="Discount"
                 >
                   %
                 </button>
@@ -1127,10 +1127,10 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               {(profile?.role === 'admin' || profile?.canGiveDiscount) && item.discount > 0 && (
                 <button
                   onClick={clearItemDiscount}
-                  className="text-primary hover:text-red-500 transition-colors"
+                  className="w-4 h-4 flex items-center justify-center text-primary hover:text-red-500 transition-colors"
                   title="Clear Item Discount"
                 >
-                  <X className="h-2.5 w-2.5" />
+                  <X className="h-2 w-2" />
                 </button>
               )}
               {(profile?.role === 'admin' || profile?.canEditPrice) && (
@@ -1139,14 +1139,14 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
                     setTempPrice(item.product.price.toString());
                     setIsEditingPrice(!isEditingPrice);
                   }}
-                  className={`p-1 rounded-md transition-colors ${isEditingPrice ? 'text-primary bg-emerald-50 dark:bg-primary/10' : 'text-gray-600 hover:text-primary'}`}
+                  className={`w-4 h-4 flex items-center justify-center rounded transition-colors ${isEditingPrice ? 'text-primary bg-emerald-50 dark:bg-primary/10' : 'text-gray-500 hover:text-primary'}`}
                   title="Edit Price"
                 >
-                  <Edit2 className="h-2.5 w-2.5" />
+                  <Edit2 className="h-2 w-2" />
                 </button>
               )}
-              <button onClick={() => onRemove(index)} className="p-1 text-gray-600 hover:text-red-500 transition-colors">
-                <Trash2 className="h-2.5 w-2.5" />
+              <button onClick={() => onRemove(index)} className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors" title="Remove">
+                <Trash2 className="h-2 w-2" />
               </button>
             </div>
           )}
@@ -1155,13 +1155,13 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
 
       {/* Inline discount panel */}
       {showDiscountInput && (
-        <div className="mt-1.5 flex items-center gap-1.5 bg-gray-50 dark:bg-black/75 border border-gray-200 dark:border-white/10 rounded-xl px-2 py-1.5">
-          <div className="flex bg-gray-200 dark:bg-white/5 p-0.5 rounded-lg shrink-0">
+        <div className="mt-1 flex items-center gap-1 bg-gray-50 dark:bg-black/75 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1">
+          <div className="flex bg-gray-200 dark:bg-white/5 p-0.5 rounded-md shrink-0">
             {(['percentage', 'fixed'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setDiscountType(t)}
-                className={`px-1.5 py-0.5 text-[7px] font-black rounded-md transition-all ${discountType === t ? 'bg-white dark:bg-white/10 text-primary shadow-sm' : 'text-gray-600'}`}
+                className={`px-1.5 py-0.5 text-[6px] font-black rounded-md transition-all ${discountType === t ? 'bg-white dark:bg-white/10 text-primary shadow-sm' : 'text-gray-600'}`}
               >
                 {t === 'percentage' ? '%' : getCurrencySymbol(currency)}
               </button>
@@ -1178,14 +1178,14 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               if (e.key === 'Enter') handleDiscountSubmit();
               if (e.key === 'Escape') setShowDiscountInput(false);
             }}
-            className="flex-1 bg-white dark:bg-white/5 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-900 dark:text-white focus:ring-1 focus:ring-emerald-500 outline-none border-0"
+            className="flex-1 bg-white dark:bg-white/5 rounded-md px-2 py-1 text-[8px] font-bold text-gray-900 dark:text-white focus:ring-1 focus:ring-emerald-500 outline-none border-0"
             autoFocus
           />
-          <button onClick={handleDiscountSubmit} className="btn btn-md btn-primary hover:bg-emerald-700">
+          <button onClick={handleDiscountSubmit} className="w-5 h-5 flex items-center justify-center bg-primary text-white rounded-md hover:bg-emerald-700 transition-colors">
             <Plus className="h-2.5 w-2.5" />
           </button>
-          <button onClick={() => setShowDiscountInput(false)} className="p-1 text-gray-600 hover:text-red-500 transition-colors">
-            <X className="h-2.5 w-2.5" />
+          <button onClick={() => setShowDiscountInput(false)} className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors">
+            <X className="h-2 w-2" />
           </button>
         </div>
       )}

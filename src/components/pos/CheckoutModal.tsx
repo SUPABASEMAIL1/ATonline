@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, Smartphone, Check, AlertCircle, Gift, MessageCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, CheckCircle2, Layers, Hash, PlusCircle, Building2 } from 'lucide-react';
+import { X, CreditCard, Banknote, Smartphone, Check, AlertCircle, Gift, MessageCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, CheckCircle2, Layers, Hash, PlusCircle, Building2, Package } from 'lucide-react';
 import { Sale, SplitPayment } from '../../types';
 import { useApp, useInvoiceGeneration } from '../../context/SupabaseAppContext';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
@@ -12,6 +12,7 @@ import { Modal } from '../common/Modal';
 import { HelpTooltip } from '../common/HelpTooltip';
 import { useMemo } from 'react';
 import { cn } from '../../lib/utils';
+import { CompactItemRow } from './CompactItemRow';
 import { localDb, queueOp } from '../../lib/localDb';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -21,6 +22,11 @@ interface CheckoutModalProps {
   onComplete: (sale: Sale) => void;
 }
 
+/**
+ * @deprecated Use CheckoutPage instead. CheckoutPage is the primary settlement component
+ * with keyboard shortcuts, extra charges, and better mobile layout. This modal is retained
+ * only for bill-edit mode from TransactionsManager.
+ */
 export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProps) {
   const { state, dispatch } = useApp();
   const { user, profile } = useAuth();
@@ -356,26 +362,26 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         showClose={true}
         maxWidth="lg"
         footer={
-          <div>
+          <div className="flex w-full items-center gap-2 sm:gap-3">
             <button
               onClick={onClose}
-              className="flex-1 px-4 sm:px-8 py-3.5 sm:py-4 border border-rose-100 dark:border-rose-500/20 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[10px] sm:text-[12px] font-black uppercase tracking-widest rounded-2xl sm:rounded-3xl transition-all active:scale-95 shrink-0"
+              className="px-4 sm:px-8 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
             >
               {t("cancel", "Cancel")}
             </button>
             <button
               onClick={handlePayment}
               disabled={isProcessing || !canProcessPayment()}
-              className="btn btn-md btn-primary flex-[2] sm:min-w-[280px] active:scale-[0.98]"
+              className="btn btn-md btn-primary flex-[2] sm:min-w-[280px] active:scale-[0.98] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
             >
               {isProcessing ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-4 h-4 sm:h-5 sm:w-5 animate-spin" />
                   <span>{t("processing", "Processing...")}</span>
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <CheckCircle2 className="w-4 h-4 sm:h-5 sm:w-5" />
                   <span>{t("complete_order", "Complete Order")}</span>
                 </>
               )}
@@ -523,52 +529,32 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                       const renderedBundlesHeader = bundles.length > 0 ? (
                         <div className="flex items-center gap-1.5 px-1 text-[8px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest mb-1">
                           <Gift className="h-3 w-3 text-violet-500 shrink-0" />
-                          <span>{t('combo_deals_sec', 'Bundle / Deal Items')}</span>
+                          <span>{t('combo_deals_sec', 'Bundle / Deal Items')} ({bundles.length})</span>
                         </div>
                       ) : null;
 
                       const renderedStandalonesHeader = bundles.length > 0 && standaloneItems.length > 0 ? (
                         <div className="flex items-center gap-1.5 px-1 pt-2 text-[8px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest border-t border-gray-100 dark:border-white/5 mt-2 mb-1">
                           <ShoppingBag className="h-3 w-3 text-gray-400 shrink-0" />
-                          <span>{t('standalone_items_sec', 'Other / Standalone Items')}</span>
+                          <span>{t('standalone_items_sec', 'Other / Standalone Items')} ({standaloneItems.length})</span>
                         </div>
                       ) : null;
 
-                      const renderedBundles = bundles.map((b, bIdx) => (
-                        <div key={`checkout-bundle-${b.bundleId}`} className="p-3 my-2 rounded-2xl border border-dashed border-violet-500/30 bg-violet-500/[0.01] space-y-2">
-                          <div className="flex items-center justify-between text-[9px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest px-1">
-                            <span className="flex items-center gap-1">
-                              <span>🎁 BUNDLE: {b.bundleName}</span>
-                            </span>
+                      const bundleThumb = (b: typeof bundles[number]) => b.items[0]?.product?.image || null;
+
+                      const renderedBundles = bundles.map((b, bIdx) => {
+                        const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
+                        return (
+                          <div key={`checkout-bundle-${b.bundleId}`} className="p-2 my-1.5 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/[0.01]">
+                            <CompactItemRow
+                              image={bundleThumb(b)}
+                              name={b.bundleName}
+                              price={formatCurrency(b.totalSubtotal, state.settings.currency)}
+                              discount={discountStr}
+                            />
                           </div>
-                          <div className="space-y-1.5 pl-2 border-l border-dotted border-violet-500/30">
-                            {b.items.map((item, iIdx) => {
-                              const isLast = iIdx === b.items.length - 1;
-                              const prefix = isLast ? '└── ' : '├── ';
-                              return (
-                                <div key={`bi-${iIdx}`} className="flex items-start">
-                                  <span className="text-gray-400 dark:text-gray-600 font-bold text-[10px] mr-1 mt-3 select-none">{prefix}</span>
-                                  <div className="flex-1">
-                                    {renderItemCard(item, iIdx, true)}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {showDiscount && b.totalDiscount > 0 && (
-                            <div className="flex justify-between items-center px-1.5 pt-1.5 border-t border-dashed border-violet-500/10 text-[9px] font-black text-rose-500 uppercase tracking-widest">
-                              <span>Deal Discount</span>
-                              <span>-{formatCurrency(b.totalDiscount, state.settings.currency)}</span>
-                            </div>
-                          )}
-                          {b.items.some(item => item.bundleHideItemPrices === true) && (
-                            <div className="flex justify-between items-center px-1.5 pt-1.5 border-t border-dashed border-violet-500/10 text-[9px] font-black text-violet-700 dark:text-violet-300 uppercase tracking-widest">
-                              <span>Deal Price</span>
-                              <span className="text-primary dark:text-emerald-400">{formatCurrency(b.totalSubtotal, state.settings.currency)}</span>
-                            </div>
-                          )}
-                        </div>
-                      ));
+                        );
+                      });
 
                       const renderedStandalones = standaloneItems.map((item, iIdx) => renderItemCard(item, iIdx));
 

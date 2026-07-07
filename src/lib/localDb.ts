@@ -431,6 +431,13 @@ export async function queueOp(
   }
 
   try {
+    // ── QUEUE SIZE CAP ──
+    const queueCount = await localDb.pendingOps.count();
+    if (queueCount >= 1000) {
+      console.warn(`[DB] Pending ops queue has ${queueCount} items — dropping new op to prevent unbounded growth.`);
+      return;
+    }
+
     const existing = await localDb.pendingOps
       .where('[entity+entityId]')
       .equals([entity, entityId])

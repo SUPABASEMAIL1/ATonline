@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Download, Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, ChevronRight, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2 } from 'lucide-react';
+import { Search, Download, Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, ChevronRight, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
-import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone } from '../../lib/dateUtils';
+import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
 import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
 import { Sale } from '../../types';
 import { CheckoutModal } from '../pos/CheckoutModal';
@@ -10,6 +10,7 @@ import { ReceiptPrint } from '../pos/ReceiptPrint';
 import { salesService, productsService, customersService, getAmountByMethod } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { useTranslation } from '../../hooks/useTranslation';
+import { getDealCountBreakdown } from '../../lib/utils';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { Modal } from '../common/Modal';
 
@@ -106,16 +107,10 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
           endDate = getEndOfDayInTimezone(now, timezone);
         } else if (dateFilter === 'custom') {
           if (startDateInput) {
-            startDate = new Date(Date.UTC(
-              ...startDateInput.split('-').map(Number),
-              0, 0, 0, 0
-            ));
+            startDate = getStartOfInputDayInTimezone(startDateInput, timezone);
           }
           if (endDateInput) {
-            endDate = new Date(Date.UTC(
-              ...endDateInput.split('-').map(Number),
-              23, 59, 59, 999
-            ));
+            endDate = getEndOfInputDayInTimezone(endDateInput, timezone);
           }
         }
 
@@ -181,12 +176,8 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
     let endTs: number;
 
     if (dateFilter === 'custom') {
-      startTs = startDateInput
-        ? new Date(Date.UTC(...startDateInput.split('-').map(Number), 0, 0, 0, 0)).getTime()
-        : 0;
-      endTs = endDateInput
-        ? new Date(Date.UTC(...endDateInput.split('-').map(Number), 23, 59, 59, 999)).getTime()
-        : Infinity;
+      startTs = startDateInput ? getStartOfInputDayInTimezone(startDateInput, timezone).getTime() : 0;
+      endTs = endDateInput ? getEndOfInputDayInTimezone(endDateInput, timezone).getTime() : Infinity;
     } else if (dateFilter === 'all') {
       startTs = new Date(Date.UTC(2000, 0, 1)).getTime();
       endTs = Infinity;
@@ -226,8 +217,10 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
   }, [state.sales, dateFilter, startDateInput, endDateInput, timezone]);
 
   const cashiersList = useMemo(() => {
-    return ['all', ...Array.from(new Set(state.sales.map(s => s.cashier).filter(Boolean)))];
-  }, [state.sales]);
+    const userNames = state.users.map(u => u.name).filter(Boolean);
+    const saleCashiers = state.sales.map(s => s.cashier).filter(Boolean);
+    return ['all', ...Array.from(new Set([...userNames, ...saleCashiers]))];
+  }, [state.sales, state.users]);
 
   const filteredTransactions = useMemo(() => {
     // Use local data as fallback while cloud search is loading to prevent stats flash to 0
@@ -965,40 +958,40 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
         maxWidth="lg"
         footer={
           <div>
-            <div className="flex items-center gap-2">
-              <button onClick={handlePrev} disabled={!hasPrev} className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 active:scale-95 transition-all">
-                <ChevronLeft className="h-4 w-4" /> <span>{t("prev", "Previous")}</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <button onClick={handlePrev} disabled={!hasPrev} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-3 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest disabled:opacity-30 active:scale-95 transition-all">
+                <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span>{t("prev", "Prev")}</span>
               </button>
-              <button onClick={handleNext} disabled={!hasNext} className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 active:scale-95 transition-all">
-                <span>{t("next_sale", "Next Sale")}</span> <ChevronRight className="h-4 w-4" />
+              <button onClick={handleNext} disabled={!hasNext} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-3 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest disabled:opacity-30 active:scale-95 transition-all">
+                <span>{t("next_sale", "Next Sale")}</span> <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:flex items-center gap-1.5 sm:gap-2 w-full">
-              <button onClick={() => onReprint(transaction)} className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-5 py-3 bg-primary text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-2 sm:flex-1">
-                <Printer className="h-4 w-4 shrink-0" /> <span className="truncate">{t("print_receipt", "Print")}</span>
+            <div className="grid grid-cols-2 sm:flex items-center gap-1.5 sm:gap-2 w-full mt-1.5 sm:mt-2">
+              <button onClick={() => onReprint(transaction)} className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-primary text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-2 sm:flex-1">
+                <Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("print_receipt", "Print")}</span>
               </button>
-              <button onClick={handleWhatsAppShare} className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-5 py-3 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1">
-                <MessageCircle className="h-4 w-4 shrink-0" /> <span className="truncate">{t("whatsapp", "WhatsApp")}</span>
+              <button onClick={handleWhatsAppShare} className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1">
+                <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("whatsapp", "WhatsApp")}</span>
               </button>
               <button
                 onClick={handleRefundSale}
                 disabled={isReconciling || transaction.status === 'refunded'}
-                className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-5 py-3 bg-rose-50 dark:bg-rose-900/10 text-rose-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-50 dark:bg-rose-900/10 text-rose-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50"
               >
-                <RotateCcw className="h-4 w-4 shrink-0" /> <span className="truncate">{t("refund", "Refund")}</span>
+                <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("refund", "Refund")}</span>
               </button>
               {(isAdmin || profile?.canEditSale) && (
-                <button onClick={handleEditSale} disabled={isReconciling} className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-5 py-3 bg-amber-50 dark:bg-amber-900/10 text-amber-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50">
-                  <Edit className="h-4 w-4 shrink-0" /> <span className="truncate">{t("edit", "Edit")}</span>
+                <button onClick={handleEditSale} disabled={isReconciling} className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-amber-50 dark:bg-amber-900/10 text-amber-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50">
+                  <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("edit", "Edit")}</span>
                 </button>
               )}
               {isAdmin && (
                 <button
                   onClick={handleDeleteSale}
                   disabled={isReconciling}
-                  className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 md:px-5 py-3 bg-rose-500 text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50 shadow-lg shadow-rose-500/20"
+                  className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-500 text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50 shadow-lg shadow-rose-500/20"
                 >
-                  <Trash2 className="h-4 w-4 shrink-0" /> <span className="truncate">{t("delete", "Delete")}</span>
+                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("delete", "Delete")}</span>
                 </button>
               )}
             </div>
@@ -1006,6 +999,11 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
         }
       >
         <div className="space-y-4">
+          <div className="flex items-center justify-center mb-0">
+            <span className="text-[9px] font-black bg-primary/10 text-primary dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest">
+              {getDealCountBreakdown(transaction.items, state.bundles).label}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 dark:bg-white/[0.02] rounded-2xl border border-gray-200 dark:border-white/5">
             <div><p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">{t("receipt", "Receipt")}</p><p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">#{transaction.invoiceNumber || transaction.receiptNumber}</p></div>
             <div><p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">{t("date", "Date")}</p><p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">{formatAppDate(transaction.timestamp, state.settings.country)}</p></div>
@@ -1031,99 +1029,76 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                   const rows: React.ReactNode[] = [];
                   const canEditProducts = isAdmin || profile?.role === 'manager' || profile?.canManagePO;
 
-                  bundles.forEach((b, bIdx) => {
-                    // 1. Bundle Header Row
+                  if (bundles.length > 0) {
                     rows.push(
-                      <tr key={`bh-${b.bundleId}`} className="bg-violet-500/5 dark:bg-violet-500/[0.02] border-t border-gray-100 dark:border-white/5">
-                        <td colSpan={3} className="px-2.5 sm:px-4 py-2.5 text-[9px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest">
-                          🎁 BUNDLE: {b.bundleName}
-                        </td>
-                      </tr>
-                    );
-
-                    // 2. Bundle Item Rows (Tree structure)
-                    b.items.forEach((item, iIdx) => {
-                      const isLast = iIdx === b.items.length - 1;
-                      const prefix = isLast ? '└── ' : '├── ';
-                      const hidePrices = item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true;
-                      rows.push(
-                        <tr
-                          key={`bi-${b.bundleId}-${iIdx}`}
-                          onClick={() => {
-                            if (canEditProducts && item.product?.id) {
-                              dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: 'transactions' });
-                              dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: transaction.id });
-                              dispatch({ type: 'SET_LAST_PRODUCT_HUB', payload: item.product.id });
-                              window.dispatchEvent(new CustomEvent('navigate', { detail: 'inventory' }));
-                              onClose();
-                            }
-                          }}
-                          className={canEditProducts && item.product?.id ? "cursor-pointer hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group border-l border-dashed border-violet-500/30" : "border-l border-dashed border-violet-500/30"}
-                        >
-                          <td className="px-4 py-3 text-[11px] font-black text-gray-950 dark:text-white uppercase pl-6">
-                            <span className="text-gray-400 dark:text-gray-600 font-bold mr-1.5">{prefix}</span>
-                            <span className={canEditProducts && item.product?.id ? 'group-hover:text-primary transition-colors' : ''}>{item.product?.name || t("item", "Item")}</span>
-                            {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
-                              <div className="flex flex-col gap-0.5 mt-1 normal-case tracking-normal pl-4">
-                                {item.selectedVariant && <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">{item.selectedVariant}</span>}
-                                {item.selectedModifiers && item.selectedModifiers.length > 0 && <span className="text-[9px] font-bold text-primary uppercase tracking-widest">+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</span>}
-                                {item.serialNumber && <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">SN: {item.serialNumber}</span>}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-2.5 sm:px-4 py-3 text-right text-[11px] font-bold text-gray-600 dark:text-gray-400">{item.quantity}</td>
-                          <td className="px-2.5 sm:px-4 py-3 text-right text-[11px] font-black text-gray-900 dark:text-white">
-                            {!hidePrices && formatCurrency((item.product?.price || ((item.subtotal + item.discount) / (item.quantity || 1))) * item.quantity, state.settings.currency)}
-                          </td>
-                        </tr>
-                      );
-                    });
-
-                    // 3. Bundle summary rows
-                    const hideItemPrices = b.items.some((item: any) => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
-                    rows.push(
-                      <tr key={`bs-${b.bundleId}`} className="bg-gray-50/20 dark:bg-white/[0.005]">
-                        <td colSpan={3} className="px-4 py-2.5 pl-6 border-l border-dashed border-violet-500/30">
-                          <div className="flex flex-col gap-1 text-[9px] font-bold text-gray-500 dark:text-gray-400">
-                            {hideItemPrices ? (
-                              <div className="flex justify-between items-center text-[10px] font-black text-primary dark:text-emerald-400">
-                                <span>DEAL PRICE</span>
-                                <span>{formatCurrency(b.totalSubtotal, state.settings.currency)}</span>
-                              </div>
-                            ) : (
-                              <>
-                                {showDiscount && (
-                                  <div className="flex justify-between items-center">
-                                    <span>DEAL SUBTOTAL</span>
-                                    <span className="font-black text-gray-900 dark:text-white">{formatCurrency(b.totalOriginal, state.settings.currency)}</span>
-                                  </div>
-                                )}
-                                {showDiscount && b.totalDiscount > 0 && (
-                                  <div className="flex justify-between items-center text-rose-500">
-                                    <span>🎁 DEAL DISCOUNT</span>
-                                    <span className="font-black">-{formatCurrency(b.totalDiscount, state.settings.currency)}</span>
-                                  </div>
-                                )}
-                                <div className="flex justify-between items-center text-[10px] font-black text-primary dark:text-emerald-400 pt-1 mt-1 border-t border-gray-100 dark:border-white/5">
-                                  <span>DEAL PRICE</span>
-                                  <span>{formatCurrency(b.totalSubtotal, state.settings.currency)}</span>
-                                </div>
-                              </>
-                            )}
+                      <tr key="section-bundles" className="bg-violet-500/[0.03]">
+                        <td colSpan={3} className="px-2.5 sm:px-4 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <Gift className="h-3 w-3 text-violet-500 shrink-0" />
+                            <span className="text-[8px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest">
+                              {t('combo_deals_sec', 'Bundle / Deal Items')} ({bundles.length})
+                            </span>
                           </div>
                         </td>
                       </tr>
                     );
+                  }
 
-                    // 4. Horizontal Separator line indicating end of the deal
+                  bundles.forEach((b, bIdx) => {
+                    const hideItemPrices = b.items.some((item: any) => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
+                    const bundleImage = b.items[0]?.product?.image || null;
+                    const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
+                    let bundleQty = 1;
+                    const bundleDef = state.bundles?.find((x: any) => x.id === b.bundleId);
+                    if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+                      const firstBi = bundleDef.items[0];
+                      const cartItem = b.items.find((x: any) => x.product?.id === firstBi.productId);
+                      if (cartItem) {
+                        bundleQty = Math.round(cartItem.quantity / firstBi.quantity);
+                      }
+                    } else if (b.items.length > 0) {
+                      bundleQty = b.items[0].quantity;
+                    }
+
                     rows.push(
-                      <tr key={`bs-sep-${b.bundleId}`}>
-                        <td colSpan={3} className="p-0">
-                          <div className="h-px bg-violet-500/30 dark:bg-violet-500/20 w-full" />
+                      <tr key={`bundle-${b.bundleId}`} className="bg-violet-500/[0.02] border-t border-gray-100 dark:border-white/5">
+                        <td className="px-2.5 sm:px-4 py-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-7 h-7 rounded-md overflow-hidden bg-violet-100 dark:bg-violet-900/20 shrink-0 flex items-center justify-center">
+                              {bundleImage ? (
+                                <img src={bundleImage} alt={b.bundleName} className="w-full h-full object-cover" />
+                              ) : (
+                                <Package className="h-3 w-3 text-violet-400" />
+                              )}
+                            </div>
+                            <span className="text-[9px] font-black text-violet-700 dark:text-violet-300 uppercase truncate">{b.bundleName}</span>
+                          </div>
+                        </td>
+                        <td className="px-2.5 sm:px-4 py-2 text-right text-[9px] font-bold text-gray-500">{bundleQty}</td>
+                        <td className="px-2.5 sm:px-4 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-[10px] font-black text-primary">{formatCurrency(b.totalSubtotal, state.settings.currency)}</span>
+                            {discountStr && <span className="text-[7px] font-black text-rose-500">{discountStr}</span>}
+                          </div>
                         </td>
                       </tr>
                     );
                   });
+
+                  if (bundles.length > 0 && standaloneItems.length > 0) {
+                    rows.push(
+                      <tr key="section-standalone" className="bg-gray-50/50 dark:bg-white/[0.02]">
+                        <td colSpan={3} className="px-2.5 sm:px-4 py-2 border-t border-gray-100 dark:border-white/5">
+                          <div className="flex items-center gap-1.5">
+                            <ShoppingBag className="h-3 w-3 text-gray-400 shrink-0" />
+                            <span className="text-[8px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                              {t('standalone_items_sec', 'Other / Standalone Items')} ({standaloneItems.length})
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
 
                   standaloneItems.forEach((item, index) => {
                     rows.push(
@@ -1141,23 +1116,33 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                         className={canEditProducts && item.product?.id ? "cursor-pointer hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group" : ""}
                       >
                         <td className={`px-2.5 sm:px-4 py-3 sm:py-4 text-[11px] font-black text-gray-900 dark:text-white uppercase transition-colors ${canEditProducts && item.product?.id ? 'group-hover:text-primary' : ''}`}>
-                          <span>{item.product?.name || t("item", "Item")}</span>
-                          {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
-                            <div className="flex flex-col gap-0.5 mt-1 normal-case tracking-normal">
-                              {item.selectedVariant && <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">{item.selectedVariant}</span>}
-                              {item.selectedModifiers && item.selectedModifiers.length > 0 && <span className="text-[9px] font-bold text-primary uppercase tracking-widest">+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</span>}
-                              {item.serialNumber && <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">SN: {item.serialNumber}</span>}
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-md overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center">
+                              {item.product?.image ? (
+                                <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <Package className="h-3 w-3 text-gray-400" />
+                              )}
                             </div>
-                          )}
-                          {showDiscount && item.discount > 0 && (
-                            <div className="flex items-center justify-between text-[8px] text-rose-500 font-black mt-1.5 uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20 max-w-[180px] whitespace-nowrap">
-                              <span className="flex items-center gap-1">
-                                <Gift className="w-2.5 h-2.5" />
-                                {t("discount", "Discount")} {item.discountType === 'percentage' && item.discountValue ? `(${item.discountValue}%)` : ''}
-                              </span>
-                              <span className="tabular-nums ml-2 whitespace-nowrap">-{formatCurrency(item.discount, state.settings.currency)}</span>
+                            <div className="min-w-0">
+                              <span className="truncate block">{item.product?.name || t("item", "Item")}</span>
+                              {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
+                                <div className="flex flex-col gap-0.5 mt-0.5 normal-case tracking-normal">
+                                  {item.selectedVariant && <span className="text-[8px] font-bold text-gray-500">{item.selectedVariant}</span>}
+                                  {item.selectedModifiers && item.selectedModifiers.length > 0 && <span className="text-[8px] font-bold text-primary">+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</span>}
+                                  {item.serialNumber && <span className="text-[8px] font-bold text-amber-500">SN: {item.serialNumber}</span>}
+                                </div>
+                              )}
+                              {showDiscount && item.discount > 0 && (
+                                <div className="flex items-center gap-1 text-[7px] text-rose-500 font-black mt-1 uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">
+                                  <Gift className="w-2 h-2" />
+                                  <span>Discount</span>
+                                  <span>{item.discountType === 'percentage' && item.discountValue ? `(${item.discountValue}%)` : ''}</span>
+                                  <span>-{formatCurrency(item.discount, state.settings.currency)}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </td>
                         <td className="px-2.5 sm:px-4 py-3 sm:py-4 text-right text-[11px] font-bold text-gray-600 dark:text-gray-400 whitespace-nowrap">{item.quantity}</td>
                         <td className="px-2.5 sm:px-4 py-3 sm:py-4 text-right text-[11px] font-black text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(item.subtotal, state.settings.currency)}</td>

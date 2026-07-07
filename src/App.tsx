@@ -206,7 +206,11 @@ function AppContent() {
         return enforceAccess(userRole === 'admin',
           <UserManager />);
       case 'settings':
-        return <Settings />;
+        if (userRole === 'admin' || userRole === 'manager') {
+          return <Settings />;
+        }
+        setCurrentView('pos');
+        return <POSTerminal />;
 
       case 'suppliers':
         if (userRole === 'admin' || userRole === 'manager') {

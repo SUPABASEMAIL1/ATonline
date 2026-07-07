@@ -10,6 +10,7 @@ import { purchaseRecordsService, productsService } from '../../lib/services';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { sonner } from '../../lib/sonner';
 import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { formatAppDate, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
 import { BatchStockInSystem } from './BatchStockInSystem';
 import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -192,45 +193,56 @@ export function PurchaseHistory() {
   };
 
   const dateBoundaries = useMemo(() => {
-    let start = subDays(new Date(), 30);
-    let end = endOfDay(new Date());
+    const timezone = getTimezone(state.settings.country);
+    const now = new Date();
+    let start: Date;
+    let end: Date;
 
     try {
       if (dateRange === 'custom' && startDateInput && endDateInput) {
-        start = startOfDay(new Date(startDateInput));
-        end = endOfDay(new Date(endDateInput));
+        start = new Date(getStartOfInputDayInTimezone(startDateInput, timezone).getTime());
+        end = new Date(getEndOfInputDayInTimezone(endDateInput, timezone).getTime());
       } else if (dateRange === 'today') {
-        start = startOfDay(new Date());
-        end = endOfDay(new Date());
+        start = getStartOfDayInTimezone(now, timezone);
+        end = getEndOfDayInTimezone(now, timezone);
       } else if (dateRange === 'yesterday') {
-        const yesterday = subDays(new Date(), 1);
-        start = startOfDay(yesterday);
-        end = endOfDay(yesterday);
+        const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        start = getStartOfDayInTimezone(yesterday, timezone);
+        end = getEndOfDayInTimezone(yesterday, timezone);
       } else if (dateRange === 'last7') {
-        start = startOfDay(subDays(new Date(), 6));
-        end = endOfDay(new Date());
+        const last7 = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+        start = getStartOfDayInTimezone(last7, timezone);
+        end = getEndOfDayInTimezone(now, timezone);
       } else if (dateRange === 'thisMonth') {
-        start = startOfMonth(new Date());
-        end = endOfDay(new Date());
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        start = getStartOfDayInTimezone(startOfMonth, timezone);
+        end = getEndOfDayInTimezone(now, timezone);
       } else if (dateRange === 'lastMonth') {
-        const prevMonth = subMonths(new Date(), 1);
-        start = startOfMonth(prevMonth);
-        end = endOfMonth(prevMonth);
+        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        start = getStartOfDayInTimezone(lm, timezone);
+        end = getEndOfDayInTimezone(lmEnd, timezone);
       } else if (dateRange === 'last30') {
-        start = startOfDay(subDays(new Date(), 30));
-        end = endOfDay(new Date());
+        const last30 = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+        start = getStartOfDayInTimezone(last30, timezone);
+        end = getEndOfDayInTimezone(now, timezone);
       } else if (dateRange === 'all') {
-        start = new Date(2000, 0, 1);
-        end = endOfDay(new Date());
+        start = new Date(Date.UTC(2000, 0, 1));
+        end = getEndOfDayInTimezone(now, timezone);
+      } else {
+         const last30 = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+         start = getStartOfDayInTimezone(last30, timezone);
+         end = getEndOfDayInTimezone(now, timezone);
       }
     } catch (e) {
       // Fallback safely if inputs are completely malformed
-      start = subDays(new Date(), 30);
-      end = endOfDay(new Date());
+      const last30 = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+      start = getStartOfDayInTimezone(last30, timezone);
+      end = getEndOfDayInTimezone(now, timezone);
     }
 
     return { start, end };
-  }, [dateRange, startDateInput, endDateInput]);
+  }, [dateRange, startDateInput, endDateInput, state.settings.country]);
 
   const filteredRecords = useMemo(() => {
     const records = state.purchaseRecords || [];
@@ -261,9 +273,15 @@ export function PurchaseHistory() {
     );
   }, [filteredRecords, currentPage, itemsPerPage]);
 
-  const suppliers = ['All', ...Array.from(new Set((state.purchaseRecords || []).map(r => r.supplier).filter(Boolean)))];
+  const suppliers = ['All', ...Array.from(new Set([
+    ...state.suppliers.map(s => s.name).filter(Boolean),
+    ...(state.purchaseRecords || []).map(r => r.supplier).filter(Boolean)
+  ]))];
   const categoriesList = ['All', ...Array.from(new Set(state.products.map(p => p.category).filter(Boolean)))];
-  const usersList = ['All', ...Array.from(new Set((state.purchaseRecords || []).map(r => r.addedBy).filter(Boolean)))];
+  const usersList = ['All', ...Array.from(new Set([
+    ...state.users.map(u => u.name).filter(Boolean),
+    ...(state.purchaseRecords || []).map(r => r.addedBy).filter(Boolean)
+  ]))];
 
   // Internal memoized components to prevent re-renders when unrelated state changes
   const SummaryCards = useMemo(() => {

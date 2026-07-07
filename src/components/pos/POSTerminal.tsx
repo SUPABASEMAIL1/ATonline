@@ -137,6 +137,7 @@ export function POSTerminal() {
 
     const existingItemIndex = state.cart.findIndex(item =>
       item.product.id === product.id &&
+      !item.bundleId && !item.bundle_id && // Never merge into a bundle child line (standalone click must stay standalone)
       (product.isWeightBased ? false : true) && // For weight-based products, always add new item
       (!options?.selectedVariant || item.selectedVariant === options.selectedVariant) && // Match variant
       (!options?.serialNumber || item.serialNumber === options.serialNumber) // Match serial

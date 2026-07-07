@@ -103,11 +103,11 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
   };
 
   const footer = (
-    <div className="flex items-center justify-end gap-3 sm:gap-6">
+    <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
       <button
         type="button"
         onClick={onClose}
-        className="px-6 py-3 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95 shrink-0"
+        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
       >
         {t('discard', 'DISCARD')}
       </button>
@@ -115,12 +115,12 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
         type="button"
         onClick={handleSubmit}
         disabled={isSubmitting}
-        className="btn btn-md btn-primary w-full sm:w-auto sm:min-w-[240px] flex-1"
+        className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
       >
         {isSubmitting ? (
-          <RefreshCw className="h-4 w-4 animate-spin" />
+          <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" />
         ) : (
-          <Save className="h-4 w-4" />
+          <Save className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
         )}
         <span className="leading-none ml-2">
           {customer ? t('update_customer_btn', 'UPDATE CUSTOMER') : t('add_customer_btn', 'ADD CUSTOMER')}

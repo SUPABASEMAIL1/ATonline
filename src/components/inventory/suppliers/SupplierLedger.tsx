@@ -45,7 +45,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
       setLoading(true);
       const newOffset = isInitial ? 0 : offset;
       // manualOnly = true (default) — excludes inventory-auto-generated transactions
-      const data = await suppliersService.getLedger(supplier.id, LIMIT, newOffset, true);
+      const data = await suppliersService.getLedger(supplier.id, LIMIT, newOffset, false);
 
       if (isInitial) {
         setLedger(data);
@@ -487,17 +487,17 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
         subtitle={`${t('settle_debt_for', 'SETTLE DEBT FOR')} ${supplier.name.toUpperCase()}`}
         maxWidth="sm"
         footer={
-          <div className="flex items-center gap-3 w-full">
+          <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
             <button
               onClick={() => setShowPaymentModal(false)}
-              className="flex-1 py-3 border border-rose-100 dark:border-rose-900/30 text-rose-500 font-black uppercase text-[10px] tracking-widest rounded-full hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-95"
+              className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-100 dark:border-rose-900/30 text-rose-500 font-black uppercase text-[9px] sm:text-[10px] tracking-widest rounded-2xl hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-95 shrink-0"
             >
               {t('cancel', 'Cancel')}
             </button>
             <button
               onClick={submitPayment}
               disabled={formLoading}
-              className="btn btn-md btn-primary flex-1"
+              className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[200px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
             >
               {formLoading ? t('processing', 'Recording...') : t('confirm_payment', 'Confirm Payment')}
             </button>
@@ -556,17 +556,17 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
         subtitle={t('add_manual_invoice_amount', 'ADD MANUAL INVOICE AMOUNT TO LEDGER')}
         maxWidth="sm"
         footer={
-          <div className="flex items-center gap-3 w-full">
+          <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
             <button
               onClick={() => setShowBillModal(false)}
-              className="flex-1 py-3 border border-gray-200 dark:border-white/10 text-gray-600 font-black uppercase text-[10px] tracking-widest rounded-full hover:bg-gray-50 dark:hover:bg-white/5 transition-all active:scale-95"
+              className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3.5 border border-gray-200 dark:border-white/10 text-gray-600 font-black uppercase text-[9px] sm:text-[10px] tracking-widest rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all active:scale-95 shrink-0"
             >
               {t('cancel', 'Cancel')}
             </button>
             <button
               onClick={submitBill}
               disabled={formLoading}
-              className="flex-1 py-3 bg-rose-500 text-white font-black uppercase text-[10px] tracking-widest rounded-full shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+              className="flex-1 sm:flex-none sm:min-w-[200px] px-4 sm:px-6 py-2.5 sm:py-3.5 bg-rose-500 hover:bg-rose-600 text-white font-black uppercase text-[9px] sm:text-[11px] tracking-widest rounded-2xl shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
             >
               {formLoading ? t('processing', 'Recording...') : t('record_bill', 'Record Bill')}
             </button>
