@@ -167,10 +167,12 @@ export function POSTerminal() {
 
     if (existingItemIndex >= 0 && !shouldAddNewLine) {
       const existingItem = state.cart[existingItemIndex];
+      // Use the existing cart item's price (may have been manually edited by user)
+      const effectivePrice = existingItem.product.price;
       let updatedDiscount = existingItem.discount || 0;
       if (existingItem.discountValue && existingItem.discountValue > 0) {
         if (existingItem.discountType === 'percentage') {
-          updatedDiscount = (product.price * newQuantity * existingItem.discountValue) / 100;
+          updatedDiscount = (effectivePrice * newQuantity * existingItem.discountValue) / 100;
         } else {
           updatedDiscount = Math.sign(newQuantity) * existingItem.discountValue;
         }
@@ -182,7 +184,7 @@ export function POSTerminal() {
         ...existingItem,
         quantity: newQuantity,
         discount: updatedDiscount,
-        subtotal: product.price * newQuantity - updatedDiscount
+        subtotal: effectivePrice * newQuantity - updatedDiscount
       };
       dispatch({ type: 'UPDATE_CART_ITEM', payload: { index: existingItemIndex, item: updatedItem } });
     } else {
