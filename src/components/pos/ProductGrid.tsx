@@ -172,12 +172,12 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
     (navigator.maxTouchPoints > 0 && /Macintosh/i.test(navigator.userAgent));
 
   const filteredProducts = state.products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (product.barcodeValue && product.barcodeValue.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
+      (product.sku && product.sku.toLowerCase().includes((searchTerm || '').toLowerCase())) ||
+      (product.barcodeValue && product.barcodeValue.toLowerCase().includes((searchTerm || '').toLowerCase())) ||
+      (product.barcode && product.barcode.toLowerCase().includes((searchTerm || '').toLowerCase()));
 
-    const matchesCategory = searchTerm.trim() !== ''
+    const matchesCategory = (searchTerm || '').trim() !== ''
       ? true
       : (selectedCategory === 'All' || (selectedCategory === 'Featured' ? product.isFeatured : product.category === selectedCategory));
 

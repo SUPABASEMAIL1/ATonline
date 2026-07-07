@@ -192,9 +192,9 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
 
   const filteredCustomers = state.customers.filter(
     (c) =>
-      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      c.email.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      c.phone.includes(customerSearch)
+      (c.name || '').toLowerCase().includes((customerSearch || '').toLowerCase()) ||
+      (c.email || '').toLowerCase().includes((customerSearch || '').toLowerCase()) ||
+      (c.phone || '').includes(customerSearch || '')
   );
 
   const { subtotal, totalDiscount, taxAmount, total, activePromotions, freeGifts, billDiscountAmount, isBelowCost, manualItemDiscountTotal } =

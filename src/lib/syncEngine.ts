@@ -4,7 +4,7 @@ import { localDb, PendingOp, SETTINGS_ID } from './localDb';
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
 const BACKOFF_INITIAL = 5 * 1000; // 5s
 const BACKOFF_MAX = 60 * 1000; // 60s
-const SYNC_TIMEOUT = 10 * 1000; // 10s
+const SYNC_TIMEOUT = 120 * 1000; // 120s
 
 let _isSyncing = false;
 let _syncNeeded = false;
@@ -581,7 +581,7 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
     let syncTimedOut = false;
     const syncTimeout = setTimeout(() => {
         syncTimedOut = true;
-        console.warn('[POS SYNC] Sync timed out after 10s — entering offline mode.');
+        console.warn('[POS SYNC] Sync timed out after 120s — entering offline mode.');
         _offlineMode = true;
         _isSyncing = false;
     }, SYNC_TIMEOUT);
@@ -840,6 +840,12 @@ export async function retrySyncAll() {
         status: 'pending',
         retries: 0
     });
+    _offlineMode = false;
+    _offlineBackoff = 0;
+    if (_offlineTimer) {
+        clearTimeout(_offlineTimer);
+        _offlineTimer = null;
+    }
     window.dispatchEvent(new Event('pendingops-changed'));
     return syncToCloud();
 }
