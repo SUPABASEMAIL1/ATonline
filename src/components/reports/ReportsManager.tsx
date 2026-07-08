@@ -5,7 +5,7 @@ import { TrendingUp, Wallet, Package, Users, DollarSign, Clock, FileText, PieCha
 import { useApp } from '../../context/SupabaseAppContext';
 import { subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
-import { formatAppDate, formatAppDateTime, formatAppDateChart, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone } from '../../lib/dateUtils';
+import { formatAppDate, formatAppDateTime, formatAppDateChart, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone } from '../../lib/dateUtils';
 import { EXPENSE_CATEGORIES, Sale, Expense } from '../../types';
 import InventoryReportManager from '../inventory/InventoryReportManager';
 import { localDb } from '../../lib/localDb';
