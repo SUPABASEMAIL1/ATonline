@@ -1,21 +1,67 @@
-/**
- * seed_demo_products.mjs
- * Inserts 15 demo products across 5 categories directly via PostgreSQL (bypasses RLS).
- * Run: node scripts/seed_demo_products.mjs
- */
-
-import pkg from 'pg';
-const { Client } = pkg;
+import fs from 'fs';
+import path from 'path';
 import { randomUUID } from 'crypto';
 
+// Load environment variables from .env.local
+const envPath = path.join(process.cwd(), '.env.local');
+const env = {};
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+    const parts = line.split('=');
+    if (parts.length >= 2) {
+      env[parts[0].trim()] = parts.slice(1).join('=').trim();
+    }
+  });
+}
+
+const SUPABASE_REF = env['SUPABASE_REF'];
+const SUPABASE_MGMT_KEY = env['SUPABASE_MGMT_API_KEY'];
 const WORKSPACE_ID = 'ffda4d2d-b837-4b24-84d1-675640533745';
 
-const client = new Client({
-  connectionString: 'postgresql://postgres.goiizgrcvogovvwclrym:s7vrablMBTlwX0HY@aws-1-ap-south-1.pooler.supabase.com:5432/postgres',
-  ssl: { rejectUnauthorized: false }
-});
+if (!SUPABASE_REF || !SUPABASE_MGMT_KEY) {
+  console.error('❌ Error: SUPABASE_REF or SUPABASE_MGMT_API_KEY not found in .env.local');
+  process.exit(1);
+}
 
-const now = new Date().toISOString();
+function formatSql(sql, params) {
+  if (!params || params.length === 0) return sql;
+  let index = 1;
+  // Replace parameters matching $1, $2, etc. (note: we replace in order)
+  return sql.replace(/\$\d+/g, () => {
+    const val = params[index - 1];
+    index++;
+    if (val === null || val === undefined) return 'NULL';
+    if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+    if (typeof val === 'number') return val.toString();
+    if (typeof val === 'boolean') return val ? 'true' : 'false';
+    return `'${val.toString().replace(/'/g, "''")}'`;
+  });
+}
+
+async function runQuery(sql, params = []) {
+  const formattedSql = formatSql(sql, params);
+  const response = await fetch(`https://api.supabase.com/v1/projects/${SUPABASE_REF}/database/query`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_MGMT_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query: formattedSql })
+  });
+
+  const text = await response.text();
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`Failed to parse API response: ${text}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(result.message || `Query failed: ${text}`);
+  }
+  return result;
+}
 
 const DEMO_PRODUCTS = [
   // ── Electronics (3) ──────────────────────────────────────────────────────
@@ -45,9 +91,8 @@ const DEMO_PRODUCTS = [
 ];
 
 async function main() {
-  console.log('🔌 Connecting to Supabase PostgreSQL...');
-  await client.connect();
-  console.log('✅ Connected!\n');
+  console.log('🔌 Connecting to Supabase API...');
+  console.log('✅ Setup Done!\n');
 
   let insertedCount = 0;
   let batchCount = 0;
@@ -60,7 +105,7 @@ async function main() {
 
     try {
       // ── Insert product ──────────────────────────────────────────────────
-      await client.query(`
+      await runQuery(`
         INSERT INTO products (
           id, workspace_id, name, sku, category, supplier,
           cost, price, stock, description, barcode,
@@ -85,7 +130,7 @@ async function main() {
 
       // ── Insert product batch (FIFO) ─────────────────────────────────────
       try {
-        await client.query(`
+        await runQuery(`
           INSERT INTO product_batches (
             id, product_id, workspace_id, batch_number,
             qty_remaining, cost_price, sale_price,
@@ -104,7 +149,7 @@ async function main() {
 
       // ── Insert stock history (Rule F2) ──────────────────────────────────
       try {
-        await client.query(`
+        await runQuery(`
           INSERT INTO stock_history (
             id, product_id, workspace_id,
             change_qty, balance_after, type,
@@ -122,8 +167,6 @@ async function main() {
     }
   }
 
-  await client.end();
-
   console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎉 Seeding Complete!
@@ -137,6 +180,5 @@ async function main() {
 
 main().catch(err => {
   console.error('Fatal error:', err.message);
-  client.end();
   process.exit(1);
 });

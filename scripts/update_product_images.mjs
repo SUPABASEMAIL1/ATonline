@@ -1,16 +1,64 @@
-/**
- * update_product_images.mjs
- * Updates demo products with real Unsplash image URLs.
- * Run: node scripts/update_product_images.mjs
- */
+import fs from 'fs';
+import path from 'path';
 
-import pkg from 'pg';
-const { Client } = pkg;
+// Load environment variables from .env.local
+const envPath = path.join(process.cwd(), '.env.local');
+const env = {};
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+    const parts = line.split('=');
+    if (parts.length >= 2) {
+      env[parts[0].trim()] = parts.slice(1).join('=').trim();
+    }
+  });
+}
 
-const client = new Client({
-  connectionString: 'postgresql://postgres.goiizgrcvogovvwclrym:s7vrablMBTlwX0HY@aws-1-ap-south-1.pooler.supabase.com:5432/postgres',
-  ssl: { rejectUnauthorized: false }
-});
+const SUPABASE_REF = env['SUPABASE_REF'];
+const SUPABASE_MGMT_KEY = env['SUPABASE_MGMT_API_KEY'];
+
+if (!SUPABASE_REF || !SUPABASE_MGMT_KEY) {
+  console.error('❌ Error: SUPABASE_REF or SUPABASE_MGMT_API_KEY not found in .env.local');
+  process.exit(1);
+}
+
+function formatSql(sql, params) {
+  if (!params || params.length === 0) return sql;
+  let index = 1;
+  return sql.replace(/\$\d+/g, () => {
+    const val = params[index - 1];
+    index++;
+    if (val === null || val === undefined) return 'NULL';
+    if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+    if (typeof val === 'number') return val.toString();
+    if (typeof val === 'boolean') return val ? 'true' : 'false';
+    return `'${val.toString().replace(/'/g, "''")}'`;
+  });
+}
+
+async function runQuery(sql, params = []) {
+  const formattedSql = formatSql(sql, params);
+  const response = await fetch(`https://api.supabase.com/v1/projects/${SUPABASE_REF}/database/query`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_MGMT_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query: formattedSql })
+  });
+
+  const text = await response.text();
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`Failed to parse API response: ${text}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(result.message || `Query failed: ${text}`);
+  }
+  return result;
+}
 
 // Product name → high-quality Unsplash image URL (1200×1200, specific photo IDs)
 const PRODUCT_IMAGES = {
@@ -47,51 +95,48 @@ const PRODUCT_IMAGES = {
 };
 
 async function main() {
-  console.log('🔌 Connecting to Supabase PostgreSQL...');
-  await client.connect();
-  console.log('✅ Connected!\n');
+  console.log('🔌 Connecting to Supabase API...');
+  console.log('✅ Setup Done!\n');
 
   let updated = 0;
   let skipped = 0;
 
   for (const [name, imageUrl] of Object.entries(PRODUCT_IMAGES)) {
     try {
-      const result = await client.query(
+      const result = await runQuery(
         `UPDATE products SET image = $1, updated_at = NOW()
-         WHERE name = $2 AND (image IS NULL OR image = '')
-         RETURNING id, name`,
+         WHERE name = $2 AND (image IS NULL OR image = '')`,
         [imageUrl, name]
       );
 
-      if (result.rowCount > 0) {
-        console.log(`  ✅ ${name}`);
-        console.log(`     → ${imageUrl.slice(0, 60)}...`);
-        updated++;
-      } else {
-        // Try without the image IS NULL check (maybe already has image)
-        const check = await client.query(
-          `SELECT id FROM products WHERE name = $1`, [name]
-        );
-        if (check.rowCount > 0) {
+      // Result of query execution is usually a JSON array or row status
+      // We can also check by selecting the product
+      const check = await runQuery(
+        `SELECT id, image FROM products WHERE name = $1`, [name]
+      );
+
+      if (check && check.length > 0) {
+        if (check[0].image === imageUrl) {
+          console.log(`  ✅ ${name} updated`);
+          updated++;
+        } else {
           // Force update
-          await client.query(
+          await runQuery(
             `UPDATE products SET image = $1, updated_at = NOW() WHERE name = $2`,
             [imageUrl, name]
           );
           console.log(`  🔄 ${name} (force updated)`);
           updated++;
-        } else {
-          console.log(`  ⚠️  Not found: ${name}`);
-          skipped++;
         }
+      } else {
+        console.log(`  ⚠️  Not found: ${name}`);
+        skipped++;
       }
     } catch (err) {
       console.error(`  ❌ Error [${name}]: ${err.message}`);
       skipped++;
     }
   }
-
-  await client.end();
 
   console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -105,6 +150,5 @@ async function main() {
 
 main().catch(err => {
   console.error('Fatal error:', err.message);
-  client.end();
   process.exit(1);
 });

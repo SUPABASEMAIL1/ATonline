@@ -12,32 +12,76 @@
 
 import fs from 'fs';
 import path from 'path';
-import pkg from 'pg';
-const { Client } = pkg;
 import { randomUUID } from 'crypto';
 
-// ── Read Environment Connection Details ──
+// Load environment variables from .env.local
 const envPath = path.join(process.cwd(), '.env.local');
-let connectionString = process.env.DIRECT_URL;
-
-if (!connectionString && fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  const directUrlLine = envContent.split('\n').find(line => line.startsWith('DIRECT_URL='));
-  if (directUrlLine) {
-    connectionString = directUrlLine.split('=')[1].replace(/"/g, '').trim();
-  }
+const env = {};
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
+    const parts = line.split('=');
+    if (parts.length >= 2) {
+      env[parts[0].trim()] = parts.slice(1).join('=').trim();
+    }
+  });
 }
 
-if (!connectionString) {
-  console.error('❌ DIRECT_URL or DATABASE_URL not found in environment or .env.local!');
+const SUPABASE_REF = env['SUPABASE_REF'];
+const SUPABASE_MGMT_KEY = env['SUPABASE_MGMT_API_KEY'];
+
+if (!SUPABASE_REF || !SUPABASE_MGMT_KEY) {
+  console.error('❌ Error: SUPABASE_REF or SUPABASE_MGMT_API_KEY not found in .env.local');
   process.exit(1);
 }
 
-console.log('🔌 Connecting to database...');
-const client = new Client({
-  connectionString,
-  ssl: { rejectUnauthorized: false }
-});
+function formatSql(sql, params) {
+  if (!params || params.length === 0) return sql;
+  let index = 1;
+  return sql.replace(/\$\d+/g, () => {
+    const val = params[index - 1];
+    index++;
+    if (val === null || val === undefined) return 'NULL';
+    if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`;
+    if (typeof val === 'number') return val.toString();
+    if (typeof val === 'boolean') return val ? 'true' : 'false';
+    return `'${val.toString().replace(/'/g, "''")}'`;
+  });
+}
+
+async function runQuery(sql, params = []) {
+  const formattedSql = formatSql(sql, params);
+  const response = await fetch(`https://api.supabase.com/v1/projects/${SUPABASE_REF}/database/query`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_MGMT_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query: formattedSql })
+  });
+
+  const text = await response.text();
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`Failed to parse API response: ${text}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(result.message || `Query failed: ${text}`);
+  }
+  return { rows: result };
+}
+
+const client = {
+  connect: async () => {
+    console.log('🔌 Connecting to Supabase API...');
+  },
+  query: runQuery,
+  end: async () => {
+    console.log('🔌 Disconnected from Supabase API.');
+  }
+};
 
 const CATEGORIES = [
   { name: 'Health & Beauty', description: 'Cosmetics, skincare, perfumes, and personal care products' },
