@@ -755,7 +755,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                       type="number"
                       value={formData.price}
                       onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="w-full bg-primary/5 border border-primary/20 px-4 py-2.5 rounded-xl text-xs font-black text-primary outline-none"
+                      className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
                     />
                   </div>
                   <div>
@@ -764,7 +764,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                       type="number"
                       value={formData.cost}
                       onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold outline-none"
+                      className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
                     />
                   </div>
                 </div>
@@ -1149,30 +1149,51 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                     </div>
                     
                     {modifiers.map((modifier, index) => (
-                      <div key={index} className="flex gap-2 items-center p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
-                        <input
-                          type="text"
-                          placeholder={t('modifier_name_placeholder', 'Modifier Name')}
-                          value={modifier.name}
-                          onChange={(e) => {
-                            const newModifiers = [...modifiers];
-                            newModifiers[index].name = e.target.value;
-                            setModifiers(newModifiers);
-                          }}
-                          className="flex-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500 font-black"
-                        />
-                        <input
-                          type="number"
-                          placeholder={t('price', 'Price')}
-                          value={modifier.price || ''}
-                          onChange={(e) => {
-                            const newModifiers = [...modifiers];
-                            newModifiers[index].price = parseFloat(e.target.value) || 0;
-                            setModifiers(newModifiers);
-                          }}
-                          className="w-1/3 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500 font-black"
-                        />
-                        <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
+                      <div key={index} className="flex gap-2 items-start p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
+                        <div className="flex-1 space-y-2">
+                          <input
+                            type="text"
+                            placeholder={t('modifier_name_placeholder', 'Modifier Name')}
+                            value={modifier.name}
+                            onChange={(e) => {
+                              const newModifiers = [...modifiers];
+                              newModifiers[index].name = e.target.value;
+                              setModifiers(newModifiers);
+                            }}
+                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500 font-black"
+                          />
+                          {variants.length > 0 && variants.some(v => v.options && v.options.length > 0) && (
+                            <select
+                              value={modifier.variantName || ''}
+                              onChange={(e) => {
+                                const newModifiers = [...modifiers];
+                                newModifiers[index].variantName = e.target.value || undefined;
+                                setModifiers(newModifiers);
+                              }}
+                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="">Apply to all variants</option>
+                              {variants.flatMap(v => (v.options || []).map((opt: string) => `${v.name}: ${opt}`)).map(opt => (
+                                <option key={opt} value={opt}>Only for {opt}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <div className="relative w-1/3 shrink-0">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold">+</span>
+                          <input
+                            type="number"
+                            placeholder={t('price', 'Price')}
+                            value={modifier.price || ''}
+                            onChange={(e) => {
+                              const newModifiers = [...modifiers];
+                              newModifiers[index].price = parseFloat(e.target.value) || 0;
+                              setModifiers(newModifiers);
+                            }}
+                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg pl-6 pr-3 py-2 focus:ring-1 focus:ring-blue-500 font-black"
+                          />
+                        </div>
+                        <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors">
                           <X className="w-4 h-4" />
                         </button>
                       </div>
