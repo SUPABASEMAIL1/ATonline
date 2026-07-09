@@ -95,7 +95,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         requireSerial: product.requireSerial ?? false,
       });
       setBatches(product.batches || []);
-      setVariants((product.variants || []).map(v => ({ ...v, optionsRaw: v.options.join(', ') })));
+      setVariants((product.variants || []).map(v => ({ ...v, optionsRaw: '' })));
       setVariantData(product.variantData || []);
       setModifiers(product.modifiers || []);
     } else {

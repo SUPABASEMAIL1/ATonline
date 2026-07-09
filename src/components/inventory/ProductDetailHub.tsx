@@ -79,7 +79,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   });
 
   const [batches, setBatches] = useState(product.batches || []);
-  const [variants, setVariants] = useState<any[]>((product.variants || []).map((v: any) => ({ ...v, optionsRaw: v.options.join(', ') })));
+  const [variants, setVariants] = useState<any[]>((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
   const [modifiers, setModifiers] = useState<any[]>(product.modifiers || []);
 
   // Sync state if product prop changes
@@ -103,7 +103,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       requireSerial: product.requireSerial || false,
     });
     setBatches(product.batches || []);
-    setVariants((product.variants || []).map((v: any) => ({ ...v, optionsRaw: v.options.join(', ') })));
+    setVariants((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
     setModifiers(product.modifiers || []);
   }, [product]);
 
