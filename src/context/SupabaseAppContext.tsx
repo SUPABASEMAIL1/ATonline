@@ -271,6 +271,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, products: [...state.products, ...action.payload] };
 
     case 'ADD_PRODUCT':
+      if (state.products.some(p => p.id === action.payload.id)) {
+        return state;
+      }
       return { ...state, products: [...state.products, action.payload] };
     case 'UPDATE_PRODUCT':
       if (!action.payload?.id) return state;
@@ -287,6 +290,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_CUSTOMERS':
       return { ...state, customers: action.payload };
     case 'ADD_CUSTOMER':
+      if (state.customers.some(c => c.id === action.payload.id)) {
+        return state;
+      }
       return { ...state, customers: [...state.customers, action.payload] };
     case 'UPDATE_CUSTOMER':
       if (!action.payload?.id) return state;
@@ -477,6 +483,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_DISCOUNTS':
       return { ...state, discounts: action.payload };
     case 'ADD_DISCOUNT':
+      if (state.discounts.some(d => d.id === action.payload.id)) {
+        return state;
+      }
       return { ...state, discounts: [...state.discounts, action.payload] };
     case 'UPDATE_DISCOUNT':
       if (!action.payload?.id) return state;
@@ -583,6 +592,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_EXPENSES':
       return { ...state, expenses: action.payload };
     case 'ADD_EXPENSE':
+      if (state.expenses.some(e => e.id === action.payload.id)) {
+        return state;
+      }
       return { ...state, expenses: [action.payload, ...state.expenses] };
     case 'UPDATE_EXPENSE':
       if (!action.payload?.id) return state;
@@ -598,6 +610,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_PURCHASE_RECORDS':
       return { ...state, purchaseRecords: action.payload };
     case 'ADD_PURCHASE_RECORD': {
+      if (state.purchaseRecords.some(r => r.id === action.payload.id)) {
+        return state;
+      }
       let updatedProducts = [...state.products];
       const productId = action.payload.productId;
       if (!productId) {
@@ -644,6 +659,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_BUNDLES':
       return { ...state, bundles: action.payload };
     case 'ADD_BUNDLE':
+      if (state.bundles.some(b => b.id === action.payload.id)) {
+        return state;
+      }
       return { ...state, bundles: [action.payload, ...state.bundles] };
     case 'UPDATE_BUNDLE':
       if (!action.payload?.id) return state;
