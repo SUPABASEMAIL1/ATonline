@@ -140,6 +140,8 @@ BEGIN
       app_settings,
       bundles,
       bundle_items,
+      bundle_slots,
+      bundle_slot_options,
       categories,
       customers,
       discounts,

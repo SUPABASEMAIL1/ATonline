@@ -1167,10 +1167,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const localBundles = await localDb.bundles.toArray();
         const localBundleItems = await localDb.bundleItems.toArray();
+        const localBundleSlots = await localDb.bundleSlots.toArray();
+        const localBundleSlotOptions = await localDb.bundleSlotOptions.toArray();
         if (localBundles.length > 0) {
           const bundlesWithItems = localBundles.map((b: any) => ({
             ...b,
             items: localBundleItems.filter((bi: any) => bi.bundleId === b.id),
+            slots: localBundleSlots.filter((s: any) => s.bundleId === b.id).map(s => ({
+              ...s,
+              options: localBundleSlotOptions.filter((o: any) => o.slotId === s.id)
+            }))
           }));
           dispatch({ type: 'SET_BUNDLES', payload: bundlesWithItems });
         }
@@ -1499,7 +1505,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           const wsId = profile?.workspace_id || state.settings.workspaceId || state.settings.id;
           if (wsId) {
-            const remoteBundles = await bundlesService.getAll(wsId);
+            const remoteBundles = await bundlesService.getAll(wsId, true);
             dispatch({ type: 'SET_BUNDLES', payload: remoteBundles });
           }
         } catch (e) {

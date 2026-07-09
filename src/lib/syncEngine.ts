@@ -138,7 +138,10 @@ async function executeOp(op: PendingOp): Promise<void> {
         supplier_transactions: 'supplier_transactions',
         payments: 'payments',
         stock_history: 'stock_history',
-        bundles: 'bundles'
+        bundles: 'bundles',
+        bundle_items: 'bundle_items',
+        bundle_slots: 'bundle_slots',
+        bundle_slot_options: 'bundle_slot_options'
     };
 
     const table = tableMap[op.entity];
@@ -185,6 +188,15 @@ async function executeOp(op: PendingOp): Promise<void> {
 
         // Hydration for Products (Required: name, price, category, sku)
         if (op.entity === 'products' && opType !== 'delete') {
+            // AGGRESSIVE PATCH: Ensure variant_data and sku are correct even for stale queue items
+            if ('variantData' in payload) {
+                payload.variant_data = payload.variantData;
+                delete payload.variantData;
+            }
+            if (!payload.sku) {
+                payload.sku = op.entityId || payload.barcode_value || `SKU-${Date.now()}`;
+            }
+
             if (!payload.name || payload.price === undefined || !payload.category || !payload.sku) {
                 const local = await localDb.products.get(op.entityId);
                 if (local) {

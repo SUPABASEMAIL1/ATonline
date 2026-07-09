@@ -548,6 +548,15 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           {shBundles.map((b: any) => (
             <div key={b.bundleId} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
               <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>🎁 {b.bundleName}</div>
+              <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
+                {b.items.map((item: any, idx: number) => (
+                  <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
+                    - {item.quantity}x {item.product?.name || 'Item'}
+                    {item.selectedVariant ? ` (${item.selectedVariant})` : ''}
+                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
+                  </div>
+                ))}
+              </div>
               {showDiscount ? (
                 <>
                   <TwoCol left="  DEAL SUBTOTAL" right={formatCurrency(b.totalOriginal, currencyCode)} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.7 }} />
@@ -1189,13 +1198,23 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                   <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.body}px`, marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase', color: '#7c3aed' }}>
                     BUNDLE / DEAL ITEMS ({bundles.length})
                   </div>
-                  {bundles.map((b, bIdx) => {
+                   {bundles.map((b, bIdx) => {
                     return (
                     <div key={`bundle-${b.bundleId}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
                       <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>
                         🎁 {b.bundleName}
                       </div>
                       
+                      <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
+                        {b.items.map((item: any, idx: number) => (
+                          <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
+                            - {item.quantity}x {item.product?.name || 'Item'}
+                            {item.selectedVariant ? ` (${item.selectedVariant})` : ''}
+                            {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
+                          </div>
+                        ))}
+                      </div>
+
                       {showDiscount ? (
                         <>
                           <TwoCol

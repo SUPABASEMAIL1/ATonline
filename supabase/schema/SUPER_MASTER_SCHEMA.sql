@@ -319,6 +319,7 @@ CREATE TABLE IF NOT EXISTS products (
     track_inventory     BOOLEAN DEFAULT true,
     is_featured         BOOLEAN DEFAULT false,
     variants            JSONB DEFAULT '[]'::jsonb,
+    variant_data        JSONB DEFAULT '[]'::jsonb,
     modifiers           JSONB DEFAULT '[]'::jsonb,
     is_service          BOOLEAN DEFAULT false,
     require_serial      BOOLEAN DEFAULT false,
@@ -648,6 +649,7 @@ CREATE TABLE IF NOT EXISTS bundles (
     workspace_id        UUID NOT NULL,
     name                TEXT NOT NULL,
     description         TEXT DEFAULT '',
+    is_combo            BOOLEAN NOT NULL DEFAULT FALSE,
     discount_value      NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (discount_value >= 0),
     discount_type       TEXT NOT NULL DEFAULT 'percentage' CHECK (discount_type IN ('percentage', 'fixed')),
     hide_item_prices    BOOLEAN NOT NULL DEFAULT FALSE,
@@ -675,6 +677,35 @@ CREATE TABLE IF NOT EXISTS bundle_items (
 CREATE INDEX IF NOT EXISTS idx_bundle_items_bundle_id ON bundle_items(bundle_id);
 CREATE INDEX IF NOT EXISTS idx_bundle_items_product_id ON bundle_items(product_id);
 
+
+-- ════════════════════════════════════════════════════════════════
+-- 22. BUNDLE SLOTS (Combo choices)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS bundle_slots (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    bundle_id           UUID NOT NULL REFERENCES bundles(id) ON DELETE CASCADE,
+    name                TEXT NOT NULL,
+    required_quantity   INTEGER NOT NULL DEFAULT 1 CHECK (required_quantity > 0),
+    order_index         INTEGER NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_bundle_slots_bundle_id ON bundle_slots(bundle_id);
+
+-- ════════════════════════════════════════════════════════════════
+-- 23. BUNDLE SLOT OPTIONS (Products inside a slot)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS bundle_slot_options (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    slot_id             UUID NOT NULL REFERENCES bundle_slots(id) ON DELETE CASCADE,
+    product_id          UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_bundle_slot_options_slot_id ON bundle_slot_options(slot_id);
+CREATE INDEX IF NOT EXISTS idx_bundle_slot_options_product_id ON bundle_slot_options(product_id);
 
 -- ════════════════════════════════════════════════════════════════
 -- PERFORMANCE INDEXES
@@ -1551,6 +1582,8 @@ BEGIN
       app_settings,
       bundles,
       bundle_items,
+      bundle_slots,
+      bundle_slot_options,
       categories,
       customers,
       discounts,

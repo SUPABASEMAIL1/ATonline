@@ -7,6 +7,7 @@ import { formatCurrency } from '../../lib/currencies';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { MixAndMatchBuilder } from './MixAndMatchBuilder';
 
 interface DiscountModalProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    type: 'percentage' as 'percentage' | 'fixed' | 'free_gift' | 'bogo',
+    type: 'percentage' as 'percentage' | 'fixed' | 'free_gift' | 'bogo' | 'mix_and_match',
     value: '',
     minAmount: '',
     maxDiscount: '',
@@ -82,7 +83,7 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
       return;
     }
 
-    if (formData.type !== 'free_gift' && (!formData.value || parseFloat(formData.value) <= 0)) {
+    if (formData.type !== 'free_gift' && formData.type !== 'mix_and_match' && (!formData.value || parseFloat(formData.value) <= 0)) {
       sonner.warning(t('discount_value_warning'));
       return;
     }
@@ -129,7 +130,7 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
       name: formData.name,
       description: formData.description,
       type: formData.type,
-      value: formData.type === 'free_gift' ? 0 : parseFloat(formData.value),
+      value: (formData.type === 'free_gift' || formData.type === 'mix_and_match') ? 0 : parseFloat(formData.value),
       conditions,
       freeGiftProducts: formData.type === 'free_gift' ? freeGiftProducts : undefined,
       minAmount: formData.minAmount ? parseFloat(formData.minAmount) : undefined,
@@ -306,10 +307,11 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
                 <option value="fixed" className="dark:bg-surface">{t('fixed_amount_off')}</option>
                 <option value="bogo" className="dark:bg-surface">{t('bogo_buy_1_get_1')}</option>
                 <option value="free_gift" className="dark:bg-surface">{t('gift_incentive')}</option>
+                <option value="mix_and_match" className="dark:bg-surface">Mix & Match Deal</option>
               </select>
             </div>
 
-            {formData.type !== 'free_gift' && (
+            {formData.type !== 'free_gift' && formData.type !== 'mix_and_match' && (
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                   {formData.type === 'percentage' ? t('factor_percent') : t('amount_currency').replace('{currency}', state.settings.currency)} *
@@ -413,6 +415,9 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
         </div>
 
         {/* Trigger Protocols */}
+        {formData.type === 'mix_and_match' ? (
+          <MixAndMatchBuilder conditions={conditions} onChange={setConditions} currency={state.settings.currency} />
+        ) : (
         <div className="space-y-6 pt-2">
           <div className="flex items-center justify-between">
             <h3 className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
@@ -544,6 +549,7 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
             ))}
           </div>
         </div>
+        )}
 
         {/* Status & Behavior */}
         <div className="space-y-6 pt-2">

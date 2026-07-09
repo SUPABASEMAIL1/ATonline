@@ -24,6 +24,19 @@ export function ProductOptionsModal({ product, isOpen, onClose, onConfirm }: Pro
   const [selectedModifiers, setSelectedModifiers] = useState<ProductModifier[]>([]);
   const [serialNumber, setSerialNumber] = useState('');
 
+  React.useEffect(() => {
+    if (product.modifiers && product.modifiers.length > 0) {
+      const validMods = selectedModifiers.filter(mod => {
+        if (!mod.variantName) return true;
+        const [vName, vOpt] = mod.variantName.split(':').map(s => s.trim());
+        return selectedVariants[vName] === vOpt;
+      });
+      if (validMods.length !== selectedModifiers.length) {
+        setSelectedModifiers(validMods);
+      }
+    }
+  }, [selectedVariants, product.modifiers]);
+
   if (!isOpen) return null;
 
   const handleConfirm = () => {
@@ -41,13 +54,8 @@ export function ProductOptionsModal({ product, isOpen, onClose, onConfirm }: Pro
       return;
     }
 
-    // Format variants string
-    let variantString = '';
-    if (Object.keys(selectedVariants).length > 0) {
-      variantString = Object.entries(selectedVariants)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(', ');
-    }
+    // variantString is already calculated above
+
 
     onConfirm({
       selectedVariant: variantString || undefined,
@@ -75,7 +83,30 @@ export function ProductOptionsModal({ product, isOpen, onClose, onConfirm }: Pro
     return true;
   };
 
-  let totalPrice = product.price;
+  // Format variants string early to calculate price
+  let variantString = '';
+  if (Object.keys(selectedVariants).length > 0) {
+    variantString = Object.entries(selectedVariants)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(', ');
+  }
+
+  let basePrice = product.price;
+  if (variantString && product.variantData && product.variantData.length > 0) {
+    const selectedParts = variantString.split(',').map(s => s.trim());
+    const matchingVariant = product.variantData.find(vd => {
+      let match = true;
+      if (vd.option1 && !selectedParts.includes(vd.option1)) match = false;
+      if (vd.option2 && !selectedParts.includes(vd.option2)) match = false;
+      return match;
+    });
+
+    if (matchingVariant && matchingVariant.priceOverride !== undefined) {
+      basePrice = matchingVariant.priceOverride;
+    }
+  }
+
+  let totalPrice = basePrice;
   selectedModifiers.forEach(m => {
     totalPrice += m.price;
   });
@@ -152,7 +183,13 @@ export function ProductOptionsModal({ product, isOpen, onClose, onConfirm }: Pro
               {t('addons_extras', 'Add-ons & Extras')}
             </h4>
             <div className="grid grid-cols-1 gap-2">
-              {product.modifiers.map((mod) => {
+              {product.modifiers
+                .filter(mod => {
+                  if (!mod.variantName) return true;
+                  const [vName, vOpt] = mod.variantName.split(':').map(s => s.trim());
+                  return selectedVariants[vName] === vOpt;
+                })
+                .map((mod) => {
                 const isSelected = selectedModifiers.some(m => m.name === mod.name);
                 return (
                   <button

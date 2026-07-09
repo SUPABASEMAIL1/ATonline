@@ -98,6 +98,7 @@ export const mapProduct = (item: any): Product => ({
   cost: item.cost ? Number(item.cost) : 0,
   price: item.price ? Number(item.price) : 0,
   variants: item.variants ?? [],
+  variantData: item.variant_data ?? item.variantData ?? [],
   modifiers: item.modifiers ?? [],
   isService: item.is_service ?? item.isService ?? false,
   requireSerial: item.require_serial ?? item.requireSerial ?? false,
@@ -477,8 +478,15 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   if ('updatedAt' in p) { remote.updated_at = p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt; delete remote.updatedAt; }
   if ('isService' in p) { remote.is_service = p.isService; delete remote.isService; }
   if ('requireSerial' in p) { remote.require_serial = p.requireSerial; delete remote.requireSerial; }
+  if ('variantData' in p) { remote.variant_data = p.variantData; delete remote.variantData; }
   delete remote.batches;
   delete remote.product_batches;
+  
+  // Enforce NOT NULL constraint for sku
+  if (!remote.sku) {
+    remote.sku = p.id || remote.id || remote.barcode_value || `SKU-${Date.now()}`;
+  }
+  
   return remote;
 };
 
@@ -2242,6 +2250,19 @@ export const mapBundle = (row: any): Bundle => ({
     quantity: Number(bi.quantity) || 1,
     createdAt: bi.created_at ? new Date(bi.created_at) : new Date(),
   })),
+  isCombo: row.is_combo === true,
+  slots: (row.bundle_slots || []).map((s: any) => ({
+    id: s.id,
+    bundleId: s.bundle_id,
+    name: s.name,
+    requiredQuantity: s.required_quantity,
+    orderIndex: s.order_index,
+    options: (s.bundle_slot_options || []).map((o: any) => ({
+      id: o.id,
+      slotId: o.slot_id,
+      productId: o.product_id,
+    })),
+  })),
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
   updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
 });
@@ -2273,24 +2294,44 @@ export const bundlesService = {
         const local = await localDb.bundles.toArray();
         if (local.length > 0) {
           const localItems = await localDb.bundleItems.toArray();
-          return local.map((b: any): Bundle => ({
-            id: b.id,
-            workspaceId: b.workspaceId || b.workspace_id,
-            name: b.name || '',
-            description: b.description || '',
-            discountValue: Number(b.discountValue) || 0,
-            discountType: b.discountType || 'percentage',
-            active: b.active !== false,
-            hideItemPrices: b.hideItemPrices === true,
-            items: localItems.filter((bi: any) => bi.bundleId === b.id).map((bi: any): BundleItem => ({
-              id: bi.id,
-              bundleId: bi.bundleId,
-              productId: bi.productId,
-              quantity: Number(bi.quantity) || 1,
-            })),
-            createdAt: b.createdAt ? new Date(b.createdAt) : new Date(),
-            updatedAt: b.updatedAt ? new Date(b.updatedAt) : new Date(),
-          }));
+          const localSlots = await localDb.bundleSlots.toArray();
+          const localSlotOptions = await localDb.bundleSlotOptions.toArray();
+          
+          return local.map((b: any): Bundle => {
+            const bundleSlots = localSlots
+              .filter((s: any) => s.bundleId === b.id)
+              .map((s: any) => ({
+                ...s,
+                options: localSlotOptions
+                  .filter((opt: any) => opt.slotId === s.id)
+                  .map((opt: any) => ({
+                    id: opt.id,
+                    slotId: opt.slotId,
+                    productId: opt.productId,
+                  })),
+              }));
+
+            return {
+              id: b.id,
+              workspaceId: b.workspaceId || b.workspace_id,
+              name: b.name || '',
+              description: b.description || '',
+              discountValue: Number(b.discountValue) || 0,
+              discountType: b.discountType || 'percentage',
+              active: b.active !== false,
+              hideItemPrices: b.hideItemPrices === true,
+              isCombo: b.isCombo === true || b.is_combo === true,
+              items: localItems.filter((bi: any) => bi.bundleId === b.id).map((bi: any): BundleItem => ({
+                id: bi.id,
+                bundleId: bi.bundleId,
+                productId: bi.productId,
+                quantity: Number(bi.quantity) || 1,
+              })),
+              slots: bundleSlots,
+              createdAt: b.createdAt ? new Date(b.createdAt) : new Date(),
+              updatedAt: b.updatedAt ? new Date(b.updatedAt) : new Date(),
+            };
+          });
         }
       } catch (e) {
         console.warn('[bundlesService.getAll] Local fetch failed, trying cloud', e);
@@ -2300,7 +2341,7 @@ export const bundlesService = {
     // Cloud fetch
     const { data, error } = await supabase
       .from('bundles')
-      .select('*, bundle_items(*)')
+      .select('*, bundle_items(*), bundle_slots(*, bundle_slot_options(*))')
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -2309,9 +2350,11 @@ export const bundlesService = {
 
     // Hydrate local db - clear first to handle deletions from other devices
     try {
-      await localDb.transaction('rw', localDb.bundles, localDb.bundleItems, async () => {
+      await localDb.transaction('rw', localDb.bundles, localDb.bundleItems, localDb.bundleSlots, localDb.bundleSlotOptions, async () => {
         await localDb.bundles.clear();
         await localDb.bundleItems.clear();
+        await localDb.bundleSlots.clear();
+        await localDb.bundleSlotOptions.clear();
         
         if (bundles.length > 0) {
           await localDb.bundles.bulkPut(bundles.map((b: Bundle) => ({
@@ -2323,6 +2366,7 @@ export const bundlesService = {
             discountType: b.discountType,
             active: b.active,
             hideItemPrices: b.hideItemPrices || false,
+            isCombo: b.isCombo || false,
             createdAt: b.createdAt,
             updatedAt: b.updatedAt,
           })));
@@ -2339,9 +2383,38 @@ export const bundlesService = {
             return acc;
           }, []);
 
-          if (allItems.length > 0) {
-            await localDb.bundleItems.bulkPut(allItems);
-          }
+          const allSlots = bundles.reduce((acc: any[], b: Bundle) => {
+            if (b.slots && b.slots.length > 0) {
+              acc.push(...b.slots.map((s: any) => ({
+                id: s.id,
+                bundleId: s.bundleId,
+                name: s.name,
+                requiredQuantity: s.requiredQuantity,
+                orderIndex: s.orderIndex,
+              })));
+            }
+            return acc;
+          }, []);
+
+          const allSlotOptions = bundles.reduce((acc: any[], b: Bundle) => {
+            if (b.slots && b.slots.length > 0) {
+              b.slots.forEach(s => {
+                if (s.options && s.options.length > 0) {
+                  acc.push(...s.options.map((opt: any) => ({
+                    id: opt.id,
+                    slotId: opt.slotId,
+                    productId: opt.productId,
+                  })));
+                }
+              });
+            }
+            return acc;
+          }, []);
+
+          if (allItems.length > 0) await localDb.bundleItems.bulkPut(allItems);
+          if (allSlots.length > 0) await localDb.bundleSlots.bulkPut(allSlots);
+          if (allSlotOptions.length > 0) await localDb.bundleSlotOptions.bulkPut(allSlotOptions);
+
         }
       });
     } catch (e) {
@@ -2358,19 +2431,46 @@ export const bundlesService = {
     discountValue: number;
     discountType: 'percentage' | 'fixed';
     workspaceId: string;
-    items: { productId: string; quantity: number }[];
+    items?: { productId: string; quantity: number }[];
+    slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string }[] }[];
     hideItemPrices?: boolean;
+    isCombo?: boolean;
   }): Promise<Bundle> {
     const id = generateId();
     const now = new Date().toISOString();
 
-    const itemRows = data.items.map(item => ({
+    const itemRows = (data.items || []).map(item => ({
       id: generateId(),
       bundle_id: id,
       product_id: item.productId,
       quantity: item.quantity,
       created_at: now,
     }));
+
+    const slotRows: any[] = [];
+    const optionRows: any[] = [];
+    
+    if (data.slots) {
+      data.slots.forEach(slot => {
+        const slotId = generateId();
+        slotRows.push({
+          id: slotId,
+          bundle_id: id,
+          name: slot.name,
+          required_quantity: slot.requiredQuantity,
+          order_index: slot.orderIndex,
+          created_at: now,
+        });
+        slot.options.forEach(opt => {
+          optionRows.push({
+            id: generateId(),
+            slot_id: slotId,
+            product_id: opt.productId,
+            created_at: now,
+          });
+        });
+      });
+    }
 
     // 1. Persist locally FIRST (offline-first)
     const bundleLocal = {
@@ -2381,43 +2481,65 @@ export const bundlesService = {
       discountValue: data.discountValue,
       discountType: data.discountType,
       hideItemPrices: data.hideItemPrices || false,
+      isCombo: data.isCombo || false,
       active: true,
       createdAt: new Date(now),
       updatedAt: new Date(now),
     };
     await localDb.bundles.put(bundleLocal);
 
-    const bundleItemsLocal = itemRows.map(r => ({
-      id: r.id,
-      bundleId: id,
-      productId: r.product_id,
-      quantity: r.quantity,
-    }));
-    await localDb.bundleItems.bulkPut(bundleItemsLocal);
+    if (itemRows.length > 0) {
+      await localDb.bundleItems.bulkPut(itemRows.map(r => ({
+        id: r.id,
+        bundleId: id,
+        productId: r.product_id,
+        quantity: r.quantity,
+      })));
+    }
+
+    if (slotRows.length > 0) {
+      await localDb.bundleSlots.bulkPut(slotRows.map(r => ({
+        id: r.id,
+        bundleId: id,
+        name: r.name,
+        requiredQuantity: r.required_quantity,
+        orderIndex: r.order_index,
+      })));
+      await localDb.bundleSlotOptions.bulkPut(optionRows.map(r => ({
+        id: r.id,
+        slotId: r.slot_id,
+        productId: r.product_id,
+      })));
+    }
 
     // 2. Try cloud sync (best-effort)
     try {
-      const { error } = await supabase
-        .from('bundles')
-        .insert({
-          id,
-          workspace_id: data.workspaceId,
-          name: data.name.trim(),
-          description: data.description || '',
-          discount_value: data.discountValue,
-          discount_type: data.discountType,
-          hide_item_prices: data.hideItemPrices || false,
-          active: true,
-          created_at: now,
-          updated_at: now,
-        })
-        .select()
-        .single();
+      const { error } = await supabase.from('bundles').insert({
+        id,
+        workspace_id: data.workspaceId,
+        name: data.name.trim(),
+        description: data.description || '',
+        discount_value: data.discountValue,
+        discount_type: data.discountType,
+        hide_item_prices: data.hideItemPrices || false,
+        is_combo: data.isCombo || false,
+        active: true,
+        created_at: now,
+        updated_at: now,
+      });
       if (error) throw error;
 
       if (itemRows.length > 0) {
         const { error: itemError } = await supabase.from('bundle_items').insert(itemRows);
         if (itemError) throw itemError;
+      }
+      if (slotRows.length > 0) {
+        const { error: slotError } = await supabase.from('bundle_slots').insert(slotRows);
+        if (slotError) throw slotError;
+        if (optionRows.length > 0) {
+          const { error: optError } = await supabase.from('bundle_slot_options').insert(optionRows);
+          if (optError) throw optError;
+        }
       }
     } catch (e: any) {
       // 3. Network failed — queue sync op
@@ -2431,10 +2553,14 @@ export const bundlesService = {
           discount_value: data.discountValue,
           discount_type: data.discountType,
           hide_item_prices: data.hideItemPrices || false,
+          is_combo: data.isCombo || false,
           active: true,
           created_at: now,
           updated_at: now,
         });
+        for (const item of itemRows) await queueOp('bundle_items', 'create', item.id, item);
+        for (const slot of slotRows) await queueOp('bundle_slots', 'create', slot.id, slot);
+        for (const opt of optionRows) await queueOp('bundle_slot_options', 'create', opt.id, opt);
       } else {
         throw e; // Re-throw real errors
       }
@@ -2442,11 +2568,15 @@ export const bundlesService = {
 
     return {
       ...bundleLocal,
-      items: bundleItemsLocal.map(bi => ({ ...bi, bundleId: id })),
+      items: itemRows.map(r => ({ id: r.id, bundleId: id, productId: r.product_id, quantity: r.quantity })),
+      slots: slotRows.map(r => ({
+        id: r.id, bundleId: id, name: r.name, requiredQuantity: r.required_quantity, orderIndex: r.order_index,
+        options: optionRows.filter(o => o.slot_id === r.id).map(o => ({ id: o.id, slotId: r.id, productId: o.product_id }))
+      })),
     };
   },
 
-  /** Update bundle (replaces all items) (offline-first) */
+  /** Update bundle (replaces all items and slots) (offline-first) */
   async update(bundleId: string, data: {
     name?: string;
     description?: string;
@@ -2455,6 +2585,8 @@ export const bundlesService = {
     hideItemPrices?: boolean;
     active?: boolean;
     items?: { productId: string; quantity: number }[];
+    slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string }[] }[];
+    isCombo?: boolean;
   }): Promise<void> {
     const now = new Date().toISOString();
     const updates: any = { updated_at: now };
@@ -2463,6 +2595,7 @@ export const bundlesService = {
     if (data.discountValue !== undefined) updates.discount_value = data.discountValue;
     if (data.discountType !== undefined) updates.discount_type = data.discountType;
     if (data.hideItemPrices !== undefined) updates.hide_item_prices = data.hideItemPrices;
+    if (data.isCombo !== undefined) updates.is_combo = data.isCombo;
     if (data.active !== undefined) updates.active = data.active;
 
     // Update local FIRST (offline-first)
@@ -2472,53 +2605,126 @@ export const bundlesService = {
     if (data.discountValue !== undefined) localUpdates.discountValue = data.discountValue;
     if (data.discountType !== undefined) localUpdates.discountType = data.discountType;
     if (data.hideItemPrices !== undefined) localUpdates.hideItemPrices = data.hideItemPrices;
+    if (data.isCombo !== undefined) localUpdates.isCombo = data.isCombo;
     if (data.active !== undefined) localUpdates.active = data.active;
 
     await localDb.bundles.where('id').equals(bundleId).modify(localUpdates);
 
     // Replace items locally
-    if (data.items !== undefined) {
+    const itemRows = data.items ? data.items.map(item => ({
+      id: generateId(),
+      bundleId: bundleId,
+      productId: item.productId,
+      quantity: item.quantity,
+    })) : undefined;
+
+    if (itemRows !== undefined) {
       await localDb.bundleItems.where('bundleId').equals(bundleId).delete();
-      if (data.items.length > 0) {
-        const itemRows = data.items.map(item => ({
-          id: generateId(),
+      if (itemRows.length > 0) await localDb.bundleItems.bulkPut(itemRows);
+    }
+
+    // Replace slots locally
+    let slotRows: any[] | undefined = undefined;
+    let optionRows: any[] | undefined = undefined;
+    if (data.slots !== undefined) {
+      slotRows = [];
+      optionRows = [];
+      data.slots.forEach(slot => {
+        const slotId = generateId();
+        slotRows!.push({
+          id: slotId,
           bundleId: bundleId,
-          productId: item.productId,
-          quantity: item.quantity,
-        }));
-        await localDb.bundleItems.bulkPut(itemRows);
+          name: slot.name,
+          requiredQuantity: slot.requiredQuantity,
+          orderIndex: slot.orderIndex,
+        });
+        slot.options.forEach(opt => {
+          optionRows!.push({
+            id: generateId(),
+            slotId: slotId,
+            productId: opt.productId,
+          });
+        });
+      });
+
+      await localDb.bundleSlots.where('bundleId').equals(bundleId).delete();
+      const oldSlots = await localDb.bundleSlots.where('bundleId').equals(bundleId).toArray();
+      for (const oldSlot of oldSlots) {
+        await localDb.bundleSlotOptions.where('slotId').equals(oldSlot.id).delete();
+      }
+
+      if (slotRows.length > 0) {
+        await localDb.bundleSlots.bulkPut(slotRows);
+        await localDb.bundleSlotOptions.bulkPut(optionRows);
       }
     }
 
     // Try cloud sync (best-effort)
     try {
-      const { error } = await supabase.from('bundles').update(updates).eq('id', bundleId);
-      if (error) throw error;
+      if (Object.keys(updates).length > 1) {
+        const { error } = await supabase.from('bundles').update(updates).eq('id', bundleId);
+        if (error) throw error;
+      }
 
-      if (data.items !== undefined) {
+      if (itemRows !== undefined) {
         const { error: delError } = await supabase.from('bundle_items').delete().eq('bundle_id', bundleId);
         if (delError) throw delError;
-        if (data.items.length > 0) {
-          const itemRows = data.items.map(item => ({
-            id: generateId(),
-            bundle_id: bundleId,
-            product_id: item.productId,
-            quantity: item.quantity,
-            created_at: now,
+        if (itemRows.length > 0) {
+          const insertItemRows = itemRows.map(r => ({
+            id: r.id, bundle_id: r.bundleId, product_id: r.productId, quantity: r.quantity, created_at: now
           }));
-          await supabase.from('bundle_items').insert(itemRows);
+          const { error: insErr } = await supabase.from('bundle_items').insert(insertItemRows);
+          if (insErr) throw insErr;
+        }
+      }
+
+      if (slotRows !== undefined && optionRows !== undefined) {
+        const { error: delSlotsError } = await supabase.from('bundle_slots').delete().eq('bundle_id', bundleId);
+        if (delSlotsError) throw delSlotsError;
+
+        if (slotRows.length > 0) {
+          const insertSlotRows = slotRows.map(r => ({
+            id: r.id, bundle_id: r.bundleId, name: r.name, required_quantity: r.requiredQuantity, order_index: r.orderIndex, created_at: now
+          }));
+          const { error: insSlotsErr } = await supabase.from('bundle_slots').insert(insertSlotRows);
+          if (insSlotsErr) throw insSlotsErr;
+          
+          if (optionRows.length > 0) {
+            const insertOptRows = optionRows.map(r => ({
+              id: r.id, slot_id: r.slotId, product_id: r.productId, created_at: now
+            }));
+            const { error: insOptsErr } = await supabase.from('bundle_slot_options').insert(insertOptRows);
+            if (insOptsErr) throw insOptsErr;
+          }
         }
       }
     } catch (e: any) {
       console.warn('[bundlesService.update] Cloud save failed, queuing for sync:', e.message);
       if (_isNetworkError(e)) {
-        await queueOp('bundles', 'update', bundleId, {
-          ...updates,
-          items: data.items ? data.items.map(item => ({
-            product_id: item.productId,
-            quantity: item.quantity,
-          })) : undefined,
-        });
+        if (Object.keys(updates).length > 1) {
+          await queueOp('bundles', 'update', bundleId, updates);
+        }
+        
+        if (itemRows !== undefined) {
+           console.warn('Nested arrays (items) update offline may cause duplicates upon sync if not carefully handled.');
+           for (const item of itemRows) {
+             await queueOp('bundle_items', 'create', item.id, {
+               id: item.id, bundle_id: bundleId, product_id: item.productId, quantity: item.quantity, created_at: now
+             });
+           }
+        }
+        if (slotRows !== undefined && optionRows !== undefined) {
+           for (const slot of slotRows) {
+             await queueOp('bundle_slots', 'create', slot.id, {
+               id: slot.id, bundle_id: bundleId, name: slot.name, required_quantity: slot.requiredQuantity, order_index: slot.orderIndex, created_at: now
+             });
+           }
+           for (const opt of optionRows) {
+             await queueOp('bundle_slot_options', 'create', opt.id, {
+               id: opt.id, slot_id: opt.slotId, product_id: opt.productId, created_at: now
+             });
+           }
+        }
       } else {
         throw e;
       }
@@ -2529,6 +2735,11 @@ export const bundlesService = {
   async delete(bundleId: string): Promise<void> {
     // Optimistic local delete
     await localDb.bundleItems.where('bundleId').equals(bundleId).delete();
+    const oldSlots = await localDb.bundleSlots.where('bundleId').equals(bundleId).toArray();
+    for (const oldSlot of oldSlots) {
+      await localDb.bundleSlotOptions.where('slotId').equals(oldSlot.id).delete();
+    }
+    await localDb.bundleSlots.where('bundleId').equals(bundleId).delete();
     await localDb.bundles.delete(bundleId);
 
     // Try cloud sync
@@ -2595,3 +2806,4 @@ export const bundlesService = {
     });
   },
 };
+

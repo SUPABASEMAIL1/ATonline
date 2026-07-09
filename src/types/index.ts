@@ -4,9 +4,21 @@ export interface ProductVariant {
   optionsRaw?: string; // transient raw input string to support smooth comma typing
 }
 
+export interface VariantData {
+  id: string;
+  option1: string; // e.g. "Size: 10 Inch"
+  option2?: string; // e.g. "Color: Red"
+  priceOverride?: number; // Sets exact price (Restaurant)
+  priceDifference?: number; // Adjusts base price (+450)
+  stock?: number; // Specific variant stock (Garments)
+  barcode?: string; // Variant barcode
+  sku?: string;
+}
+
 export interface ProductModifier {
   name: string;      // e.g. "Extra Cheese"
   price: number;     // e.g. 150
+  variantName?: string; // e.g. "Size: 13 Inch" - Only applies to this variant
 }
 
 export interface Product {
@@ -37,6 +49,7 @@ export interface Product {
   batches?: ProductBatch[];
   trackInventory?: boolean; // Whether to track and manage inventory for this product
   variants?: ProductVariant[];
+  variantData?: VariantData[]; // Advanced variant pricing, stock, barcodes
   modifiers?: ProductModifier[];
   isService?: boolean;
   requireSerial?: boolean;
@@ -196,7 +209,7 @@ export interface Discount {
   id: string;
   name: string;
   description: string;
-  type: 'percentage' | 'fixed' | 'bogo' | 'free_gift';
+  type: 'percentage' | 'fixed' | 'bogo' | 'free_gift' | 'mix_and_match';
   value: number;
   conditions: DiscountCondition[];
   freeGiftProducts?: string[]; // Product IDs for free gifts
@@ -211,10 +224,14 @@ export interface Discount {
 }
 
 export interface DiscountCondition {
-  type: 'min_amount' | 'specific_products' | 'payment_method' | 'customer_tier' | 'card_type' | 'bank_name';
+  type: 'min_amount' | 'specific_products' | 'payment_method' | 'customer_tier' | 'card_type' | 'bank_name' | 'category';
   value: any;
   operator?: 'equals' | 'greater_than' | 'less_than' | 'in_array';
-  minQuantity?: number; // For specific_products condition - minimum quantity required
+  minQuantity?: number; // For specific_products or category condition - minimum quantity required
+  // For Mix & Match Deals
+  targetQuantity?: number; // e.g., Buy 2
+  rewardType?: 'fixed_total' | 'percentage_off_all' | 'cheapest_free';
+  rewardValue?: number; // e.g., 2000 (Fixed Total)
 }
 
 export interface SplitPayment {
@@ -329,6 +346,7 @@ export interface AppSettings {
   // Receipt & Printer Settings
   receiptPaperSize: '58mm' | '80mm' | 'A4';
   receiptDensity: 'draft' | 'normal' | 'detailed';
+  enableKotPrinter?: boolean; // Kitchen Order Ticket printer toggle
   // Receipt Print Position Adjustments
   receiptPaddingTop: number;
   receiptPaddingBottom: number;
@@ -447,6 +465,23 @@ export interface BundleItem {
   createdAt?: Date;
 }
 
+export interface BundleSlotOption {
+  id: string;
+  slotId: string;
+  productId: string;
+  createdAt?: Date;
+}
+
+export interface BundleSlot {
+  id: string;
+  bundleId: string;
+  name: string;
+  requiredQuantity: number;
+  orderIndex: number;
+  options?: BundleSlotOption[];
+  createdAt?: Date;
+}
+
 export interface Bundle {
   id: string;
   workspaceId?: string;
@@ -456,7 +491,9 @@ export interface Bundle {
   discountType: 'percentage' | 'fixed';
   active: boolean;
   hideItemPrices?: boolean;  // When true, per-item original prices are hidden on receipt/POS; only deal final price shown
+  isCombo?: boolean;      // Distinguishes between fixed bundles and flexible choice combo deals
   items?: BundleItem[];   // Populated on fetch (joined from bundle_items)
+  slots?: BundleSlot[];   // Populated on fetch (joined from bundle_slots)
   createdAt: Date;
   updatedAt: Date;
 }

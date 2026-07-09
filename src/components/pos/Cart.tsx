@@ -623,6 +623,24 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
+                  {/* Nested item list */}
+                  <div className="mt-2 pl-10 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
+                    {b.items.map(({ item, originalIndex }) => (
+                      <CartItemCard
+                        key={`${item.product.id}-${originalIndex}`}
+                        item={item}
+                        index={originalIndex}
+                        onUpdateQuantity={updateQuantity}
+                        onRemove={removeFromCart}
+                        onApplyDiscount={applyDiscount}
+                        currency={state.settings.currency}
+                        dispatch={dispatch}
+                        profile={profile}
+                        isNested={true}
+                        isFromBundle={true}
+                      />
+                    ))}
+                  </div>
                 </div>
               ));
 

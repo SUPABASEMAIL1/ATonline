@@ -58,6 +58,58 @@ export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?
             discountAmount: 0,
             type: 'free_gift',
           });
+        } else if (discount.type === 'mix_and_match') {
+          const mmCond = discount.conditions.find(c => c.type === 'category' || c.type === 'specific_products');
+          if (mmCond && mmCond.targetQuantity) {
+            let eligibleItems: { index: number; price: number; qty: number; }[] = [];
+            cart.forEach((item, index) => {
+              // Note: item.product.price represents base price. For items with variants/modifiers,
+              // we calculate subtotal/quantity to get the effective unit price.
+              const unitPrice = item.subtotal / (Math.abs(item.quantity) || 1);
+              if (mmCond.type === 'category' && mmCond.value.includes(item.product.category)) {
+                eligibleItems.push({ index, price: unitPrice, qty: item.quantity });
+              } else if (mmCond.type === 'specific_products' && mmCond.value.includes(item.product.id)) {
+                eligibleItems.push({ index, price: unitPrice, qty: item.quantity });
+              }
+            });
+
+            let unrolled: { index: number; price: number }[] = [];
+            eligibleItems.forEach(item => {
+              for (let i = 0; i < item.qty; i++) unrolled.push({ index: item.index, price: item.price });
+            });
+
+            // Sort descending to give customer the best deal on their most expensive qualifying items
+            unrolled.sort((a, b) => b.price - a.price);
+
+            const sets = Math.floor(unrolled.length / mmCond.targetQuantity);
+            if (sets > 0) {
+              let dealDiscount = 0;
+              for (let s = 0; s < sets; s++) {
+                const bundle = unrolled.slice(s * mmCond.targetQuantity, (s + 1) * mmCond.targetQuantity);
+                const bundleOriginalTotal = bundle.reduce((sum, item) => sum + item.price, 0);
+                
+                if (mmCond.rewardType === 'fixed_total') {
+                  const bundleDiscount = bundleOriginalTotal - (mmCond.rewardValue || 0);
+                  if (bundleDiscount > 0) dealDiscount += bundleDiscount;
+                } else if (mmCond.rewardType === 'percentage_off_all') {
+                  dealDiscount += bundleOriginalTotal * (mmCond.rewardValue || 0) / 100;
+                } else if (mmCond.rewardType === 'cheapest_free') {
+                  const cheapest = bundle[bundle.length - 1];
+                  dealDiscount += cheapest.price;
+                }
+              }
+
+              if (dealDiscount > 0) {
+                autoPromotionAmount = roundTo2(autoPromotionAmount + dealDiscount);
+                activePromotions.push({
+                  discountId: discount.id,
+                  discountName: discount.name,
+                  discountAmount: roundTo2(dealDiscount),
+                  type: 'mix_and_match'
+                });
+              }
+            }
+          }
         } else {
           let amount = 0;
           if (discount.type === 'percentage') {

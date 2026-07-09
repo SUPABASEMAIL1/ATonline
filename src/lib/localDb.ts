@@ -37,7 +37,9 @@ export type PendingOpEntity =
   | 'payments'
   | 'stock_history'
   | 'bundles'
-  | 'bundle_items';
+  | 'bundle_items'
+  | 'bundle_slots'
+  | 'bundle_slot_options';
 
 export type PendingOpType = 'create' | 'update' | 'delete' | 'upsert';
 
@@ -84,6 +86,8 @@ export class ZaynahsPosDB extends Dexie {
   syncHistory!: Table<SyncHistoryItem>;
   bundles!: Table<any>;
   bundleItems!: Table<any>;
+  bundleSlots!: Table<any>;
+  bundleSlotOptions!: Table<any>;
 
   constructor() {
     // Make the IndexedDB name unique per Supabase Project so different clones on localhost don't share data
@@ -92,6 +96,35 @@ export class ZaynahsPosDB extends Dexie {
     const dbName = `ZaynahsPosDB_${projectRef}`;
     
     super(dbName);
+    this.version(16).stores({
+      products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock',
+      categories: 'id, name',
+      suppliers: 'id, name',
+      sales: 'id, invoiceNumber, customerId, timestamp, saleDate, status, dcNumber, extraCharges',
+      customers: 'id, name, phone, email',
+      expenses: 'id, categoryId, date',
+      discounts: 'id, name, type, active',
+      users: 'id, username, email',
+      productBatches: 'id, productId, created_at, status',
+      purchaseRecords: 'id, productId, supplierId, date',
+      purchaseOrders: 'id, poNumber, supplierId',
+      purchaseOrderItems: 'id, poId, productId',
+      supplierTransactions: 'id, supplierId',
+      payments: 'id, supplierId',
+      stockHistory: 'id, productId, timestamp, type',
+      salesTabs: 'id, userId',
+      appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',
+      pendingOps: '++id, [entity+entityId], status, createdAt',
+      syncHistory: '++id, timestamp',
+      bundles: 'id, name, active, workspaceId',
+      bundleItems: 'id, bundleId, productId',
+      bundleSlots: 'id, bundleId',
+      bundleSlotOptions: 'id, slotId, productId',
+      // Legacy compatibility:
+      app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
+      purchase_records: 'id, productId, supplierId, date'
+    });
+
     this.version(15).stores({
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock',
       categories: 'id, name',

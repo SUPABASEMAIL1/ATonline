@@ -96,7 +96,24 @@ function AppContent() {
 
   // Initialize offline sync service
   useEffect(() => {
-    startSyncEngine();
+    import('./lib/localDb').then(({ localDb }) => {
+      // 1. Fix poisoned queue items created by old mapper
+      localDb.pendingOps
+        .filter(q => q.entity === 'products' && q.operation === 'create')
+        .modify(q => {
+          if (!q.payload.sku) q.payload.sku = q.payload.id || q.payload.barcode_value || `SKU-${Date.now()}`;
+          if (q.payload.variantData) {
+            q.payload.variant_data = q.payload.variantData;
+            delete q.payload.variantData;
+          }
+        })
+        .then(() => {
+          // 2. Unstuck EVERYTHING so it tries again!
+          return localDb.pendingOps.toCollection().modify({ retries: 0, status: 'pending' });
+        })
+        .then(() => startSyncEngine())
+        .catch(() => startSyncEngine());
+    });
   }, []);
 
 

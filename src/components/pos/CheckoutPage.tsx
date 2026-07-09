@@ -783,13 +783,21 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
               const renderedBundles = bundles.map((b) => {
                 const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
                 return (
-                  <div key={`checkout-page-bundle-${b.bundleId}`} className="p-2 my-1.5 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/[0.01]">
+                  <div key={`checkout-page-bundle-${b.bundleId}`} className="p-3 my-1.5 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/[0.01]">
                     <CompactItemRow
                       image={bundleThumb(b)}
                       name={b.bundleName}
                       price={formatCurrency(b.totalSubtotal, state.settings.currency)}
                       discount={discountStr}
                     />
+                    <div className="mt-2 pl-8 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
+                      {b.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
+                          <span>{Math.abs(item.quantity)} × {item.product.name}</span>
+                          {item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               });

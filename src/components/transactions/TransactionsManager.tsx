@@ -1087,6 +1087,21 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                         </td>
                       </tr>
                     );
+
+                    b.items.forEach((item: any, itemIdx: number) => {
+                      rows.push(
+                        <tr key={`bundle-${b.bundleId}-item-${itemIdx}`} className="bg-violet-500/[0.005] border-t border-gray-100/50 dark:border-white/5">
+                          <td className="pl-10 pr-4 py-1.5 text-[9px] text-gray-600 dark:text-gray-400 uppercase">
+                            <span className="font-bold">- {item.product?.name || 'Item'}</span>
+                            {item.selectedVariant && <span className="text-[8px] text-gray-400"> ({item.selectedVariant})</span>}
+                          </td>
+                          <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] font-bold text-gray-500">{item.quantity}</td>
+                          <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] text-gray-400">
+                            {!hideItemPrices && formatCurrency(item.product?.price * item.quantity, state.settings.currency)}
+                          </td>
+                        </tr>
+                      );
+                    });
                   });
 
                   if (bundles.length > 0 && standaloneItems.length > 0) {

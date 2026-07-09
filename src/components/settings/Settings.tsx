@@ -1261,6 +1261,22 @@ export function Settings() {
                           </label>
 
 
+                          {/* KOT Printing Toggle */}
+                          <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer group">
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Kitchen Order Ticket (KOT)</span>
+                            <input
+                              type="checkbox"
+                              name="enableKotPrinter"
+                              checked={!!formData.enableKotPrinter}
+                              onChange={(e) => {
+                                setFormData(p => ({ ...p, enableKotPrinter: e.target.checked }));
+                                handleInstantUpdate('enableKotPrinter', e.target.checked);
+                              }}
+                              disabled={!canEditSettings}
+                              className="w-5 h-5 rounded text-primary focus:ring-emerald-500"
+                            />
+                          </label>
+
                           {/* Print Position Calibration */}
                           <div className="space-y-4 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/5">
                             <div className="flex items-center justify-between mb-1">

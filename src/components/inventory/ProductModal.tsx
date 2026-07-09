@@ -1,6 +1,6 @@
 import { X, Plus, Loader2, Wand2, Star, Camera, Save, Tag, User, Upload, Package, Database } from 'lucide-react';
 import { compressImage } from '../../lib/imageCompression';
-import { Product, ProductBatch, ProductVariant, ProductModifier } from '../../types';
+import { Product, ProductBatch, ProductVariant, ProductModifier, VariantData } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { MediaLibrary } from './MediaLibrary';
 import { CameraScanner } from '../common/CameraScanner';
@@ -54,6 +54,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
 
   const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [variantData, setVariantData] = useState<VariantData[]>([]);
   const [modifiers, setModifiers] = useState<ProductModifier[]>([]);
 
   // Calculate total quantity from batches (use remaining quantity if trackInventory is on)
@@ -95,6 +96,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       });
       setBatches(product.batches || []);
       setVariants((product.variants || []).map(v => ({ ...v, optionsRaw: v.options.join(', ') })));
+      setVariantData(product.variantData || []);
       setModifiers(product.modifiers || []);
     } else {
       setFormData({
@@ -119,6 +121,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       });
       setBatches([]);
       setVariants([]);
+      setVariantData([]);
       setModifiers([]);
     }
   }, [product]);
@@ -208,6 +211,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       requireSerial: formData.requireSerial,
       batches,
       variants: variants.map(({ name, options }) => ({ name, options })),
+      variantData,
       modifiers,
       workspaceId: state.currentUser?.workspace_id || state.settings.workspaceId || state.settings.id,
       createdAt: product?.createdAt || new Date(),
@@ -269,6 +273,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         });
         setBatches([]);
         setVariants([]);
+        setVariantData([]);
         setModifiers([]);
       }
 
@@ -839,6 +844,113 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                   </div>
                 );
               })}
+              
+              {/* Matrix Generator Button */}
+              {variants.length > 0 && variants.some(v => v.options.length > 0) && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Simple matrix generation for up to 2 variants
+                      if (variants.length === 0) return;
+                      const newVariantData: VariantData[] = [];
+                      const v1 = variants[0];
+                      const v2 = variants.length > 1 ? variants[1] : null;
+                      
+                      v1.options.forEach(opt1 => {
+                        if (v2 && v2.options.length > 0) {
+                          v2.options.forEach(opt2 => {
+                            const option1Label = `${v1.name}: ${opt1}`;
+                            const option2Label = `${v2.name}: ${opt2}`;
+                            const existing = variantData.find(vd => vd.option1 === option1Label && vd.option2 === option2Label);
+                            newVariantData.push(existing || {
+                              id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                              option1: option1Label,
+                              option2: option2Label
+                            });
+                          });
+                        } else {
+                          const option1Label = `${v1.name}: ${opt1}`;
+                          const existing = variantData.find(vd => vd.option1 === option1Label && !vd.option2);
+                          newVariantData.push(existing || {
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                            option1: option1Label
+                          });
+                        }
+                      });
+                      setVariantData(newVariantData);
+                    }}
+                    className="px-4 py-2 bg-emerald-50 dark:bg-primary/10 text-emerald-600 dark:text-primary text-[10px] font-black uppercase tracking-widest rounded-lg border border-emerald-200 dark:border-primary/20 hover:border-primary shadow-sm flex items-center gap-2"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" />
+                    {t('generate_matrix', 'Generate Price/Stock Matrix')}
+                  </button>
+                </div>
+              )}
+              
+              {/* Matrix Display */}
+              {variantData.length > 0 && (
+                <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
+                  <table className="w-full text-left text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400">
+                    <thead className="bg-gray-100 dark:bg-black/60 border-b border-gray-200 dark:border-white/10">
+                      <tr>
+                        <th className="px-3 py-2">Variant</th>
+                        <th className="px-3 py-2 w-24">Exact Price</th>
+                        <th className="px-3 py-2 w-20">Stock</th>
+                        <th className="px-3 py-2 w-28">Barcode</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-black/20 divide-y divide-gray-100 dark:divide-white/5">
+                      {variantData.map((vd, idx) => (
+                        <tr key={vd.id}>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-900 dark:text-white">
+                            {vd.option1} {vd.option2 ? ` / ${vd.option2}` : ''}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={vd.priceOverride || ''}
+                              onChange={(e) => {
+                                const newData = [...variantData];
+                                newData[idx].priceOverride = e.target.value ? parseFloat(e.target.value) : undefined;
+                                setVariantData(newData);
+                              }}
+                              placeholder={formData.price}
+                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={vd.stock || ''}
+                              onChange={(e) => {
+                                const newData = [...variantData];
+                                newData[idx].stock = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                                setVariantData(newData);
+                              }}
+                              placeholder="0"
+                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              value={vd.barcode || ''}
+                              onChange={(e) => {
+                                const newData = [...variantData];
+                                newData[idx].barcode = e.target.value;
+                                setVariantData(newData);
+                              }}
+                              placeholder="Auto"
+                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 uppercase"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* MODIFIERS BUILDER */}
@@ -859,18 +971,36 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
               
               {modifiers.map((mod, index) => (
                 <div key={index} className="flex gap-2 items-start p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
-                  <input
-                    type="text"
-                    placeholder="Add-on Name (e.g. Extra Cheese)"
-                    value={mod.name}
-                    onChange={(e) => {
-                      const newMods = [...modifiers];
-                      newMods[index].name = e.target.value;
-                      setModifiers(newMods);
-                    }}
-                    className="flex-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500"
-                  />
-                  <div className="relative w-1/3">
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Add-on Name (e.g. Extra Cheese)"
+                      value={mod.name}
+                      onChange={(e) => {
+                        const newMods = [...modifiers];
+                        newMods[index].name = e.target.value;
+                        setModifiers(newMods);
+                      }}
+                      className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500"
+                    />
+                    {variants.length > 0 && variants.some(v => v.options.length > 0) && (
+                      <select
+                        value={mod.variantName || ''}
+                        onChange={(e) => {
+                          const newMods = [...modifiers];
+                          newMods[index].variantName = e.target.value || undefined;
+                          setModifiers(newMods);
+                        }}
+                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">Apply to all variants</option>
+                        {variants.flatMap(v => v.options.map(opt => `${v.name}: ${opt}`)).map(opt => (
+                          <option key={opt} value={opt}>Only for {opt}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="relative w-1/3 shrink-0">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold">+</span>
                     <input
                       type="number"
@@ -884,7 +1014,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                       className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg pl-6 pr-3 py-2 focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
-                  <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg">
+                  <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0">
                     <X className="w-4 h-4" />
                   </button>
                 </div>

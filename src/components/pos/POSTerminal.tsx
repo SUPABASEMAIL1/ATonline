@@ -191,8 +191,23 @@ export function POSTerminal() {
       // For weight-based products, new items, or items with specific options
       const itemWeight = weight ? (isReturnMode ? -weight : weight) : undefined;
 
-      // Calculate base price including modifiers
+      // Calculate base price including modifiers and variant overrides
       let basePrice = product.price;
+      
+      if (options?.selectedVariant && product.variantData && product.variantData.length > 0) {
+        const selectedParts = options.selectedVariant.split(',').map(s => s.trim());
+        const matchingVariant = product.variantData.find(vd => {
+          let match = true;
+          if (vd.option1 && !selectedParts.includes(vd.option1)) match = false;
+          if (vd.option2 && !selectedParts.includes(vd.option2)) match = false;
+          return match;
+        });
+
+        if (matchingVariant && matchingVariant.priceOverride !== undefined) {
+          basePrice = matchingVariant.priceOverride;
+        }
+      }
+
       if (options?.selectedModifiers) {
         options.selectedModifiers.forEach(m => basePrice += m.price);
       }
@@ -200,7 +215,7 @@ export function POSTerminal() {
       const price = product.isWeightBased ? (product.pricePerUnit || 0) * (weight || 1) : basePrice;
 
       const newItem = {
-        product,
+        product: basePrice !== product.price ? { ...product, price: basePrice } : product,
         quantity: newQuantity,
         weight: itemWeight,
         discount: 0,

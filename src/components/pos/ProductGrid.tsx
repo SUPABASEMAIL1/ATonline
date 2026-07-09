@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, Plus, Minus, Package, X, ChevronLeft, ChevronRight, FileText, Star, Infinity, Camera, LayoutGrid, Gift, ChevronDown, ChevronUp } from 'lucide-react';
 import { CameraScanner } from '../common/CameraScanner';
 import { Product } from '../../types';
@@ -7,6 +7,8 @@ import { getCurrencySymbol } from '../../lib/currencies';
 import { settingsService, bundlesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { useTranslation } from '../../hooks/useTranslation';
+import { ComboSelectionModal } from './ComboSelectionModal';
+import { DealSizeSelectorModal } from './DealSizeSelectorModal';
 
 interface ProductGridProps {
   onAddToCart: (product: Product, weight?: number) => void;
@@ -179,7 +181,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
 
     const matchesCategory = (searchTerm || '').trim() !== ''
       ? true
-      : (selectedCategory === 'All' || (selectedCategory === 'Featured' ? product.isFeatured : product.category === selectedCategory));
+      : (selectedCategory === 'All' || (selectedCategory === 'Featured' ? product.isFeatured : (selectedCategory === 'Pizzas' ? (product.category === 'Pizzas' || product.category === 'Special Pizzas') : product.category === selectedCategory)));
 
     return matchesSearch && matchesCategory && product.active !== false;
   }).sort((a, b) => {
@@ -595,17 +597,104 @@ interface BundleGridProps {
 function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols = 4 }: BundleGridProps) {
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
-  const bundles = (state.bundles || []).filter(b => b.active !== false);
+  const rawBundles = (state.bundles || []).filter(b => b.active !== false);
 
-  const handleAddBundle = (bundle: any) => {
+  const [activeCombo, setActiveCombo] = useState<any>(null);
+  const [activeGroup, setActiveGroup] = useState<any>(null);
+
+  // Pre-calculate prices and prepare grouped bundles
+  const groupedBundles = useMemo(() => {
+    const processed = rawBundles.map(bundle => {
+      let totalPrice = 0;
+      let bundleProducts: any[] = [];
+
+      if (bundle.isCombo && bundle.slots) {
+        totalPrice = bundle.slots.reduce((sum: number, slot: any) => {
+          const maxPriceOpt = slot.options.reduce((max: number, opt: any) => {
+            const p = state.products.find(pr => pr.id === opt.productId);
+            return Math.max(max, p ? p.price : 0);
+          }, 0);
+          return sum + (maxPriceOpt * slot.requiredQuantity);
+        }, 0);
+
+        bundleProducts = bundle.slots.reduce((acc: any[], slot: any) => {
+          const opts = slot.options.map((opt: any) => {
+            const p = state.products.find(pr => pr.id === opt.productId);
+            return p ? { ...p, qty: 1 } : null;
+          }).filter(Boolean);
+          return [...acc, ...opts];
+        }, []);
+      } else {
+        totalPrice = (bundle.items || []).reduce((sum: number, bi: any) => {
+          const p = state.products.find(pr => pr.id === bi.productId);
+          return sum + (p ? p.price * bi.quantity : 0);
+        }, 0);
+
+        bundleProducts = (bundle.items || []).map((bi: any) => {
+          const p = state.products.find(pr => pr.id === bi.productId);
+          return p ? { ...p, qty: bi.quantity } : null;
+        }).filter(Boolean);
+      }
+
+      const discountAmount = bundle.discountType === 'percentage'
+        ? (totalPrice * bundle.discountValue) / 100
+        : Math.min(bundle.discountValue, totalPrice);
+      
+      const finalPrice = totalPrice - discountAmount;
+      
+      return {
+        ...bundle,
+        totalPrice,
+        finalPrice,
+        bundleProducts
+      };
+    });
+
+    const map = new Map<string, any>();
+    processed.forEach(b => {
+      if (b.name.includes(' - ')) {
+        const [baseName, ...rest] = b.name.split(' - ');
+        const variantName = rest.join(' - ');
+        if (!map.has(baseName)) {
+          map.set(baseName, { isGroup: true, id: `group-${baseName}`, name: baseName, bundles: [], baseName });
+        }
+        map.get(baseName).bundles.push({ ...b, variantName });
+      } else {
+        map.set(b.id, { isGroup: false, ...b });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [rawBundles, state.products]);
+
+  const processBundleAdd = (bundle: any, selectedItems?: { productId: string; quantity: number }[]) => {
     try {
-      console.log('[Bundle] ADD DEAL clicked:', bundle?.name, bundle?.id);
       if (!bundle) {
         sonner.error('Bundle data is missing');
         return;
       }
-      const cartItems = bundlesService.getBundleCartItems(bundle, state.products);
-      console.log('[Bundle] Cart items from service:', cartItems?.length);
+      
+      const effectiveBundle = selectedItems ? { ...bundle, items: selectedItems } : bundle;
+      let variantToSet: string | undefined;
+      const lowerName = bundle.name.toLowerCase();
+      if (lowerName.includes(' - small')) {
+        variantToSet = '6 Inch';
+      } else if (lowerName.includes(' - medium')) {
+        variantToSet = '10 Inch';
+      } else if (lowerName.includes(' - large')) {
+        variantToSet = '13 Inch';
+      }
+
+      const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map(item => {
+        if (variantToSet) {
+          return {
+            ...item,
+            selectedVariant: variantToSet
+          };
+        }
+        return item;
+      });
+      
       if (!cartItems || cartItems.length === 0) {
         sonner.error(t('bundle_no_available_products', 'No products available in this bundle deal'));
         return;
@@ -620,7 +709,6 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         }))
         : cartItems;
 
-      console.log('[Bundle] Items to dispatch:', itemsToDispatch.length);
       let updatedCart = [...state.cart];
 
       for (const item of itemsToDispatch) {
@@ -641,20 +729,30 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         }
       }
 
-      console.log('[Bundle] Dispatching SET_CART with', updatedCart.length, 'items');
       dispatch({ type: 'SET_CART', payload: updatedCart });
 
       const discountText = bundle.discountType === 'percentage'
         ? `${bundle.discountValue}%`
         : `${currency}${bundle.discountValue}`;
       sonner.success(`🎁 ${bundle.name} added — ${discountText} discount applied!`);
+      setActiveCombo(null);
     } catch (err) {
       console.error('[Bundle] Add bundle error:', err);
       sonner.error('Could not add bundle — please try again');
     }
   };
 
-  if (bundles.length === 0) {
+  const handleAddBundle = (bundleOrGroup: any) => {
+    if (bundleOrGroup.isGroup) {
+      setActiveGroup(bundleOrGroup);
+    } else if (bundleOrGroup.isCombo) {
+      setActiveCombo(bundleOrGroup);
+    } else {
+      processBundleAdd(bundleOrGroup);
+    }
+  };
+
+  if (groupedBundles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <div className="bg-violet-500/10 p-6 rounded-3xl mb-4">
@@ -676,19 +774,12 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
     );
   }
 
-  // Use EXACT same grid classes as the product grid
   const getGridClasses = () => {
     const base = "grid gap-2 lg:gap-4";
     const mobileDefaults = "grid-cols-[repeat(auto-fill,minmax(110px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(130px,1fr))]";
     const desktopCols: Record<number, string> = {
-      1: "lg:grid-cols-1",
-      2: "lg:grid-cols-2",
-      3: "lg:grid-cols-3",
-      4: "lg:grid-cols-4",
-      5: "lg:grid-cols-5",
-      6: "lg:grid-cols-6",
-      7: "lg:grid-cols-7",
-      8: "lg:grid-cols-8",
+      1: "lg:grid-cols-1", 2: "lg:grid-cols-2", 3: "lg:grid-cols-3", 4: "lg:grid-cols-4",
+      5: "lg:grid-cols-5", 6: "lg:grid-cols-6", 7: "lg:grid-cols-7", 8: "lg:grid-cols-8",
     };
     const desktopClass = gridCols === 0
       ? "lg:grid-cols-[repeat(auto-fill,minmax(140px,1fr))]"
@@ -718,39 +809,36 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
       </div>
 
       <div className={getGridClasses()}>
-        {bundles.map(bundle => {
-          const totalPrice = (bundle.items || []).reduce((sum: number, bi: any) => {
-            const p = state.products.find(pr => pr.id === bi.productId);
-            return sum + (p ? p.price * bi.quantity : 0);
-          }, 0);
-          const discountAmount = bundle.discountType === 'percentage'
-            ? (totalPrice * bundle.discountValue) / 100
-            : Math.min(bundle.discountValue, totalPrice);
-          const finalPrice = totalPrice - discountAmount;
-
-          const bundleProducts = (bundle.items || []).map((bi: any) => {
-            const p = state.products.find(pr => pr.id === bi.productId);
-            return p ? { ...p, qty: bi.quantity } : null;
-          }).filter(Boolean);
-          const visibleProducts = bundleProducts.slice(0, 4);
-
-          // Check if bundle is in cart + compute quantity
-          let bundleQty = 0;
-          const bundleDef = state.bundles?.find((x: any) => x.id === bundle.id);
-          if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
-            const firstBi = bundleDef.items[0];
-            const cartItem = state.cart.find((x: any) => (x.bundleId || x.bundle_id) === bundle.id && x.product.id === firstBi.productId);
-            if (cartItem) {
-              bundleQty = Math.round(cartItem.quantity / firstBi.quantity);
-            }
+        {groupedBundles.map(item => {
+          
+          let visibleProducts: any[] = [];
+          let isGroup = item.isGroup;
+          let displayName = item.name;
+          let minPrice = 0;
+          let maxPrice = 0;
+          
+          if (isGroup) {
+            const allProducts = item.bundles.flatMap((b: any) => b.bundleProducts || []);
+            const uniqueProducts = Array.from(new Map(allProducts.map((p: any) => [p.id, p])).values());
+            visibleProducts = uniqueProducts.slice(0, 4);
+            
+            const prices = item.bundles.map((b: any) => b.finalPrice || 0);
+            minPrice = Math.min(...prices);
+            maxPrice = Math.max(...prices);
           } else {
-            const anyBundleItem = state.cart.find((x: any) => (x.bundleId || x.bundle_id) === bundle.id);
+            visibleProducts = (item.bundleProducts || []).slice(0, 4);
+          }
+
+          // Check if bundle is in cart
+          let bundleQty = 0;
+          if (!isGroup) {
+            const anyBundleItem = state.cart.find((x: any) => (x.bundleId || x.bundle_id) === item.id);
             if (anyBundleItem) bundleQty = 1;
           }
 
           return (
             <div
-              key={bundle.id}
+              key={item.id}
               className={`group relative bg-white dark:bg-[#1C1C1C] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer ${bundleQty > 0 ? 'ring-2 ring-emerald-500 shadow-md shadow-emerald-500/10' : ''}`}
               style={{
                 minHeight: (typeof window !== 'undefined' && window.innerWidth >= 1024)
@@ -759,13 +847,14 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
                       (isTouchMode ? '180px' : '220px'))
                   : (isTouchMode ? '120px' : '140px')
               }}
+              onClick={() => handleAddBundle(item)}
             >
-              {/* ───── Image Zone (same aspect ratio as product cards) ───── */}
+              {/* Image Zone */}
               <div className={`relative overflow-hidden bg-gray-50 dark:bg-[#262626] ${isTouchMode ? 'aspect-square' : 'aspect-[4/3]'}`}>
                 {visibleProducts.length > 0 ? (
                   <div className={`grid h-full ${visibleProducts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                     {visibleProducts.map((product: any, idx: number) => {
-                      const total = bundleProducts.length;
+                      const total = visibleProducts.length;
                       const isLastOfThree = total === 3 && idx === 2;
                       const cellClasses = [
                         'relative overflow-hidden bg-gray-50 dark:bg-black/20',
@@ -785,13 +874,11 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
                         </div>
                       );
                     })}
-                    {/* If only 1 product, show placeholder to fill 2nd column so 2x2 grid looks proper */}
                     {visibleProducts.length === 1 && (
                       <div className="relative overflow-hidden bg-gray-50 dark:bg-black/20 border-l border-white/10 dark:border-white/5 flex items-center justify-center">
                         <Gift className="h-6 w-6 text-gray-300 dark:text-gray-600" />
                       </div>
                     )}
-                    {/* If 2 products, show 2 more placeholders for the bottom row */}
                     {visibleProducts.length === 2 && (
                       <>
                         <div className="relative overflow-hidden bg-gray-50 dark:bg-black/20 border-t border-white/10 dark:border-white/5 border-r border-white/10 dark:border-white/5 flex items-center justify-center">
@@ -802,8 +889,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
                         </div>
                       </>
                     )}
-                    {/* If 3 products, show 1 more placeholder */}
-                    {visibleProducts.length === 3 && bundleProducts.length === 3 && (
+                    {visibleProducts.length === 3 && (
                       <div className="relative overflow-hidden bg-gray-50 dark:bg-black/20 border-t border-white/10 dark:border-white/5 flex items-center justify-center">
                         <Gift className="h-6 w-6 text-gray-300 dark:text-gray-600" />
                       </div>
@@ -815,84 +901,74 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
                   </div>
                 )}
 
-                {/* Discount badge top-left */}
-                <div className="absolute top-1 left-1 bg-violet-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-lg z-10">
-                  -{bundle.discountValue}{bundle.discountType === 'percentage' ? '%' : ` ${currency}`}
-                </div>
+                {!isGroup && item.discountValue > 0 && (
+                  <div className="absolute top-1 left-1 bg-violet-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-lg z-10">
+                    -{item.discountValue}{item.discountType === 'percentage' ? '%' : ` ${currency}`}
+                  </div>
+                )}
+                
+                {isGroup && (
+                  <div className="absolute top-1 left-1 bg-gray-900 dark:bg-white text-white dark:text-black text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-lg z-10 uppercase tracking-widest">
+                    {item.bundles.length} Sizes
+                  </div>
+                )}
 
-                {/* Gift icon top-right */}
                 <div className="absolute top-1 right-1 flex items-center bg-violet-500/90 text-white p-1 rounded-lg text-[8px] font-black shadow-md z-10">
                   <Gift className="h-2.5 w-2.5" />
                 </div>
-
-                {/* Bundle Qty Stepper Overlay */}
-                {bundleQty > 0 && (
-                  <div className="absolute inset-x-0.5 bottom-0.5 flex items-center justify-between bg-white/95 dark:bg-black/95 rounded-lg p-0.5 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-300 z-20">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        let newCart = [...state.cart];
-                        if (bundleQty <= 1) {
-                          newCart = newCart.filter((x: any) => (x.bundleId || x.bundle_id) !== bundle.id);
-                        } else {
-                          const baseItems = bundlesService.getBundleCartItems(bundle, state.products);
-                          for (const baseItem of baseItems) {
-                            const idx = newCart.findIndex((x: any) => (x.bundleId || x.bundle_id) === bundle.id && x.product.id === baseItem.product.id);
-                            if (idx >= 0) {
-                              const cartItem = newCart[idx];
-                              const newQty = cartItem.quantity - baseItem.quantity;
-                              if (newQty <= 0) {
-                                newCart.splice(idx, 1);
-                              } else {
-                                const newDiscount = (cartItem.discount || 0) - (baseItem.discount || 0);
-                                newCart[idx] = { ...cartItem, quantity: newQty, discount: newDiscount, subtotal: cartItem.product.price * newQty - newDiscount };
-                              }
-                            }
-                          }
-                        }
-                        dispatch({ type: 'SET_CART', payload: newCart });
-                      }}
-                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-gray-600 dark:text-gray-400"
-                    >
-                      <Minus className="h-2.5 w-2.5" />
-                    </button>
-                    <span className="font-black text-[9px] sm:text-xs text-gray-900 dark:text-white px-0.5">{bundleQty}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddBundle(bundle);
-                      }}
-                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-primary"
-                    >
-                      <Plus className="h-2.5 w-2.5" />
-                    </button>
-                  </div>
-                )}
               </div>
 
-              {/* ───── Info Area (same layout as product card) ───── */}
+              {/* Info Area */}
               <div className="p-1.5 sm:p-2 space-y-0.5">
-                {/* ADD DEAL button */}
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleAddBundle(bundle); }}
-                  className="w-full flex items-center justify-center gap-1 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white text-[8px] font-black uppercase tracking-wider rounded-lg py-1.5 transition-all active:scale-95 shadow-lg"
-                >
-                  <Plus className="h-2.5 w-2.5" /> {t('add_bundle', 'Add Deal')}
-                </button>
-
                 <h3 className={`font-black text-gray-900 dark:text-white uppercase tracking-tight leading-tight line-clamp-2 ${isTouchMode ? 'text-[9px]' : 'text-[10px] sm:text-xs'}`}>
-                  {bundle.name}
+                  {displayName}
                 </h3>
 
                 <div className="flex items-center justify-between gap-1">
-                  <span className="text-[9px] text-gray-400 line-through truncate">{currency}{totalPrice.toLocaleString()}</span>
-                  <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">{currency}{finalPrice.toLocaleString()}</span>
+                  {isGroup ? (
+                    <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">
+                      From {currency}{minPrice.toLocaleString()}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-[9px] text-gray-400 line-through truncate">{currency}{item.totalPrice.toLocaleString()}</span>
+                      <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">{currency}{item.finalPrice.toLocaleString()}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {activeCombo && (
+        <ComboSelectionModal
+          bundle={activeCombo}
+          products={state.products}
+          currency={currency}
+          isOpen={true}
+          onClose={() => setActiveCombo(null)}
+          onConfirm={(selectedItems) => processBundleAdd(activeCombo, selectedItems)}
+        />
+      )}
+      
+      {activeGroup && (
+        <DealSizeSelectorModal
+          isOpen={true}
+          onClose={() => setActiveGroup(null)}
+          groupName={activeGroup.name}
+          bundles={activeGroup.bundles}
+          currency={currency}
+          onSelect={(selectedBundle) => {
+            if (selectedBundle.isCombo) {
+              setActiveCombo(selectedBundle);
+            } else {
+              processBundleAdd(selectedBundle);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

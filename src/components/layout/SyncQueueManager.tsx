@@ -66,6 +66,20 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
 
     const handleRetry = async () => {
         setLoading(true);
+        // Fix poisoned payloads before retrying
+        await localDb.pendingOps
+            .filter(q => q.entity === 'products' && q.operation === 'create')
+            .modify(q => {
+                if (!q.payload.sku) q.payload.sku = q.payload.id || q.payload.barcode_value || `SKU-${Date.now()}`;
+                if (q.payload.variantData) {
+                    q.payload.variant_data = q.payload.variantData;
+                    delete q.payload.variantData;
+                }
+            });
+            
+        // Force unstick all items
+        await localDb.pendingOps.toCollection().modify({ retries: 0, status: 'pending' });
+        
         await retrySyncAll();
         await syncNow();
         setLoading(false);
