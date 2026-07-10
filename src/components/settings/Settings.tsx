@@ -214,6 +214,7 @@ export function Settings() {
     estoreEnabled: state.settings.estoreEnabled ?? false,
     touchKeyboardEnabled: state.settings.touchKeyboardEnabled ?? false,
     soundEnabled: state.settings.soundEnabled ?? true,
+    enableKotPrinter: state.settings?.enableKotPrinter ?? false,
     taxId: state.settings?.taxId || '',
     country: state.settings?.country || 'PK',
     language: (state.settings as any)?.language || 'en',

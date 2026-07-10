@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
     estore_enabled              BOOLEAN DEFAULT false,
     sound_enabled               BOOLEAN DEFAULT true,
     touch_keyboard_enabled      BOOLEAN DEFAULT false,
+    enable_kot_printer          BOOLEAN DEFAULT false,
     default_sale_type           TEXT DEFAULT 'retail',
     language                    TEXT DEFAULT 'en',
 

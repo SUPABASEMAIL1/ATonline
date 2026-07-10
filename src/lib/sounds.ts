@@ -9,9 +9,8 @@ export const playAlertSound = () => {
 
 export const playPageSound = () => {
   try {
-    // Using relative path (no leading slash) ensures it works in Electron (file://) and Web
-    const audio = new Audio('sounds/click.mp3');
+    const audio = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVtvT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vT19vTN=');
     audio.volume = 0.3;
-    audio.play().catch(() => {}); // ignore autoplay block errors
+    audio.play().catch(() => {});
   } catch (e) {}
 };
