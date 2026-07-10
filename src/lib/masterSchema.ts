@@ -388,7 +388,7 @@ CREATE TABLE IF NOT EXISTS sales (
     change_amount       DECIMAL(12,2),
     payment_method      TEXT CHECK (payment_method IN ('cash', 'card', 'digital', 'credit', 'cheque')),
     card_details        JSONB,
-    status              TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded', 'credit', 'draft')),
+    status              TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded', 'partially_refunded', 'credit', 'draft')),
     cashier             TEXT,
     cashier_role        TEXT,
     receipt_number      TEXT,
