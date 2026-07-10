@@ -18,6 +18,12 @@ export const getSupabase = (): SupabaseClient => {
             eventsPerSecond: 10,
           },
         },
+        global: {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        },
       }
     )
   }
