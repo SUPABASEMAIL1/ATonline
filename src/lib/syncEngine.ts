@@ -328,7 +328,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                 }
                 const result = await supabase.rpc('process_sale', { sale_data: payload });
                 error = result.error;
-            } else if (op.entity === 'sales' && opType === 'update' && payload.status === 'returned') {
+            } else if (op.entity === 'sales' && opType === 'update' && (payload.status === 'refunded' || payload.status === 'partially_refunded')) {
                 const result = await supabase.rpc('process_return', { sale_id: entityId, return_data: payload });
                 error = result.error;
             } else if (op.entity === 'purchase_records' && opType === 'create') {

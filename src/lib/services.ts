@@ -1368,7 +1368,7 @@ export const salesService = {
   async getReportRefundsLocal(startDate: Date, endDate: Date): Promise<Sale[]> {
     return await localDb.sales
       .filter(s =>
-        s.status === 'refunded' &&
+        (s.status === 'refunded' || s.status === 'partially_refunded') &&
         new Date(s.timestamp) >= startDate &&
         new Date(s.timestamp) <= endDate
       )
@@ -1380,7 +1380,7 @@ export const salesService = {
       const { data, error } = await supabase
         .from('sales')
         .select('*')
-        .eq('status', 'refunded')
+        .in('status', ['refunded', 'partially_refunded'])
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
 
@@ -1390,7 +1390,7 @@ export const salesService = {
       console.warn('getReportRefunds: fallback to localDb'); // fallback to localDb
       return await localDb.sales
         .filter(s =>
-          s.status === 'refunded' &&
+          (s.status === 'refunded' || s.status === 'partially_refunded') &&
           new Date(s.timestamp) >= startDate &&
           new Date(s.timestamp) <= endDate
         )

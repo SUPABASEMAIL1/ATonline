@@ -134,6 +134,17 @@
 --   3. sales: split_payments, extra_charges — ALTER TABLE ADD COLUMN IF NOT EXISTS
 --   Impact: SUPER_MASTER_SCHEMA.sql can now be run on ANY existing DB as a true
 --   idempotent full-setup script — no more missing column gaps.
+--
+-- [2026-07-10] Refund system fixes — partially_refunded, refunded_amount, process_return RPC
+--   Migration: supabase/migrations/20260710230000_fix_refund_system.sql
+--   Changes:
+--   1. sales CHECK constraint: added 'partially_refunded' to allowed statuses
+--   2. sales table: added refunded_amount DECIMAL(12,2) DEFAULT 0
+--   3. process_return RPC: now reads status + refundedAmount + items from return_data
+--      instead of hardcoding 'refunded'. Supports partial refunds properly.
+--   4. syncEngine.ts: fixed 'returned' → 'refunded'/'partially_refunded' check
+--   5. services.ts getReportRefunds*: now queries both 'refunded' AND 'partially_refunded'
+--   6. Both process_return RPC definitions updated (lines 1101 and 1530)
 -- ════════════════════════════════════════════════════════════════
 
 
@@ -493,7 +504,7 @@ CREATE TABLE IF NOT EXISTS sales (
     change_amount       DECIMAL(12,2),
     payment_method      TEXT CHECK (payment_method IN ('cash', 'card', 'digital', 'credit', 'cheque', 'split')),
     card_details        JSONB,
-    status              TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded', 'credit', 'draft')),
+    status              TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded', 'partially_refunded', 'credit', 'draft')),
     cashier             TEXT,
     cashier_role        TEXT,
     receipt_number      TEXT,
@@ -505,6 +516,7 @@ CREATE TABLE IF NOT EXISTS sales (
     sale_type           TEXT DEFAULT 'retail' CHECK (sale_type IN ('retail', 'wholesale', 'estore')),
     extra_charges       JSONB DEFAULT '[]'::jsonb,
     split_payments      JSONB DEFAULT '[]'::jsonb,
+    refunded_amount     DECIMAL(12,2) DEFAULT 0,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT now()
 );
@@ -1103,10 +1115,18 @@ RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_status TEXT;
+    v_refunded_amount DECIMAL(12,2);
 BEGIN
+    v_status := COALESCE(return_data->>'status', 'refunded');
+    v_refunded_amount := COALESCE((return_data->>'refundedAmount')::DECIMAL(12,2), 0);
+
     UPDATE sales
     SET 
-        status = 'refunded',
+        status = v_status,
+        refunded_amount = COALESCE(refunded_amount, 0) + v_refunded_amount,
+        items = COALESCE(return_data->>'items', items::TEXT)::JSONB,
         notes = COALESCE(notes, '') || E'\n[RETURNED] ' || COALESCE(return_data->>'notes', ''),
         updated_at = NOW()
     WHERE id = sale_id;
@@ -1451,7 +1471,8 @@ END $$;
 -- Sales: post-launch columns
 ALTER TABLE sales
   ADD COLUMN IF NOT EXISTS split_payments  JSONB DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS extra_charges   JSONB DEFAULT '[]'::jsonb;
+  ADD COLUMN IF NOT EXISTS extra_charges   JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS refunded_amount DECIMAL(12,2) DEFAULT 0;
 
 DO $$
 BEGIN
@@ -1529,8 +1550,19 @@ END; $$;
 -- ── 2. Process Return ──
 CREATE OR REPLACE FUNCTION process_return(sale_id UUID, return_data JSONB)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_status TEXT;
+    v_refunded_amount DECIMAL(12,2);
 BEGIN
-    UPDATE sales SET status = 'refunded', notes = COALESCE(notes, '') || E'\n[RETURNED] ' || COALESCE(return_data->>'notes', ''), updated_at = NOW() WHERE id = sale_id;
+    v_status := COALESCE(return_data->>'status', 'refunded');
+    v_refunded_amount := COALESCE((return_data->>'refundedAmount')::DECIMAL(12,2), 0);
+    UPDATE sales SET
+        status = v_status,
+        refunded_amount = COALESCE(refunded_amount, 0) + v_refunded_amount,
+        items = COALESCE(return_data->>'items', items::TEXT)::JSONB,
+        notes = COALESCE(notes, '') || E'\n[RETURNED] ' || COALESCE(return_data->>'notes', ''),
+        updated_at = NOW()
+    WHERE id = sale_id;
     RETURN jsonb_build_object('success', true, 'id', sale_id);
 EXCEPTION WHEN OTHERS THEN RETURN jsonb_build_object('success', false, 'error', SQLERRM);
 END; $$;
