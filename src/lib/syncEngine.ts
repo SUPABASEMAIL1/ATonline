@@ -188,8 +188,14 @@ async function executeOp(op: PendingOp): Promise<void> {
             // FINAL GUARD: 'user_id' is NOT NULL in cloud
             if (!payload.user_id) {
                 const { data: { user: authUser } } = await supabase.auth.getUser();
-                if (authUser) {
-                    payload.user_id = authUser.id;
+                let cachedUserId = null;
+                try {
+                    const cached = localStorage.getItem('pos_offline_profile');
+                    if (cached) cachedUserId = JSON.parse(cached).id;
+                } catch (_) {}
+                const targetUid = authUser?.id || cachedUserId;
+                if (targetUid) {
+                    payload.user_id = targetUid;
                     console.warn(`[SyncEngine] Auto-repaired missing user_id for sales_tabs/${op.entityId}`);
                 }
             }
@@ -458,8 +464,13 @@ async function executeOp(op: PendingOp): Promise<void> {
                         let newValue = null;
                         if (fk.action === 'current_user') {
                             const { data: { session } } = await supabase.auth.getSession();
-                            newValue = session?.user?.id || null;
-                            console.warn(`[SyncEngine] FK failed on ${fk.key} for ${op.entity}. Re-assigning to current user ${newValue}.`);
+                            let cachedUserId = null;
+                            try {
+                                const cached = localStorage.getItem('pos_offline_profile');
+                                if (cached) cachedUserId = JSON.parse(cached).id;
+                            } catch (_) {}
+                            newValue = session?.user?.id || cachedUserId || null;
+                            console.warn(`[SyncEngine] FK failed on ${fk.key} for ${op.entity}. Re-assigning to user ${newValue}.`);
                         } else {
                             console.warn(`[SyncEngine] FK failed on ${fk.key} for ${op.entity}. Nullifying to unblock sync.`);
                         }
@@ -554,10 +565,9 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
         return;
     }
 
-    // SECURITY GUARD #2: Never sync if no user session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session || _isSyncing) {
-        if (_isSyncing) _syncNeeded = true;
+    // SECURITY GUARD #2: Never sync if already syncing
+    if (_isSyncing) {
+        _syncNeeded = true;
         return;
     }
 

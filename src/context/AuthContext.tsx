@@ -267,9 +267,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           canEditSale: !!pData.can_edit_sale,
           active: pData.active ?? true,
           lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
-          avatar: pData.avatar || undefined,
-          workspace_id: pData.workspace_id || pData.id,
-          workspaceId: pData.workspace_id || pData.id
+          avatar: pData.avatar || undefined
         };
 
         setProfile(profileData);
@@ -334,8 +332,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 canManageStock: !!pData.can_manage_stock, canManagePO: !!pData.can_manage_po,
                 canViewRecords: !!pData.can_view_records, canEditSale: !!pData.can_edit_sale,
                 active: pData.active ?? true, lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
-                avatar: pData.avatar || undefined, workspace_id: pData.workspace_id || pData.id,
-                workspaceId: pData.workspace_id || pData.id
+                avatar: pData.avatar || undefined
               };
               setProfile(profileData);
               localStorage.setItem('pos_offline_profile', JSON.stringify(profileData));
@@ -384,11 +381,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Step 1: Check Local SQLite Cache (Fast & Offline-Ready)
         try {
-          // We need the workspace DB to be ready — try known workspace mapping
-          const knownWs = localStorage.getItem(`offline_workspace_${normalizedIdentifier}`);
-          if (knownWs) {
-            await import('../lib/localDb').then(m => m.initForWorkspace(knownWs));
-          }
           const allLocalUsers = await import('../lib/localDb').then(m => m.localDb.users.toArray());
           const matchedLocal = allLocalUsers.find(
             u => u.username?.toLowerCase() === normalizedIdentifier ||
@@ -487,20 +479,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const lowerIdentifier = identifier.toLowerCase();
 
-          // CRITICAL: We must know the workspace ID to initialize the DB before querying it!
-          // We stored this mapping during successful online logins.
-          let workspaceId = localStorage.getItem(`offline_workspace_${lowerIdentifier}`);
-          // Fallback pattern if username wasn't saved directly
-          if (!workspaceId && !lowerIdentifier.includes('@')) {
-            workspaceId = localStorage.getItem(`offline_workspace_${lowerIdentifier}@zaynahs.local`);
-          }
-
-          if (workspaceId) {
-            console.log(`[Auth] Discovered offline workspace mapping: ${workspaceId}`);
-            await import('../lib/localDb').then(m => m.initForWorkspace(workspaceId!));
-          } else {
-            console.warn(`[Auth] No offline workspace mapping found for ${lowerIdentifier}. Database queries may fail.`);
-          }
+          // No workspace mapping check needed for single tenant mode
 
           const allLocalUsers = await localDb.users.toArray();
 
@@ -651,7 +630,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           can_manage_po: true,
           can_view_records: true,
           active: true,
-          workspace_id: data.user.id, // Signup owner is the workspace identity
         };
 
         // ── Step 4: Upsert profile (handles duplicate key gracefully) ──────
@@ -694,15 +672,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             canManagePO: !!pData.can_manage_po,
             canViewRecords: !!pData.can_view_records,
             active: pData.active ?? true,
-            workspace_id: pData.workspace_id,
             lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
             avatar: pData.avatar || undefined,
           });
           localStorage.setItem('pos_offline_profile', JSON.stringify(pData));
-          localStorage.setItem(`offline_workspace_${email}`, pData.workspace_id || pData.id);
-          if (username) {
-            localStorage.setItem(`offline_workspace_${username}`, pData.workspace_id || pData.id);
-          }
         }
         setLoading(false);
         sonner.success('Welcome! ✅ Account created successfully as Admin.');
