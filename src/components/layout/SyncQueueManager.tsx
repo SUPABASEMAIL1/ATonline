@@ -28,7 +28,8 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                 op.lastError.toLowerCase().includes('401') ||
                 op.lastError.toLowerCase().includes('jwt') ||
                 op.lastError.toLowerCase().includes('unauthorized') ||
-                op.lastError.toLowerCase().includes('token expired')
+                op.lastError.toLowerCase().includes('token expired') ||
+                op.lastError.toLowerCase().includes('permission denied')
             )
         );
         setAuthError(hasAuthErrors);
@@ -98,7 +99,7 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
     };
 
     const handleClear = async () => {
-        if (!confirm('This will delete all items that have failed 10+ times. Are you sure?')) return;
+        if (!confirm('This will delete all items that have failed 5+ times. Are you sure?')) return;
         await clearStuckOps();
         window.dispatchEvent(new Event('pendingops-changed'));
         refresh();
@@ -311,7 +312,7 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
 
                 <div className="p-4 bg-gray-50 dark:bg-white/[0.03] rounded-2xl border border-gray-200 dark:border-white/5">
                     <p className="text-[9px] font-bold text-gray-600 dark:text-gray-500 uppercase tracking-[0.15em] leading-relaxed text-center">
-                        {t('sync_stuck_info', 'PENDING CHANGES SYNC IN BACKGROUND. IF A CHANGE FAILS 5 TIMES, IT REQUIRES MANUAL ATTENTION.')}
+                        {t('sync_stuck_info', 'PENDING CHANGES SYNC IN BACKGROUND. IF A CHANGE FAILS 5 TIMES, IT IS MARKED STUCK AND NEEDS MANUAL ATTENTION.')}
                     </p>
                 </div>
             </div>

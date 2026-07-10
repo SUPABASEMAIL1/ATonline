@@ -94,17 +94,7 @@ function AppContent() {
           }
         })
         .then(() => {
-          // 2. GLOBAL: Strip workspace fields from ALL pending ops (single-tenant, Rule F7)
-          // Handles any stale ops created before the workspace_id system was removed.
-          return localDb.pendingOps.toCollection().modify(q => {
-            if (q.payload) {
-              delete q.payload.workspaceId;
-              delete q.payload.workspace_id;
-            }
-          });
-        })
-        .then(() => {
-          // 3. Unstuck EVERYTHING so it tries again!
+          // 2. Unstuck EVERYTHING so it tries again!
           return localDb.pendingOps.toCollection().modify({ retries: 0, status: 'pending' });
         })
         .then(() => startSyncEngine())

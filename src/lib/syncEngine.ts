@@ -30,10 +30,6 @@ const COLUMN_BLACKLIST: Record<string, Set<string>> = {
     // Dynamic entries will be added here if Supabase returns 400 "Column not found" errors.
 };
 
-// Fields that do NOT exist in any Supabase table (single-tenant app — Rule F7)
-// These are always stripped from remote payloads regardless of entity.
-const GLOBAL_STRIP_FIELDS = new Set(['workspaceId', 'workspace_id']);
-
 function filterPayload(entity: string, payload: any) {
     if (!payload || typeof payload !== 'object') return payload;
 
@@ -45,11 +41,6 @@ function filterPayload(entity: string, payload: any) {
     for (const key in payload) {
         // Skip if value is undefined or null (prevents NOT NULL violations on partial updates/upserts)
         if (payload[key] === undefined || payload[key] === null) {
-            continue;
-        }
-
-        // Global strip: fields that never exist on any Supabase table (Rule F7)
-        if (GLOBAL_STRIP_FIELDS.has(key)) {
             continue;
         }
 
@@ -609,7 +600,7 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                 break;
             }
 
-            const processableItems = pending.filter(op => op.status !== 'error' && (op.retries || 0) < 10);
+            const processableItems = pending.filter(op => op.status !== 'error' && (op.retries || 0) < 5);
 
             if (processableItems.length === 0) {
                 if (_syncNeeded) {
@@ -720,12 +711,14 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
 
                     // Only increment retries for real API/Logic errors
                     const newRetries = (op.retries || 0) + 1;
-                    const status = newRetries >= 10 ? 'error' : 'failed';
+                    const status = newRetries >= 5 ? 'error' : 'failed';
+                    const isPermissionDenied = errorMsg.toLowerCase().includes('permission denied') || 
+                                               errorMsg.toLowerCase().includes('permission_denied');
 
                     await localDb.pendingOps.update(op.id!, {
                         retries: newRetries,
                         status,
-                        lastError: errorMsg
+                        lastError: isPermissionDenied ? 'Permission denied — contact admin.' : errorMsg
                     });
 
                     window.dispatchEvent(new Event('pendingops-changed'));
@@ -765,6 +758,8 @@ async function autoRecoverErrors() {
         // Check for permanent errors
         const isPermanent = op.errorMessage?.includes('Orphaned record') || 
                             op.errorMessage?.includes('Permission Denied') ||
+                            op.errorMessage?.includes('Permission denied') ||
+                            op.lastError?.includes('permission denied') ||
                             op.lastError?.includes('foreign key constraint') ||
                             op.lastError?.includes('rls policy');
                             
@@ -897,6 +892,6 @@ export async function retrySyncAll() {
  * Removes all items from the queue that have failed 5+ times
  */
 export async function clearStuckOps() {
-    await localDb.pendingOps.where('retries').aboveOrEqual(10).delete();
+    await localDb.pendingOps.where('retries').aboveOrEqual(5).delete();
     window.dispatchEvent(new Event('pendingops-changed'));
 }

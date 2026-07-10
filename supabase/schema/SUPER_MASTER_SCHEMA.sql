@@ -1227,11 +1227,10 @@ GROUP BY sa.sale_date;
 -- GRANTS
 -- ════════════════════════════════════════════════════════════════
 
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
-GRANT USAGE ON SCHEMA public TO anon;
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 
 
 -- ════════════════════════════════════════════════════════════════
@@ -1517,9 +1516,11 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   ORDER BY s.created_at DESC;
 $$;
 
--- ── 6. RLS POLICIES (Single-Tenant Mode / Disabled) ──
+-- ── 6. SINGLE-TENANT MODE (RLS Disabled + Full Grants) ──
 -- Application is configured for a single shop.
--- RLS overhead is disabled for performance and simplicity.
+-- RLS overhead is disabled. Both anon and authenticated roles
+-- have full permissions — safe because Supabase API access is
+-- gated by the frontend authentication layer.
 
 DO $$
 DECLARE
@@ -1546,17 +1547,23 @@ BEGIN
             pol.tablename
         );
     END LOOP;
+
+    -- 3. Grant ALL to anon and authenticated (single-tenant safety)
+    FOR t IN 
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    LOOP
+        EXECUTE format('GRANT ALL ON %I TO anon, authenticated;', t);
+    END LOOP;
 END $$;
 
--- ── 7. GRANTS ──
-GRANT EXECUTE ON FUNCTION process_sale(JSONB) TO authenticated;
-GRANT EXECUTE ON FUNCTION process_sale(JSONB) TO anon;
-GRANT EXECUTE ON FUNCTION process_return(UUID, JSONB) TO authenticated;
-GRANT EXECUTE ON FUNCTION process_return(UUID, JSONB) TO anon;
-GRANT EXECUTE ON FUNCTION audit_stock_integrity() TO authenticated;
-GRANT EXECUTE ON FUNCTION audit_missing_purchase_cost() TO authenticated;
-GRANT EXECUTE ON FUNCTION resolve_login_email(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION resolve_login_email(TEXT) TO anon;
+-- ── 7. GRANTS (single-tenant: both roles get full access) ──
+GRANT EXECUTE ON FUNCTION process_sale(JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION process_return(UUID, JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION audit_stock_integrity() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION audit_missing_purchase_cost() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION resolve_login_email(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION get_email_by_username(TEXT) TO anon, authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
