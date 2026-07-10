@@ -6,3 +6,4 @@ dist/
 *.local
 tsconfig.tsbuildinfo
 env_backups/
+.vercel
