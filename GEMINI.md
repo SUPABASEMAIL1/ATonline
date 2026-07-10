@@ -720,4 +720,21 @@ Supabase ka free plan 1 hafte baad database pause kar deta hai. Isey 24/7 active
 4.  **App code:** All `.eq('workspace_id', ...)` filters, workspaceId params, mappers returning workspaceId, and useWorkspaceId hook removed. BundleGrid cards now have ± quantity stepper.
 5.  **1 Clone = 1 Shop** — changing project credentials no longer causes workspace_id mismatch issues.
 
+### [2026-07-10] Remote Column Parity, Settings Realtime Filter, and Bundle Quantity Stepper Fix
+**Files Updated:** `supabase/schema/SUPER_MASTER_SCHEMA.sql`, `supabase/migrations/20260710164500_add_variant_data_modifiers_to_products.sql`, `src/context/SupabaseAppContext.tsx`, `src/components/pos/ProductGrid.tsx`, `src/components/settings/Settings.tsx`, `src/main.tsx`
+**Changes:**
+1.  **Database Columns Parity (`SUPER_MASTER_SCHEMA.sql`, `20260710164500_add_variant_data_modifiers_to_products.sql`)**:
+    *   Applied live `ALTER TABLE products ADD COLUMN` migration for `variant_data` and `modifiers` JSONB fields. Added log entries to schema change log. Resolves the product sync 400 Bad Request error.
+2.  **Defensive Singleton Settings Sync (`SupabaseAppContext.tsx`, `Settings.tsx`)**:
+    *   Filtered the Realtime `app_settings` subscription to only apply changes when `payload.new.id === SETTINGS_ID`.
+    *   Forced the local IndexedDB settings loader to find the record matching `SETTINGS_ID`.
+    *   Standardized theme default values in `Settings.tsx` to `'dark'` to match `index.html` and the context initialization.
+    *   Resolves settings (theme, POS columns) changing automatically and reverting from 7 to 4 when other clients updated their settings records.
+3.  **Active Bundle Stepper Controls (`ProductGrid.tsx`)**:
+    *   Replaced the hardcoded '1' value on the bundle grid cards with the calculated `bundleQty` in cart.
+    *   Rewrote the bundle increment/decrement quantity logic so that pressing `-` reduces the quantity incrementally (e.g. 3 -> 2 -> 1 -> delete) rather than wiping the entire item immediately. Matches normal product card density stepper controls.
+4.  **Quiet Consoles (`main.tsx`, `SupabaseAppContext.tsx`)**:
+    *   Configured React Router v7 future flags (`v7_startTransition`, `v7_relativeSplatPath`) on `<BrowserRouter>` to silence upgrade warnings.
+    *   Downgraded realtime disconnect/retry console logs from warning (`console.warn`) to standard info (`console.log`) level.
+
 ✅ **All Done!**
