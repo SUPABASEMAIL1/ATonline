@@ -13,22 +13,45 @@ export function useSync() {
     // Connectivity ping: verify server reachability every 30s
     // (navigator.onLine is unreliable on mobile — returns true in Airplane Mode)
     useEffect(() => {
+        let consecutiveFailures = 0;
+        let pingTimer: ReturnType<typeof setInterval>;
+
         const ping = async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
+                await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
                     method: 'HEAD',
                     signal: AbortSignal.timeout(5000)
                 });
-                setIsOnline(res.ok);
+                // Any HTTP response (401/403/404) = server is reachable
+                consecutiveFailures = 0;
+                setIsOnline(true);
             } catch {
-                setIsOnline(false);
+                consecutiveFailures++;
+                if (consecutiveFailures >= 2) {
+                    setIsOnline(false);
+                }
             }
         };
+
         if (navigator.onLine) ping();
-        const timer = setInterval(() => {
+        pingTimer = setInterval(() => {
             if (navigator.onLine) ping();
         }, 30_000);
-        return () => clearInterval(timer);
+
+        // Re-check when app comes to foreground (mobile browsers
+        // often suspend timers in background)
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                consecutiveFailures = 0;
+                ping();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            clearInterval(pingTimer);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, []);
 
     const refresh = useCallback(async () => {
