@@ -14,15 +14,16 @@ export function KOTPrint({ sale }: KOTPrintProps) {
   const { play } = useSoundFeedback();
 
   const isPrintingRef = useRef(false);
+  const isAutoPrint = settings.receiptPrinter;
 
   useEffect(() => {
     if (isPrintingRef.current) return;
     isPrintingRef.current = true;
 
-    // Small delay to let ReceiptPrint trigger first if needed
+    const delay = isAutoPrint ? 1500 : 500;
     const timer = setTimeout(() => {
       handlePrint();
-    }, 500);
+    }, delay);
 
     return () => clearTimeout(timer);
   }, []);
@@ -34,33 +35,84 @@ export function KOTPrint({ sale }: KOTPrintProps) {
 
     play('success');
 
+    const totalItems = sale.items.reduce((sum, i) => sum + Math.abs(i.quantity), 0);
+
     const printHTML = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  html, body { margin: 0; padding: 0; background: #fff !important; width: 100%; color: #000; font-family: monospace; }
+  html, body { margin: 0; padding: 0; background: #fff !important; width: 100%; color: #000; font-family: 'Courier New', Courier, monospace; }
   @page { margin: 0 !important; size: 80mm auto; }
   #print-container {
     width: 72mm !important;
     max-width: 72mm !important;
     margin: 0 auto !important;
-    padding: 4mm !important;
-    font-size: 14px;
-    font-weight: bold;
-    text-transform: uppercase;
+    padding: 3mm 4mm !important;
+    font-size: 12px;
   }
-  .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
-  .meta { margin-bottom: 12px; font-size: 12px; }
-  .item { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dotted #999; }
-  .item-name { font-size: 16px; font-weight: 900; }
-  .modifiers { padding-left: 12px; font-size: 12px; margin-top: 4px; }
+  .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
+  .store-name { font-size: 16px; font-weight: 900; margin-bottom: 2px; }
+  .kot-badge { font-size: 22px; font-weight: 900; letter-spacing: 4px; margin: 4px 0; }
+  .meta { margin-bottom: 8px; font-size: 11px; line-height: 1.4; }
+  .meta-row { display: flex; justify-content: space-between; }
+  .table-header { border-top: 2px dashed #000; border-bottom: 1px solid #000; padding: 4px 0; margin-top: 6px; display: flex; font-size: 10px; font-weight: 900; }
+  .table-header-qty { width: 44px; text-align: center; }
+  .table-header-item { flex: 1; }
+  .table-row { display: flex; padding: 5px 0; border-bottom: 1px dotted #999; }
+  .table-row-qty { width: 44px; text-align: center; font-size: 16px; font-weight: 900; padding-top: 2px; }
+  .table-row-detail { flex: 1; }
+  .table-row-name { font-size: 13px; font-weight: 900; }
+  .table-row-meta { font-size: 10px; padding-left: 6px; margin-top: 2px; }
+  .table-row-price { font-size: 10px; color: #555; margin-top: 1px; }
+  .divider { border-top: 2px dashed #000; margin: 8px 0; }
+  .footer { text-align: center; font-size: 11px; margin-top: 8px; padding-top: 6px; border-top: 2px dashed #000; }
+  .bordered-note { border: 2px solid #000; padding: 4px; margin-top: 4px; font-size: 11px; text-align: center; }
 </style>
 </head>
 <body>
   <div id="print-container">
-    ${kotEl.innerHTML}
+    <div class="header">
+      <div class="store-name">${settings.storeName || 'STORE'}</div>
+      <div class="kot-badge">KOT</div>
+      <div>#${sale.invoiceNumber}</div>
+      <div>${formatAppDateTime(sale.timestamp, settings.country)}</div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-row">
+        <span>TYPE: <strong>${(sale.saleType || 'RETAIL').toUpperCase()}</strong></span>
+        <span>CASHIER: <strong>${sale.cashier?.split(' ')[0] || 'SYS'}</strong></span>
+      </div>
+      ${sale.customerName ? `<div class="meta-row"><span>CUSTOMER: <strong>${sale.customerName}</strong></span></div>` : ''}
+      ${sale.customerPhone ? `<div class="meta-row"><span>PHONE: ${sale.customerPhone}</span></div>` : ''}
+      <div class="meta-row"><span>ITEMS: <strong>${totalItems}</strong></span></div>
+    </div>
+
+    ${sale.notes ? `<div class="bordered-note">📝 NOTE: ${sale.notes}</div><div class="divider"></div>` : '<div class="divider"></div>'}
+
+    <div class="table-header">
+      <span class="table-header-qty">QTY</span>
+      <span class="table-header-item">ITEM</span>
+    </div>
+
+    ${sale.items.map((item, idx) => {
+      const itemTotal = Math.abs(item.quantity) * (item.discountedPrice ?? item.price ?? 0);
+      return `
+    <div class="table-row">
+      <div class="table-row-qty">${Math.abs(item.quantity)}x</div>
+      <div class="table-row-detail">
+        <div class="table-row-name">${item.product.name}</div>
+        ${item.selectedVariant ? `<div class="table-row-meta">- ${item.selectedVariant}</div>` : ''}
+        ${item.selectedModifiers?.length ? `<div class="table-row-meta">+ ${item.selectedModifiers.map(m => m.name).join(', ')}</div>` : ''}
+      </div>
+    </div>`;
+    }).join('')}
+
+    <div class="footer">
+      *** END OF KOT ***
+    </div>
   </div>
 </body>
 </html>`;
@@ -97,52 +149,7 @@ export function KOTPrint({ sale }: KOTPrintProps) {
 
   return (
     <div id={`kot-content-${sale.id}`} style={{ display: 'none' }}>
-      <div className="header">
-        <div style={{ fontSize: '24px', fontWeight: 900, marginBottom: '4px' }}>KOT</div>
-        <div>ORDER: {sale.invoiceNumber}</div>
-        <div>{formatAppDateTime(sale.timestamp, settings.country)}</div>
-      </div>
-      
-      <div className="meta">
-        <div>TYPE: {sale.saleType || 'RETAIL'}</div>
-        <div>CASHIER: {sale.cashier?.split(' ')[0] || 'SYS'}</div>
-        {sale.notes && <div style={{ border: '2px solid #000', padding: '4px', marginTop: '4px' }}>NOTE: {sale.notes}</div>}
-      </div>
-
-      <div style={{ borderTop: '2px dashed #000', margin: '8px 0' }} />
-
-      <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={{ borderBottom: '2px solid #000', paddingBottom: '4px' }}>QTY</th>
-            <th style={{ borderBottom: '2px solid #000', paddingBottom: '4px' }}>ITEM</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sale.items.map((item, idx) => (
-            <tr key={idx}>
-              <td style={{ verticalAlign: 'top', paddingTop: '8px', fontSize: '18px', fontWeight: 900 }}>
-                {Math.abs(item.quantity)}x
-              </td>
-              <td style={{ verticalAlign: 'top', paddingTop: '8px' }}>
-                <div className="item-name">{item.product.name}</div>
-                {item.selectedVariant && (
-                  <div className="modifiers">- {item.selectedVariant}</div>
-                )}
-                {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                  <div className="modifiers">
-                    + {item.selectedModifiers.map(m => m.name).join(', ')}
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div style={{ borderTop: '2px dashed #000', marginTop: '16px', paddingTop: '8px', textAlign: 'center', fontSize: '12px' }}>
-        *** END OF KOT ***
-      </div>
+      {/* Hidden content — print uses HTML string directly */}
     </div>
   );
 }
