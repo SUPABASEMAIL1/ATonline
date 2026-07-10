@@ -81,10 +81,9 @@ export function Modal({
 
   const modalContent = (
     <div ref={containerRef} data-modal="true" className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-      {/* Backdrop */}
+      {/* Backdrop — no onClick: only X button closes */}
       <div 
         className={`absolute inset-0 bg-[rgba(15,23,42,0.6)] dark:bg-[rgba(0,0,0,0.75)] transition-opacity duration-250 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
-        onClick={onClose}
       />
       
       {/* Dialog */}
