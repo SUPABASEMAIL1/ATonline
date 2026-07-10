@@ -928,6 +928,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, async (payload) => {
         if (payload.eventType === 'UPDATE') {
+          if (payload.new.id !== SETTINGS_ID) return; // Only process our singleton settings row
           const mapped = mapSettings(payload.new);
           await localDb.appSettings.put(mapped);
           dispatch({ type: 'SET_SETTINGS', payload: mapped });
@@ -1053,7 +1054,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.warn(`[Realtime] Subscription status: ${status} — will retry in 5s.`);
+          console.log(`[Realtime] Subscription status: ${status} — will retry in 5s.`);
           subscriptionsInitialized.current = false;
           subscriptionRef.current = null;
           retryTimer = setTimeout(() => {
@@ -1062,7 +1063,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
           }, 5000);
         } else if (status === 'SUBSCRIBED') {
-          console.log(`[Realtime] Subscription active for workspace: ${workspaceId}`);
+          console.log(`[Realtime] Subscription active (single-tenant).`);
         }
       });
 
@@ -1180,8 +1181,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn('[AppContext] Bundle local load failed', e);
       }
 
-      if (localSettingsArr.length > 0) {
-        const localSettings = localSettingsArr[0];
+      const localSettings = localSettingsArr.find(s => s.id === SETTINGS_ID) || localSettingsArr[0];
+      if (localSettings) {
         dispatch({ type: 'SET_SETTINGS', payload: { ...initialState.settings, ...localSettings } });
       }
 

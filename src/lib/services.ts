@@ -86,7 +86,6 @@ export const getCustomerCreditStatus = (customer: Customer, newSaleTotal: number
 
 export const mapProduct = (item: any): Product => ({
   ...item,
-  workspaceId: '',
   barcodeValue: item.barcode_value ?? item.barcodeValue ?? item.barcode,
   barcode: item.barcode ?? item.barcode_value ?? item.barcodeValue,
   isWeightBased: item.is_weight_based ?? item.isWeightBased,
@@ -108,7 +107,6 @@ export const mapProduct = (item: any): Product => ({
 
 export const mapCustomer = (item: any): Customer => ({
   ...item,
-  workspaceId: '',
   priceTier: item.price_tier ?? item.priceTier,
   creditLimit: item.credit_limit ?? item.creditLimit,
   creditUsed: item.credit_used ?? item.creditUsed,
@@ -140,7 +138,6 @@ export function getAmountByMethod(sale: any, method: string): number {
 
 export const mapSale = (item: any): Sale => ({
   ...item,
-  workspaceId: '',
   invoiceNumber: item.invoice_number ?? item.invoiceNumber,
   customerId: item.customer_id ?? item.customerId,
   customerName: item.customer_name ?? item.customerName,
@@ -169,7 +166,6 @@ export const mapSale = (item: any): Sale => ({
 
 export const mapUser = (item: any): User => ({
   ...item,
-  workspaceId: '',
   canEditPrice: item.can_edit_price ?? item.canEditPrice,
   canGiveDiscount: item.can_give_discount ?? item.canGiveDiscount,
   canDeleteSale: item.can_delete_sale ?? item.canDeleteSale,
@@ -189,7 +185,6 @@ export const mapSettings = (item: any): AppSettings => {
   const s = item;
   return {
     id: s.id || SETTINGS_ID,
-    workspaceId: '',
     // Core Identity
     storeName: s.store_name ?? s.storeName,
     storeAddress: s.store_address ?? s.storeAddress,
@@ -394,7 +389,6 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
 
 export const mapExpense = (item: any): Expense => ({
   ...item,
-  workspaceId: '',
   paymentMethod: item.payment_method ?? item.paymentMethod,
   amount: item.amount ? Number(item.amount) : 0,
   date: item.date ? new Date(item.date) : new Date(),
@@ -406,7 +400,6 @@ export const mapExpense = (item: any): Expense => ({
 
 export const mapStockHistory = (item: any): StockHistory => ({
   ...item,
-  workspaceId: '',
   productId: item.product_id ?? item.productId,
   changeQty: item.change_qty ?? item.changeQty,
   referenceId: item.reference_id ?? item.referenceId,
@@ -420,7 +413,6 @@ export const mapStockHistory = (item: any): StockHistory => ({
 
 export const mapDiscount = (item: any): Discount => ({
   ...item,
-  workspaceId: '',
   validFrom: item.valid_from ? new Date(item.valid_from) : new Date(item.validFrom),
   validTo: item.valid_to ? new Date(item.valid_to) : new Date(item.validTo),
   validDays: item.valid_days ?? item.validDays,
@@ -431,7 +423,6 @@ export const mapDiscount = (item: any): Discount => ({
 
 export const mapPurchaseRecord = (item: any): PurchaseRecord => ({
   ...item,
-  workspaceId: '',
   productId: item.product_id ?? item.productId,
   supplierId: item.supplier_id ?? item.supplierId,
   costPrice: item.cost_price ? Number(item.cost_price) : 0,
@@ -443,7 +434,6 @@ export const mapPurchaseRecord = (item: any): PurchaseRecord => ({
 
 export const mapProductBatch = (item: any): ProductBatch => ({
   ...item,
-  workspaceId: '',
   productId: item.product_id ?? item.productId,
   batchNumber: item.batch_number ?? item.batchNumber,
   batchType: item.batch_type ?? item.batchType,
@@ -663,7 +653,6 @@ export const toRemotePayment = (p: any) => {
 
 export const mapPayment = (item: any): any => ({
   id: item.id,
-  workspaceId: '',
   customerId: item.customer_id ?? item.customerId,
   supplierId: item.supplier_id ?? item.supplierId,
   amount: Number(item.amount),
@@ -1754,7 +1743,6 @@ export const suppliersService = {
     if (error) throw error;
     return (data || []).map(item => ({
       ...item,
-      workspaceId: '',
       creditLimit: item.credit_limit ?? item.creditLimit,
       openingBalance: item.opening_balance ?? item.openingBalance,
       createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt)
@@ -2109,7 +2097,6 @@ export const supplierTransactionsService = {
     if (error) throw error;
     return (data || []).map((item: any) => ({
       ...item,
-      workspaceId: '',
       supplierId: item.supplier_id ?? item.supplierId,
       referenceId: item.reference_id ?? item.referenceId,
       referenceType: item.reference_type ?? item.referenceType,
@@ -2209,7 +2196,6 @@ export const seedMissingBarcodes = async (): Promise<{ count: number; updated: s
 /** Map from Supabase row → Bundle object */
 export const mapBundle = (row: any): Bundle => ({
   id: row.id,
-  workspaceId: '',
   name: row.name || '',
   description: row.description || '',
   discountValue: Number(row.discount_value) || 0,
@@ -2286,7 +2272,6 @@ export const bundlesService = {
 
             return {
               id: b.id,
-              workspaceId: '',
               name: b.name || '',
               description: b.description || '',
               discountValue: Number(b.discountValue) || 0,
@@ -2331,7 +2316,6 @@ export const bundlesService = {
         if (bundles.length > 0) {
           await localDb.bundles.bulkPut(bundles.map((b: Bundle) => ({
             id: b.id,
-            workspaceId: '',
             name: b.name,
             description: b.description,
             discountValue: b.discountValue,

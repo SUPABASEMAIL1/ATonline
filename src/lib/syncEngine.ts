@@ -30,6 +30,10 @@ const COLUMN_BLACKLIST: Record<string, Set<string>> = {
     // Dynamic entries will be added here if Supabase returns 400 "Column not found" errors.
 };
 
+// Fields that do NOT exist in any Supabase table (single-tenant app — Rule F7)
+// These are always stripped from remote payloads regardless of entity.
+const GLOBAL_STRIP_FIELDS = new Set(['workspaceId', 'workspace_id']);
+
 function filterPayload(entity: string, payload: any) {
     if (!payload || typeof payload !== 'object') return payload;
 
@@ -41,6 +45,11 @@ function filterPayload(entity: string, payload: any) {
     for (const key in payload) {
         // Skip if value is undefined or null (prevents NOT NULL violations on partial updates/upserts)
         if (payload[key] === undefined || payload[key] === null) {
+            continue;
+        }
+
+        // Global strip: fields that never exist on any Supabase table (Rule F7)
+        if (GLOBAL_STRIP_FIELDS.has(key)) {
             continue;
         }
 
@@ -205,8 +214,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                         name: payload.name || local.name,
                         sku: payload.sku || local.sku,
                         price: payload.price !== undefined ? payload.price : local.price,
-                        category: payload.category || local.category,
-                        workspace_id: ''
+                        category: payload.category || local.category
                     };
                 }
             }
@@ -219,8 +227,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                 if (local) {
                     payload = {
                         ...payload,
-                        name: payload.name || local.name,
-                        workspace_id: ''
+                        name: payload.name || local.name
                     };
                 }
             }
@@ -233,8 +240,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                 if (local) {
                     payload = {
                         ...payload,
-                        name: payload.name || local.name,
-                        workspace_id: ''
+                        name: payload.name || local.name
                     };
                 }
             }
@@ -248,8 +254,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                     payload = {
                         ...payload,
                         batch_number: payload.batch_number || local.batchNumber,
-                        product_id: payload.product_id || local.productId,
-                        workspace_id: ''
+                        product_id: payload.product_id || local.productId
                     };
                 }
             }

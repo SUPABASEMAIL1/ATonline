@@ -674,14 +674,56 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
       if (d > 0) handleAddBundle(item);
       return;
     }
-    if (d > 0) {
-      handleAddBundle(item);
+    
+    const bundleItemsInCart = state.cart.filter((x: any) => (x.bundleId || x.bundle_id) === item.id);
+    if (bundleItemsInCart.length === 0) {
+      if (d > 0) handleAddBundle(item);
+      return;
+    }
+
+    let currentQty = 0;
+    if (item.items && item.items.length > 0) {
+      const firstBi = item.items[0];
+      const cartItem = bundleItemsInCart.find(x => x.product.id === firstBi.productId);
+      if (cartItem) {
+        currentQty = Math.round(cartItem.quantity / firstBi.quantity);
+      }
     } else {
+      currentQty = bundleItemsInCart[0].quantity;
+    }
+
+    const newBundleQty = currentQty + d;
+
+    if (newBundleQty <= 0) {
       const updatedCart = state.cart.filter(
         (x: any) => (x.bundleId || x.bundle_id) !== item.id
       );
       dispatch({ type: 'SET_CART', payload: updatedCart });
+      return;
     }
+
+    // Get the base items for 1 bundle unit
+    const baseItems = bundlesService.getBundleCartItems(item, state.products);
+    
+    // Map existing cart items: if they belong to this bundle, update them using baseItems; else keep them
+    const newCart = state.cart.map(cartItem => {
+      if ((cartItem.bundleId || cartItem.bundle_id) === item.id) {
+        const baseItem = baseItems.find(x => x.product.id === cartItem.product.id);
+        if (baseItem) {
+          const qty = isReturnMode ? -Math.abs(baseItem.quantity * newBundleQty) : baseItem.quantity * newBundleQty;
+          const discount = isReturnMode ? -Math.abs((baseItem.discount || 0) * newBundleQty) : (baseItem.discount || 0) * newBundleQty;
+          return {
+            ...cartItem,
+            quantity: qty,
+            discount: discount,
+            subtotal: cartItem.product.price * qty - discount
+          };
+        }
+      }
+      return cartItem;
+    });
+
+    dispatch({ type: 'SET_CART', payload: newCart });
   };
 
   const processBundleAdd = (bundle: any, selectedItems?: { productId: string; quantity: number }[]) => {
@@ -843,8 +885,18 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           // Check if bundle is in cart
           let bundleQty = 0;
           if (!isGroup) {
-            const anyBundleItem = state.cart.find((x: any) => (x.bundleId || x.bundle_id) === item.id);
-            if (anyBundleItem) bundleQty = 1;
+            const bundleItemsInCart = state.cart.filter((x: any) => (x.bundleId || x.bundle_id) === item.id);
+            if (bundleItemsInCart.length > 0) {
+              if (item.items && item.items.length > 0) {
+                const firstBi = item.items[0];
+                const cartItem = bundleItemsInCart.find(x => x.product.id === firstBi.productId);
+                if (cartItem) {
+                  bundleQty = Math.round(cartItem.quantity / firstBi.quantity);
+                }
+              } else {
+                bundleQty = bundleItemsInCart[0].quantity;
+              }
+            }
           }
 
           return (
@@ -941,7 +993,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
                       <Minus className="h-2.5 w-2.5" />
                     </button>
                     <span className="font-black text-[9px] sm:text-xs text-gray-900 dark:text-white px-0.5">
-                      1
+                      {bundleQty}
                     </span>
                     <button
                       onClick={(e) => {

@@ -94,7 +94,17 @@ function AppContent() {
           }
         })
         .then(() => {
-          // 2. Unstuck EVERYTHING so it tries again!
+          // 2. GLOBAL: Strip workspace fields from ALL pending ops (single-tenant, Rule F7)
+          // Handles any stale ops created before the workspace_id system was removed.
+          return localDb.pendingOps.toCollection().modify(q => {
+            if (q.payload) {
+              delete q.payload.workspaceId;
+              delete q.payload.workspace_id;
+            }
+          });
+        })
+        .then(() => {
+          // 3. Unstuck EVERYTHING so it tries again!
           return localDb.pendingOps.toCollection().modify({ retries: 0, status: 'pending' });
         })
         .then(() => startSyncEngine())
@@ -189,18 +199,20 @@ function AppContent() {
 
   // ── Root redirect based on role and saved preference ──
   function RootRedirect() {
+    const currentUser = state.currentUser;
     useEffect(() => {
-      if (!state.currentUser) return;
+      if (!currentUser) return;
       const savedView = localStorage.getItem('pos_current_view');
       if (savedView) {
         navigate('/' + savedView, { replace: true });
-      } else if (state.currentUser.role === 'admin' || state.currentUser.role === 'manager') {
+      } else if (currentUser.role === 'admin' || currentUser.role === 'manager') {
         navigate('/dashboard', { replace: true });
       } else {
         navigate('/pos', { replace: true });
       }
-    }, [state.currentUser]);
-    return <LoadingView />;
+    }, [currentUser]);
+    // Show nothing (transparent) until redirect fires — avoids LoadingView blink
+    return null;
   }
 
   return (
@@ -260,7 +272,7 @@ function AppContent() {
           <DialogProvider />
           <Header onShowMobileMenu={() => setIsMobileMenuOpen(true)} isMobileMenuOpen={isMobileMenuOpen} onHideMobileMenu={() => setIsMobileMenuOpen(false)} />
           <main className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
-            <Suspense fallback={<LoadingView />}>
+            <Suspense fallback={null}>
               <Routes>
                 <Route path="/pos" element={<POSTerminal />} />
                 <Route path="/transactions" element={<RequireAccess viewId="transactions"><TransactionsManager /></RequireAccess>} />

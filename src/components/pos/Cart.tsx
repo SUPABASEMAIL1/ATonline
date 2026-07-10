@@ -86,7 +86,6 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
         const bundleItems = await localDb.bundleItems.where('bundleId').equals(bundleId).toArray();
         bundleDef = {
           ...localBundle,
-          workspaceId: localBundle.workspaceId || '',
           discountValue: Number(localBundle.discountValue) || 0,
           discountType: localBundle.discountType || 'percentage',
           active: localBundle.active !== false,

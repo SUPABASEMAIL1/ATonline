@@ -104,6 +104,15 @@
 --   5. process_sale() RPC and sale_items_unrolled view — removed workspace_id refs
 --   6. Seed data and backfill queries — removed workspace_id refs
 --   7. All app code already cleaned (services.ts, components, types, hooks, etc.)
+--
+-- [2026-07-10] Add variant_data + modifiers columns to products
+--   Migration: supabase/migrations/20260710164500_add_variant_data_modifiers_to_products.sql
+--   Changes:
+--   1. products table:
+--      + variant_data JSONB DEFAULT '[]' — stores variant configuration per product
+--      + modifiers    JSONB DEFAULT '[]' — stores modifier groups (add-ons, options)
+--   Both columns were in SUPER_MASTER_SCHEMA.sql from day one but were never applied
+--   to the live DB, causing every product sync to 400 → auto-blacklist loop.
 -- ════════════════════════════════════════════════════════════════
 
 
