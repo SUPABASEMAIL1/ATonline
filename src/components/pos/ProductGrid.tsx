@@ -854,7 +854,9 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         </div>
         <button
           type="button"
-          onClick={() => navigate('/inventory/bundles')}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('navigate', { detail: 'inventory/bundles' }));
+          }}
           className="bg-violet-600 hover:bg-violet-700 text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm shrink-0"
         >
           {t('manage_deals_btn', 'Manage Deals')}
