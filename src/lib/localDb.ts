@@ -94,7 +94,7 @@ export class ZaynahsPosDB extends Dexie {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || 'default';
     const dbName = `ZaynahsPosDB_${projectRef}`;
-    
+
     super(dbName);
     this.version(16).stores({
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock',
@@ -116,7 +116,7 @@ export class ZaynahsPosDB extends Dexie {
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',
       pendingOps: '++id, [entity+entityId], status, createdAt',
       syncHistory: '++id, timestamp',
-      bundles: 'id, name, active, workspaceId',
+      bundles: 'id, name, active',
       bundleItems: 'id, bundleId, productId',
       bundleSlots: 'id, bundleId',
       bundleSlotOptions: 'id, slotId, productId',
@@ -145,7 +145,7 @@ export class ZaynahsPosDB extends Dexie {
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',
       pendingOps: '++id, [entity+entityId], status, createdAt',
       syncHistory: '++id, timestamp',
-      bundles: 'id, name, active, workspaceId',
+      bundles: 'id, name, active',
       bundleItems: 'id, bundleId, productId',
       // Legacy compatibility:
       app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
@@ -420,16 +420,6 @@ export class ZaynahsPosDB extends Dexie {
 
 export const localDb = new ZaynahsPosDB();
 
-/**
- * Initialize the DB for a specific workspace.
- * In the current Dexie implementation, we ensure the DB is open.
- */
-export async function initForWorkspace(workspaceId: string) {
-  console.log(`[DB] Initializing for workspace: ${workspaceId}`);
-  if (!localDb.isOpen()) {
-    await localDb.open();
-  }
-}
 
 // Atomic ID generation helper
 export function generateId(): string {
@@ -453,16 +443,6 @@ export async function queueOp(
   payload: any,
   options?: { batchId?: string }
 ) {
-  // ── WORKSPACE INJECTION (RLS Safety Net) ──
-  if (opType !== 'delete' && payload && typeof payload === 'object' && !Array.isArray(payload)) {
-    if (!payload.workspace_id && !payload.workspaceId) {
-      const storedWs = localStorage.getItem('active_workspace_id');
-      if (storedWs) {
-        payload.workspace_id = storedWs;
-      }
-    }
-  }
-
   try {
     // ── QUEUE SIZE CAP ──
     const queueCount = await localDb.pendingOps.count();
@@ -548,6 +528,8 @@ export const TABLE_TO_ENTITY: Record<string, PendingOpEntity> = {
   'appSettings': 'app_settings',
   'bundles': 'bundles',
   'bundleItems': 'bundle_items',
+  'bundleSlots': 'bundle_slots',
+  'bundleSlotOptions': 'bundle_slot_options',
 };
 
 /**
@@ -583,17 +565,17 @@ export async function seedLocalDb(data: any) {
       if (!items || !Array.isArray(items)) return;
 
       const entityName = TABLE_TO_ENTITY[tableName as string] || (tableName as PendingOpEntity);
-      
+
       // Skip items pending deletion — they should NOT be re-seeded
       const nonDeletedItems = items.filter(item => !pendingDeleteIds.has(`${entityName}:${item.id}`));
-      
+
       // FIELD-LEVEL MERGE: For items with pending ops, use remote as base
       // but overlay the pending fields so local changes are preserved
       const mergedItems = nonDeletedItems.map(item => {
         const key = `${entityName}:${item.id}`;
         const pendingPayload = pendingFieldsMap.get(key);
         if (!pendingPayload) return item; // No pending ops — pure remote data
-        
+
         // Start with remote (fresh) data, overlay only the pending local fields
         // This ensures price/name/description from cloud always propagate
         // while stock/qty changes from pending ops are preserved
@@ -622,6 +604,10 @@ export async function seedLocalDb(data: any) {
       seedTable('productBatches', data.productBatches),
       seedTable('purchaseRecords', data.purchaseRecords),
       seedTable('stockHistory', data.stockHistory),
+      seedTable('bundles', data.bundles),
+      seedTable('bundleItems', data.bundleItems),
+      seedTable('bundleSlots', data.bundleSlots),
+      seedTable('bundleSlotOptions', data.bundleSlotOptions),
     ];
 
     await Promise.all(tasks);

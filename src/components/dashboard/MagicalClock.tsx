@@ -133,7 +133,7 @@ export function MagicalClock() {
   };
 
   return (
-    <div className="relative w-full aspect-square max-w-[320px] mx-auto flex items-center justify-center p-4 group">
+    <div className="relative w-full aspect-square max-w-[320px] mx-auto flex items-center justify-center p-2 group">
       {/* Navigation Arrows - Smaller & Side Pinned */}
       <button 
         onClick={prevWatch}
@@ -157,18 +157,18 @@ export function MagicalClock() {
       }`} />
 
       {/* Watch Content */}
-      <div className="relative z-10 w-full h-full flex items-center justify-center">
+      <div className="absolute inset-2 flex items-center justify-center z-10">
         {activeWatch === 0 && renderVortex()}
         {activeWatch === 1 && renderQuantum()}
         {activeWatch === 2 && renderAstral()}
       </div>
 
       {/* Digital Time Overlay */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-20">
-        <span className="text-[13px] sm:text-[15px] font-black bg-gradient-to-br from-white via-white to-white/50 bg-clip-text text-transparent tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] tabular-nums leading-none">
+      <div className="absolute inset-2 flex flex-col items-center justify-center pointer-events-none z-20">
+        <span className="text-[11px] sm:text-[13px] font-black bg-gradient-to-br from-white via-white to-white/50 bg-clip-text text-transparent tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] tabular-nums leading-none">
           {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
         </span>
-        <span className={`text-[6px] sm:text-[7px] font-black bg-clip-text text-transparent uppercase tracking-[0.15em] mt-0.5 drop-shadow-lg transition-colors duration-1000 ${
+        <span className={`text-[5px] sm:text-[6px] font-black bg-clip-text text-transparent uppercase tracking-[0.12em] mt-0.5 drop-shadow-lg transition-colors duration-1000 ${
            activeWatch === 0 ? 'bg-gradient-to-r from-emerald-400 to-blue-500' :
            activeWatch === 1 ? 'bg-gradient-to-r from-cyan-400 to-fuchsia-500' :
            'bg-gradient-to-r from-yellow-400 to-orange-500'

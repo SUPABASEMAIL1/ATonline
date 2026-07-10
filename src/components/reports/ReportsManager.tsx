@@ -25,7 +25,7 @@ import { CustomersReport } from './tabs/CustomersReport';
 import { FinancialReport } from './tabs/FinancialReport';
 import { InventoryReport } from './tabs/InventoryReport';
 
-import { useWorkspaceId } from '../../hooks/useWorkspaceId';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export const getItemCOGS = (item: any): { cost: number; isEstimated: boolean } => {
@@ -82,9 +82,10 @@ const CATEGORY_ICONS: Record<string, any> = {
 };
 
 export function ReportsManager() {
+  const navigate = useNavigate();
+  const { subTab } = useParams();
   const { state } = useApp();
   const { t } = useTranslation();
-  const workspaceId = useWorkspaceId();
 
   // Safety check to prevent black screen if settings haven't loaded yet
   if (!state?.settings) {
@@ -101,7 +102,9 @@ export function ReportsManager() {
   const userPerms = state.currentUser?.permissions || [];
   const hasFullAccess = userRole === 'admin' || userRole === 'manager' || userPerms.includes('access_reports');
 
-  const [reportType, setReportType] = useState<'sales' | 'inventory' | 'customers' | 'expenses' | 'financial'>('sales');
+  const validReportTypes = ['sales', 'inventory', 'customers', 'expenses', 'financial'] as const;
+  type ReportType = typeof validReportTypes[number];
+  const reportType = (validReportTypes.includes(subTab as ReportType) ? subTab : 'sales') as ReportType;
   const [repairing, setRepairing] = useState(false);
 
   const handleRepairData = async () => {
@@ -240,7 +243,7 @@ export function ReportsManager() {
 
   useEffect(() => {
     const fetchReportData = async () => {
-      const cacheKey = `${workspaceId}-${validStartDate.toISOString()}-${validEndDate.toISOString()}`;
+      const cacheKey = `${validStartDate.toISOString()}-${validEndDate.toISOString()}`;
 
       // 1. Check Memory Cache (Instant)
       if (reportCache.current[cacheKey] && Date.now() - reportCache.current[cacheKey].timestamp < 30000) {
@@ -254,9 +257,9 @@ export function ReportsManager() {
       // 2. Try Local DB Load (Instant-ish, unblocks UI)
       try {
         const [lSales, lRefunds, lExpenses] = await Promise.all([
-          salesService.getReportSalesLocal(workspaceId, validStartDate, validEndDate),
-          salesService.getReportRefundsLocal(workspaceId, validStartDate, validEndDate),
-          expensesService.getReportExpensesLocal(workspaceId, validStartDate, validEndDate)
+          salesService.getReportSalesLocal(validStartDate, validEndDate),
+          salesService.getReportRefundsLocal(validStartDate, validEndDate),
+          expensesService.getReportExpensesLocal(validStartDate, validEndDate)
         ]);
 
         setReportSales(lSales);
@@ -270,9 +273,9 @@ export function ReportsManager() {
       setIsDataLoading(true);
       try {
         const [sales, refunds, expenses] = await Promise.all([
-          salesService.getReportSales(workspaceId, validStartDate, validEndDate),
-          salesService.getReportRefunds(workspaceId, validStartDate, validEndDate),
-          expensesService.getReportExpenses(workspaceId, validStartDate, validEndDate)
+          salesService.getReportSales(validStartDate, validEndDate),
+          salesService.getReportRefunds(validStartDate, validEndDate),
+          expensesService.getReportExpenses(validStartDate, validEndDate)
         ]);
 
         // Update cache
@@ -293,7 +296,7 @@ export function ReportsManager() {
       }
     };
     fetchReportData();
-  }, [validStartDate, validEndDate, workspaceId, state.sales.length, state.expenses.length, reportRefreshKey]);
+  }, [validStartDate, validEndDate, state.sales.length, state.expenses.length, reportRefreshKey]);
 
   // Fetch credit collections (payments received from customers) for the selected date range
   useEffect(() => {
@@ -1028,7 +1031,7 @@ export function ReportsManager() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setReportType(tab.id as any)}
+                  onClick={() => navigate('/reports/' + tab.id)}
                   className={`chip-nav-item ${isActive ? `${tab.color} text-white shadow-lg` : 'text-gray-600'}`}
                 >
                   <tab.icon className="w-3.5 h-3.5" />

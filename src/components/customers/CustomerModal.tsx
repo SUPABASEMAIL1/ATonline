@@ -80,7 +80,6 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
       creditLimit: parseFloat(formData.creditLimit) || 0,
       priceTier: formData.priceTier,
       notes: formData.notes,
-      workspaceId: state.currentUser?.workspace_id || state.settings.workspaceId || state.settings.id,
       preferredCategories: formData.preferredCategories.split(',').map(c => c.trim()).filter(c => c),
     };
 

@@ -7,3 +7,9 @@ dist/
 tsconfig.tsbuildinfo
 env_backups/
 .vercel
+scratch/
+*.log
+coverage/
+.cache/
+tmp/
+temp/

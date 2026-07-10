@@ -54,6 +54,10 @@ const STORE_OPTIONS = [
   { key: 'supplier_transactions', label: 'Supplier Txns', icon: Database, color: 'text-red-600', dbKey: 'supplierTransactions' },
   { key: 'payments', label: 'Payments', icon: CheckCircle2, color: 'text-primary' },
   { key: 'stock_history', label: 'Stock History', icon: History, color: 'text-gray-600', dbKey: 'stockHistory' },
+  { key: 'bundles', label: 'Bundles & Deals', icon: Tag, color: 'text-purple-500' },
+  { key: 'bundle_items', label: 'Bundle Items', icon: Package, color: 'text-purple-400', dbKey: 'bundleItems' },
+  { key: 'bundle_slots', label: 'Bundle Slots', icon: Layers, color: 'text-purple-300', dbKey: 'bundleSlots' },
+  { key: 'bundle_slot_options', label: 'Slot Options', icon: CheckCircle2, color: 'text-purple-200', dbKey: 'bundleSlotOptions' },
 ];
 
 const DISPATCH_MAP: Record<string, string> = {
@@ -73,6 +77,7 @@ const DISPATCH_MAP: Record<string, string> = {
   purchase_orders: 'SET_PURCHASE_ORDERS',
   purchase_order_items: 'SET_PURCHASE_ORDER_ITEMS',
   stock_history: 'SET_STOCK_HISTORY',
+  bundles: 'SET_BUNDLES',
 };
 
 export function DatabaseTools() {
@@ -129,6 +134,10 @@ export function DatabaseTools() {
           purchase_order_items: 'purchaseOrderItems',
           supplier_transactions: 'supplierTransactions',
           stock_history: 'stockHistory',
+          bundles: 'bundles',
+          bundle_items: 'bundleItems',
+          bundle_slots: 'bundleSlots',
+          bundle_slot_options: 'bundleSlotOptions',
         };
         const dbKey = dbKeyMap[store] || store;
         const table = (localDb as any)[dbKey];
@@ -264,6 +273,10 @@ export function DatabaseTools() {
           purchase_order_items: 'purchaseOrderItems',
           supplier_transactions: 'supplierTransactions',
           stock_history: 'stockHistory',
+          bundles: 'bundles',
+          bundle_items: 'bundleItems',
+          bundle_slots: 'bundleSlots',
+          bundle_slot_options: 'bundleSlotOptions',
         };
         const dbKey = dbKeyMap[storeKey] || storeKey;
         const table = (localDb as any)[dbKey];
@@ -329,12 +342,6 @@ export function DatabaseTools() {
               skipped++;
               duplicate++;
               continue;
-            }
-
-            // Safety: Ensure workspace_id is maintained or assigned if missing
-            const activeWorkspaceId = state.currentUser?.workspace_id;
-            if (activeWorkspaceId && !record.workspace_id) {
-              record.workspace_id = activeWorkspaceId;
             }
 
             // Save locally
@@ -419,6 +426,10 @@ export function DatabaseTools() {
             purchase_order_items: 'purchaseOrderItems',
             supplier_transactions: 'supplierTransactions',
             stock_history: 'stockHistory',
+            bundles: 'bundles',
+            bundle_items: 'bundleItems',
+            bundle_slots: 'bundleSlots',
+            bundle_slot_options: 'bundleSlotOptions',
           };
           const dbKey = dbKeyMap[storeKey] || storeKey;
           const table = (localDb as any)[dbKey];

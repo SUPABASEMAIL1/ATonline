@@ -141,9 +141,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
     sound_enabled               BOOLEAN DEFAULT true,
     last_backup_date            TEXT,
 
-    -- Multi-Tenant (migration v4)
-    workspace_id                UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-
     -- Timestamps
     created_at                  TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at                  TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -321,13 +318,11 @@ CREATE TABLE IF NOT EXISTS users (
     last_login          TIMESTAMPTZ,
     avatar              TEXT,
     offline_hash        TEXT,  -- bcrypt hash for offline auth
-    workspace_id        UUID,  -- ID of the admin/shop owner this user belongs to
 
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
 
-    -- Multi-tenant isolation: Username is unique ONLY within a workspace
-    UNIQUE(username, workspace_id)
+    UNIQUE(username)
 );
 
 

@@ -117,7 +117,6 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
         category: 'Supplies',
         paymentMethod: paymentMethod,
         notes: `From Supplier Ledger. ${paymentNote ? 'Ref: ' + paymentNote : ''}`,
-        workspaceId: state.currentUser?.workspace_id || state.currentUser?.id,
         addedBy: state.currentUser?.name || state.currentUser?.username || 'Operator',
         createdAt: new Date()
       };

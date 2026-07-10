@@ -8,20 +8,33 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Global touch-friendly minimum tap targets */
-  button:not(.swal2-confirm):not(.swal2-cancel),
-  a,
-  [role="button"],
-  .btn,
-  .chip-nav-item,
-  .nav-item,
-  select,
-  input[type="checkbox"],
-  input[type="radio"] {
+  /* ─── Touch-Friendly Tap Targets (WCAG 2.5.5 / Apple HIG) ───
+     We expand the INVISIBLE tap area via a ::after pseudo-element overlay
+     instead of forcing min-height on the element itself.
+     This way icon-only buttons stay visually square (w-9 h-9 = 36px)
+     but have a 44×44 tap zone — no stretching, no text clipping. */
+  button:not(.swal2-confirm):not(.swal2-cancel):not([data-no-tap-expand]),
+  [role="button"]:not([data-no-tap-expand]) {
     @media (hover: none) and (pointer: coarse) {
-      min-height: 44px;
+      position: relative;
+    }
+    @media (hover: none) and (pointer: coarse) {
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 50% auto auto 50%;
+        width: max(100%, 44px);
+        height: max(100%, 44px);
+        transform: translate(-50%, -50%);
+      }
     }
   }
+
+  /* .btn class: allow normal flow, keep own sizing */
+  .btn {
+    @apply inline-flex items-center justify-center;
+  }
+
 
   /* Prevent text-size adjust on orientation change */
   html {
@@ -33,6 +46,8 @@
     scroll-behavior: smooth;
     color-scheme: light dark;
     font-size: 13px; /* Base root size for mobile */
+    /* Prevent viewport bounce / rubber-band on iOS PWA */
+    overscroll-behavior: none;
   }
 
   @media (min-width: 640px) {
@@ -60,6 +75,15 @@
     position: relative;
     width: 100%;
     font-size: 1rem;
+    /* Stop iOS bounce / scroll chain escaping to viewport */
+    overscroll-behavior: none;
+  }
+
+  /* Contain scroll within each scrollable region — never leak to body/viewport */
+  .overflow-y-auto,
+  .overflow-y-scroll,
+  .custom-scrollbar {
+    overscroll-behavior-y: contain;
   }
 
   /* Force disable zooming on all inputs for mobile to prevent automatic zoom focus */

@@ -35,6 +35,7 @@ import {
   LayoutGrid,
   HardDrive,
 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { formatRelativeTime } from '../../lib/timeUtils';
 import { supabase } from '../../lib/supabase';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -59,6 +60,8 @@ import { useTranslation } from '../../hooks/useTranslation';
 type TabType = 'general' | 'receipt' | 'backup' | 'security' | 'database';
 
 export function Settings() {
+  const navigate = useNavigate();
+  const { subTab } = useParams();
   const { state, dispatch, loadData } = useApp();
   const { profile } = useAuth();
   const { t } = useTranslation();
@@ -72,7 +75,7 @@ export function Settings() {
   const { isOnline, isSyncing, pendingCount, lastSyncTime, hasError, syncNow } = useSync();
   const { play } = useSoundFeedback();
 
-  const [activeTab, setActiveTab] = useState<TabType>('general');
+  const activeTab = (subTab as TabType) || 'general';
   const [isSaving, setIsSaving] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [completedSale, setCompletedSale] = useState<any>(null);
@@ -567,7 +570,7 @@ export function Settings() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => navigate('/settings/' + tab.id)}
                   className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 active:scale-95 ${
                     isActive 
                       ? `${activeColor} text-white shadow-lg shadow-emerald-500/20 translate-x-1` 
@@ -599,7 +602,7 @@ export function Settings() {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => navigate('/settings/' + tab.id)}
                     className={`chip-nav-item ${isActive ? `${activeColor} text-white shadow-lg` : 'text-gray-600'}`}
                   >
                     <Icon className="w-3.5 h-3.5" />

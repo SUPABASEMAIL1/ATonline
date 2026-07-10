@@ -1,17 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  title?: string;
   subtitle?: string;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "max" | "full";
   footer?: React.ReactNode;
   children: React.ReactNode;
   headerActions?: React.ReactNode;
   showClose?: boolean;
+  className?: string;
+  headerClassName?: string;
+  bodyClassName?: string;
 }
 
 const maxWidthClasses = {
@@ -32,22 +36,36 @@ export function Modal({
   footer, 
   children,
   headerActions,
-  showClose = true
+  showClose = true,
+  className,
+  headerClassName,
+  bodyClassName
 }: ModalProps) {
   const [render, setRender] = useState(isOpen);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setRender(true);
       document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = '';
-      const timer = setTimeout(() => setRender(false), 250);
+      const timer = setTimeout(() => {
+        setRender(false);
+        const otherOpenModals = Array.from(document.querySelectorAll('[data-modal="true"]'))
+          .filter(el => el !== containerRef.current);
+        if (otherOpenModals.length === 0) {
+          document.body.style.overflow = '';
+        }
+      }, 250);
       return () => clearTimeout(timer);
     }
     
     return () => {
-      document.body.style.overflow = '';
+      const otherOpenModals = Array.from(document.querySelectorAll('[data-modal="true"]'))
+        .filter(el => el !== containerRef.current);
+      if (otherOpenModals.length === 0) {
+        document.body.style.overflow = '';
+      }
     };
   }, [isOpen]);
 
@@ -62,51 +80,60 @@ export function Modal({
   if (!render) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div ref={containerRef} data-modal="true" className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       {/* Backdrop */}
       <div 
-        className={`absolute inset-0 bg-[rgba(15,23,42,0.5)] dark:bg-[rgba(0,0,0,0.6)] transition-opacity duration-250 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 bg-[rgba(15,23,42,0.6)] dark:bg-[rgba(0,0,0,0.75)] transition-opacity duration-250 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
         onClick={onClose}
       />
       
       {/* Dialog */}
       <div 
-        className={`
-          relative flex flex-col w-full sm:w-[90vw] bg-surface border-default border
-          rounded-2xl shadow-2xl
-          ${maxWidthClasses[maxWidth]}
-          max-h-[85dvh] sm:max-h-[90dvh]
-          transition-all duration-250 ease-out
-          ${isOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-4 scale-95 opacity-0'}
-        `}
+        className={cn(
+          "relative flex flex-col w-full sm:w-[90vw] bg-surface border-default border",
+          "rounded-3xl shadow-2xl overflow-hidden",
+          maxWidthClasses[maxWidth],
+          "max-h-[calc(100dvh-2.5rem)] sm:max-h-[90dvh]",
+          "transition-all duration-250 ease-out",
+          isOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-4 scale-95 opacity-0',
+          className
+        )}
       >
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 border-b border-default bg-surface rounded-t-2xl">
-          <div className="flex flex-col">
-            <h2 className="text-lg font-bold text-default">{title}</h2>
-            {subtitle && <p className="text-sm text-muted mt-0.5">{subtitle}</p>}
+        {(title || showClose) && (
+          <div className={cn(
+            "flex-shrink-0 flex items-center justify-between px-5 sm:px-6 py-4 border-b border-default bg-surface",
+            headerClassName
+          )}>
+            <div className="flex flex-col min-w-0">
+              {title && <h2 className="text-base sm:text-lg font-bold text-default truncate">{title}</h2>}
+              {subtitle && <p className="text-xs text-muted mt-0.5 truncate">{subtitle}</p>}
+            </div>
+            <div className="flex items-center gap-3 shrink-0 ml-4">
+              {headerActions}
+              {showClose && (
+                <button 
+                  onClick={onClose}
+                  className="p-2 text-muted hover:text-default hover:bg-app rounded-xl transition-colors active:scale-95"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {headerActions}
-            {showClose && (
-              <button 
-                onClick={onClose}
-                className="p-2 text-muted hover:text-default hover:bg-app rounded-xl transition-colors active:scale-95"
-              >
-                <X size={20} />
-              </button>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 sm:p-6 pb-6 sm:pb-6 text-default">
+        <div className={cn(
+          "flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y p-5 sm:p-6 text-default custom-scrollbar",
+          bodyClassName
+        )}>
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex-shrink-0 px-5 sm:px-6 py-4 border-t border-default bg-surface pb-4 sm:pb-4 rounded-b-2xl">
+          <div className="flex-shrink-0 px-5 sm:px-6 py-4 border-t border-default bg-surface pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4">
             {footer}
           </div>
         )}
@@ -116,3 +143,4 @@ export function Modal({
 
   return createPortal(modalContent, document.body);
 }
+

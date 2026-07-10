@@ -187,12 +187,6 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           : `${normalizedUsername}.${Date.now().toString(36)}@zaynahs.local`;
 
         const hash = await hashPasswordString(formData.password);
-        const currentWorkspaceId = state.currentUser?.workspace_id || state.currentUser?.id;
-        
-        if (!currentWorkspaceId) {
-          throw new Error('Invalid workspace');
-        }
-
         const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
           email: resolvedEmail,
           password: formData.password,
@@ -201,7 +195,6 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
             username: formData.username,
             full_name: formData.name,
             role: formData.role,
-            workspace_id: currentWorkspaceId
           }
         });
 
@@ -214,7 +207,6 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           name: formData.name,
           email: resolvedEmail,
           role: formData.role,
-          workspace_id: currentWorkspaceId,
           active: formData.active,
           username: formData.username,
           permissions: formData.role === 'admin' ? ['access_payments', 'access_expenses', 'access_customers', 'access_reports', 'access_inventory'] : formData.permissions,

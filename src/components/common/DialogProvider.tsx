@@ -22,6 +22,23 @@ export const DialogProvider: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (dialog && isVisible) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      const otherOpenModals = document.querySelectorAll('[data-modal="true"]');
+      if (otherOpenModals.length === 0) {
+        document.body.style.overflow = '';
+      }
+    }
+    return () => {
+      const otherOpenModals = document.querySelectorAll('[data-modal="true"]');
+      if (otherOpenModals.length === 0) {
+        document.body.style.overflow = '';
+      }
+    };
+  }, [dialog, isVisible]);
+
+  useEffect(() => {
     const handleShow = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       setDialog(detail);
@@ -79,7 +96,7 @@ export const DialogProvider: React.FC = () => {
   if (!dialog) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 transition-all duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+    <div data-modal="true" className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 transition-all duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/75 dark:bg-black/80"

@@ -165,7 +165,6 @@ export function ExpenseManager() {
 
     const fullExpenseData = {
       ...expenseData,
-      workspaceId: state.currentUser?.workspace_id || state.currentUser?.id,
       addedBy: state.currentUser?.name || state.currentUser?.username || 'Operator',
     };
 

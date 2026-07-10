@@ -90,6 +90,20 @@
 --   4. sales: 31 orphaned sales (shift_id IS NULL) assigned to nearest preceding shift.
 --   5. expenses: 2 orphaned expenses (shift_id IS NULL) assigned to nearest preceding shift.
 --   6. Code: Removed backdrop-blur-md from ProductGrid.tsx (design rule compliance).
+--
+-- [2026-07-10] Drop workspace_id — Single-tenant architecture
+--   Migration: supabase/migrations/20260710030000_drop_workspace_id.sql
+--   Changes:
+--   1. DROP COLUMN workspace_id from all 18 tables (app_settings, categories,
+--      customers, suppliers, products, product_batches, discounts, users, sales,
+--      expenses, sales_tabs, purchase_records, purchase_orders, purchase_order_items,
+--      supplier_transactions, payments, stock_history, bundles)
+--   2. Replaced unique index idx_bundles_name_workspace with idx_bundles_name_unique
+--   3. get_my_workspace_id() now returns auth.uid() (no longer queries users.workspace_id)
+--   4. handle_new_user() no longer sets workspace_id
+--   5. process_sale() RPC and sale_items_unrolled view — removed workspace_id refs
+--   6. Seed data and backfill queries — removed workspace_id refs
+--   7. All app code already cleaned (services.ts, components, types, hooks, etc.)
 -- ════════════════════════════════════════════════════════════════
 
 
@@ -107,7 +121,6 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS app_settings (
     id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id                UUID,
 
     -- Store Identity
     store_name                  TEXT DEFAULT 'ZaynahsPos',
@@ -233,7 +246,6 @@ ALTER TABLE app_settings REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS categories (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id    UUID,
     name            TEXT NOT NULL UNIQUE,
     description     TEXT,
     active          BOOLEAN DEFAULT true,
@@ -250,7 +262,6 @@ ALTER TABLE categories REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS customers (
     id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id            UUID,
     name                    TEXT NOT NULL,
     email                   TEXT,
     phone                   TEXT,
@@ -275,7 +286,6 @@ ALTER TABLE customers REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS suppliers (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id        UUID,
     name                TEXT NOT NULL,
     email               TEXT,
     phone               TEXT,
@@ -297,7 +307,6 @@ ALTER TABLE suppliers REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS products (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id        UUID,
     name                TEXT NOT NULL,
     sku                 TEXT NOT NULL UNIQUE,
     barcode             TEXT,
@@ -340,7 +349,6 @@ ALTER TABLE products REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS product_batches (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id        UUID,
     product_id          UUID REFERENCES products(id) ON DELETE CASCADE,
     batch_number        TEXT NOT NULL,
     batch_type          TEXT DEFAULT 'purchase' CHECK (batch_type IN ('opening', 'purchase')),
@@ -372,7 +380,6 @@ ALTER TABLE product_batches REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS discounts (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id        UUID,
     name                TEXT NOT NULL,
     description         TEXT,
     type                TEXT NOT NULL CHECK (type IN ('percentage', 'fixed', 'bogo', 'free_gift')),
@@ -403,7 +410,6 @@ ALTER TABLE discounts REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS users (
     id                  UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    workspace_id        UUID,
     username            TEXT NOT NULL UNIQUE,
     name                TEXT NOT NULL,
     email               TEXT,
@@ -441,7 +447,6 @@ ALTER TABLE users REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS sales (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id        UUID,
     invoice_number      TEXT NOT NULL UNIQUE,
     customer_id         UUID REFERENCES customers(id) ON DELETE SET NULL,
     customer_name       TEXT,
@@ -482,7 +487,6 @@ ALTER TABLE sales REPLICA IDENTITY FULL;
 
 CREATE TABLE IF NOT EXISTS expenses (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id        UUID,
     description         TEXT NOT NULL,
     amount              DECIMAL(12,2) NOT NULL DEFAULT 0,
     category            TEXT NOT NULL,
@@ -504,7 +508,6 @@ CREATE TABLE IF NOT EXISTS expenses (
 
 CREATE TABLE IF NOT EXISTS sales_tabs (
     id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id            UUID,
     user_id                 UUID REFERENCES users(id) ON DELETE CASCADE,
     name                    TEXT NOT NULL,
     cart                    JSONB DEFAULT '[]'::jsonb,
@@ -524,7 +527,6 @@ CREATE TABLE IF NOT EXISTS sales_tabs (
 
 CREATE TABLE IF NOT EXISTS purchase_records (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id    UUID,
     type            TEXT DEFAULT 'Stock IN',
     product_id      UUID REFERENCES products(id) ON DELETE SET NULL,
     product_name    TEXT NOT NULL,
@@ -550,7 +552,6 @@ CREATE TABLE IF NOT EXISTS purchase_records (
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id    UUID,
     po_number       TEXT NOT NULL UNIQUE,
     supplier_id     UUID REFERENCES suppliers(id) ON DELETE CASCADE,
     status          TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed', 'received', 'cancelled')),
@@ -568,7 +569,6 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 
 CREATE TABLE IF NOT EXISTS purchase_order_items (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id    UUID,
     po_id           UUID REFERENCES purchase_orders(id) ON DELETE CASCADE,
     product_id      UUID REFERENCES products(id) ON DELETE SET NULL,
     quantity        INTEGER NOT NULL CHECK (quantity > 0),
@@ -584,7 +584,6 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
 
 CREATE TABLE IF NOT EXISTS supplier_transactions (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id    UUID,
     supplier_id     UUID REFERENCES suppliers(id) ON DELETE CASCADE,
     type            TEXT NOT NULL CHECK (type IN ('purchase', 'loan', 'advance', 'payment', 'return', 'opening_balance')),
     amount          DECIMAL(12,2) NOT NULL,
@@ -602,7 +601,6 @@ CREATE TABLE IF NOT EXISTS supplier_transactions (
 
 CREATE TABLE IF NOT EXISTS payments (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id    UUID,
     supplier_id     UUID REFERENCES suppliers(id) ON DELETE CASCADE,
     customer_id     UUID REFERENCES customers(id) ON DELETE CASCADE,
     amount          DECIMAL(12,2) NOT NULL CHECK (amount > 0),
@@ -619,7 +617,6 @@ CREATE TABLE IF NOT EXISTS payments (
 
 CREATE TABLE IF NOT EXISTS stock_history (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id    UUID,
     product_id      UUID REFERENCES products(id) ON DELETE CASCADE,
     change_qty      INTEGER NOT NULL,
     type            TEXT CHECK (type IN (
@@ -646,7 +643,6 @@ CREATE TABLE IF NOT EXISTS stock_history (
 
 CREATE TABLE IF NOT EXISTS bundles (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    workspace_id        UUID NOT NULL,
     name                TEXT NOT NULL,
     description         TEXT DEFAULT '',
     is_combo            BOOLEAN NOT NULL DEFAULT FALSE,
@@ -658,9 +654,8 @@ CREATE TABLE IF NOT EXISTS bundles (
     updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Prevent duplicate bundle names per workspace
-CREATE UNIQUE INDEX IF NOT EXISTS idx_bundles_name_workspace
-  ON bundles (workspace_id, LOWER(TRIM(name)));
+-- Prevent duplicate bundle names
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bundles_name_unique ON bundles (LOWER(TRIM(name)));
 
 -- ════════════════════════════════════════════════════════════════
 -- 21. BUNDLE ITEMS (Products inside a bundle)
@@ -706,6 +701,12 @@ CREATE TABLE IF NOT EXISTS bundle_slot_options (
 
 CREATE INDEX IF NOT EXISTS idx_bundle_slot_options_slot_id ON bundle_slot_options(slot_id);
 CREATE INDEX IF NOT EXISTS idx_bundle_slot_options_product_id ON bundle_slot_options(product_id);
+
+-- API Grants: Allow anon, authenticated, and service_role to read bundle data
+GRANT SELECT ON TABLE bundles TO anon, authenticated, service_role;
+GRANT SELECT ON TABLE bundle_items TO anon, authenticated, service_role;
+GRANT SELECT ON TABLE bundle_slots TO anon, authenticated, service_role;
+GRANT SELECT ON TABLE bundle_slot_options TO anon, authenticated, service_role;
 
 -- ════════════════════════════════════════════════════════════════
 -- PERFORMANCE INDEXES
@@ -899,7 +900,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ── Auto-Create User Profile from Supabase Auth ──
 -- First user becomes admin, subsequent users are cashier
--- v2: Handles optional email, workspace_id, and username collisions gracefully
+-- v2: Handles optional email and username collisions gracefully
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -929,7 +930,7 @@ BEGIN
     END LOOP;
 
     INSERT INTO public.users (
-        id, username, name, email, role, active, workspace_id
+        id, username, name, email, role, active
     )
     VALUES (
         NEW.id,
@@ -937,8 +938,7 @@ BEGIN
         COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', SPLIT_PART(NEW.email, '@', 1)),
         NEW.email,
         _role,
-        true,
-        NEW.id -- Set their own ID as workspace_id for the first user/owner
+        true
     )
     ON CONFLICT (id) DO UPDATE SET
         username = EXCLUDED.username,
@@ -968,15 +968,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- ── Workspace-check helper (Performance optimized) ──
+-- ── Workspace-check helper (single-tenant: returns current user id) ──
 CREATE OR REPLACE FUNCTION get_my_workspace_id()
 RETURNS UUID AS $$
 BEGIN
-  RETURN (
-    SELECT workspace_id
-    FROM users
-    WHERE id = auth.uid()
-  );
+  RETURN auth.uid();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -1034,13 +1030,12 @@ DECLARE
     new_sale_id UUID;
 BEGIN
     INSERT INTO sales (
-        id, workspace_id, invoice_number, customer_id, customer_name, customer_phone,
+        id, invoice_number, customer_id, customer_name, customer_phone,
         items, subtotal, discount_amount, bill_discount_value, bill_discount_type,
         tax_amount, total, received_amount, change_amount, payment_method,
         status, cashier, cashier_role, notes, sale_type, timestamp, created_at, updated_at
     ) VALUES (
         (sale_data->>'id')::UUID,
-        (sale_data->>'workspace_id')::UUID,
         sale_data->>'invoice_number',
         (sale_data->>'customer_id')::UUID,
         sale_data->>'customer_name',
@@ -1191,7 +1186,6 @@ GRANT EXECUTE ON FUNCTION public.resolve_login_email(TEXT) TO authenticated;
 CREATE OR REPLACE VIEW sale_items_unrolled AS
 SELECT 
     s.id AS sale_id,
-    s.workspace_id,
     s.sale_date,
     (item->'product')->>'name' AS product_name,
     (item->'product')->>'sku' AS sku,
@@ -1455,12 +1449,12 @@ RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE new_sale_id UUID;
 BEGIN
     INSERT INTO sales (
-        id, workspace_id, invoice_number, customer_id, customer_name, customer_phone,
+        id, invoice_number, customer_id, customer_name, customer_phone,
         items, subtotal, discount_amount, bill_discount_value, bill_discount_type,
         tax_amount, total, received_amount, change_amount, payment_method,
         status, cashier, cashier_role, notes, sale_type, timestamp, created_at, updated_at
     ) VALUES (
-        (sale_data->>'id')::UUID, (sale_data->>'workspace_id')::UUID,
+        (sale_data->>'id')::UUID,
         sale_data->>'invoice_number', (sale_data->>'customer_id')::UUID,
         sale_data->>'customer_name', sale_data->>'customer_phone',
         (sale_data->'items')::JSONB, (sale_data->>'subtotal')::DECIMAL,
@@ -1563,8 +1557,8 @@ NOTIFY pgrst, 'reload schema';
 -- SEED: App Settings
 -- ════════════════════════════════════════════════════════════════
 -- Ensure the default singleton settings row exists
-INSERT INTO app_settings (id, workspace_id, store_name)
-VALUES ('00000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'ZaynahsPOS')
+INSERT INTO app_settings (id, store_name)
+VALUES ('00000000-0000-4000-8000-000000000001', 'ZaynahsPOS')
 ON CONFLICT (id) DO NOTHING;
 
 
@@ -1656,3 +1650,66 @@ ORDER BY difference DESC;
 SELECT COUNT(*) as missing_cost 
 FROM sale_items_unrolled 
 WHERE purchase_cost IS NULL OR purchase_cost = 0;
+
+
+-- ════════════════════════════════════════════════════════════════
+-- DATA INTEGRITY — Backfill missing batches and stock_history
+-- ════════════════════════════════════════════════════════════════
+-- Safe to re-run: uses LEFT JOIN + HAVING COUNT(pb.id) = 0
+
+-- Backfill product_batches for tracked products with stock but no batches
+INSERT INTO product_batches (id, product_id, batch_number, quantity, qty_remaining, cost_price, sale_price, active, created_at)
+SELECT
+  gen_random_uuid(),
+  p.id,
+  'LEGACY-BACKFILL-001',
+  GREATEST(p.stock, 0),
+  GREATEST(p.stock, 0),
+  COALESCE(p.cost, 0),
+  COALESCE(p.price, 0),
+  true,
+  COALESCE(p.created_at, NOW())
+FROM products p
+LEFT JOIN product_batches pb ON pb.product_id = p.id
+WHERE p.track_inventory = true
+  AND p.stock > 0
+GROUP BY p.id, p.name, p.stock, p.cost, p.price, p.created_at
+HAVING COUNT(pb.id) = 0;
+
+-- Backfill for negative stock products (0 qty batch for completeness)
+INSERT INTO product_batches (id, product_id, batch_number, quantity, qty_remaining, cost_price, sale_price, active, created_at)
+SELECT
+  gen_random_uuid(),
+  p.id,
+  'LEGACY-BACKFILL-001',
+  0, 0,
+  COALESCE(p.cost, 0),
+  COALESCE(p.price, 0),
+  true,
+  COALESCE(p.created_at, NOW())
+FROM products p
+LEFT JOIN product_batches pb ON pb.product_id = p.id
+WHERE p.track_inventory = true
+  AND p.stock < 0
+GROUP BY p.id, p.name, p.stock, p.cost, p.price, p.created_at
+HAVING COUNT(pb.id) = 0;
+
+-- Backfill missing 'initial' stock_history entries
+INSERT INTO stock_history (id, product_id, change_qty, balance_after, type, note, cashier_name, created_at)
+SELECT
+  gen_random_uuid(),
+  p.id,
+  p.stock - COALESCE(sh_sum.total_change, 0),
+  p.stock - COALESCE(sh_sum.total_change, 0),
+  'initial',
+  'Backfill: Initial stock entry (post-dump repair)',
+  'System',
+  COALESCE(p.created_at, NOW()) - INTERVAL '1 second'
+FROM products p
+LEFT JOIN (
+  SELECT product_id, SUM(change_qty) as total_change
+  FROM stock_history
+  GROUP BY product_id
+) sh_sum ON sh_sum.product_id = p.id
+WHERE p.track_inventory = true
+  AND ABS(p.stock - COALESCE(sh_sum.total_change, 0)) > 1;

@@ -208,7 +208,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         receivedAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? parseFloat(amountPaid) || undefined : (paymentMethod === 'split' ? splitTotal : undefined),
         changeAmount: paymentMethod === 'cash' ? change || undefined : (paymentMethod === 'split' ? (splitTotal - total) || undefined : undefined),
         saleType,
-        workspaceId: state.currentUser?.workspace_id || state.settings.workspaceId || state.settings.id,
         saleDate: new Date().toLocaleDateString('en-CA'),
         // New fields
         dcNumber: dcNumber || undefined,

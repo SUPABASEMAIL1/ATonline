@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Download, Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, ChevronRight, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -22,11 +23,8 @@ const isDraftSale = (sale: Sale) =>
   sale.notes?.includes('Draft sale') ||
   sale.notes?.includes('DRAFT_SALE');
 
-interface TransactionsManagerProps {
-  onViewChange?: (view: string) => void;
-}
-
-export function TransactionsManager({ onViewChange }: TransactionsManagerProps) {
+export function TransactionsManager() {
+  const navigate = useNavigate();
   const { state, dispatch, loadMoreSales, searchSales } = useApp();
   const { t } = useTranslation();
   const { profile } = useAuth();
@@ -411,7 +409,7 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
         <div className="flex items-center gap-4 shrink-0">
           <button
             type="button"
-            onClick={() => onViewChange?.('pos')}
+            onClick={() => navigate('/pos')}
             className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1 mr-1"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -707,7 +705,7 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
                               }
 
                               sonner.success('Loaded to POS for editing.');
-                              if (onViewChange) onViewChange('pos');
+                              navigate('/pos');
                             } catch { sonner.error('Error.'); }
                           }
                         }}
@@ -774,7 +772,6 @@ export function TransactionsManager({ onViewChange }: TransactionsManagerProps) 
           onNavigate={setSelectedTransaction}
           onClose={() => setSelectedTransaction(null)}
           onReprint={sale => setReprintSale(sale)}
-          onViewChange={onViewChange}
         />
       )}
       {reprintSale && <ReceiptPrint sale={reprintSale} onClose={() => setReprintSale(null)} />}
@@ -790,10 +787,10 @@ interface TransactionDetailModalProps {
   onNavigate: (sale: Sale) => void;
   onClose: () => void;
   onReprint: (sale: Sale) => void;
-  onViewChange?: (view: string) => void;
 }
 
-function TransactionDetailModal({ transaction, allTransactions, onNavigate, onClose, onReprint, onViewChange }: TransactionDetailModalProps) {
+function TransactionDetailModal({ transaction, allTransactions, onNavigate, onClose, onReprint }: TransactionDetailModalProps) {
+  const detailNavigate = useNavigate();
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
   const { profile } = useAuth();
@@ -832,7 +829,7 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
 
       sonner.success('Loaded to POS for editing.');
       onClose();
-      if (onViewChange) onViewChange('pos');
+      detailNavigate('/pos');
     } catch {
       sonner.error('Error editing sale.');
     } finally {
@@ -969,22 +966,22 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                 <span>{t("next_sale", "Next Sale")}</span> <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:flex items-center gap-1.5 sm:gap-2 w-full mt-1.5 sm:mt-2">
-              <button onClick={() => onReprint(transaction)} className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-primary text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-2 sm:flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full mt-1.5 sm:mt-2">
+              <button onClick={() => onReprint(transaction)} className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-primary text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all">
                 <Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("print_receipt", "Print")}</span>
               </button>
-              <button onClick={handleWhatsAppShare} className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1">
+              <button onClick={handleWhatsAppShare} className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all">
                 <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("whatsapp", "WhatsApp")}</span>
               </button>
               <button
                 onClick={handleRefundSale}
                 disabled={isReconciling || transaction.status === 'refunded'}
-                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-50 dark:bg-rose-900/10 text-rose-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50"
+                className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-50 dark:bg-rose-900/10 text-rose-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all disabled:opacity-50"
               >
                 <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("refund", "Refund")}</span>
               </button>
               {(isAdmin || profile?.canEditSale) && (
-                <button onClick={handleEditSale} disabled={isReconciling} className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-amber-50 dark:bg-amber-900/10 text-amber-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50">
+                <button onClick={handleEditSale} disabled={isReconciling} className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-amber-50 dark:bg-amber-900/10 text-amber-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all disabled:opacity-50">
                   <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("edit", "Edit")}</span>
                 </button>
               )}
@@ -992,7 +989,7 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                 <button
                   onClick={handleDeleteSale}
                   disabled={isReconciling}
-                  className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-500 text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all col-span-1 sm:flex-1 disabled:opacity-50 shadow-lg shadow-rose-500/20"
+                  className="flex-1 min-w-full sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-500 text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-rose-500/20"
                 >
                   <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("delete", "Delete")}</span>
                 </button>

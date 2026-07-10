@@ -23,7 +23,6 @@ export interface ProductModifier {
 
 export interface Product {
   id: string;
-  workspaceId?: string;
   name: string;
   sku?: string;
   barcode?: string;
@@ -74,7 +73,6 @@ export interface ProductBatch {
 
 export interface Customer {
   id: string;
-  workspaceId?: string;
   name: string;
   email: string;
   phone: string;
@@ -93,7 +91,6 @@ export interface Customer {
 
 export interface Supplier {
   id: string;
-  workspaceId?: string;
   name: string;
   email: string;
   phone: string;
@@ -153,7 +150,6 @@ export interface Payment {
   note?: string;
   notes?: string;
   createdAt: Date;
-  workspaceId?: string;
 }
 
 export interface StockHistory {
@@ -322,13 +318,10 @@ export interface User {
   lastLogin?: Date;
   avatar?: string;
   offlineHash?: string;
-  workspace_id?: string;
-  workspaceId?: string;
 }
 
 export interface AppSettings {
   id?: string;
-  workspaceId?: string;
   storeName: string;
   storeAddress: string;
   storePhone?: string;
@@ -432,8 +425,6 @@ export interface Expense {
   notes?: string;
   createdAt: Date;
   updatedAt?: Date;
-  workspaceId?: string;
-  workspace_id?: string;
   addedBy?: string;
 }
 
@@ -484,7 +475,6 @@ export interface BundleSlot {
 
 export interface Bundle {
   id: string;
-  workspaceId?: string;
   name: string;
   description?: string;
   discountValue: number;

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Minus, Package, X, ChevronLeft, ChevronRight, FileText, Star, Infinity, Camera, LayoutGrid, Gift, ChevronDown, ChevronUp } from 'lucide-react';
 import { CameraScanner } from '../common/CameraScanner';
 import { Product } from '../../types';
@@ -22,6 +23,7 @@ interface ProductGridProps {
  * Features: Immediate search response, Category bypass on search, Featured sorting, and Integrated density control.
  */
 export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode = false }: ProductGridProps) {
+  const navigate = useNavigate();
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
 
@@ -667,6 +669,21 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
     return Array.from(map.values());
   }, [rawBundles, state.products]);
 
+  const handleBundleQuantity = (item: any, d: number) => {
+    if (item.isGroup) {
+      if (d > 0) handleAddBundle(item);
+      return;
+    }
+    if (d > 0) {
+      handleAddBundle(item);
+    } else {
+      const updatedCart = state.cart.filter(
+        (x: any) => (x.bundleId || x.bundle_id) !== item.id
+      );
+      dispatch({ type: 'SET_CART', payload: updatedCart });
+    }
+  };
+
   const processBundleAdd = (bundle: any, selectedItems?: { productId: string; quantity: number }[]) => {
     try {
       if (!bundle) {
@@ -762,10 +779,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         <p className="text-[11px] text-gray-400 mt-1 mb-4">{t('no_bundles_desc_pos', 'Go to Inventory → Bundles to create combo deals')}</p>
         <button
           type="button"
-          onClick={() => {
-            dispatch({ type: 'SET_INVENTORY_TAB', payload: 'bundles' });
-            window.dispatchEvent(new CustomEvent('navigate', { detail: 'inventory' }));
-          }}
+          onClick={() => navigate('/inventory/bundles')}
           className="bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all active:scale-95 shadow-lg shadow-violet-500/20"
         >
           {t('create_deal_now_btn', 'Create Deal Now')}
@@ -798,10 +812,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         </div>
         <button
           type="button"
-          onClick={() => {
-            dispatch({ type: 'SET_INVENTORY_TAB', payload: 'bundles' });
-            window.dispatchEvent(new CustomEvent('navigate', { detail: 'inventory' }));
-          }}
+          onClick={() => navigate('/inventory/bundles')}
           className="bg-violet-600 hover:bg-violet-700 text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm shrink-0"
         >
           {t('manage_deals_btn', 'Manage Deals')}
@@ -916,6 +927,33 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
                 <div className="absolute top-1 right-1 flex items-center bg-violet-500/90 text-white p-1 rounded-lg text-[8px] font-black shadow-md z-10">
                   <Gift className="h-2.5 w-2.5" />
                 </div>
+
+                {/* Floating Stepper Overlay */}
+                {bundleQty > 0 && (
+                  <div className="absolute inset-x-0.5 bottom-0.5 flex items-center justify-between bg-white/95 dark:bg-black/95 rounded-lg p-0.5 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-300 z-20">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleBundleQuantity(item, -1);
+                      }}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-gray-600 dark:text-gray-400"
+                    >
+                      <Minus className="h-2.5 w-2.5" />
+                    </button>
+                    <span className="font-black text-[9px] sm:text-xs text-gray-900 dark:text-white px-0.5">
+                      1
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleBundleQuantity(item, 1);
+                      }}
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-violet-500"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Info Area */}

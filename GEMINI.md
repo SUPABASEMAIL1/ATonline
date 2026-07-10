@@ -231,8 +231,7 @@ Whenever ANY change to database structure is made:
 
 1. **Create Incremental Migration**: `supabase/migrations/YYYYMMDDHHMMSS_description.sql`
 2. **Update Master Schema**: `supabase/schema/SUPER_MASTER_SCHEMA.sql`
-3. **Update Repair Script**: `supabase/schema/POST_DUMP_REPAIR.sql`
-4. **Run SQL via Management API** (NOT psql / Dashboard):
+3. **Run SQL via Management API** (NOT psql / Dashboard):
    ```bash
    SQL=$(cat supabase/migrations/20260519120000_description.sql)
    SQL_JSON=$(python3 -c "import json,sys; print(json.dumps({'query': sys.stdin.read()}))" <<< "$SQL")
@@ -241,8 +240,8 @@ Whenever ANY change to database structure is made:
      -H "Content-Type: application/json" \
      -d "$SQL_JSON"
    ```
-5. **Sync Local DB**: Update `src/lib/localDb.ts`
-6. **Log & Document**: Add comment at top of migration file
+4. **Sync Local DB**: Update `src/lib/localDb.ts`
+5. **Log & Document**: Add comment at top of migration file
 
 > 🔍 **Get project ref from URL:** `https://{ref}.supabase.co` — or list all projects via `curl -s "https://api.supabase.com/v1/projects" -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY"`
 
@@ -445,7 +444,7 @@ jab tak kaha na jaye npm run build ma kro
 Whenever a database change is made, it MUST be recorded here.
 
 ### [2026-05-19] Universal Code 128 Barcode System Implementation
-**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `POST_DUMP_REPAIR.sql`, `schema.prisma`, `localDb.ts`, `services.ts`, `barcode.ts`, `BarcodePreview.tsx`, `ProductModal.tsx`, `ProductDetailHub.tsx`, `InventoryManager.tsx`, `useHardwareScanner.ts`, `POSTerminal.tsx`, `ProductGrid.tsx`, `BarcodeGenerator.tsx`, `ReceiptPrint.tsx`, `DatabaseTools.tsx`, `Settings.tsx`
+**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `schema.prisma`, `localDb.ts`, `services.ts`, `barcode.ts`, `BarcodePreview.tsx`, `ProductModal.tsx`, `ProductDetailHub.tsx`, `InventoryManager.tsx`, `useHardwareScanner.ts`, `POSTerminal.tsx`, `ProductGrid.tsx`, `BarcodeGenerator.tsx`, `ReceiptPrint.tsx`, `DatabaseTools.tsx`, `Settings.tsx`
 **Changes:**
 1.  **Database & Schema Parity (`SUPER_MASTER_SCHEMA.sql`, `schema.prisma`, `localDb.ts`)**:
     *   Added `barcode_value TEXT` column and `CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode_value` across SQL schemas and Prisma models. Bumped Dexie IndexedDB version to v12 to seamlessly register `barcodeValue`.
@@ -705,4 +704,20 @@ Supabase ka free plan 1 hafte baad database pause kar deta hai. Isey 24/7 active
 5. **SAVE** karein aur ek dafa **TEST RUN** daba kar check karein ke **200 OK** aa raha hai ya nahi.
 
 ---
-✅ **All Done! Aapka naya clone project production-ready hai.**
+### [2026-07-10] POST_DUMP_REPAIR removed, merged into SUPER_MASTER_SCHEMA
+**Files Updated:** `supabase/schema/SUPER_MASTER_SCHEMA.sql` (+data integrity section), `supabase/migrations/20260710020000_create_missing_bundle_tables.sql` (+GRANTs)
+**Changes:**
+1.  **POST_DUMP_REPAIR.sql** deleted — all content already existed in SUPER_MASTER_SCHEMA.sql (columns, indexes, functions, RLS, replica identity, realtime). Only data integrity backfill (product_batches + stock_history) was missing — now added at the end.
+2.  **bundle_slots & bundle_slot_options** created via migration + GRANT SELECT added for anon/authenticated/service_role.
+3.  `AGENTS.md` & `GEMINI.md` migration rules updated — removed POST_DUMP_REPAIR references.
+
+### [2026-07-10] Drop workspace_id — Single-tenant architecture
+**Files Updated:** All app code (services.ts, components, types, hooks, etc.), `src/lib/localDb.ts`, `src/lib/masterSchema.ts`, `src/lib/constants.ts`, `supabase/schema/SUPER_MASTER_SCHEMA.sql`, `supabase/migrations/20260710030000_drop_workspace_id.sql`
+**Changes:**
+1.  **Migration run:** `workspace_id` column dropped from all 18 tables (app_settings, categories, customers, suppliers, products, product_batches, discounts, users, sales, expenses, sales_tabs, purchase_records, purchase_orders, purchase_order_items, supplier_transactions, payments, stock_history, bundles).
+2.  **Index:** `idx_bundles_name_workspace` → `idx_bundles_name_unique` (unique bundle name globally, not per-workspace).
+3.  **Functions:** `get_my_workspace_id()` returns `auth.uid()`. `handle_new_user()` no longer sets workspace_id. `process_sale()` RPC no longer reads/writes workspace_id.
+4.  **App code:** All `.eq('workspace_id', ...)` filters, workspaceId params, mappers returning workspaceId, and useWorkspaceId hook removed. BundleGrid cards now have ± quantity stepper.
+5.  **1 Clone = 1 Shop** — changing project credentials no longer causes workspace_id mismatch issues.
+
+✅ **All Done!**

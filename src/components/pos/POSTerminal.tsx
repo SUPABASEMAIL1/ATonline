@@ -110,13 +110,19 @@ export function POSTerminal() {
         mainEl.style.overflow = 'hidden';
       }
     } else {
-      document.body.style.overflow = '';
+      const otherOpenModals = document.querySelectorAll('[data-modal="true"]');
+      if (otherOpenModals.length === 0) {
+        document.body.style.overflow = '';
+      }
       if (mainEl) {
         mainEl.style.overflow = '';
       }
     }
     return () => {
-      document.body.style.overflow = '';
+      const otherOpenModals = document.querySelectorAll('[data-modal="true"]');
+      if (otherOpenModals.length === 0) {
+        document.body.style.overflow = '';
+      }
       if (mainEl) {
         mainEl.style.overflow = '';
       }
@@ -562,12 +568,13 @@ export function POSTerminal() {
         {/* Mobile + Tablet Cart Drawer */}
         {isMobileCartOpen && (
           <div 
+            data-modal="true"
             onClick={() => setIsMobileCartOpen(false)}
-            className="md:hidden fixed inset-0 z-[80] bg-black/80 transition-opacity flex items-center justify-center p-4"
+            className="md:hidden fixed inset-0 z-[1000] bg-black/70 transition-opacity flex items-center justify-center p-3 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-surface w-full h-[90vh] rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200"
+              className="bg-white dark:bg-surface w-full max-w-[480px] max-h-[calc(100dvh-2.5rem)] sm:max-h-[90dvh] rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
             >
               <Cart
                 onCheckout={() => {

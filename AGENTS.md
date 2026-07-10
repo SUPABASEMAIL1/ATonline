@@ -64,8 +64,7 @@ Whenever ANY change to database structure:
 
 1. **Create Incremental Migration**: `supabase/migrations/YYYYMMDDHHMMSS_description.sql`
 2. **Update Master Schema**: `supabase/schema/SUPER_MASTER_SCHEMA.sql`
-3. **Update Repair Script**: `supabase/schema/POST_DUMP_REPAIR.sql`
-4. **Run SQL via Management API**:
+3. **Run SQL via Management API**:
    ```bash
    SQL=$(cat supabase/migrations/20260519120000_description.sql)
    SQL_JSON=$(python3 -c "import json,sys; print(json.dumps({'query': sys.stdin.read()}))" <<< "$SQL")
@@ -74,8 +73,8 @@ Whenever ANY change to database structure:
      -H "Content-Type: application/json" \
      -d "$SQL_JSON"
    ```
-5. **Sync Local DB**: Update `src/lib/localDb.ts`
-6. **Log & Document**: Add comment at top of migration file + entry in GEMINI.md Schema Change Log
+4. **Sync Local DB**: Update `src/lib/localDb.ts`
+5. **Log & Document**: Add comment at top of migration file + entry in GEMINI.md Schema Change Log
 
 ---
 
@@ -101,7 +100,7 @@ After update: run `npm run build`, clear browser IndexedDB.
 ## 🚀 Database Push Workflow
 
 1. Ensure `SUPABASE_MGMT_API_KEY` is set in `.env.local`
-2. Execute schema via Management API:
+2. Execute FULL master schema (idempotent — safe to run any time):
    ```bash
    SCHEMA_SQL=$(cat supabase/schema/SUPER_MASTER_SCHEMA.sql)
    SCHEMA_JSON=$(python3 -c "import json,sys; print(json.dumps({'query': sys.stdin.read()}))" <<< "$SCHEMA_SQL")
@@ -110,8 +109,7 @@ After update: run `npm run build`, clear browser IndexedDB.
      -H "Content-Type: application/json" \
      -d "$SCHEMA_JSON"
    ```
-3. Execute `scratch/sync_settings.sql` same way
-4. Verify dashboard loads correctly
+3. Verify dashboard loads correctly
 
 ---
 

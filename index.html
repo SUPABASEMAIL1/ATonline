@@ -29,13 +29,43 @@
     <meta name="twitter:site" content="@zaynahs_pos" />
     <meta name="twitter:creator" content="@iamchandira" />
     <script>
-      // Apply dark theme immediately to prevent flashing
-      const theme = localStorage.getItem('theme') || 'dark'; // Always default to dark
-      if (theme !== 'light') {
+      // Apply theme immediately to prevent flashing
+      var _theme = localStorage.getItem('theme') || 'dark'; // Always default to dark
+      var _isDark = _theme !== 'light';
+
+      // ─── Apply background color IMMEDIATELY (before CSS loads) ───
+      // This is the root cause fix for iOS PWA black screen on launch/refresh.
+      // We must set the background on both html AND body inline so the browser
+      // paints the correct color before any stylesheet or JS executes.
+      var _bgColor = _isDark ? '#0a0a0a' : '#ffffff';
+      var _textColor = _isDark ? '#f3f4f6' : '#111827';
+      document.documentElement.style.backgroundColor = _bgColor;
+      document.documentElement.style.color = _textColor;
+
+      if (_isDark) {
         document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
       }
 
-      // Unregister any active service worker in local development mode to prevent white screens on refresh
+      // ─── Sync PWA status bar color ───
+      // Must happen synchronously before DOMContentLoaded on iOS.
+      var _metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (_metaThemeColor) {
+        _metaThemeColor.setAttribute('content', _isDark ? '#0a0a0a' : '#ffffff');
+      }
+      var _appleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+      if (_appleStatus) {
+        _appleStatus.setAttribute('content', _isDark ? 'black-translucent' : 'default');
+      }
+
+      // Also apply to body once available (covers PWA splash to first paint gap)
+      document.addEventListener('DOMContentLoaded', function() {
+        document.body.style.backgroundColor = _bgColor;
+        document.body.style.color = _textColor;
+      });
+
+      // Unregister any active service worker in local development mode to prevent cached stale builds
       if (
         location.hostname === 'localhost' || 
         location.hostname === '127.0.0.1' || 
@@ -48,8 +78,7 @@
             for (var i = 0; i < registrations.length; i++) {
               registrations[i].unregister().then(function(success) {
                 if (success) {
-                  console.log('Unregistered active service worker for local development');
-                  location.reload();
+                  console.log('[DEV] Unregistered stale service worker');
                 }
               });
             }
@@ -58,7 +87,7 @@
       }
     </script>
   </head>
-  <body class="bg-[#0A0A0A] text-gray-100 transition-colors duration-300">
+  <body class="transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="src/main.tsx"></script>
   </body>

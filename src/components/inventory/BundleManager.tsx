@@ -215,9 +215,6 @@ export function BundleManager() {
 
     if (form.discountType === 'percentage' && form.discountValue > 100) return sonner.error(t('bundle_discount_percent_max', 'Percentage discount cannot exceed 100%'));
     if (!form.isCombo && bundleTotal > 0 && discountAmount >= bundleTotal) return sonner.error(t('bundle_discount_exceeds_total', 'Discount cannot equal or exceed the total price'));
-    const wsId = profile?.workspace_id || state.settings.workspaceId || state.settings.id;
-    if (!wsId) return sonner.error(t('workspace_id_missing', 'Workspace ID not found. Please refresh.'));
-
     setSaving(true);
     try {
       const wasOffline = !navigator.onLine;
@@ -276,7 +273,6 @@ export function BundleManager() {
           discountValue: form.discountValue,
           discountType: form.discountType,
           hideItemPrices: form.hideItemPrices,
-          workspaceId: wsId,
           items: itemsPayload,
           slots: slotsPayload,
           isCombo: form.isCombo,

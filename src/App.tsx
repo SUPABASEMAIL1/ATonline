@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/SupabaseAppContext';
 import { LoginPage } from './components/auth/LoginPage';
@@ -43,56 +44,41 @@ const LoadingView = () => {
 
 function AppContent() {
   const { user, loading, isRecoveringPassword } = useAuth();
-  const { state, dispatch } = useApp();
+  const { state, dispatch, loadData, forceSync } = useApp();
   const { isKeyboardOpen } = useTouchKeyboard();
   const { isRtl } = useTranslation();
-  const [currentView, setCurrentView] = useState(() => localStorage.getItem('pos_current_view') || 'pos');
+  const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const hasRoutedIntially = useRef(false);
 
-  // Persistence: Save currentView to localStorage
+  // Persistence: Save last route to localStorage
   useEffect(() => {
-    localStorage.setItem('pos_current_view', currentView);
-  }, [currentView]);
-
-  // Initialize correct view based on role (only if no saved view or if saved view is not allowed)
-  useEffect(() => {
-    if (state.currentUser && !hasRoutedIntially.current) {
-      const savedView = localStorage.getItem('pos_current_view');
-      
-      // If no saved view, use role defaults
-      if (!savedView) {
-        if (state.currentUser.role === 'admin' || state.currentUser.role === 'manager') {
-          setCurrentView('dashboard');
-        } else {
-          setCurrentView('pos');
-        }
-      }
-      hasRoutedIntially.current = true;
+    const path = location.pathname;
+    if (path && path !== '/') {
+      localStorage.setItem('pos_current_view', path.replace(/^\//, ''));
     }
-  }, [state.currentUser]);
+  }, [location.pathname]);
 
-  // Play transition sound on view changes
-  const isFirst = useRef(true);
+  // Play transition sound on route changes
+  const prevPath = useRef(location.pathname);
   useEffect(() => {
-    if (isFirst.current) {
-      isFirst.current = false;
-      return;
+    if (prevPath.current !== location.pathname) {
+      playPageSound();
+      prevPath.current = location.pathname;
     }
-    playPageSound();
-  }, [currentView]);
+  }, [location.pathname]);
 
-  // Global navigation listener
+  // Global navigation listener (convert old viewId events to router navigation)
   useEffect(() => {
     const handleNavigate = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail && typeof customEvent.detail === 'string') {
-        setCurrentView(customEvent.detail);
+        navigate('/' + customEvent.detail);
       }
     };
     window.addEventListener('navigate', handleNavigate);
     return () => window.removeEventListener('navigate', handleNavigate);
-  }, []);
+  }, [navigate]);
 
   // Initialize offline sync service
   useEffect(() => {
@@ -143,6 +129,16 @@ function AppContent() {
       } else {
         document.documentElement.classList.remove('dark');
       }
+
+      // Update PWA / Mobile metadata dynamically
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', isDark ? '#0A0A0A' : '#ffffff');
+      }
+      const appleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+      if (appleStatus) {
+        appleStatus.setAttribute('content', isDark ? 'black-translucent' : 'default');
+      }
     };
 
     applyTheme();
@@ -163,94 +159,49 @@ function AppContent() {
 
 
 
-  const renderCurrentView = () => {
+  // ── Route-based access control ──
+  function RequireAccess({ viewId, children }: { viewId: string; children: React.ReactNode }) {
     const userRole = state.currentUser?.role;
     const perms = state.currentUser?.permissions || [];
 
-    // General unauthorized fallback handler
-    const enforceAccess = (allowed: boolean, Component: React.ReactElement) => {
-      if (allowed) return Component;
-      setCurrentView('pos');
-      return <POSTerminal />;
-    };
-
-    // Restrict cashiers and managers if they don't have explicit access to their current view (Fallback safety)
-    if (userRole !== 'admin') {
-      const allowedViews = ['pos'];
-
-      if (userRole === 'manager' || userRole === 'cashier') {
-        allowedViews.push('transactions');
+    const allowed = (() => {
+      if (userRole === 'admin') return true;
+      switch (viewId) {
+        case 'pos': return true;
+        case 'transactions': return userRole === 'manager' || userRole === 'cashier';
+        case 'expenses': return userRole === 'manager' || perms.includes('access_expenses');
+        case 'inventory': return userRole === 'manager' || perms.includes('access_inventory') || !!state.currentUser?.canManageStock || !!state.currentUser?.canManagePO || !!state.currentUser?.canViewRecords;
+        case 'customers': return userRole === 'manager' || perms.includes('access_customers');
+        case 'reports': return userRole === 'manager' || perms.includes('access_reports') || !!state.currentUser?.canViewProfit;
+        case 'discounts': return userRole === 'manager' || !!state.currentUser?.canGiveDiscount;
+        case 'users': return false;
+        case 'settings': return userRole === 'manager';
+        case 'suppliers': return userRole === 'manager';
+        case 'purchase-orders': return userRole === 'manager' || !!state.currentUser?.canManagePO;
+        case 'dashboard': return userRole === 'manager';
+        default: return false;
       }
-      if (userRole === 'manager') {
-        allowedViews.push('dashboard', 'settings', 'expenses', 'customers', 'reports', 'discounts', 'suppliers', 'purchase-orders', 'inventory');
+    })();
+
+    if (!allowed) return <Navigate to="/pos" replace />;
+    return <>{children}</>;
+  }
+
+  // ── Root redirect based on role and saved preference ──
+  function RootRedirect() {
+    useEffect(() => {
+      if (!state.currentUser) return;
+      const savedView = localStorage.getItem('pos_current_view');
+      if (savedView) {
+        navigate('/' + savedView, { replace: true });
+      } else if (state.currentUser.role === 'admin' || state.currentUser.role === 'manager') {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/pos', { replace: true });
       }
-
-      if (perms.includes('access_inventory') || state.currentUser?.canManageStock || state.currentUser?.canManagePO || state.currentUser?.canViewRecords) allowedViews.push('inventory');
-      if (perms.includes('access_expenses')) allowedViews.push('expenses');
-      if (perms.includes('access_customers')) allowedViews.push('customers');
-      if (perms.includes('access_reports') || state.currentUser?.canViewProfit) allowedViews.push('reports');
-      if (state.currentUser?.canGiveDiscount) allowedViews.push('discounts');
-      if (state.currentUser?.canManagePO) allowedViews.push('purchase-orders');
-
-      if (!allowedViews.includes(currentView)) {
-        setCurrentView('pos');
-        return <POSTerminal />;
-      }
-    }
-
-    switch (currentView) {
-      case 'pos':
-        return <POSTerminal />;
-      case 'transactions':
-        return enforceAccess(userRole === 'admin' || userRole === 'manager' || userRole === 'cashier',
-          <TransactionsManager onViewChange={setCurrentView} />);
-      case 'expenses':
-        return enforceAccess(userRole === 'admin' || userRole === 'manager' || perms.includes('access_expenses'),
-          <ExpenseManager />);
-      case 'inventory':
-        return enforceAccess(userRole === 'admin' || userRole === 'manager' || perms.includes('access_inventory') || !!state.currentUser?.canManageStock || !!state.currentUser?.canManagePO || !!state.currentUser?.canViewRecords,
-          <InventoryManager />);
-      case 'customers':
-        return enforceAccess(userRole === 'admin' || userRole === 'manager' || perms.includes('access_customers'),
-          <CustomerManager />);
-      case 'reports':
-        return enforceAccess(userRole === 'admin' || userRole === 'manager' || perms.includes('access_reports') || !!state.currentUser?.canViewProfit,
-          <ReportsManager />);
-      case 'discounts':
-        return enforceAccess(userRole === 'admin' || userRole === 'manager' || !!state.currentUser?.canGiveDiscount,
-          <DiscountManager />);
-      case 'users':
-        return enforceAccess(userRole === 'admin',
-          <UserManager />);
-      case 'settings':
-        if (userRole === 'admin' || userRole === 'manager') {
-          return <Settings />;
-        }
-        setCurrentView('pos');
-        return <POSTerminal />;
-
-      case 'suppliers':
-        if (userRole === 'admin' || userRole === 'manager') {
-          return <SupplierManager />;
-        }
-        setCurrentView('pos');
-        return <POSTerminal />;
-      case 'purchase-orders':
-        if (userRole === 'admin' || userRole === 'manager' || state.currentUser?.canManagePO) {
-          return <PurchaseOrderSystem />;
-        }
-        setCurrentView('pos');
-        return <POSTerminal />;
-      case 'dashboard':
-        if (userRole === 'admin' || userRole === 'manager') {
-          return <DashboardManager onNavigate={setCurrentView} />;
-        }
-        setCurrentView('pos');
-        return <POSTerminal />;
-      default:
-        return <POSTerminal />;
-    }
-  };
+    }, [state.currentUser]);
+    return <LoadingView />;
+  }
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="h-[100dvh] bg-gray-50 dark:bg-app flex flex-col overflow-hidden">
@@ -307,10 +258,28 @@ function AppContent() {
       ) : (
         <>
           <DialogProvider />
-          <Header currentView={currentView} onViewChange={setCurrentView} onShowMobileMenu={() => setIsMobileMenuOpen(true)} isMobileMenuOpen={isMobileMenuOpen} onHideMobileMenu={() => setIsMobileMenuOpen(false)} />
+          <Header onShowMobileMenu={() => setIsMobileMenuOpen(true)} isMobileMenuOpen={isMobileMenuOpen} onHideMobileMenu={() => setIsMobileMenuOpen(false)} />
           <main className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
             <Suspense fallback={<LoadingView />}>
-              {renderCurrentView()}
+              <Routes>
+                <Route path="/pos" element={<POSTerminal />} />
+                <Route path="/transactions" element={<RequireAccess viewId="transactions"><TransactionsManager /></RequireAccess>} />
+                <Route path="/expenses" element={<RequireAccess viewId="expenses"><ExpenseManager /></RequireAccess>} />
+                <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
+                <Route path="/inventory/:subTab" element={<RequireAccess viewId="inventory"><InventoryManager /></RequireAccess>} />
+                <Route path="/customers" element={<RequireAccess viewId="customers"><CustomerManager /></RequireAccess>} />
+                <Route path="/reports" element={<Navigate to="/reports/sales" replace />} />
+                <Route path="/reports/:subTab" element={<RequireAccess viewId="reports"><ReportsManager /></RequireAccess>} />
+                <Route path="/discounts" element={<RequireAccess viewId="discounts"><DiscountManager /></RequireAccess>} />
+                <Route path="/users" element={<RequireAccess viewId="users"><UserManager /></RequireAccess>} />
+                <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
+                <Route path="/settings/:subTab" element={<RequireAccess viewId="settings"><Settings /></RequireAccess>} />
+                <Route path="/suppliers" element={<RequireAccess viewId="suppliers"><SupplierManager /></RequireAccess>} />
+                <Route path="/purchase-orders" element={<RequireAccess viewId="purchase-orders"><PurchaseOrderSystem /></RequireAccess>} />
+                <Route path="/dashboard" element={<RequireAccess viewId="dashboard"><DashboardManager /></RequireAccess>} />
+                <Route path="/" element={<RootRedirect />} />
+                <Route path="*" element={<Navigate to="/pos" replace />} />
+              </Routes>
             </Suspense>
 
             {state.loading && (
@@ -342,15 +311,7 @@ function AppContent() {
             )}
           </main>
           <OfflineBanner />
-          <MobileBottomNav 
-            currentView={currentView} 
-            // @ts-ignore
-            onViewChange={(view) => {
-              setCurrentView(view);
-              setIsMobileMenuOpen(false);
-            }} 
-            onShowMenu={() => setIsMobileMenuOpen(true)} 
-          />
+          <MobileBottomNav onShowMenu={() => setIsMobileMenuOpen(true)} />
         </>
       )}
     </div>

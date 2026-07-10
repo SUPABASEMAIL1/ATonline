@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { useAuth } from '../../context/AuthContext';
 import { Plus, Search, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, ChevronRight, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift } from 'lucide-react';
@@ -30,6 +31,8 @@ import { BundleManager } from './BundleManager';
 type TabType = 'inventory' | 'purchase_orders' | 'groups' | 'media' | 'purchases' | 'bundles';
 
 export function InventoryManager() {
+  const navigate = useNavigate();
+  const { subTab } = useParams();
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
   const { profile } = useAuth();
@@ -48,8 +51,23 @@ export function InventoryManager() {
   const canManagePO = isAdmin || profile?.canManagePO;
   const canViewRecords = isAdmin || profile?.canViewRecords;
 
-  const activeTab = state.inventoryActiveTab as TabType;
-  const setActiveTab = (tab: TabType) => dispatch({ type: 'SET_INVENTORY_TAB', payload: tab });
+  const SUB_TAB_SEGMENT_TO_INTERNAL: Record<string, TabType> = {
+    products: 'inventory',
+    history: 'purchases',
+    restock: 'purchase_orders',
+    bundles: 'bundles',
+    groups: 'groups',
+    media: 'media',
+  };
+  const INTERNAL_TO_SUB_TAB_SEGMENT: Record<string, string> = {
+    inventory: 'products',
+    purchases: 'history',
+    purchase_orders: 'restock',
+    bundles: 'bundles',
+    groups: 'groups',
+    media: 'media',
+  };
+  const activeTab = (subTab ? SUB_TAB_SEGMENT_TO_INTERNAL[subTab] : 'inventory') as TabType;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -122,7 +140,7 @@ export function InventoryManager() {
   // Handle return redirection to specific tabs (e.g. Stock History)
   useEffect(() => {
     if (state.pendingReturnTab === 'purchases') {
-      setActiveTab('purchases');
+      navigate('/inventory/history');
       // We don't clear it here yet to allow the 'Back' button in Transactions to persist its state
       // But if we are already in Inventory, we should clear it once we land.
       // Actually, SET_PENDING_RETURN_TAB is cleared by the 'Back' button itself.
@@ -367,8 +385,6 @@ export function InventoryManager() {
 
       sonner.loading(`Importing ${products.length} products...`);
 
-      const wsId = state.currentUser?.workspace_id || state.settings.workspaceId || state.settings.id;
-
       const now = new Date();
 
       // Get all existing products in local db to check for duplicates quickly (Rule F1)
@@ -427,7 +443,6 @@ export function InventoryManager() {
           unit: p.unit || 'pcs',
           image: p.image || '',
           active: p.active !== false,
-          workspaceId: wsId,
           variants: p.variants || [],
           modifiers: p.modifiers || []
         };
@@ -577,7 +592,7 @@ export function InventoryManager() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => navigate('/inventory/' + INTERNAL_TO_SUB_TAB_SEGMENT[tab.id])}
                   className={`chip-nav-item ${isActive ? `${tab.color} text-white shadow-lg` : 'text-gray-600'}`}
                 >
                   <tab.icon className="w-3.5 h-3.5" />
@@ -1032,7 +1047,7 @@ export function InventoryManager() {
                         <td className="p-4 text-center font-black text-gray-900 dark:text-white">{formatCurrency(valueInCat, state.settings.currency)}</td>
                         <td className="p-4 text-right">
                           <button
-                            onClick={() => { setSelectedCategory(cat); setActiveTab('inventory'); }}
+                            onClick={() => { setSelectedCategory(cat); navigate('/inventory/products'); }}
                             className="text-[10px] font-black uppercase text-primary hover:underline"
                           >
                             View All
@@ -1053,7 +1068,7 @@ export function InventoryManager() {
                 const valueInCat = productsInCat.reduce((sum, p) => sum + (p.trackInventory === false || p.stock >= 990000 ? 0 : ((p.stock || 0) * (p.cost || 0))), 0);
 
                 return (
-                  <div key={cat} onClick={() => { setSelectedCategory(cat); setActiveTab('inventory'); }} className="p-4 bg-gray-50 dark:bg-black/20 rounded-[2rem] border border-gray-200 dark:border-white/5 active:scale-95 transition-all">
+                  <div key={cat} onClick={() => { setSelectedCategory(cat); navigate('/inventory/products'); }} className="p-4 bg-gray-50 dark:bg-black/20 rounded-[2rem] border border-gray-200 dark:border-white/5 active:scale-95 transition-all">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -1088,7 +1103,7 @@ export function InventoryManager() {
       ) : (
         <MediaLibrary
           isOpen={true}
-          onClose={() => setActiveTab('inventory')}
+          onClose={() => navigate('/inventory/products')}
           onSelect={() => { }} // Standalone mode
           standalone={true}
         />

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Wallet,
   TrendingUp,
@@ -21,11 +22,8 @@ import { getAmountByMethod } from '../../lib/services';
 import { getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, formatInTimeZone } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
 
-interface DashboardManagerProps {
-  onNavigate?: (page: string) => void;
-}
-
-export function DashboardManager({ onNavigate }: DashboardManagerProps) {
+export function DashboardManager() {
+  const navigate = useNavigate();
   const { state } = useApp();
   const { t } = useTranslation();
   const { currency } = state.settings;
@@ -148,60 +146,60 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
   return (
     <div className="main-content-scroll p-2.5 sm:p-4 bg-gray-50/50 dark:bg-app flex flex-col gap-4">
       {/* --- COMPACT HERO GRID WITH MAGICAL WATCH --- */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch animate-in fade-in slide-in-from-top-4 duration-700">
+      <div className="grid grid-cols-[1fr_auto] lg:grid-cols-3 gap-3 items-stretch animate-in fade-in slide-in-from-top-4 duration-700">
         
         {/* Left: Identity Greeting Card */}
-        <div className="lg:col-span-2 flex flex-col justify-between p-4 sm:p-5 bg-gradient-to-br from-indigo-950 via-[#0A0A0A] to-black rounded-[2rem] border border-indigo-500/10 shadow-2xl relative overflow-hidden group min-h-[160px]">
+        <div className="lg:col-span-2 flex flex-col justify-between p-4 sm:p-5 bg-gradient-to-br from-indigo-950 via-[#0A0A0A] to-black rounded-[2rem] border border-indigo-500/10 shadow-2xl relative overflow-hidden group min-h-[140px] sm:min-h-[160px]">
           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform duration-1000">
             <TrendingUp className="w-32 h-32 -mr-8 -mt-8 text-indigo-500" />
           </div>
 
           <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="px-2.5 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20 flex items-center gap-1.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <div className="px-2 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20 flex items-center gap-1">
                 <Zap className="w-2.5 h-2.5 animate-pulse" />
                 <span className="text-[8px] font-black uppercase tracking-widest">{t("system_live", "System Live")}</span>
               </div>
-              <div className="px-2.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 flex items-center gap-1.5">
+              <div className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 flex items-center gap-1">
                 <Activity className="w-2.5 h-2.5" />
                 <span className="text-[8px] font-black uppercase tracking-widest">Zaynahs POS</span>
               </div>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight leading-none mb-1.5">
+            <h1 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tight leading-none mb-1">
               {t("control_center", "Control Center")}
             </h1>
-            <p className="text-[10px] font-bold text-gray-500 max-w-xl leading-normal">
+            <p className="text-[9px] sm:text-[10px] font-bold text-gray-500 max-w-xl leading-normal hidden sm:block">
               {t("welcome_back", "Welcome back. Your business pulse is stable and scaling.")}
               <br />
               {t("monitor_realtime", "Monitor real-time transactions and inventory health across your workspace.")}
             </p>
           </div>
 
-          <div className="relative z-10 mt-3 flex items-center gap-2">
+          <div className="relative z-10 mt-2 sm:mt-3 flex items-center gap-2">
             <button
-              onClick={() => onNavigate?.('pos')}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/10 active:scale-95 transition-all flex items-center gap-1.5"
+              onClick={() => navigate('/pos')}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl text-[8px] sm:text-[9px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/10 active:scale-95 transition-all flex items-center gap-1.5"
             >
               {t("launch_pos", "Launch POS")} <ArrowRight className="w-3 h-3" />
             </button>
             <button
-              onClick={() => onNavigate?.('inventory')}
-              className="px-5 py-2.5 bg-white/5 text-white border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+              onClick={() => navigate('/inventory')}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-white/5 text-white border border-white/10 rounded-xl text-[8px] sm:text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
             >
               {t("manage_stock", "Manage Stock")}
             </button>
           </div>
         </div>
 
-        {/* Right: The Magical Clock Card */}
-        <div className="bg-gradient-to-b from-indigo-950 to-black rounded-[2rem] p-3 border border-indigo-500/15 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center min-h-[160px] group">
+        {/* Right: The Magical Clock Card — compact on mobile, full on lg */}
+        <div className="w-[110px] sm:w-auto lg:w-auto bg-gradient-to-b from-indigo-950 to-black rounded-[2rem] p-2 sm:p-3 border border-indigo-500/15 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center group">
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-indigo-500/5 rounded-full" />
           </div>
 
           {/* Scale down the clock container so it fits the compact height perfectly */}
-          <div className="relative z-10 w-full h-full max-w-[130px] aspect-square flex items-center justify-center">
+          <div className="relative z-10 w-full h-full max-w-[110px] sm:max-w-[130px] aspect-square flex items-center justify-center">
             <MagicalClock />
           </div>
         </div>
@@ -216,7 +214,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           {/* 1. Revenue Today */}
           <div
             className="stat-card bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-800 group cursor-pointer !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
-            onClick={() => onNavigate?.('reports')}
+            onClick={() => navigate('/reports')}
           >
             <div className="stat-card-inner">
               <div className="space-y-0.5">
@@ -235,7 +233,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           {/* 2. Flow Monitor */}
           <div
             className="stat-card bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-800 group cursor-pointer !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
-            onClick={() => onNavigate?.('reports')}
+            onClick={() => navigate('/reports')}
           >
             <div className="stat-card-inner">
               <div className="space-y-0.5">
@@ -257,7 +255,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           {/* 3. Receivables */}
           <div
             className="stat-card bg-gradient-to-br from-emerald-500 via-teal-600 to-teal-800 group cursor-pointer shadow-emerald-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
-            onClick={() => onNavigate?.('customers')}
+            onClick={() => navigate('/customers')}
           >
             <div className="stat-card-inner">
               <div className="space-y-0.5">
@@ -271,7 +269,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           {/* 4. Payables */}
           <div
             className="stat-card bg-gradient-to-br from-rose-500 via-red-600 to-red-800 group cursor-pointer shadow-red-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
-            onClick={() => onNavigate?.('suppliers')}
+            onClick={() => navigate('/suppliers')}
           >
             <div className="stat-card-inner">
               <div className="space-y-0.5">
@@ -285,7 +283,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           {/* 5. Orders */}
           <div
             className="stat-card bg-gradient-to-br from-amber-500 via-orange-600 to-orange-800 group cursor-pointer shadow-orange-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
-            onClick={() => onNavigate?.('purchase-orders')}
+            onClick={() => navigate('/purchase-orders')}
           >
             <div className="stat-card-inner">
               <div className="space-y-0.5">
@@ -302,7 +300,7 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
               ? 'bg-gradient-to-br from-pink-600 to-rose-700 shadow-rose-500/20 ring-1 ring-white/20'
               : 'bg-gradient-to-br from-pink-500 to-fuchsia-700'
               }`}
-            onClick={() => onNavigate?.('inventory')}
+            onClick={() => navigate('/inventory')}
           >
             <div className="stat-card-inner">
               <div className="space-y-0.5">

@@ -86,7 +86,7 @@ export const getCustomerCreditStatus = (customer: Customer, newSaleTotal: number
 
 export const mapProduct = (item: any): Product => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   barcodeValue: item.barcode_value ?? item.barcodeValue ?? item.barcode,
   barcode: item.barcode ?? item.barcode_value ?? item.barcodeValue,
   isWeightBased: item.is_weight_based ?? item.isWeightBased,
@@ -108,7 +108,7 @@ export const mapProduct = (item: any): Product => ({
 
 export const mapCustomer = (item: any): Customer => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   priceTier: item.price_tier ?? item.priceTier,
   creditLimit: item.credit_limit ?? item.creditLimit,
   creditUsed: item.credit_used ?? item.creditUsed,
@@ -140,7 +140,7 @@ export function getAmountByMethod(sale: any, method: string): number {
 
 export const mapSale = (item: any): Sale => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   invoiceNumber: item.invoice_number ?? item.invoiceNumber,
   customerId: item.customer_id ?? item.customerId,
   customerName: item.customer_name ?? item.customerName,
@@ -169,7 +169,7 @@ export const mapSale = (item: any): Sale => ({
 
 export const mapUser = (item: any): User => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   canEditPrice: item.can_edit_price ?? item.canEditPrice,
   canGiveDiscount: item.can_give_discount ?? item.canGiveDiscount,
   canDeleteSale: item.can_delete_sale ?? item.canDeleteSale,
@@ -189,7 +189,7 @@ export const mapSettings = (item: any): AppSettings => {
   const s = item;
   return {
     id: s.id || SETTINGS_ID,
-    workspaceId: s.workspace_id || s.workspaceId,
+    workspaceId: '',
     // Core Identity
     storeName: s.store_name ?? s.storeName,
     storeAddress: s.store_address ?? s.storeAddress,
@@ -394,7 +394,7 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
 
 export const mapExpense = (item: any): Expense => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   paymentMethod: item.payment_method ?? item.paymentMethod,
   amount: item.amount ? Number(item.amount) : 0,
   date: item.date ? new Date(item.date) : new Date(),
@@ -406,7 +406,7 @@ export const mapExpense = (item: any): Expense => ({
 
 export const mapStockHistory = (item: any): StockHistory => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   productId: item.product_id ?? item.productId,
   changeQty: item.change_qty ?? item.changeQty,
   referenceId: item.reference_id ?? item.referenceId,
@@ -420,7 +420,7 @@ export const mapStockHistory = (item: any): StockHistory => ({
 
 export const mapDiscount = (item: any): Discount => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   validFrom: item.valid_from ? new Date(item.valid_from) : new Date(item.validFrom),
   validTo: item.valid_to ? new Date(item.valid_to) : new Date(item.validTo),
   validDays: item.valid_days ?? item.validDays,
@@ -431,7 +431,7 @@ export const mapDiscount = (item: any): Discount => ({
 
 export const mapPurchaseRecord = (item: any): PurchaseRecord => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   productId: item.product_id ?? item.productId,
   supplierId: item.supplier_id ?? item.supplierId,
   costPrice: item.cost_price ? Number(item.cost_price) : 0,
@@ -443,7 +443,7 @@ export const mapPurchaseRecord = (item: any): PurchaseRecord => ({
 
 export const mapProductBatch = (item: any): ProductBatch => ({
   ...item,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   productId: item.product_id ?? item.productId,
   batchNumber: item.batch_number ?? item.batchNumber,
   batchType: item.batch_type ?? item.batchType,
@@ -465,7 +465,6 @@ export const mapProductBatch = (item: any): ProductBatch => ({
 
 export const toRemoteProduct = (p: Partial<Product>) => {
   const remote: any = { ...p };
-  if ('workspaceId' in p) { remote.workspace_id = p.workspaceId; delete remote.workspaceId; }
   if ('barcodeValue' in p) { remote.barcode_value = p.barcodeValue; delete remote.barcodeValue; }
   if ('isWeightBased' in p) { remote.is_weight_based = p.isWeightBased; delete remote.isWeightBased; }
   if ('pricePerUnit' in p) { remote.price_per_unit = p.pricePerUnit; delete remote.pricePerUnit; }
@@ -493,7 +492,6 @@ export const toRemoteProduct = (p: Partial<Product>) => {
 
 export const toRemoteCustomer = (c: Partial<Customer>) => {
   const remote: any = { ...c };
-  if ('workspaceId' in c) { remote.workspace_id = c.workspaceId; delete remote.workspaceId; }
   if ('priceTier' in c) { remote.price_tier = c.priceTier; delete remote.priceTier; }
   if ('creditLimit' in c) { remote.credit_limit = c.creditLimit; delete remote.creditLimit; }
   if ('creditUsed' in c) { remote.credit_used = c.creditUsed; delete remote.creditUsed; }
@@ -508,7 +506,6 @@ export const toRemoteCustomer = (c: Partial<Customer>) => {
 
 export const toRemoteSupplier = (s: Partial<Supplier>) => {
   const remote: any = { ...s };
-  if ('workspaceId' in s) { remote.workspace_id = s.workspaceId; delete remote.workspaceId; }
   if ('paymentTerms' in s) { remote.payment_terms = s.paymentTerms; delete remote.paymentTerms; }
   if ('openingBalance' in s) { remote.opening_balance = s.openingBalance; delete remote.openingBalance; }
   if ('businessType' in s) { remote.business_type = s.businessType; delete remote.businessType; }
@@ -520,7 +517,6 @@ export const toRemoteSupplier = (s: Partial<Supplier>) => {
 
 export const toRemoteExpense = (e: Partial<Expense>) => {
   const remote: any = { ...e };
-  if ('workspaceId' in e) { remote.workspace_id = e.workspaceId; delete remote.workspaceId; }
   if ('paymentMethod' in e) { remote.payment_method = e.paymentMethod; delete remote.paymentMethod; }
   if ('storeType' in e) { remote.store_type = e.storeType; delete remote.storeType; }
   if ('addedBy' in e) { remote.added_by = (e as any).addedBy; delete remote.addedBy; }
@@ -534,7 +530,6 @@ export const toRemoteExpense = (e: Partial<Expense>) => {
 
 export const toRemoteSupplierTransaction = (t: any) => {
   const remote: any = { ...t };
-  if ('workspaceId' in t) { remote.workspace_id = t.workspaceId; delete remote.workspaceId; }
   if ('id' in t && t.id) remote.id = t.id;
   if ('supplierId' in t && t.supplierId !== undefined) remote.supplier_id = t.supplierId;
   if ('type' in t && t.type !== undefined) remote.type = t.type;
@@ -551,7 +546,6 @@ export const toRemoteSupplierTransaction = (t: any) => {
 
 export const toRemotePurchaseRecord = (r: any) => {
   const remote: any = { ...r };
-  if ('workspaceId' in r) { remote.workspace_id = r.workspaceId; delete remote.workspaceId; }
   if ('productId' in r) { remote.product_id = r.productId; delete remote.productId; }
   if ('productName' in r) { remote.product_name = r.productName; delete remote.productName; }
   if ('supplierId' in r) { remote.supplier_id = r.supplierId; delete remote.supplierId; }
@@ -569,7 +563,6 @@ export const toRemotePurchaseRecord = (r: any) => {
 
 export const toRemoteProductBatch = (b: any) => {
   const remote: any = { ...b };
-  if ('workspaceId' in b) { remote.workspace_id = b.workspaceId; delete remote.workspaceId; }
   if ('productId' in b) { remote.product_id = b.productId; delete remote.productId; }
   if ('batchNumber' in b) { remote.batch_number = b.batchNumber; delete remote.batchNumber; }
   if ('batchType' in b) { remote.batch_type = b.batchType; delete remote.batchType; }
@@ -592,7 +585,6 @@ export const toRemoteProductBatch = (b: any) => {
 
 export const toRemoteSale = (s: Partial<Sale>) => {
   const remote: any = { ...s };
-  if ('workspaceId' in s) { remote.workspace_id = s.workspaceId; delete remote.workspaceId; }
   if ('invoiceNumber' in s) { remote.invoice_number = s.invoiceNumber; delete remote.invoiceNumber; }
   if ('customerId' in s) { remote.customer_id = s.customerId; delete remote.customerId; }
   if ('customerName' in s) { remote.customer_name = s.customerName; delete remote.customerName; }
@@ -623,7 +615,6 @@ export const toRemoteSale = (s: Partial<Sale>) => {
 
 export const toRemoteStockHistory = (h: any) => {
   const remote: any = { ...h };
-  if ('workspaceId' in h) { remote.workspace_id = h.workspaceId; delete remote.workspaceId; }
   if ('productId' in h) { remote.product_id = h.productId; delete remote.productId; }
   if ('changeQty' in h) { remote.change_qty = h.changeQty; delete remote.changeQty; }
   if ('referenceId' in h) { remote.reference_id = h.referenceId; delete remote.referenceId; }
@@ -643,8 +634,6 @@ export const toRemoteStockHistory = (h: any) => {
 export const toRemotePayment = (p: any) => {
   const remote: any = {};
   if ('id' in p) remote.id = p.id;
-  if ('workspaceId' in p) remote.workspace_id = p.workspaceId;
-  if ('workspace_id' in p) remote.workspace_id = p.workspace_id;
   if ('customerId' in p) remote.customer_id = p.customerId;
   if ('customer_id' in p) remote.customer_id = p.customer_id;
   if ('supplierId' in p) remote.supplier_id = p.supplierId;
@@ -674,7 +663,7 @@ export const toRemotePayment = (p: any) => {
 
 export const mapPayment = (item: any): any => ({
   id: item.id,
-  workspaceId: item.workspace_id ?? item.workspaceId,
+  workspaceId: '',
   customerId: item.customer_id ?? item.customerId,
   supplierId: item.supplier_id ?? item.supplierId,
   amount: Number(item.amount),
@@ -925,7 +914,6 @@ export const customersService = {
       method,
       notes,
       createdAt: new Date(),
-      workspaceId: customer.workspaceId || localStorage.getItem('active_workspace_id') || undefined,
     };
     await localDb.payments.add(payment);
     await queueOp('payments', 'create', payId, toRemotePayment(payment));
@@ -981,7 +969,6 @@ export const usersService = {
       can_view_records: updated.canViewRecords,
       can_edit_sale: updated.canEditSale,
       avatar: updated.avatar || null,
-      workspace_id: updated.workspace_id,
       updated_at: new Date().toISOString()
     };
 
@@ -1018,7 +1005,6 @@ export const salesService = {
     customerId?: string,
     paymentMethod?: string,
     status?: string,
-    workspaceId?: string,
     cashier?: string,
     saleType?: string
   }): Promise<Sale[]> {
@@ -1029,7 +1015,6 @@ export const salesService = {
         .order('created_at', { ascending: false })
         .limit(200);
 
-      if (filters.workspaceId) query = query.eq('workspace_id', filters.workspaceId);
       if (filters.startDate) query = query.gte('created_at', filters.startDate.toISOString());
       if (filters.endDate) query = query.lte('created_at', filters.endDate.toISOString());
       if (filters.invoiceNumber) {
@@ -1048,9 +1033,6 @@ export const salesService = {
       console.warn("Cloud search failed, falling back to localDb", e);
       let sales = await localDb.sales.toArray();
       
-      if (filters.workspaceId) {
-        sales = sales.filter(s => s.workspaceId === filters.workspaceId || (s as any).workspace_id === filters.workspaceId);
-      }
       if (filters.startDate) sales = sales.filter(s => new Date(s.timestamp).getTime() >= filters.startDate!.getTime());
       if (filters.endDate) sales = sales.filter(s => new Date(s.timestamp).getTime() <= filters.endDate!.getTime());
       if (filters.invoiceNumber) {
@@ -1349,10 +1331,9 @@ export const salesService = {
     return affectedProducts;
   },
 
-  async getReportSalesLocal(workspaceId: string, startDate: Date, endDate: Date): Promise<Sale[]> {
+  async getReportSalesLocal(startDate: Date, endDate: Date): Promise<Sale[]> {
     return await localDb.sales
       .filter(s =>
-        (!workspaceId || s.workspaceId === workspaceId || (s as any).workspace_id === workspaceId) &&
         s.status !== 'refunded' &&
         s.status !== 'deleted' &&
         new Date(s.timestamp) >= startDate &&
@@ -1362,12 +1343,11 @@ export const salesService = {
       .sortBy('timestamp');
   },
 
-  async getReportSales(workspaceId: string, startDate: Date, endDate: Date): Promise<Sale[]> {
+  async getReportSales(startDate: Date, endDate: Date): Promise<Sale[]> {
     try {
       const { data, error } = await supabase
         .from('sales')
         .select('*')
-        .eq('workspace_id', workspaceId)
         .neq('status', 'refunded')
         .neq('status', 'deleted')
         .gte('created_at', startDate.toISOString())
@@ -1380,7 +1360,6 @@ export const salesService = {
       console.warn('getReportSales: fallback to localDb'); // fallback to localDb
       return await localDb.sales
         .filter(s =>
-          (!workspaceId || s.workspaceId === workspaceId || (s as any).workspace_id === workspaceId) &&
           s.status !== 'refunded' &&
           s.status !== 'deleted' &&
           new Date(s.timestamp) >= startDate &&
@@ -1391,10 +1370,9 @@ export const salesService = {
     }
   },
 
-  async getReportRefundsLocal(workspaceId: string, startDate: Date, endDate: Date): Promise<Sale[]> {
+  async getReportRefundsLocal(startDate: Date, endDate: Date): Promise<Sale[]> {
     return await localDb.sales
       .filter(s =>
-        (!workspaceId || s.workspaceId === workspaceId || (s as any).workspace_id === workspaceId) &&
         s.status === 'refunded' &&
         new Date(s.timestamp) >= startDate &&
         new Date(s.timestamp) <= endDate
@@ -1402,12 +1380,11 @@ export const salesService = {
       .toArray();
   },
 
-  async getReportRefunds(workspaceId: string, startDate: Date, endDate: Date): Promise<Sale[]> {
+  async getReportRefunds(startDate: Date, endDate: Date): Promise<Sale[]> {
     try {
       const { data, error } = await supabase
         .from('sales')
         .select('*')
-        .eq('workspace_id', workspaceId)
         .eq('status', 'refunded')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
@@ -1418,7 +1395,6 @@ export const salesService = {
       console.warn('getReportRefunds: fallback to localDb'); // fallback to localDb
       return await localDb.sales
         .filter(s =>
-          (!workspaceId || s.workspaceId === workspaceId || (s as any).workspace_id === workspaceId) &&
           s.status === 'refunded' &&
           new Date(s.timestamp) >= startDate &&
           new Date(s.timestamp) <= endDate
@@ -1778,7 +1754,7 @@ export const suppliersService = {
     if (error) throw error;
     return (data || []).map(item => ({
       ...item,
-      workspaceId: item.workspace_id ?? item.workspaceId,
+      workspaceId: '',
       creditLimit: item.credit_limit ?? item.creditLimit,
       openingBalance: item.opening_balance ?? item.openingBalance,
       createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt)
@@ -1899,22 +1875,20 @@ export const expensesService = {
     return (data || []).map(mapExpense);
   },
 
-  async getReportExpensesLocal(workspaceId: string, startDate: Date, endDate: Date): Promise<Expense[]> {
+  async getReportExpensesLocal(startDate: Date, endDate: Date): Promise<Expense[]> {
     return await localDb.expenses
       .filter(e =>
-        (!workspaceId || e.workspaceId === workspaceId || (e as any).workspace_id === workspaceId) &&
         new Date(e.date) >= startDate &&
         new Date(e.date) <= endDate
       )
       .toArray();
   },
 
-  async getReportExpenses(workspaceId: string, startDate: Date, endDate: Date): Promise<Expense[]> {
+  async getReportExpenses(startDate: Date, endDate: Date): Promise<Expense[]> {
     try {
       const { data, error } = await supabase
         .from('expenses')
         .select('*')
-        .eq('workspace_id', workspaceId)
         .gte('date', startDate.toISOString())
         .lte('date', endDate.toISOString())
         .order('date', { ascending: false });
@@ -1925,7 +1899,6 @@ export const expensesService = {
       console.warn('getReportExpenses: fallback to localDb'); // fallback to localDb
       return await localDb.expenses
         .filter(e =>
-          (!workspaceId || e.workspaceId === workspaceId || (e as any).workspace_id === workspaceId) &&
           new Date(e.date || e.createdAt) >= startDate &&
           new Date(e.date || e.createdAt) <= endDate
         )
@@ -2136,7 +2109,7 @@ export const supplierTransactionsService = {
     if (error) throw error;
     return (data || []).map((item: any) => ({
       ...item,
-      workspaceId: item.workspace_id ?? item.workspaceId,
+      workspaceId: '',
       supplierId: item.supplier_id ?? item.supplierId,
       referenceId: item.reference_id ?? item.referenceId,
       referenceType: item.reference_type ?? item.referenceType,
@@ -2236,7 +2209,7 @@ export const seedMissingBarcodes = async (): Promise<{ count: number; updated: s
 /** Map from Supabase row → Bundle object */
 export const mapBundle = (row: any): Bundle => ({
   id: row.id,
-  workspaceId: row.workspace_id,
+  workspaceId: '',
   name: row.name || '',
   description: row.description || '',
   discountValue: Number(row.discount_value) || 0,
@@ -2287,7 +2260,7 @@ function _isNetworkError(e: any): boolean {
 
 export const bundlesService = {
   /** Fetch all active bundles with their items */
-  async getAll(workspaceId: string, forceRemote: boolean = false): Promise<Bundle[]> {
+  async getAll(forceRemote: boolean = false): Promise<Bundle[]> {
     // Try local first if not forcing remote
     if (!forceRemote) {
       try {
@@ -2313,7 +2286,7 @@ export const bundlesService = {
 
             return {
               id: b.id,
-              workspaceId: b.workspaceId || b.workspace_id,
+              workspaceId: '',
               name: b.name || '',
               description: b.description || '',
               discountValue: Number(b.discountValue) || 0,
@@ -2342,7 +2315,6 @@ export const bundlesService = {
     const { data, error } = await supabase
       .from('bundles')
       .select('*, bundle_items(*), bundle_slots(*, bundle_slot_options(*))')
-      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
     if (error) throw error;
 
@@ -2359,7 +2331,7 @@ export const bundlesService = {
         if (bundles.length > 0) {
           await localDb.bundles.bulkPut(bundles.map((b: Bundle) => ({
             id: b.id,
-            workspaceId: b.workspaceId,
+            workspaceId: '',
             name: b.name,
             description: b.description,
             discountValue: b.discountValue,
@@ -2430,7 +2402,6 @@ export const bundlesService = {
     description?: string;
     discountValue: number;
     discountType: 'percentage' | 'fixed';
-    workspaceId: string;
     items?: { productId: string; quantity: number }[];
     slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string }[] }[];
     hideItemPrices?: boolean;
@@ -2475,7 +2446,6 @@ export const bundlesService = {
     // 1. Persist locally FIRST (offline-first)
     const bundleLocal = {
       id,
-      workspaceId: data.workspaceId,
       name: data.name.trim(),
       description: data.description || '',
       discountValue: data.discountValue,
@@ -2516,7 +2486,6 @@ export const bundlesService = {
     try {
       const { error } = await supabase.from('bundles').insert({
         id,
-        workspace_id: data.workspaceId,
         name: data.name.trim(),
         description: data.description || '',
         discount_value: data.discountValue,
@@ -2547,7 +2516,6 @@ export const bundlesService = {
       if (_isNetworkError(e)) {
         await queueOp('bundles', 'create', id, {
           id,
-          workspace_id: data.workspaceId,
           name: data.name.trim(),
           description: data.description || '',
           discount_value: data.discountValue,

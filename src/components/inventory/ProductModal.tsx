@@ -213,7 +213,6 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       variants: variants.map(({ name, options }) => ({ name, options })),
       variantData,
       modifiers,
-      workspaceId: state.currentUser?.workspace_id || state.settings.workspaceId || state.settings.id,
       createdAt: product?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -970,8 +969,8 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
               </div>
               
               {modifiers.map((mod, index) => (
-                <div key={index} className="flex gap-2 items-start p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
-                  <div className="flex-1 space-y-2">
+                <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
+                  <div className="flex-1 min-w-0 space-y-1.5 w-full">
                     <input
                       type="text"
                       placeholder="Add-on Name (e.g. Extra Cheese)"
@@ -981,7 +980,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                         newMods[index].name = e.target.value;
                         setModifiers(newMods);
                       }}
-                      className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500"
+                      className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium text-gray-900 dark:text-white"
                     />
                     {variants.length > 0 && variants.some(v => v.options.length > 0) && (
                       <select
@@ -991,7 +990,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                           newMods[index].variantName = e.target.value || undefined;
                           setModifiers(newMods);
                         }}
-                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500"
+                        className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium"
                       >
                         <option value="">Apply to all variants</option>
                         {variants.flatMap(v => v.options.map(opt => `${v.name}: ${opt}`)).map(opt => (
@@ -1000,25 +999,28 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                       </select>
                     )}
                   </div>
-                  <div className="relative w-1/3 shrink-0">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold">+</span>
-                    <input
-                      type="number"
-                      placeholder="Extra Price"
-                      value={mod.price || ''}
-                      onChange={(e) => {
-                        const newMods = [...modifiers];
-                        newMods[index].price = parseFloat(e.target.value) || 0;
-                        setModifiers(newMods);
-                      }}
-                      className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg pl-6 pr-3 py-2 focus:ring-1 focus:ring-blue-500"
-                    />
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-start">
+                    <div className="relative flex-1 sm:flex-none w-full sm:w-24">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold z-10">+</span>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={mod.price || ''}
+                        onChange={(e) => {
+                          const newMods = [...modifiers];
+                          newMods[index].price = parseFloat(e.target.value) || 0;
+                          setModifiers(newMods);
+                        }}
+                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-6 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                      />
+                    </div>
+                    <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0">
-                    <X className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
+
             </div>
           </div>
 

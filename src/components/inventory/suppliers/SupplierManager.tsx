@@ -75,7 +75,6 @@ export function SupplierManager() {
       } else {
         const created = await suppliersService.create({
           ...(formData as any),
-          workspaceId: state.currentUser?.workspace_id || state.settings.workspaceId || state.settings.id
         });
         dispatch({ type: 'SET_SUPPLIERS', payload: [...state.suppliers, created] });
 

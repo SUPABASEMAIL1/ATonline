@@ -562,33 +562,29 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 <Camera className="w-5 h-5" />
               </button>
 
-              {showImageMenu && (
-                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 bg-black/80" onClick={() => setShowImageMenu(false)}>
-                  <div
-                    className="bg-white dark:bg-[#1C1C1C] w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-[2.5rem] p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200 border border-gray-200 dark:border-white/5 shadow-2xl"
-                    onClick={e => e.stopPropagation()}
+              <Modal
+                isOpen={showImageMenu}
+                onClose={() => setShowImageMenu(false)}
+                title={t('change_image', 'Change Image')}
+                subtitle={t('choose_image_source', 'Choose image source')}
+                maxWidth="sm"
+              >
+                <div className="space-y-3">
+                  <button
+                    onClick={() => { setShowImageMenu(false); setShowMediaLibrary(true); }}
+                    className="w-full px-6 py-4 bg-blue-50 dark:bg-blue-900/10 text-blue-600 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all outline-none ring-1 ring-blue-500/20"
                   >
-                    <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tight text-center mb-2 text-balance">{t('change_image', 'Change Image')}</h3>
-                    <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest text-center mb-8">{t('choose_image_source', 'Choose image source')}</p>
+                    <Library className="w-5 h-5" />
+                    {t('pick_from_library', 'Pick from Library')}
+                  </button>
 
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => { setShowImageMenu(false); setShowMediaLibrary(true); }}
-                        className="w-full px-6 py-4 bg-blue-50 dark:bg-blue-900/10 text-blue-600 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all outline-none ring-1 ring-blue-500/20"
-                      >
-                        <Library className="w-5 h-5" />
-                        {t('pick_from_library', 'Pick from Library')}
-                      </button>
-
-                      <label className="w-full px-6 py-4 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all outline-none ring-1 ring-emerald-500/20 cursor-pointer">
-                        <ImageIcon className="w-5 h-5" />
-                        {t('upload_from_gallery', 'Upload from Gallery')}
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => { setShowImageMenu(false); handleFileSelect(e); }} />
-                      </label>
-                    </div>
-                  </div>
+                  <label className="w-full px-6 py-4 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all outline-none ring-1 ring-emerald-500/20 cursor-pointer">
+                    <ImageIcon className="w-5 h-5" />
+                    <span>{t('upload_from_gallery', 'Upload from Gallery')}</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { setShowImageMenu(false); handleFileSelect(e); }} />
+                  </label>
                 </div>
-              )}
+              </Modal>
             </div>
           </div>
 
@@ -1174,8 +1170,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                   </div>
                   
                   {modifiers.map((modifier, index) => (
-                    <div key={index} className="flex gap-2 items-start p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
-                      <div className="flex-1 space-y-2">
+                    <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
+                      <div className="flex-1 min-w-0 space-y-1.5 w-full">
                         <input
                           type="text"
                           placeholder={t('modifier_name_placeholder', 'Modifier Name')}
@@ -1185,7 +1181,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                             newModifiers[index].name = e.target.value;
                             setModifiers(newModifiers);
                           }}
-                          className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-blue-500 font-black"
+                          className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium text-gray-900 dark:text-white"
                         />
                         {variants.length > 0 && variants.some(v => v.options && v.options.length > 0) && (
                           <select
@@ -1195,7 +1191,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                               newModifiers[index].variantName = e.target.value || undefined;
                               setModifiers(newModifiers);
                             }}
-                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500"
+                            className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium"
                           >
                             <option value="">Apply to all variants</option>
                             {variants.flatMap(v => (v.options || []).map((opt: string) => `${v.name}: ${opt}`)).map(opt => (
@@ -1204,23 +1200,25 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                           </select>
                         )}
                       </div>
-                      <div className="relative w-1/3 shrink-0">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold">+</span>
-                        <input
-                          type="number"
-                          placeholder={t('price', 'Price')}
-                          value={modifier.price || ''}
-                          onChange={(e) => {
-                            const newModifiers = [...modifiers];
-                            newModifiers[index].price = parseFloat(e.target.value) || 0;
-                            setModifiers(newModifiers);
-                          }}
-                          className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg pl-6 pr-3 py-2 focus:ring-1 focus:ring-blue-500 font-black"
-                        />
+                      <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-start">
+                        <div className="relative flex-1 sm:flex-none w-full sm:w-24">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold z-10">+</span>
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={modifier.price || ''}
+                            onChange={(e) => {
+                              const newModifiers = [...modifiers];
+                              newModifiers[index].price = parseFloat(e.target.value) || 0;
+                              setModifiers(newModifiers);
+                            }}
+                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-6 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                          />
+                        </div>
+                        <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors">
-                        <X className="w-4 h-4" />
-                      </button>
                     </div>
                   ))}
                 </div>

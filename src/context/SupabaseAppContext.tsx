@@ -823,14 +823,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('theme', state.settings.theme || 'dark');
   }, [state.settings.theme]);
 
-  // Mirror active workspaceId for syncEngine safety net
-  useEffect(() => {
-    // Prefer profile workspace_id as it's the source of truth for RLS
-    const wsId = profile?.workspace_id || state.settings.workspaceId || state.settings.id;
-    if (wsId && wsId !== '00000000-0000-4000-8000-000000000001') {
-      localStorage.setItem('active_workspace_id', wsId);
-    }
-  }, [profile, state.settings.workspaceId, state.settings.id]);
+
 
 
 
@@ -851,7 +844,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const handleOffline = () => {
       console.log('[Realtime] Offline — disconnecting WebSocket.');
       if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current).catch(() => {});
+        supabase.removeChannel(subscriptionRef.current).catch(() => { });
         subscriptionRef.current = null;
         subscriptionsInitialized.current = false;
       }
@@ -859,7 +852,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const handleOnline = () => {
       console.log('[Realtime] Online — tearing down stale subscription for re-init.');
       if (subscriptionRef.current) {
-        supabase.removeChannel(subscriptionRef.current).catch(() => {});
+        supabase.removeChannel(subscriptionRef.current).catch(() => { });
         subscriptionRef.current = null;
       }
       subscriptionsInitialized.current = false;
@@ -881,31 +874,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Clean up any stale channel before re-init (e.g. after online reconnect)
     if (subscriptionRef.current) {
-      supabase.removeChannel(subscriptionRef.current).catch(() => {});
+      supabase.removeChannel(subscriptionRef.current).catch(() => { });
       subscriptionRef.current = null;
     }
 
     if (subscriptionsInitialized.current) return;
     subscriptionsInitialized.current = true;
 
-    // Get workspace_id for filtering — MUST be set before subscriptions init
-    const workspaceId = profile?.workspace_id ||
-      localStorage.getItem('active_workspace_id') ||
-      state.settings.workspaceId;
-
-    if (!workspaceId) {
-      console.warn('[Realtime] No workspace_id found — subscriptions will be UNFILTERED. This is a security risk.');
-    } else {
-      console.log(`[Realtime] Initializing workspace-scoped subscriptions for workspace: ${workspaceId}`);
-    }
-
-    // Helper: build filter string only when workspaceId is available
-    const wsFilter = (col: string = 'workspace_id') =>
-      workspaceId ? `${col}=eq.${workspaceId}` : undefined;
-
     const channel = supabase
-      .channel(`db-changes-${workspaceId || 'global'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .channel('db-changes-global')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           // Guard: Ignore updates for items pending local deletion
           if (await isPendingDelete('products', payload.new.id)) {
@@ -920,7 +898,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'DELETE_PRODUCT', payload: payload.old.id });
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('customers', payload.new.id)) return;
           const mapped = mapCustomer(payload.new);
@@ -931,7 +909,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'DELETE_CUSTOMER', payload: payload.old.id });
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, async (payload) => {
         if (payload.eventType === 'INSERT') {
           if (await isPendingDelete('sales', payload.new.id)) {
             console.log(`[Realtime] Blocking ghost sale: ${payload.new.id}`);
@@ -948,14 +926,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'DELETE_SALE', payload: payload.old.id });
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, async (payload) => {
         if (payload.eventType === 'UPDATE') {
           const mapped = mapSettings(payload.new);
           await localDb.appSettings.put(mapped);
           dispatch({ type: 'SET_SETTINGS', payload: mapped });
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_batches', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_batches' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('product_batches', payload.new.id)) return;
           await localDb.productBatches.put(payload.new);
@@ -966,7 +944,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.productBatches.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('expenses', payload.new.id)) return;
           const mapped = mapExpense(payload.new);
@@ -979,7 +957,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_EXPENSES', payload: all });
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('categories', payload.new.id)) return;
           await localDb.categories.put(payload.new);
@@ -989,7 +967,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.categories.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('suppliers', payload.new.id)) return;
           await localDb.suppliers.put(payload.new);
@@ -999,7 +977,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.suppliers.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'discounts', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'discounts' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('discounts', payload.new.id)) return;
           const mapped = mapDiscount(payload.new);
@@ -1010,7 +988,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.discounts.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_records', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_records' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('purchase_records', payload.new.id)) return;
           const mapped = mapPurchaseRecord(payload.new);
@@ -1021,7 +999,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.purchaseRecords.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('purchase_orders', payload.new.id)) return;
           await localDb.purchaseOrders.put(payload.new);
@@ -1031,7 +1009,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.purchaseOrders.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'supplier_transactions', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'supplier_transactions' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('supplier_transactions', payload.new.id)) return;
           await localDb.supplierTransactions.put(payload.new);
@@ -1041,7 +1019,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.supplierTransactions.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('payments', payload.new.id)) return;
           await localDb.payments.put(mapPayment(payload.new));
@@ -1051,7 +1029,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.payments.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_history', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_history' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('stock_history', payload.new.id)) return;
           await localDb.stockHistory.put(payload.new);
@@ -1061,7 +1039,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.stockHistory.delete(payload.old.id);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users', ...(wsFilter() ? { filter: wsFilter() } : {}) }, async (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('users', payload.new.id)) return;
           await localDb.users.put(payload.new);
@@ -1372,12 +1350,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const smartMerge = async (entity: string, remoteItems: any[], localTable: any) => {
           const entityOps = allPendingOps.filter(op => op.entity === entity);
-          
+
           // Build map: entityId -> merged pending payload (for updates/creates/upserts)
           const pendingPayloadMap = new Map<string, Record<string, any>>();
           const pendingDeleteIds = new Set<string>();
           const pendingCreateIds = new Set<string>();
-          
+
           for (const op of entityOps) {
             if (op.opType === 'delete') {
               pendingDeleteIds.add(op.entityId);
@@ -1430,7 +1408,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         // ── OTHER ENTITIES ──
         const mergedCustomers = await smartMerge('customers', customers, localDb.customers);
-        
+
         const allSales = await smartMerge('sales', sales, localDb.sales);
         const mergedSales = allSales
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -1461,111 +1439,123 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_PAYMENTS', payload: mergedPayments });
 
         // ── DESTRUCTIVE LOCAL WRITE (skipped if sync engine was busy) ──
+        let remoteBundles: Bundle[] = [];
         if (!syncEngineWasBusy) {
-        await localDb.transaction(
-          'rw',
-          localDb.products,
-          localDb.customers,
-          localDb.sales,
-          localDb.discounts,
-          localDb.users,
-          localDb.suppliers,
-          localDb.expenses,
-          localDb.purchaseRecords,
-          localDb.productBatches,
-          localDb.stockHistory,
-          localDb.payments,
-          localDb.pendingOps,
-          async () => {
-            // Helper for smart deletion to prevent race condition data loss
-            const processDeletions = async (table: any, mergedItems: any[], entityName: string) => {
-              const localItems = await table.toArray();
-              const mergedIds = new Set(mergedItems.map(i => i.id));
-              const pendingOps = await localDb.pendingOps.where('entity').equals(entityName).toArray();
-              const pendingIds = new Set(pendingOps.map(op => op.entityId));
-              const now = Date.now();
-              const fiveMinutes = 5 * 60 * 1000;
-              
-              const idsToDelete = localItems.filter((local: any) => {
-                const isAbsentFromRemote = !mergedIds.has(local.id);
-                const isAbsentFromPending = !pendingIds.has(local.id);
-                
-                // Parse createdAt / updatedAt safely
-                let lastModifiedTs = 0;
-                if (local.updatedAt) lastModifiedTs = new Date(local.updatedAt).getTime();
-                else if (local.createdAt) lastModifiedTs = new Date(local.createdAt).getTime();
-                else if (local.updated_at) lastModifiedTs = new Date(local.updated_at).getTime();
-                else if (local.created_at) lastModifiedTs = new Date(local.created_at).getTime();
-                
-                // If it doesn't have a timestamp, assume it's old enough, or if it's strictly older than 5 mins
-                const isOlderThan5Mins = lastModifiedTs === 0 || (now - lastModifiedTs > fiveMinutes);
-                
-                return isAbsentFromRemote && isAbsentFromPending && isOlderThan5Mins;
-              }).map((local: any) => local.id);
-              
-              if (idsToDelete.length > 0) {
-                console.log(`[loadData] Smart deleting ${idsToDelete.length} obsolete ${entityName} records`);
-                await table.bulkDelete(idsToDelete);
-              }
-            };
+          await localDb.transaction(
+            'rw',
+            localDb.products,
+            localDb.customers,
+            localDb.sales,
+            localDb.discounts,
+            localDb.users,
+            localDb.suppliers,
+            localDb.expenses,
+            localDb.purchaseRecords,
+            localDb.productBatches,
+            localDb.stockHistory,
+            localDb.payments,
+            localDb.pendingOps,
+            async () => {
+              // Helper for smart deletion to prevent race condition data loss
+              const processDeletions = async (table: any, mergedItems: any[], entityName: string) => {
+                const localItems = await table.toArray();
+                const mergedIds = new Set(mergedItems.map(i => i.id));
+                const pendingOps = await localDb.pendingOps.where('entity').equals(entityName).toArray();
+                const pendingIds = new Set(pendingOps.map(op => op.entityId));
+                const now = Date.now();
+                const fiveMinutes = 5 * 60 * 1000;
 
-            await processDeletions(localDb.products, mergedProducts, 'products');
-            if (mergedProducts.length > 0) await localDb.products.bulkPut(mergedProducts);
+                const idsToDelete = localItems.filter((local: any) => {
+                  const isAbsentFromRemote = !mergedIds.has(local.id);
+                  const isAbsentFromPending = !pendingIds.has(local.id);
 
-            await processDeletions(localDb.customers, mergedCustomers, 'customers');
-            if (mergedCustomers.length > 0) await localDb.customers.bulkPut(mergedCustomers);
+                  // Parse createdAt / updatedAt safely
+                  let lastModifiedTs = 0;
+                  if (local.updatedAt) lastModifiedTs = new Date(local.updatedAt).getTime();
+                  else if (local.createdAt) lastModifiedTs = new Date(local.createdAt).getTime();
+                  else if (local.updated_at) lastModifiedTs = new Date(local.updated_at).getTime();
+                  else if (local.created_at) lastModifiedTs = new Date(local.created_at).getTime();
 
-            await processDeletions(localDb.sales, mergedSales, 'sales');
-            if (mergedSales.length > 0) await localDb.sales.bulkPut(mergedSales);
+                  // If it doesn't have a timestamp, assume it's old enough, or if it's strictly older than 5 mins
+                  const isOlderThan5Mins = lastModifiedTs === 0 || (now - lastModifiedTs > fiveMinutes);
 
-            await processDeletions(localDb.discounts, mergedDiscounts, 'discounts');
-            if (mergedDiscounts.length > 0) await localDb.discounts.bulkPut(mergedDiscounts);
+                  return isAbsentFromRemote && isAbsentFromPending && isOlderThan5Mins;
+                }).map((local: any) => local.id);
 
-            await processDeletions(localDb.users, mergedUsers, 'users');
-            if (mergedUsers.length > 0) await localDb.users.bulkPut(mergedUsers);
+                if (idsToDelete.length > 0) {
+                  console.log(`[loadData] Smart deleting ${idsToDelete.length} obsolete ${entityName} records`);
+                  await table.bulkDelete(idsToDelete);
+                }
+              };
 
-            await processDeletions(localDb.suppliers, mergedSuppliers, 'suppliers');
-            if (mergedSuppliers.length > 0) await localDb.suppliers.bulkPut(mergedSuppliers);
+              await processDeletions(localDb.products, mergedProducts, 'products');
+              if (mergedProducts.length > 0) await localDb.products.bulkPut(mergedProducts);
 
-            await processDeletions(localDb.expenses, mergedExpenses, 'expenses');
-            if (mergedExpenses.length > 0) await localDb.expenses.bulkPut(mergedExpenses);
+              await processDeletions(localDb.customers, mergedCustomers, 'customers');
+              if (mergedCustomers.length > 0) await localDb.customers.bulkPut(mergedCustomers);
 
-            await processDeletions(localDb.purchaseRecords, mergedPurchaseRecords, 'purchase_records');
-            if (mergedPurchaseRecords.length > 0) await localDb.purchaseRecords.bulkPut(mergedPurchaseRecords);
+              await processDeletions(localDb.sales, mergedSales, 'sales');
+              if (mergedSales.length > 0) await localDb.sales.bulkPut(mergedSales);
 
-            await processDeletions(localDb.productBatches, allBatches, 'product_batches');
-            if (allBatches.length > 0) await localDb.productBatches.bulkPut(allBatches);
+              await processDeletions(localDb.discounts, mergedDiscounts, 'discounts');
+              if (mergedDiscounts.length > 0) await localDb.discounts.bulkPut(mergedDiscounts);
 
-            await processDeletions(localDb.stockHistory, remoteStockHistory, 'stock_history');
-            if (remoteStockHistory.length > 0) await localDb.stockHistory.bulkPut(remoteStockHistory);
+              await processDeletions(localDb.users, mergedUsers, 'users');
+              if (mergedUsers.length > 0) await localDb.users.bulkPut(mergedUsers);
 
-            await processDeletions(localDb.payments, mergedPayments, 'payments');
-            if (mergedPayments.length > 0) await localDb.payments.bulkPut(mergedPayments);
+              await processDeletions(localDb.suppliers, mergedSuppliers, 'suppliers');
+              if (mergedSuppliers.length > 0) await localDb.suppliers.bulkPut(mergedSuppliers);
+
+              await processDeletions(localDb.expenses, mergedExpenses, 'expenses');
+              if (mergedExpenses.length > 0) await localDb.expenses.bulkPut(mergedExpenses);
+
+              await processDeletions(localDb.purchaseRecords, mergedPurchaseRecords, 'purchase_records');
+              if (mergedPurchaseRecords.length > 0) await localDb.purchaseRecords.bulkPut(mergedPurchaseRecords);
+
+              await processDeletions(localDb.productBatches, allBatches, 'product_batches');
+              if (allBatches.length > 0) await localDb.productBatches.bulkPut(allBatches);
+
+              await processDeletions(localDb.stockHistory, remoteStockHistory, 'stock_history');
+              if (remoteStockHistory.length > 0) await localDb.stockHistory.bulkPut(remoteStockHistory);
+
+              await processDeletions(localDb.payments, mergedPayments, 'payments');
+              if (mergedPayments.length > 0) await localDb.payments.bulkPut(mergedPayments);
+            }
+          );
+          if (supplierTxData.length > 0) {
+            dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: supplierTxData });
+            await localDb.supplierTransactions.bulkPut(supplierTxData).catch(() => { });
           }
-        );
-        if (supplierTxData.length > 0) {
-          dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: supplierTxData });
-          await localDb.supplierTransactions.bulkPut(supplierTxData).catch(() => { });
-        }
 
-        // Load bundles from cloud
-        try {
-          const wsId = profile?.workspace_id || state.settings.workspaceId || state.settings.id;
-          if (wsId) {
-            const remoteBundles = await bundlesService.getAll(wsId, true);
+          // Load bundles from cloud
+          try {
+            remoteBundles = await bundlesService.getAll(true);
             dispatch({ type: 'SET_BUNDLES', payload: remoteBundles });
+            console.log(`[AppContext] Loaded ${remoteBundles.length} bundles from cloud`);
+          } catch (e) {
+            console.warn('[AppContext] Bundle cloud load failed, using local', e);
           }
-        } catch (e) {
-          console.warn('[AppContext] Bundle cloud load failed, using local', e);
-        }
 
-        await seedLocalDb({
-          products, customers, sales, discounts, users: usersList,
-          salesTabs: salesTabs as SalesTab[], settings,
-          expenses, purchaseRecords, categories: categoriesData,
-          suppliers: suppliersData, productBatches: allBatches,
-          supplierTransactions: supplierTxData
-        });
+          await seedLocalDb({
+            products, customers, sales, discounts, users: usersList,
+            salesTabs: salesTabs as SalesTab[], settings,
+            expenses, purchaseRecords, categories: categoriesData,
+            suppliers: suppliersData, productBatches: allBatches,
+            supplierTransactions: supplierTxData,
+            bundles: remoteBundles,
+            bundleItems: remoteBundles.reduce((acc: any[], b: Bundle) => {
+              if (b.items) acc.push(...b.items);
+              return acc;
+            }, []),
+            bundleSlots: remoteBundles.reduce((acc: any[], b: Bundle) => {
+              if (b.slots) acc.push(...b.slots);
+              return acc;
+            }, []),
+            bundleSlotOptions: remoteBundles.reduce((acc: any[], b: Bundle) => {
+              if (b.slots) b.slots.forEach((s: any) => { if (s.options) acc.push(...s.options); });
+              return acc;
+            }, []),
+          });
         } // end if (!syncEngineWasBusy)
 
         // ── ADDITIVE RECONCILIATION: Only add offline-created records that weren't in the cloud set ──
@@ -1597,21 +1587,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           console.error('[loadData] Additive reconciliation failed (non-fatal):', reconErr);
         }
 
-        if (!silent) {
-          dispatch({
-            type: 'SET_SYNC_PROGRESS',
-            payload: {
-              status: 'System ready!',
-              current: totalSteps,
-              total: totalSteps,
-              size: (totalBytes / 1024).toFixed(1) + ' KB'
-            }
-          });
-          setTimeout(() => dispatch({ type: 'SET_SYNC_PROGRESS', payload: null }), 1000);
-        }
-        const remainingAfterFetch = await localDb.pendingOps.count();
-        if (remainingAfterFetch === 0) {
-          console.log('✅ Full Sync Complete.');
+          if (!silent) {
+            const bundleStatus = remoteBundles.length > 0
+              ? ` | ${remoteBundles.length} bundles restored`
+              : '';
+            dispatch({
+              type: 'SET_SYNC_PROGRESS',
+              payload: {
+                status: `System ready!${bundleStatus}`,
+                current: totalSteps,
+                total: totalSteps,
+                size: (totalBytes / 1024).toFixed(1) + ' KB'
+              }
+            });
+            setTimeout(() => dispatch({ type: 'SET_SYNC_PROGRESS', payload: null }), 1000);
+          }
+          const remainingAfterFetch = await localDb.pendingOps.count();
+          if (remainingAfterFetch === 0) {
+            console.log(`✅ Full Sync Complete. ${remoteBundles.length > 0 ? `${remoteBundles.length} bundles restored` : ''}`);
         } else {
           console.log(`📋 Background fetch done (${remainingAfterFetch} pending ops still in queue).`);
         }

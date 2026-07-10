@@ -206,7 +206,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                         sku: payload.sku || local.sku,
                         price: payload.price !== undefined ? payload.price : local.price,
                         category: payload.category || local.category,
-                        workspace_id: payload.workspace_id || local.workspaceId || local.workspace_id
+                        workspace_id: ''
                     };
                 }
             }
@@ -220,7 +220,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                     payload = {
                         ...payload,
                         name: payload.name || local.name,
-                        workspace_id: payload.workspace_id || local.workspaceId || local.workspace_id
+                        workspace_id: ''
                     };
                 }
             }
@@ -234,7 +234,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                     payload = {
                         ...payload,
                         name: payload.name || local.name,
-                        workspace_id: payload.workspace_id || local.workspaceId || local.workspace_id
+                        workspace_id: ''
                     };
                 }
             }
@@ -249,7 +249,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                         ...payload,
                         batch_number: payload.batch_number || local.batchNumber,
                         product_id: payload.product_id || local.productId,
-                        workspace_id: payload.workspace_id || local.workspaceId || local.workspace_id
+                        workspace_id: ''
                     };
                 }
             }
@@ -476,29 +476,6 @@ async function executeOp(op: PendingOp): Promise<void> {
                 }
                 
                 if (healed) throw error; // Throw so it retries on the next tick with the nullified/re-assigned payload
-            
-            // Handle RLS Policy violations (If we get 403 or RLS error, try to heal workspace context once before dropping)
-            if (error.code === '42501' || error.code === '403' || errStr.includes('row-level security') || errStr.includes('rls') || errStr.includes('forbidden')) {
-                const storedWs = localStorage.getItem('active_workspace_id');
-                
-                // If the payload has the WRONG workspace_id (like the fallback ID), correct it and retry
-                if (storedWs && payload && payload.workspace_id !== storedWs) {
-                    console.warn(`[SyncEngine] RLS Violation: workspace_id mismatch for ${op.entity}. Correcting from ${payload.workspace_id} to ${storedWs} and retrying...`);
-                    const updatedPayload = { ...payload, workspace_id: storedWs };
-                    if (op.id) {
-                        await localDb.pendingOps.update(op.id, { payload: updatedPayload });
-                    }
-                    throw error; // Throw to trigger immediate retry with fixed payload
-                }
-
-                // If it still fails, it's a true permission error or the corrected ID is also wrong
-                console.error(`[SyncEngine] CRITICAL RLS Policy Violation for ${op.entity} (ID: ${entityId}). Record is NOT authorized for current user.`);
-                if (op.id) await localDb.pendingOps.update(op.id, { 
-                    status: 'error', 
-                    errorMessage: `Permission Denied: User not authorized to save to workspace ${storedWs || 'unknown'}.` 
-                });
-                return; 
-            }
 
             // RPC Missing Error (PGRST202 or 404 with missing function message)
             if (error.code === 'PGRST202' || errStr.includes('Could not find the function')) {
