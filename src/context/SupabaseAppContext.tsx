@@ -838,6 +838,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const subscriptionRef = useRef<any>(null);
   const subscriptionsInitialized = useRef(false);
+  const userRef = useRef(user);
+  const profileRef = useRef(profile);
+  userRef.current = user;
+  profileRef.current = profile;
 
   // Disconnect/reconnect realtime WebSocket on offline/online to prevent ERR_NAME_NOT_RESOLVED storm
   useEffect(() => {
@@ -1058,7 +1062,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           subscriptionsInitialized.current = false;
           subscriptionRef.current = null;
           retryTimer = setTimeout(() => {
-            if (user && profile && !subscriptionsInitialized.current && !subscriptionRef.current) {
+            if (userRef.current && profileRef.current && !subscriptionsInitialized.current && !subscriptionRef.current) {
               setReconnectTrigger(prev => prev + 1);
             }
           }, 5000);

@@ -222,6 +222,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // ── RE-ENABLE AUTH INIT AFTER SETUP ─────────────────────────────────────
+    // The retry-storm guard (_initCalled = true) prevents the auth client from
+    // making network calls during initial mount, but it also blocks token refresh.
+    // Once the session is read from localStorage and the listener is wired up,
+    // re-enable full auth init so Supabase can manage token lifecycle properly.
+    // Without this, an expired session token would cause all subsequent API calls
+    // to fail 401, and the token would never be refreshed.
+    if (navigator.onLine) {
+      enableFullAuthInit();
+    }
+
     return () => {
       subscription.unsubscribe();
       clearInterval(expiryTimer);

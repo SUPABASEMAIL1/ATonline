@@ -76,6 +76,8 @@ export function SyncStatusBadge() {
     }
 
     // 3. Pending Sync Changes (Amber/Orange)
+    const { state } = useApp();
+
     if (pendingCount > 0) {
         if (isRetrying) {
             return (
@@ -84,7 +86,7 @@ export function SyncStatusBadge() {
                         onClick={() => setShowManager(true)}
                         style={{ minHeight: 'unset' }}
                         className="flex items-center justify-center gap-1 sm:gap-1.5 flex-shrink-0 w-9 h-9 min-h-0 sm:w-auto sm:h-fit p-0 sm:px-2 sm:py-1 rounded-xl sm:rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:amber-400 border border-amber-300 dark:border-amber-500/40 shadow-sm transition-all relative"
-                        title="Some items are struggling to sync, actively retrying in background... Click to view queue."
+                        title={`${pendingCount} changes struggling to sync — last sync: ${lastSyncTime ? formatAppDateTime(lastSyncTime, state.settings.country) : 'never'}. Click to view queue.`}
                     >
                         <RefreshCw className="h-5 w-5 sm:h-3 sm:w-3 animate-spin" />
                         <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 flex sm:hidden items-center justify-center bg-amber-500 text-white rounded-full text-[9px] font-black shadow-sm">
@@ -103,7 +105,7 @@ export function SyncStatusBadge() {
                     onClick={() => setShowManager(true)}
                     style={{ minHeight: 'unset' }}
                     className="flex items-center justify-center gap-1 sm:gap-1.5 flex-shrink-0 w-9 h-9 min-h-0 sm:w-auto sm:h-fit p-0 sm:px-2 sm:py-1 rounded-xl sm:rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 shadow-sm hover:scale-105 active:scale-95 transition-all group relative"
-                    title={`${pendingCount} changes waiting to sync. Click to view queue and manage.`}
+                    title={`${pendingCount} changes waiting to sync — last sync: ${lastSyncTime ? formatAppDateTime(lastSyncTime, state.settings.country) : 'never'}. Click to view queue.`}
                 >
                     <Cloud className="h-5 w-5 sm:h-3 sm:w-3 animate-bounce" />
                     <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 flex sm:hidden items-center justify-center bg-amber-500 text-white rounded-full text-[9px] font-black shadow-sm">
@@ -116,6 +118,11 @@ export function SyncStatusBadge() {
                         <span className="h-3.5 min-w-[14px] px-1 flex items-center justify-center bg-amber-500 text-white rounded-full text-[8px] font-black">
                             {pendingCount}
                         </span>
+                        {lastSyncTime && (
+                            <span className="text-[8px] font-mono opacity-60 bg-primary/10 px-1 rounded-sm border border-primary/20">
+                                {formatAppTime(lastSyncTime, state.settings.country, false)}
+                            </span>
+                        )}
                     </div>
                 </button>
                 {showManager && <SyncQueueManager onClose={() => setShowManager(false)} />}
@@ -124,8 +131,6 @@ export function SyncStatusBadge() {
     }
 
     // 4. Fully Synced State (Green)
-    const { state } = useApp();
-    
     return (
         <>
             <button

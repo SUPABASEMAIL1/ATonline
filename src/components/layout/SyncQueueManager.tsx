@@ -17,9 +17,21 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
     const [loading, setLoading] = useState(false);
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
+    const [authError, setAuthError] = useState(false);
+
     const refresh = async () => {
         const all = await localDb.pendingOps.toArray();
         setOps(all.sort((a, b) => b.createdAt - a.createdAt));
+        // Check if ops are stuck due to auth errors
+        const hasAuthErrors = all.some(op =>
+            op.lastError && (
+                op.lastError.toLowerCase().includes('401') ||
+                op.lastError.toLowerCase().includes('jwt') ||
+                op.lastError.toLowerCase().includes('unauthorized') ||
+                op.lastError.toLowerCase().includes('token expired')
+            )
+        );
+        setAuthError(hasAuthErrors);
     };
 
     useEffect(() => {
@@ -200,7 +212,15 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                         <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest mt-2 max-w-[200px] leading-relaxed">{t('all_mirrored', 'All local mutations are mirrored in global matrix.')}</p>
                     </div>
                 ) : (
-                    <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1.5 custom-scrollbar min-h-[120px]">
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1.5 custom-scrollbar min-h-[120px]">
+                        {authError && (
+                            <div className="flex items-start gap-2 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                                <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                                <div className="text-[9px] font-bold text-rose-600 dark:text-rose-400 leading-relaxed">
+                                    Auth session issue detected — tokens may be expired. Click <strong>FORCE RE-SYNC</strong> to refresh session and retry.
+                                </div>
+                            </div>
+                        )}
                         <div className="flex items-center justify-between mb-2 sticky top-0 bg-white dark:bg-surface z-10 py-1">
                             <p className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em]">
                                 {groupCount > 0

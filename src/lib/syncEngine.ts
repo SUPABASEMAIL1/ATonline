@@ -680,6 +680,24 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                     const errorMsg = err.message || JSON.stringify(err);
                     console.error(`[POS SYNC] ERROR: ${op.entity}/${op.entityId}`, errorMsg);
 
+                    // Check for auth/JWT errors — re-enable auth init instead of stacking retries
+                    const isAuthError = errorMsg.toLowerCase().includes('401') ||
+                                       errorMsg.toLowerCase().includes('jwt') ||
+                                       errorMsg.toLowerCase().includes('unauthorized') ||
+                                       errorMsg.toLowerCase().includes('token expired') ||
+                                       errorMsg.toLowerCase().includes('bearer') ||
+                                       err?.status === 401;
+
+                    if (isAuthError) {
+                        console.warn('[POS SYNC] Auth error detected — re-enabling auth init to refresh session.');
+                        enableFullAuthInit();
+                        // Don't enter offline mode or stack retries for auth errors
+                        const newRetries = (op.retries || 0) + 1;
+                        await localDb.pendingOps.update(op.id!, { retries: newRetries, lastError: errorMsg });
+                        window.dispatchEvent(new Event('pendingops-changed'));
+                        continue;
+                    }
+
                     // Check for network errors - if offline, don't increment retries or mark as failed
                     const isNetworkError = !navigator.onLine || 
                                          errorMsg.toLowerCase().includes('fetch') || 
