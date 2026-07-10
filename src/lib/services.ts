@@ -281,6 +281,7 @@ export const mapSettings = (item: any): AppSettings => {
     posGridColumns: s.pos_grid_columns ?? s.posGridColumns ?? 4,
     enableSplitPayment: s.enable_split_payment ?? s.enableSplitPayment ?? false,
     enableExtraCharges: s.enable_extra_charges ?? s.enableExtraCharges ?? false,
+    enableKotPrinter: s.enable_kot_printer ?? s.enableKotPrinter ?? false,
 
     createdAt: s.created_at ? new Date(s.created_at) : (s.createdAt ? new Date(s.createdAt) : new Date()),
     updatedAt: s.updated_at ? new Date(s.updated_at) : (s.updatedAt ? new Date(s.updatedAt) : new Date())
@@ -379,6 +380,7 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('posGridColumns' in s) { remote.pos_grid_columns = s.posGridColumns; }
   if ('enableSplitPayment' in s) { remote.enable_split_payment = s.enableSplitPayment; }
   if ('enableExtraCharges' in s) { remote.enable_extra_charges = s.enableExtraCharges; }
+  if ('enableKotPrinter' in s) { remote.enable_kot_printer = s.enableKotPrinter; }
 
   if ('updatedAt' in s) {
     remote.updated_at = s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt;

@@ -74,7 +74,8 @@ Whenever ANY change to database structure:
      -d "$SQL_JSON"
    ```
 4. **Sync Local DB**: Update `src/lib/localDb.ts`
-5. **Log & Document**: Add comment at top of migration file + entry in GEMINI.md Schema Change Log
+5. **Update setup.md**: Sync `docs/setup.md` with the change (add column to post-launch table, update checklist, etc.)
+6. **Log & Document**: Add comment at top of migration file + entry in GEMINI.md Schema Change Log
 
 ---
 
@@ -143,6 +144,7 @@ For every large or multi-step task, create a `todo.md` file in the project root 
 Whenever a task is completed:
 1. Document the exact files created/modified in a "Link Tree" format at the end of your response.
 2. If ANY database schema (SQL, localDb) or data types (`types/index.ts`) were changed, add a log entry to the **SCHEMA CHANGE LOG** in `GEMINI.md`.
+3. If a new setting/column was added, verify `docs/setup.md` and `supabase/schema/SUPER_MASTER_SCHEMA.sql` reflect the current state.
 
 ---
 
@@ -178,4 +180,5 @@ When user pastes any error:
 |-----|---------|
 | [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) | Supabase Management API — all DB ops via `sbp_` token |
 | [GEMINI.md](GEMINI.md) | Master rules, financial integrity, migration rules |
+| [docs/setup.md](docs/setup.md) | Complete setup guide (fresh project + existing DB sync) — keep updated with every change |
 | [docs/UI_RULES.md](docs/UI_RULES.md) | UI styling and design rules (must read before UI work) |

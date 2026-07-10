@@ -4,6 +4,7 @@ import { Sale, SplitPayment, CartItem } from '../../types';
 import { useApp, useInvoiceGeneration } from '../../context/SupabaseAppContext';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { useAuth } from '../../context/AuthContext';
+import { KOTPrint } from './KOTPrint';
 import { ReceiptPrint } from './ReceiptPrint';
 import { salesService, generateId, getCustomerCreditStatus, toRemoteSale } from '../../lib/services';
 import { localDb, queueOp } from '../../lib/localDb';
@@ -358,10 +359,13 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
   if (showReceipt && completedSale) {
     return (
-      <ReceiptPrint
-        sale={completedSale}
-        onClose={() => { setShowReceipt(false); setCompletedSale(null); onClose(); }}
-      />
+      <>
+        <ReceiptPrint
+          sale={completedSale}
+          onClose={() => { setShowReceipt(false); setCompletedSale(null); onClose(); }}
+        />
+        {state.settings.enableKotPrinter && <KOTPrint sale={completedSale} />}
+      </>
     );
   }
 
