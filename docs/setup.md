@@ -116,6 +116,105 @@ npm run build
 
 ---
 
+## 🟣 Post-Deployment Verification Checklist
+
+Run these checks after setup to confirm everything works.
+
+### 1. Supabase DB — Column Check
+
+```bash
+# Check a specific column exists (replace table_name + column_name)
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT column_name FROM information_schema.columns WHERE table_name = '\''app_settings'\'' AND column_name = '\''enable_kot_printer'\''"}'
+```
+
+**Key columns to verify:** enable_kot_printer, enable_split_payment, enable_extra_charges, allow_credit_over_limit, pos_grid_columns, variant_data, modifiers, split_payments, extra_charges
+
+### 2. Supabase DB — Realtime Publication
+
+```bash
+# Check realtime has all tables
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT tablename FROM pg_publication_tables WHERE pubname = '\''supabase_realtime'\'' ORDER BY tablename"}'
+```
+
+**Expected output (21 tables):**
+```
+app_settings, bundles, bundle_items, bundle_slots, bundle_slot_options,
+categories, customers, discounts, expenses, payments,
+product_batches, products, purchase_order_items, purchase_orders,
+purchase_records, sales, sales_tabs, stock_history,
+supplier_transactions, suppliers, users
+```
+
+### 3. Supabase DB — Functions
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT proname FROM pg_proc WHERE pronamespace = '\''public'\''::regnamespace ORDER BY proname"}'
+```
+
+**Expected (12 functions):** audit_missing_purchase_cost, audit_stock_integrity, auto_generate_invoice_number, generate_invoice_number, generate_po_number, get_email_by_username, get_my_workspace_id, handle_new_user, process_return, process_sale, resolve_login_email, update_customer_stats
+
+### 4. Supabase DB — Grants
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT grantee, table_name, privilege_type FROM information_schema.table_privileges WHERE table_schema = '\''public'\'' AND grantee = '\''anon'\'' ORDER BY table_name"}'
+```
+
+All tables should have INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER for `anon`.
+
+### 5. Supabase DB — Seed Data
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT id FROM app_settings"}'
+```
+
+Should return exactly 1 row: `00000000-0000-4000-8000-000000000001`.
+
+### 6. App — Build Check
+
+```bash
+npm run build
+# Should complete without errors
+```
+
+### 7. App — Dashboard Load
+
+- Open the deployed URL
+- Sign in with admin credentials
+- Check: POS loads, Settings page opens, Products page loads
+- Check browser console for 404 errors (static files on sub-routes)
+
+### 8. App — Realtime Sync
+
+- Open two browser tabs side-by-side
+- Make a sale in one tab
+- Verify the other tab updates within 2-3 seconds (realtime subscription must be active)
+- Test offline: disconnect WiFi, make a sale, reconnect — should sync
+
+### 9. App — KOT Printing (if enabled)
+
+- Enable `enableKotPrinter` in Settings → Receipt & Printer → Enable KOT
+- Complete a sale in POS
+- After the receipt print, a **KOT (Kitchen Order Ticket)** should print automatically (500ms delay)
+- KOT shows: item names, quantities, variants, modifiers, invoice number, sale type, cashier name
+- KOT prints via browser print dialog (or Electron API in desktop app)
+
+---
+
 ## 🟡 Existing Project Sync
 
 > Use this when the live DB is out of sync with the master schema.
@@ -330,6 +429,24 @@ When adding a DB change:
 1. ✅ Already applied: all asset paths now absolute
 2. Background color applied inline in `<head>` (before CSS loads) — already done
 3. If auth flash persists, check `SupabaseAppContext.tsx` for session recovery logic
+
+### KOT (Kitchen Order Ticket) Printing
+
+**Kya hai?** KOT ek alag print hota hai jo sale complete hone ke baad kitchen ke liye order items print karta hai. Customer receipt se alag hota hai — prices nahi dikhte, sirf items, quantity, variants, modifiers.
+
+**Kab print hoga?** Jab bhi sale complete hoti hai POS mein:
+1. Pehle `ReceiptPrint` trigger hota hai (customer copy)
+2. 500ms baad `KOTPrint` trigger hota hai — kitchen copy
+3. Browser ka native print dialog khulta hai (ya Electron API in desktop app)
+
+**Kya dikhta hai?** Invoice number, sale type (retail/wholesale), cashier name, items with qty, variants, modifiers. Format thermal printer ke liye optimized hai (80mm width, monospace, bold).
+
+**Kaam kyun nahi kar raha tha?** 3 bugs the:
+1. `CheckoutPage.tsx` (main POS flow) mein `KOTPrint` import hi nahi tha — sirf deprecated `CheckoutModal` mein tha
+2. `services.ts` mein `mapSettings()` aur `toRemoteSettings()` dono mein `enableKotPrinter` missing tha — setting cloud se sync nahi hoti thi
+3. `constants.ts` mein `TABLE_COLUMNS` mein `enable_kot_printer` missing tha — sync engine transmit nahi karta tha
+
+**Ab sab fix ho chuka hai.** Enable karo Settings → Receipt & Printer → Enable KOT, phir sale karo — print aana chahiye.
 
 ### `enable_kot_printer` checkbox shows solid black square
 
