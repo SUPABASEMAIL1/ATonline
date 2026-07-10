@@ -705,7 +705,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                     "flex items-start gap-2.5 p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/5",
                     isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
                   )}>
-                    <div className="h-9 w-9 rounded-lg bg-white dark:bg-surface border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 mt-0.5">
+                    <div className="h-9 w-9 rounded-lg bg-white dark:bg-surface border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 mt-0.5 aspect-square">
                       {item.product.image ? (
                         <img src={item.product.image} className="h-full w-full object-cover" />
                       ) : (

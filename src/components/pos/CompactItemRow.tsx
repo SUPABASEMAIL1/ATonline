@@ -49,7 +49,7 @@ export function CompactItemRow({
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
     >
-      <div className={`${sizeMap[imageSize]} rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center`}>
+      <div className={`${sizeMap[imageSize]} rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center aspect-square`}>
         {image ? (
           <img src={image} alt={name} className="w-full h-full object-cover" />
         ) : (

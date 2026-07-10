@@ -173,7 +173,7 @@ export function ComboSelectionModal({
                           : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.02]'
                       }`}
                     >
-                      <div className="h-10 w-10 bg-gray-100 dark:bg-white/10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
+                      <div className="h-10 w-10 bg-gray-100 dark:bg-white/10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden aspect-square">
                         {product.image ? (
                           <img src={product.image} className="h-full w-full object-cover" alt={product.name} />
                         ) : (

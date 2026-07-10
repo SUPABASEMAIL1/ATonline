@@ -117,17 +117,19 @@ export function LoginPage() {
                     type="text"
                     value={credentials.email}
                     onChange={(e) => setCredentials(prev => ({ ...prev, email: e.target.value }))}
-                    className="input pl-10 pr-16 h-11 dark:bg-white/5 dark:border-white/10 dark:text-white"
+                    className="input pl-10 pr-[68px] h-11 dark:bg-white/5 dark:border-white/10 dark:text-white"
                     placeholder="Enter your email or username"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => handlePaste('email')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[10px] font-bold text-gray-400 hover:text-primary dark:text-gray-500 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider"
-                  >
-                    PASTE
-                  </button>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => handlePaste('email')}
+                      className="px-2 py-1 text-[10px] font-bold text-gray-400 hover:text-primary dark:text-gray-500 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider"
+                    >
+                      PASTE
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -202,17 +204,19 @@ export function LoginPage() {
                     type="email"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    className="input pl-10 pr-16 h-11 dark:bg-white/5 dark:border-white/10 dark:text-white"
+                    className="input pl-10 pr-[68px] h-11 dark:bg-white/5 dark:border-white/10 dark:text-white"
                     placeholder="Enter your registered email"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={handlePasteReset}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[10px] font-bold text-gray-400 hover:text-primary dark:text-gray-500 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider"
-                  >
-                    PASTE
-                  </button>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                    <button
+                      type="button"
+                      onClick={handlePasteReset}
+                      className="px-2 py-1 text-[10px] font-bold text-gray-400 hover:text-primary dark:text-gray-500 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider"
+                    >
+                      PASTE
+                    </button>
+                  </div>
                 </div>
               </div>
 

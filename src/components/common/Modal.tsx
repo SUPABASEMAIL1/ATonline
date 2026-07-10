@@ -80,7 +80,7 @@ export function Modal({
   if (!render) return null;
 
   const modalContent = (
-    <div ref={containerRef} data-modal="true" className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+    <div ref={containerRef} data-modal="true" className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-6 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
       {/* Backdrop */}
       <div 
         className={`absolute inset-0 bg-[rgba(15,23,42,0.6)] dark:bg-[rgba(0,0,0,0.75)] transition-opacity duration-250 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
@@ -93,7 +93,7 @@ export function Modal({
           "relative flex flex-col w-full sm:w-[90vw] bg-surface border-default border",
           "rounded-3xl shadow-2xl overflow-hidden",
           maxWidthClasses[maxWidth],
-          "max-h-[calc(100dvh-2.5rem)] sm:max-h-[90dvh]",
+            "max-h-[calc(100dvh-2.5rem-env(safe-area-inset-top))] sm:max-h-[calc(90dvh-env(safe-area-inset-top))]",
           "transition-all duration-250 ease-out",
           isOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-4 scale-95 opacity-0',
           className

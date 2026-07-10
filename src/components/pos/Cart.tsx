@@ -562,7 +562,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 <div key={`cart-bundle-${b.bundleId}`} className="px-2 py-1.5 mx-2 mb-1 rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[0.01] animate-in fade-in duration-200">
                   <div className="flex items-center gap-1.5">
                     {/* Thumbnail */}
-                    <div className="w-9 h-9 rounded-lg overflow-hidden bg-violet-100 dark:bg-violet-900/20 shrink-0 flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-lg overflow-hidden bg-violet-100 dark:bg-violet-900/20 shrink-0 flex items-center justify-center aspect-square">
                       {bundleImage(b) ? (
                         <img src={bundleImage(b)!} alt={b.bundleName} className="w-full h-full object-cover" />
                       ) : (
@@ -1011,7 +1011,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
       <div className="flex items-center gap-1.5">
         {/* Thumbnail (not for nested items) */}
         {!isNested && (
-          <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center self-start mt-0.5">
+          <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center self-start mt-0.5 aspect-square">
             {item.product.image ? (
               <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
             ) : (

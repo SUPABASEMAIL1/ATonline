@@ -474,7 +474,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                             "flex items-center gap-3 bg-white dark:bg-white/5 p-2 rounded-2xl border border-gray-50 dark:border-white/5 shadow-sm",
                             isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
                           )}>
-                            <div className="h-10 w-10 bg-gray-100 dark:bg-black/20 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/10">
+                            <div className="h-10 w-10 bg-gray-100 dark:bg-black/20 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/10 aspect-square">
                               {item.product.image ? (
                                 <img src={item.product.image} className="h-full w-full object-cover" />
                               ) : (
