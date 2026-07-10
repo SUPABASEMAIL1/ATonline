@@ -125,6 +125,15 @@
 --   3. useSync.ts — removed HEAD ping (/rest/v1/ returns 401)
 --   4. Modal.tsx + POSTerminal.tsx — safe-area-inset-top for notch
 --   5. SyncStatusBadge.tsx — stale-data amber badge 5min+ threshold
+--
+-- [2026-07-10] Idempotent ALTER TABLE blocks for post-launch columns
+--   Changes:
+--   1. app_settings: enable_kot_printer, enable_split_payment, enable_extra_charges,
+--      allow_credit_over_limit, pos_grid_columns — now covered by ALTER TABLE ADD COLUMN IF NOT EXISTS
+--   2. products: variant_data, modifiers — ALTER TABLE ADD COLUMN IF NOT EXISTS
+--   3. sales: split_payments, extra_charges — ALTER TABLE ADD COLUMN IF NOT EXISTS
+--   Impact: SUPER_MASTER_SCHEMA.sql can now be run on ANY existing DB as a true
+--   idempotent full-setup script — no more missing column gaps.
 -- ════════════════════════════════════════════════════════════════
 
 
@@ -1417,11 +1426,36 @@ ALTER TABLE app_settings
   ADD COLUMN IF NOT EXISTS barcode_content_scale        NUMERIC DEFAULT 1.0,
   ADD COLUMN IF NOT EXISTS is_locked                    BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS ai_v2_enabled                BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS touch_keyboard_enabled       BOOLEAN DEFAULT false;
+  ADD COLUMN IF NOT EXISTS touch_keyboard_enabled       BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS enable_kot_printer            BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS enable_split_payment           BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS enable_extra_charges           BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS allow_credit_over_limit        BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS pos_grid_columns               INTEGER DEFAULT 4;
 
 DO $$
 BEGIN
   RAISE NOTICE '✅ Missing app_settings columns added successfully';
+END $$;
+
+-- Products: post-launch columns
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS variant_data  JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS modifiers     JSONB DEFAULT '[]'::jsonb;
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Missing products columns added successfully';
+END $$;
+
+-- Sales: post-launch columns
+ALTER TABLE sales
+  ADD COLUMN IF NOT EXISTS split_payments  JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS extra_charges   JSONB DEFAULT '[]'::jsonb;
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Missing sales columns added successfully';
 END $$;
 
 -- Handle user deletion from auth when public.users record is deleted
