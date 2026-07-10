@@ -1,74 +1,494 @@
-# 🚀 Zaynah's POS — Complete Setup Guide
+# 🚀 Zaynah's POS — Complete System Guide
 
-> **One guide to set up fresh or sync an existing project.**
-> `sub update ho jaye` — everything gets updated with a single workflow.
-
----
-
-## Table of Contents
-1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
-3. [Fresh Project Setup](#-fresh-project)
-4. [Existing Project Sync](#-existing-project-sync)
-5. [Reference: Schema Reconciliation](#-reference-schema-reconciliation)
-6. [Migration Workflow](#-migration-workflow)
-7. [Troubleshooting](#-troubleshooting)
+> **One guide to rule them all.** Agent is guide dekh k current system completely run kar sakta hai, aur naya project bhi setup kar sakta hai.
+> `sub update ho jaye` — har change ke baad ye guide update karna mandatory hai.
 
 ---
 
-## Overview
+## 📑 Table of Contents
 
-| Artifact | Purpose |
+1. [System Overview](#-system-overview)
+2. [Architecture](#-architecture)
+3. [Tech Stack](#-tech-stack)
+4. [Project Structure](#-project-structure)
+5. [Database Schema](#-database-schema)
+6. [Services & API Layer](#-services--api-layer)
+7. [Sync Engine](#-sync-engine)
+8. [Auth Flow](#-auth-flow)
+9. [Settings Sync](#-settings-sync)
+10. [Component Architecture](#-component-architecture)
+11. [Fresh Project Setup](#-fresh-project-setup)
+12. [Existing Project Sync](#-existing-project-sync)
+13. [Post-Deployment Verification](#-post-deployment-verification)
+14. [Migration Workflow](#-migration-workflow)
+15. [Troubleshooting](#-troubleshooting)
+16. [Development Workflow](#-development-workflow)
+
+---
+
+## 🏗 System Overview
+
+Zaynah's POS is a **local-first, single-tenant Point of Sale** system built for retail shops.
+
+### Core Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **1 Clone = 1 Shop** | Har shop ka apna code clone + apna Supabase project. No multi-tenant complexity |
+| **Local-First** | App IndexedDB (Dexie) mein data store karta hai. Cloud sirf backup/sync ke liye |
+| **Management API Only** | All DB operations via Supabase Management API (`sbp_` token). No Prisma, no direct connection strings |
+| **GRANT ALL** | `anon` role ko har table par full access hai. No RLS checks needed — single-tenant simplicity |
+| **Realtime Sync** | Supabase Realtime subscriptions se live updates aate hain across browser tabs |
+
+### Data Flow
+
+```
+User Action → Local State (React Context) → IndexedDB (Dexie) → Sync Engine → Supabase Cloud
+                                                                    ↕
+                                                          Realtime Subscription ← other tabs/devices
+```
+
+1. User POS mein koi action karta hai (sale, product add, etc.)
+2. Data pehle **local IndexedDB** mein save hota hai
+3. Sync engine background mein **cloud ko update** karta hai
+4. Dusre browser tabs ko **Realtime subscription** ke through update milta hai
+5. Offline mode mein sirf local kaam karta hai, reconnect pe auto-sync
+
+---
+
+## 🏛 Architecture
+
+### Directory Structure
+
+```
+v12.2/
+├── src/
+│   ├── main.tsx                    # App entry point + PWA SW registration
+│   ├── App.tsx                     # Router + global layout
+│   ├── index.css                   # Global styles (Tailwind + custom)
+│   ├── types/
+│   │   └── index.ts                # ALL TypeScript interfaces (Sale, Product, etc.)
+│   ├── context/
+│   │   └── SupabaseAppContext.tsx   # Global state (useApp hook) + ALL CRUD operations
+│   ├── lib/
+│   │   ├── supabase.ts             # Supabase client instance
+│   │   ├── services.ts             # API service layer (mapSettings, CRUD functions)
+│   │   ├── constants.ts            # TABLE_COLUMNS, enum maps
+│   │   ├── localDb.ts              # Dexie (IndexedDB) database
+│   │   ├── syncEngine.ts           # Background sync logic
+│   │   ├── sounds.ts               # Audio feedback (base64 data URIs)
+│   │   ├── dialog.tsx              # Global dialog system
+│   │   ├── utils.ts                # Utility functions
+│   │   ├── currencies.ts           # Currency formatting
+│   │   └── dateUtils.ts           # Date/time formatting
+│   ├── components/
+│   │   ├── pos/                    # Point of Sale UI
+│   │   │   ├── POSTerminal.tsx     # Main POS screen
+│   │   │   ├── CheckoutPage.tsx    # Checkout flow (payment + receipt)
+│   │   │   ├── CheckoutModal.tsx   # Deprecated checkout modal
+│   │   │   ├── ReceiptPrint.tsx    # Receipt printing component
+│   │   │   ├── KOTPrint.tsx        # Kitchen Order Ticket printing
+│   │   │   ├── CompactItemRow.tsx  # Product row in cart
+│   │   │   ├── ProductGrid.tsx     # Product grid display
+│   │   │   └── Cart.tsx            # Shopping cart
+│   │   ├── settings/               # Settings UI
+│   │   │   └── Settings.tsx        # All settings (receipt, barcode, KOT, etc.)
+│   │   ├── inventory/              # Inventory management
+│   │   ├── reports/                # Reports
+│   │   ├── customers/              # Customer management
+│   │   ├── suppliers/              # Supplier management
+│   │   ├── common/                 # Shared components (Modal, HelpTooltip, etc.)
+│   │   └── layout/                 # Layout (SyncStatusBadge, etc.)
+│   └── hooks/                      # Custom React hooks
+│       ├── useSync.ts              # Sync connectivity logic
+│       ├── useCartCalculations.ts  # Cart math
+│       └── useTranslation.ts       # i18n
+├── supabase/
+│   ├── schema/
+│   │   └── SUPER_MASTER_SCHEMA.sql # SINGLE SOURCE OF TRUTH — full DB DDL
+│   └── migrations/
+│       └── *.sql                   # Incremental DB changes
+├── docs/
+│   ├── setup.md                    # THIS FILE — complete system guide
+│   ├── supabase-api-guide.md       # Management API reference
+│   └── UI_RULES.md                 # Design/UI rules
+├── env_backups/                    # .env backups for all shops
+│   ├── jeanzone.env.local
+│   ├── minimahal-pos.env.local
+│   └── .env.local.pizza-milano.20260708_202548
+├── index.html                      # SPA entry + inline theme script
+├── vercel.json                     # SPA rewrite rules
+├── AGENTS.md                       # AI agent operating rules
+└── GEMINI.md                       # Master cursor rules
+```
+
+### Key Files Deep Dive
+
+| File | Purpose | Key Functions |
+|------|---------|---------------|
+| `src/types/index.ts` | **ALL data types** | `Sale`, `Product`, `AppSettings`, `Customer`, `Supplier`, `Expense`, `Bundle`, `Discount`, etc. |
+| `src/context/SupabaseAppContext.tsx` | **Global state hub** | `useApp()` hook, `dispatch`, all create/update/delete operations, localStorage persistence |
+| `src/lib/supabase.ts` | **Supabase client** | Singleton client with `Cache-Control: no-cache` headers |
+| `src/lib/services.ts` | **Data mapping layer** | `mapSettings()`, `toRemoteSettings()`, `salesService`, `productsService`, etc. |
+| `src/lib/constants.ts` | **Column definitions** | `TABLE_COLUMNS` — every table ki columns ki list (sync engine ke liye) |
+| `src/lib/localDb.ts` | **IndexedDB (Dexie)** | All local tables, CRUD operations, offline storage |
+| `src/lib/syncEngine.ts` | **Background sync** | Syncs local → cloud and cloud → local, conflict resolution |
+| `src/hooks/useSync.ts` | **Connectivity** | `navigator.onLine` events, visibilitychange, stale-data detection |
+
+---
+
+## 🛠 Tech Stack
+
+| Technology | Purpose | Version |
+|-----------|---------|---------|
+| **React 18** | UI framework | 18.x |
+| **TypeScript** | Type safety | 5.x |
+| **Vite** | Build tool | 5.x |
+| **Tailwind CSS** | Styling | 3.x |
+| **Dexie.js** | IndexedDB wrapper | 4.x |
+| **Supabase JS** | Supabase client | 2.x |
+| **React Router** | SPA routing | 6.x |
+| **Vite PWA** | Service worker + offline | 0.x |
+| **lucide-react** | Icons | latest |
+
+---
+
+## 🗄 Database Schema
+
+### All Tables (21)
+
+| # | Table | Purpose | Key Columns |
+|---|-------|---------|-------------|
+| 1 | `app_settings` | Singleton config (1 row) | `id`, `store_name`, `tax_rate`, `currency`, `enable_kot_printer`, etc. |
+| 2 | `categories` | Product categories | `id`, `name`, `description`, `active` |
+| 3 | `customers` | Customer CRM | `id`, `name`, `phone`, `credit_limit`, `credit_used` |
+| 4 | `suppliers` | Supplier management | `id`, `name`, `phone`, `opening_balance` |
+| 5 | `products` | Inventory master | `id`, `name`, `sku`, `barcode`, `price`, `cost`, `stock`, `variant_data`, `modifiers` |
+| 6 | `product_batches` | FIFO batch tracking | `id`, `product_id`, `batch_number`, `qty_remaining`, `cost_price`, `expiry_date` |
+| 7 | `discounts` | Discount campaigns | `id`, `name`, `type`, `value`, `conditions`, `free_gift_products` |
+| 8 | `users` | Extended auth users | `id`, `username`, `email`, `role`, `permissions` |
+| 9 | `sales` | POS invoices | `id`, `invoice_number`, `customer_id`, `items`, `total`, `split_payments`, `extra_charges` |
+| 10 | `sales_tabs` | Multi-tab cashier | `id`, `user_id`, `name`, `cart` |
+| 11 | `expenses` | Operating costs | `id`, `description`, `amount`, `category` |
+| 12 | `purchase_records` | Inventory ledger | `id`, `type`, `product_id`, `quantity`, `cost_price` |
+| 13 | `purchase_orders` | PO headers | `id`, `po_number`, `supplier_id`, `status`, `total_amount` |
+| 14 | `purchase_order_items` | PO line items | `id`, `po_id`, `product_id`, `quantity`, `cost_price` |
+| 15 | `supplier_transactions` | Supplier khata | `id`, `supplier_id`, `type`, `amount`, `balance_after` |
+| 16 | `payments` | Supplier payments | `id`, `supplier_id`, `amount`, `payment_type`, `direction` |
+| 17 | `stock_history` | Inventory audit trail | `id`, `product_id`, `change_qty`, `type`, `balance_after` |
+| 18 | `bundles` | Bundle/combo offers | `id`, `name`, `price`, `active` |
+| 19 | `bundle_items` | Items in bundle | `id`, `bundle_id`, `product_id`, `quantity` |
+| 20 | `bundle_slots` | Bundle slots | `id`, `bundle_id`, `label` |
+| 21 | `bundle_slot_options` | Slot product options | `id`, `slot_id`, `product_id` |
+
+### Key Indexes
+
+| Table | Index | Purpose |
+|-------|-------|---------|
+| `sales` | `idx_sales_timestamp` | Date-range queries |
+| `sales` | `idx_sales_customer_id` | Customer history |
+| `sales` | `idx_sales_invoice_number` | Invoice lookup |
+| `sales` | `idx_sales_created_at_status` | Reports |
+| `products` | `idx_products_name` | Search by name |
+| `products` | `idx_products_barcode` | Barcode scan |
+| `product_batches` | `idx_product_batches_product_id` | Batch lookup |
+| `product_batches` | `idx_product_batches_expiry` | Expiry tracking |
+
+### Functions (12)
+
+| Function | Purpose |
 |----------|---------|
-| `supabase/schema/SUPER_MASTER_SCHEMA.sql` | **Single source of truth** — can be run on ANY project (fresh or existing). Fully idempotent. |
-| `supabase/migrations/*.sql` | Incremental changes for existing live DBs |
-| `.env.local` | Credentials: `SUPABASE_MGMT_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_REF` |
-| `AGENTS.md` | Per-agent operating rules (must read first for every session) |
-| `docs/UI_RULES.md` | UI/design constraints (must read before any UI work) |
+| `process_sale(sale_data JSONB)` | Atomic sale + inventory deduction |
+| `process_return(sale_id UUID)` | Atomic return + inventory restoration |
+| `audit_stock_integrity()` | Check stock vs batch sum mismatch |
+| `audit_missing_purchase_cost()` | Find products with 0 cost |
+| `generate_invoice_number()` | Auto-generate next invoice number |
+| `auto_generate_invoice_number()` | Trigger-based auto invoice |
+| `update_customer_stats()` | Update customer total_purchases |
+| `handle_new_user()` | Auto-create public.users row on signup |
+| `get_my_workspace_id()` | Returns `auth.uid()` (single-tenant) |
+| `get_email_by_username(p_username)` | Login helper |
+| `resolve_login_email(p_identifier)` | Login resolver |
+| `generate_po_number()` | Auto-generate PO number |
+
+### Realtime Publication (21 tables)
+
+```sql
+ALTER PUBLICATION supabase_realtime SET TABLE
+  app_settings, bundles, bundle_items, bundle_slots, bundle_slot_options,
+  categories, customers, discounts, expenses, payments,
+  product_batches, products, purchase_order_items, purchase_orders,
+  purchase_records, sales, sales_tabs, stock_history,
+  supplier_transactions, suppliers, users;
+```
+
+### Seed Data
+
+```sql
+INSERT INTO app_settings (id) VALUES ('00000000-0000-4000-8000-000000000001')
+ON CONFLICT (id) DO NOTHING;
+```
+
+### Grants
+
+```sql
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+```
+
+---
+
+## 🧩 Services & API Layer
+
+Located in `src/lib/services.ts`. Har entity ka ek service object hai.
+
+### Settings Mapping
+
+**mapSettings(item)** — Supabase snake_case → TypeScript camelCase
+
+```typescript
+// Example mapping:
+s.enable_kot_printer ?? s.enableKotPrinter ?? false
+```
+
+**toRemoteSettings(s)** — TypeScript camelCase → Supabase snake_case
+
+```typescript
+// Example mapping:
+if ('enableKotPrinter' in s) { remote.enable_kot_printer = s.enableKotPrinter; }
+```
+
+### TABLE_COLUMNS (constants.ts)
+
+Sync engine ko batata hai ke har table mein kaunse columns sync karne hain. Har naye column ko yahan add karna zaroori hai — warna sync engine transmit nahi karega.
+
+```typescript
+export const TABLE_COLUMNS: Record<string, string[]> = {
+  app_settings: ['id','store_name','enable_kot_printer','created_at','updated_at', ...],
+  products: ['id','name','price','stock','variant_data','modifiers', ...],
+  sales: ['id','items','total','split_payments','extra_charges', ...],
+  // ... all tables
+}
+```
+
+### Service Objects
+
+| Service | Key Methods |
+|---------|-------------|
+| `salesService` | `fetchRemote()`, `create()`, `update()`, `delete()` |
+| `productsService` | `fetchRemote()`, `create()`, `update()`, `delete()` |
+| `customersService` | `fetchRemote()`, `create()`, `update()` |
+| `settingsService` | `fetchRemote()`, `upsert()` |
+| `categoriesService` | `fetchRemote()`, `create()`, `update()` |
+| `suppliersService` | `fetchRemote()`, `create()`, `update()` |
+| `bundlesService` | `fetchRemote()`, `create()`, `update()`, `delete()` |
+| `discountsService` | `fetchRemote()`, `create()`, `update()` |
+| `batchesService` | `fetchRemote()`, `create()`, `update()`, `bulkUpsert()` |
+| `expensesService` | `fetchRemote()`, `create()`, `update()` |
+| `stockHistoryService` | `fetchRemote()`, `create()` |
+| `purchaseOrdersService` | `fetchRemote()`, `create()`, `update()` |
+| `paymentsService` | `fetchRemote()`, `create()` |
+
+---
+
+## 🔄 Sync Engine
+
+Located in `src/lib/syncEngine.ts`.
+
+### How Sync Works
+
+1. App load hota hai → local IndexedDB se data load karta hai
+2. Background mein `syncEngine` remote se fetch karta hai
+3. Har record ka `updatedAt` compare hota hai — jo bhi zyada recent hai, woh retain hota hai
+4. Sync complete hone ke baad `dispatch({ type: 'SET_SYNC_STATE', synced: true })`
+5. Har naye change par `syncEngine.push()` call hota hai jo local → remote sync karta hai
+
+### Key Sync Rules
+
+- **Local-First Handshake**: Remote fetch tab hota hai jab cloud `updatedAt` 5+ minutes newer ho
+- **Strict Snake-Case Mapping**: `mapSettings` always prioritizes Supabase snake_case. Never use spread operator
+- **Instant Persistence**: Settings immediately sync via `handleInstantUpdate`
+- **TABLE_COLUMNS**: Sync engine sirf unhi columns ko transmit karta hai jo `TABLE_COLUMNS` mein hain
+
+### Connectivity Detection (`useSync.ts`)
+
+```typescript
+// No HEAD ping (was removed due to 401 spam)
+// Uses:
+// 1. navigator.onLine
+// 2. online / offline window events
+// 3. visibilitychange (re-checks when app comes to foreground)
+// 4. Stale-data badge: SyncStatusBadge shows amber when lastSyncTime > 5min
+```
+
+---
+
+## 🔐 Auth Flow
+
+### How Login Works
+
+1. User email/password se sign up/sign in karta hai
+2. Supabase Auth JWT token create karta hai
+3. On signup, `handle_new_user()` trigger automatically `public.users` row create karta hai
+4. `public.users.role` = 'admin' manually set karna hota hai
+5. App auth state ko localStorage mein cache karta hai (offline support)
+6. Refresh pe: app cached profile dikhata hai jab tak auth session restore na ho
+
+### Auth State Machine
+
+```
+No Session → [Sign In] → Session Active → [Refresh] → Session Lost → Cached Profile
+                        ↑                                            |
+                        └──── [Session Restored] ←────────────────────┘
+```
+
+### Important Auth Rules
+
+- **Cached Profile**: Agar session lost ho jaye, to app cached profile use karta hai (offline mein kaam chalta rahe)
+- **Session Recovery**: `onAuthStateChange` listener session restore karta hai
+- **No RLS**: `anon` role ko `GRANT ALL` hai — auth token optional hai DB operations ke liye
+
+---
+
+## ⚙️ Settings Sync
 
 ### Architecture
 
-- **1 Clone = 1 Shop** — single-tenant. No workspace_id anywhere.
-- **Supabase Management API only** — no Prisma, no direct DB connection strings.
-- **Auth**: `anon` key works for all operations (`GRANT ALL` on every table).
+```
+Settings.tsx (UI Toggle)
+    │
+    ├── handleInstantUpdate(key, value)
+    │       │
+    │       ├── localDb.settings.put({ ...state.settings, [key]: value, updatedAt: now })
+    │       └── syncEngine.push('app_settings', updatedSettings)
+    │
+    ├── mapSettings() (services.ts) — remote → local mapping
+    └── toRemoteSettings() (services.ts) — local → remote mapping
+```
+
+### All Settings Keys
+
+| Key | Type | Default | Section |
+|-----|------|---------|---------|
+| `storeName` | string | '' | Core |
+| `storeAddress` | string | '' | Core |
+| `storePhone` | string | '' | Core |
+| `storeEmail` | string | '' | Core |
+| `storeLogo` | string | '' | Core |
+| `storeWebsite` | string | '' | Core |
+| `taxRate` | number | 0 | Finance |
+| `currency` | string | 'PKR' | Finance |
+| `theme` | string | 'dark' | UI |
+| `interfaceMode` | string | 'touch' | UI |
+| `receiptPaperSize` | string | '80mm' | Receipt |
+| `receiptTemplate` | string | 'modern' | Receipt |
+| `receiptFontWeight` | string | '400' | Receipt |
+| `receiptDensity` | number | 1.0 | Receipt |
+| `enableSplitPayment` | boolean | false | Payment |
+| `enableExtraCharges` | boolean | false | Payment |
+| `allowCreditOverLimit` | boolean | true | Payment |
+| `enableKotPrinter` | boolean | false | Kitchen |
+| `posGridColumns` | number | 4 | POS |
+| `soundEnabled` | boolean | true | System |
+| `offlineMode` | boolean | true | Sync |
+| `autoSync` | boolean | true | Sync |
+| `touchKeyboardEnabled` | boolean | false | POS |
+| ... aur bhi 50+ settings | | | |
+
+### Singleton ID
+
+```typescript
+const SETTINGS_ID = '00000000-0000-4000-8000-000000000001';
+```
 
 ---
 
-## 🔵 Fresh Project
+## 🧱 Component Architecture
 
-> Use this when setting up a brand-new Supabase project.
+### POS Flow
 
-### Step 1: Create Supabase Project
+```
+POSTerminal.tsx
+  ├── Searches/selects products
+  ├── Adds to cart (Cart.tsx)
+  ├── Applies discounts
+  └── Opens CheckoutPage.tsx
+        ├── Shows payment options
+        ├── Processes payment
+        └── Shows ReceiptPrint.tsx
+              └── If enableKotPrinter → KOTPrint.tsx (500ms delay)
+```
+
+### Settings Flow
+
+```
+Settings.tsx
+  ├── General Settings
+  ├── Receipt & Printer (includes KOT toggle)
+  ├── Barcode Settings
+  ├── Inventory
+  └── Users
+```
+
+### Global State (Context)
+
+```
+SupabaseAppContext.tsx
+  ├── state.settings (AppSettings)
+  ├── state.products (Product[])
+  ├── state.sales (Sale[])
+  ├── state.customers (Customer[])
+  ├── state.categories (Category[])
+  ├── state.suppliers (Supplier[])
+  ├── state.bundles (Bundle[])
+  ├── state.discounts (Discount[])
+  ├── state.expenses (Expense[])
+  ├── state.syncState (SyncState)
+  └── state.language (string)
+```
+
+---
+
+## 🔵 Fresh Project Setup
+
+> Naya Supabase project + naya code clone — complete setup.
+
+### Step 1: Clone + Install
+
+```bash
+git clone <repo-url> my-shop-pos
+cd my-shop-pos
+npm install
+```
+
+### Step 2: Create Supabase Project
 
 ```bash
 # Via Management API
 curl -s -X POST "https://api.supabase.com/v1/projects" \
   -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "jeanzone-prod",
-    "organization_id": "<org-id>",
-    "plan": "pro"
-  }'
+  -d '{"name": "my-shop-prod", "organization_id": "<org-id>", "plan": "pro"}'
+
+# OR via Supabase Dashboard (https://supabase.com/dashboard)
 ```
 
-Or create manually via [Supabase Dashboard](https://supabase.com/dashboard).
-
-### Step 2: Get Project Ref & Keys
+### Step 3: Get Keys
 
 ```bash
-# List projects to find your ref
+# List projects
 curl -s "https://api.supabase.com/v1/projects" \
   -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY"
 
-# Get API keys (anon + service_role)
+# Get keys for a project
 curl -s "https://api.supabase.com/v1/projects/$SUPABASE_REF/api-keys?reveal=true" \
   -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY"
 ```
 
-Update `.env.local`:
+### Step 4: Create .env.local
 
-```
+```env
 VITE_SUPABASE_URL=https://<ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon_key>
 VITE_SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
@@ -76,7 +496,7 @@ SUPABASE_MGMT_API_KEY=sbp_...
 SUPABASE_REF=<ref>
 ```
 
-### Step 3: Run Master Schema
+### Step 5: Run Master Schema
 
 ```bash
 SCHEMA_SQL=$(cat supabase/schema/SUPER_MASTER_SCHEMA.sql)
@@ -87,141 +507,52 @@ curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query"
   -d "$SCHEMA_JSON"
 ```
 
-This single command creates everything:
-- ✅ All 19+ tables with all columns, constraints, defaults
+Ye 1 command sab kuch create karti hai:
+- ✅ 21 tables (all columns, constraints, defaults)
 - ✅ All indexes
-- ✅ All functions (process_sale, process_return, audit_stock_integrity, etc.)
-- ✅ All triggers
-- ✅ Realtime publication with all tables
-- ✅ `GRANT ALL` to `anon` + `authenticated` roles (no RLS)
-- ✅ Seed data: default `app_settings` row
+- ✅ All 12 functions
+- ✅ Realtime publication (21 tables)
+- ✅ GRANT ALL to anon + authenticated
+- ✅ Seed data (app_settings row)
 
-### Step 4: Build & Deploy
+### Step 6: Build
 
 ```bash
-npm install
 npm run build
-# Deploy dist/ to Vercel / Netlify / your host
 ```
 
-### Step 5: Create Admin User
+### Step 7: Deploy to Vercel
 
-1. Open the app in browser
+```bash
+# Via Vercel CLI
+vercel --prod
+
+# OR connect GitHub repo to Vercel:
+# Settings → vercel.json handles SPA rewrites
+```
+
+### Step 8: Create Admin User
+
+1. Open deployed URL
 2. Sign up with email + password
-3. The `handle_new_user()` trigger auto-creates a `public.users` row
-4. Set `role = 'admin'` in the DB:
+3. Run SQL to set admin role:
    ```sql
    UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';
    ```
 
----
-
-## 🟣 Post-Deployment Verification Checklist
-
-Run these checks after setup to confirm everything works.
-
-### 1. Supabase DB — Column Check
+### Step 9: Save .env Backup
 
 ```bash
-# Check a specific column exists (replace table_name + column_name)
-curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT column_name FROM information_schema.columns WHERE table_name = '\''app_settings'\'' AND column_name = '\''enable_kot_printer'\''"}'
+cp .env.local env_backups/my-shop.env.local
 ```
-
-**Key columns to verify:** enable_kot_printer, enable_split_payment, enable_extra_charges, allow_credit_over_limit, pos_grid_columns, variant_data, modifiers, split_payments, extra_charges
-
-### 2. Supabase DB — Realtime Publication
-
-```bash
-# Check realtime has all tables
-curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT tablename FROM pg_publication_tables WHERE pubname = '\''supabase_realtime'\'' ORDER BY tablename"}'
-```
-
-**Expected output (21 tables):**
-```
-app_settings, bundles, bundle_items, bundle_slots, bundle_slot_options,
-categories, customers, discounts, expenses, payments,
-product_batches, products, purchase_order_items, purchase_orders,
-purchase_records, sales, sales_tabs, stock_history,
-supplier_transactions, suppliers, users
-```
-
-### 3. Supabase DB — Functions
-
-```bash
-curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT proname FROM pg_proc WHERE pronamespace = '\''public'\''::regnamespace ORDER BY proname"}'
-```
-
-**Expected (12 functions):** audit_missing_purchase_cost, audit_stock_integrity, auto_generate_invoice_number, generate_invoice_number, generate_po_number, get_email_by_username, get_my_workspace_id, handle_new_user, process_return, process_sale, resolve_login_email, update_customer_stats
-
-### 4. Supabase DB — Grants
-
-```bash
-curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT grantee, table_name, privilege_type FROM information_schema.table_privileges WHERE table_schema = '\''public'\'' AND grantee = '\''anon'\'' ORDER BY table_name"}'
-```
-
-All tables should have INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER for `anon`.
-
-### 5. Supabase DB — Seed Data
-
-```bash
-curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
-  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT id FROM app_settings"}'
-```
-
-Should return exactly 1 row: `00000000-0000-4000-8000-000000000001`.
-
-### 6. App — Build Check
-
-```bash
-npm run build
-# Should complete without errors
-```
-
-### 7. App — Dashboard Load
-
-- Open the deployed URL
-- Sign in with admin credentials
-- Check: POS loads, Settings page opens, Products page loads
-- Check browser console for 404 errors (static files on sub-routes)
-
-### 8. App — Realtime Sync
-
-- Open two browser tabs side-by-side
-- Make a sale in one tab
-- Verify the other tab updates within 2-3 seconds (realtime subscription must be active)
-- Test offline: disconnect WiFi, make a sale, reconnect — should sync
-
-### 9. App — KOT Printing (if enabled)
-
-- Enable `enableKotPrinter` in Settings → Receipt & Printer → Enable KOT
-- Complete a sale in POS
-- After the receipt print, a **KOT (Kitchen Order Ticket)** should print automatically (500ms delay)
-- KOT shows: item names, quantities, variants, modifiers, invoice number, sale type, cashier name
-- KOT prints via browser print dialog (or Electron API in desktop app)
 
 ---
 
 ## 🟡 Existing Project Sync
 
-> Use this when the live DB is out of sync with the master schema.
+> Pehle se existing DB ko latest schema se sync karna.
 
 ### Option A: Nuclear — Run Full Schema (Recommended)
-
-The master schema is now **truly idempotent** for existing DBs. Run it as-is:
 
 ```bash
 SCHEMA_SQL=$(cat supabase/schema/SUPER_MASTER_SCHEMA.sql)
@@ -232,29 +563,15 @@ curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query"
   -d "$SCHEMA_JSON"
 ```
 
-**What happens:**
-
-| Construct | Behavior on Existing DB |
-|-----------|------------------------|
-| `CREATE TABLE IF NOT EXISTS` | Skipped if table exists |
-| `ALTER TABLE ADD COLUMN IF NOT EXISTS` | Adds only missing columns |
-| `CREATE INDEX IF NOT EXISTS` | Skipped if index exists |
-| `CREATE OR REPLACE FUNCTION` | Replaces function definition |
-| `ALTER PUBLICATION SET TABLE` | Idempotent — sets exact table list |
-| `GRANT ALL` | No-op if already granted |
-| `DROP POLICY IF EXISTS` / `CREATE POLICY` | Safe — re-creates policies |
-| Seed data (`INSERT ... ON CONFLICT DO NOTHING`) | Safe — won't overwrite |
-
-**What this fixes in one shot:**
+**What it fixes:**
 - Missing columns (`enable_kot_printer`, `variant_data`, `split_payments`, etc.)
 - Missing indexes
 - Missing/outdated functions
 - Missing realtime publication tables
-- Missing permissions
+- Missing permissions/grants
+- Missing seed data
 
 ### Option B: Run Individual Migrations
-
-If you prefer a targeted approach, run migrations in order:
 
 ```bash
 for f in supabase/migrations/*.sql; do
@@ -268,210 +585,249 @@ for f in supabase/migrations/*.sql; do
 done
 ```
 
-### Step 3: Verify & Build
+---
+
+## 🟣 Post-Deployment Verification
+
+> Setup ke baad ye 9 checks run karo to confirm sab theek hai.
+
+### Check 1: Column Exists
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT column_name FROM information_schema.columns WHERE table_name = '\''app_settings'\'' AND column_name = '\''enable_kot_printer'\''"}'
+```
+
+**Verify these columns exist in all 3 DBs:** enable_kot_printer, enable_split_payment, enable_extra_charges, allow_credit_over_limit, pos_grid_columns, variant_data, modifiers, split_payments, extra_charges
+
+### Check 2: Realtime Publication
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT tablename FROM pg_publication_tables WHERE pubname = '\''supabase_realtime'\'' ORDER BY tablename"}'
+```
+
+**Expected: 21 tables** — app_settings, bundles, bundle_items, bundle_slots, bundle_slot_options, categories, customers, discounts, expenses, payments, product_batches, products, purchase_order_items, purchase_orders, purchase_records, sales, sales_tabs, stock_history, supplier_transactions, suppliers, users
+
+### Check 3: Functions
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT proname FROM pg_proc WHERE pronamespace = '\''public'\''::regnamespace ORDER BY proname"}'
+```
+
+**Expected (12):** audit_missing_purchase_cost, audit_stock_integrity, auto_generate_invoice_number, generate_invoice_number, generate_po_number, get_email_by_username, get_my_workspace_id, handle_new_user, process_return, process_sale, resolve_login_email, update_customer_stats
+
+### Check 4: Grants
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT grantee, table_name, privilege_type FROM information_schema.table_privileges WHERE table_schema = '\''public'\'' AND grantee = '\''anon'\'' ORDER BY table_name"}'
+```
+
+**Expected:** Har table ke liye INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+
+### Check 5: Seed Data
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT id FROM app_settings"}'
+```
+
+**Expected:** Exactly 1 row — `00000000-0000-4000-8000-000000000001`
+
+### Check 6: Build
 
 ```bash
 npm run build
-# Check dashboard loads correctly
+# Should complete with 0 errors
 ```
 
----
+### Check 7: Dashboard Load
 
-## 🟢 Reference: Schema Reconciliation
+- Open deployed URL
+- Sign in with admin credentials
+- Check: POS loads, Settings page opens, Products page loads
+- Browser console mein 0 errors honi chahiye
 
-If the nuclear option feels too aggressive, here's how to verify each piece individually.
+### Check 8: Realtime Sync
 
-### 1. Check All Columns
+- 2 browser tabs kholo side-by-side
+- Ek tab mein sale karo
+- Dusre tab mein 2-3 seconds mein update aana chahiye
+- WiFi band karo, sale karo, dobara connect karo — auto-sync hona chahiye
 
-```sql
-SELECT table_name, column_name, data_type, is_nullable, column_default
-FROM information_schema.columns
-WHERE table_schema = 'public'
-ORDER BY table_name, ordinal_position;
-```
+### Check 9: KOT Print
 
-Compare output with the `CREATE TABLE` blocks in `SUPER_MASTER_SCHEMA.sql`.
-
-**Commonly missing columns:**
-
-| Table | Column | Type | Default | Since |
-|-------|--------|------|---------|-------|
-| `app_settings` | `enable_kot_printer` | BOOLEAN | false | 2026-07 |
-| `app_settings` | `enable_split_payment` | BOOLEAN | false | 2026-05 |
-| `app_settings` | `enable_extra_charges` | BOOLEAN | false | 2026-05 |
-| `app_settings` | `allow_credit_over_limit` | BOOLEAN | true | 2026-05 |
-| `app_settings` | `pos_grid_columns` | INTEGER | 4 | 2026-05 |
-| `app_settings` | `barcode_content_scale` | NUMERIC | 1.0 | 2026-05 |
-| `app_settings` | `barcode_font_size` | INTEGER | 9 | 2026-05 |
-| `app_settings` | `barcode_name_lines` | INTEGER | 1 | 2026-05 |
-| `products` | `variant_data` | JSONB | '[]' | 2026-07 |
-| `products` | `modifiers` | JSONB | '[]' | 2026-07 |
-| `sales` | `split_payments` | JSONB | '[]' | 2026-05 |
-| `sales` | `extra_charges` | JSONB | '[]' | 2026-05 |
-
-### 2. Check Indexes
-
-```sql
-SELECT tablename, indexname, indexdef
-FROM pg_indexes
-WHERE schemaname = 'public'
-ORDER BY tablename, indexname;
-```
-
-**Key indexes:**
-
-| Table | Index | Columns |
-|-------|-------|---------|
-| sales | `idx_sales_customer_id` | customer_id |
-| sales | `idx_sales_invoice_number` | invoice_number |
-| sales | `idx_sales_created_at_status` | created_at, status |
-| sales | `idx_sales_timestamp` | created_at |
-| products | `idx_products_barcode` | barcode |
-| products | `idx_products_name` | name |
-| product_batches | `idx_product_batches_product_id` | product_id |
-| product_batches | `idx_product_batches_expiry` | expiry_date |
-
-### 3. Check Grants
-
-```sql
-SELECT grantee, table_name, privilege_type
-FROM information_schema.table_privileges
-WHERE table_schema = 'public'
-ORDER BY grantee, table_name;
-```
-
-Fix:
-```sql
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
-```
-
-### 4. Check Realtime
-
-```sql
-SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime' ORDER BY tablename;
-```
-
-**Expected (21 tables):**
-`app_settings`, `bundles`, `bundle_items`, `bundle_slots`, `bundle_slot_options`, `categories`, `customers`, `discounts`, `expenses`, `payments`, `product_batches`, `products`, `purchase_order_items`, `purchase_orders`, `purchase_records`, `sales`, `sales_tabs`, `stock_history`, `supplier_transactions`, `suppliers`, `users`
-
-Fix:
-```sql
-ALTER PUBLICATION supabase_realtime SET TABLE
-  app_settings, bundles, bundle_items, bundle_slots, bundle_slot_options,
-  categories, customers, discounts, expenses, payments,
-  product_batches, products, purchase_order_items, purchase_orders,
-  purchase_records, sales, sales_tabs, stock_history,
-  supplier_transactions, suppliers, users;
-```
-
-### 5. Check Functions
-
-```sql
-SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace ORDER BY proname;
-```
-
-**Expected:** `audit_missing_purchase_cost`, `audit_stock_integrity`, `auto_generate_invoice_number`, `generate_invoice_number`, `generate_po_number`, `get_email_by_username`, `get_my_workspace_id`, `handle_new_user`, `process_return`, `process_sale`, `resolve_login_email`, `update_customer_stats`
-
-### 6. Check Seed Data
-
-```sql
-SELECT * FROM app_settings;
--- Should have 1 row with id = 00000000-0000-4000-8000-000000000001
-```
-
-Fix:
-```sql
-INSERT INTO app_settings (id) VALUES ('00000000-0000-4000-8000-000000000001')
-ON CONFLICT (id) DO NOTHING;
-```
+- Settings → Receipt & Printer → Enable KOT
+- POS mein sale karo
+- Receipt print ke baad 500ms mein KOT print dialog khulna chahiye
+- KOT mein display: items, qty, variants, modifiers, invoice number, sale type, cashier
 
 ---
 
 ## 📁 Migration Workflow
 
-When adding a DB change:
+> Jab bhi DB mein koi change karo, ye steps follow karo:
 
-1. **Create migration** in `supabase/migrations/YYYYMMDDHHMMSS_description.sql`
-2. **Update master schema** — add column/table to `SUPER_MASTER_SCHEMA.sql` + update the `ALTER TABLE ADD COLUMN IF NOT EXISTS` section for existing-DB safety
-3. **Log in changelog** — add entry at top of `SUPER_MASTER_SCHEMA.sql` with date + changes
-4. **Run migration** against live DB:
-   ```bash
-   SQL=$(cat supabase/migrations/20260710220000_add_enable_kot_printer.sql)
-   SQL_JSON=$(python3 -c "import json,sys; print(json.dumps({'query': sys.stdin.read()}))" <<< "$SQL")
-   curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
-     -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
-     -H "Content-Type: application/json" \
-     -d "$SQL_JSON"
-   ```
-5. **Update local schema** — sync `src/lib/localDb.ts` if needed
-6. **Build & verify**: `npm run build`
+### Step-by-Step
+
+1. **Migration file banayein**: `supabase/migrations/YYYYMMDDHHMMSS_description.sql`
+2. **Master schema update karein**:
+   - `SUPER_MASTER_SCHEMA.sql` mein `CREATE TABLE` block update karein
+   - Agar naya column hai to `ALTER TABLE ADD COLUMN IF NOT EXISTS` section bhi update karein
+3. **localDb.ts update karein** (agar new table/column local storage mein bhi chahiye)
+4. **types/index.ts update karein** (agar new type/field hai)
+5. **services.ts update karein**:
+   - `mapSettings()` mein mapping add karein (agar settings column hai)
+   - `toRemoteSettings()` mein mapping add karein
+6. **constants.ts update karein**: `TABLE_COLUMNS` mein column add karein
+7. **settings/Settings.tsx update karein**: `formData` init mein default value add karein
+8. **Migration run karein**: Management API ke through
+9. **setup.md update karein**: Verification checklist + schema tables update karein
+10. **Build aur verify karein**: `npm run build`
+
+### Important Rules
+
+- ❌ Kabhi bhi Prisma ya `DATABASE_URL` use na karein
+- ❌ Kabhi bhi `workspace_id` use na karein (1 Clone = 1 Shop)
+- ✅ Sirf Management API (`sbp_` token) use karein
+- ✅ `ALTER TABLE ADD COLUMN IF NOT EXISTS` use karein (idempotent)
+- ✅ Har change ke baad `setup.md` update karna MANDATORY hai
+- ✅ Har change ke baad `SUPER_MASTER_SCHEMA.sql` update karna MANDATORY hai
 
 ---
 
 ## 🔧 Troubleshooting
 
-### `404 Not Found` for static files on sub-routes
-
-**Cause:** Relative paths in `index.html` (e.g., `href="site.webmanifest"`) resolve to `/settings/site.webmanifest` when on the `/settings` route.
-
-**Fix:** Use absolute paths (`href="/site.webmanifest"`) — already fixed in current code.
-
-### Pages blink on refresh
+### 1. Pages Blink on Refresh
 
 **Causes:**
-1. 404s for static files (see above) — each failed request adds latency
-2. Multiple render cycles: blank → local data → sync → remote merge
-3. Auth session not ready at first render
+- Static files 404 (relative paths in index.html)
+- Multiple render cycles (blank → local → sync → remote merge)
+- Auth session not ready at first render
 
 **Fixes:**
-1. ✅ Already applied: all asset paths now absolute
-2. Background color applied inline in `<head>` (before CSS loads) — already done
-3. If auth flash persists, check `SupabaseAppContext.tsx` for session recovery logic
+- ✅ All asset paths now absolute (`/site.webmanifest`)
+- ✅ Background color set inline in `<head>` (before CSS loads)
+- If persists: check auth session recovery in `SupabaseAppContext.tsx`
 
-### KOT (Kitchen Order Ticket) Printing
+### 2. KOT "Enable" But Nothing Happens
 
-**Kya hai?** KOT ek alag print hota hai jo sale complete hone ke baad kitchen ke liye order items print karta hai. Customer receipt se alag hota hai — prices nahi dikhte, sirf items, quantity, variants, modifiers.
+**Causes (3 bugs):**
+1. `CheckoutPage.tsx` mein `KOTPrint` import nahi tha
+2. `services.ts` mein `mapSettings()` + `toRemoteSettings()` missing
+3. `constants.ts` mein `TABLE_COLUMNS` missing
 
-**Kab print hoga?** Jab bhi sale complete hoti hai POS mein:
-1. Pehle `ReceiptPrint` trigger hota hai (customer copy)
-2. 500ms baad `KOTPrint` trigger hota hai — kitchen copy
-3. Browser ka native print dialog khulta hai (ya Electron API in desktop app)
+**Fix:** All 3 fixed. Enable KOT in Settings → sale karo → print aayega.
 
-**Kya dikhta hai?** Invoice number, sale type (retail/wholesale), cashier name, items with qty, variants, modifiers. Format thermal printer ke liye optimized hai (80mm width, monospace, bold).
+### 3. enable_kot_printer Checkbox = Solid Black Square
 
-**Kaam kyun nahi kar raha tha?** 3 bugs the:
-1. `CheckoutPage.tsx` (main POS flow) mein `KOTPrint` import hi nahi tha — sirf deprecated `CheckoutModal` mein tha
-2. `services.ts` mein `mapSettings()` aur `toRemoteSettings()` dono mein `enableKotPrinter` missing tha — setting cloud se sync nahi hoti thi
-3. `constants.ts` mein `TABLE_COLUMNS` mein `enable_kot_printer` missing tha — sync engine transmit nahi karta tha
+**Cause:** Column DB mein missing + `formData` init missing
 
-**Ab sab fix ho chuka hai.** Enable karo Settings → Receipt & Printer → Enable KOT, phir sale karo — print aana chahiye.
+**Fix:**
+- Column: migration `20260710220000_add_enable_kot_printer.sql` run karo
+- Code: `formData.enableKotPrinter = state.settings?.enableKotPrinter ?? false`
 
-### `enable_kot_printer` checkbox shows solid black square
+### 4. Sales Query Timeout
 
-**Cause:** Column missing from DB + `formData` initial state.
+**Cause:** `fetchRemote()` without `.order().limit()`
 
-**Fix:** Column added via migration + `formData.enableKotPrinter` set to `false` in `Settings.tsx`.
+**Fix:** `sales.fetchRemote()` now uses `.order('created_at', { ascending: false }).limit(10000)`
 
-### `Sales query timeout`
+### 5. 401 from HEAD Ping
 
-**Cause:** No `.order()` or `.limit()` on the fetch-all sales query.
+**Cause:** `useSync.ts` HEAD `/rest/v1/` returns 401
 
-**Fix:** `sales.fetchRemote()` now uses `.order('created_at', { ascending: false }).limit(10000)`.
+**Fix:** Removed HEAD ping. Uses `navigator.onLine` + events + visibilitychange.
 
-### `401` from HEAD ping in useSync
+### 6. `loadData` / `Smart deleting` / Sync Issues
 
-**Cause:** HEAD `/rest/v1/` returns 401 because `anon` key needs a table path.
+**Cause:** App local data load kar raha hai aur stale records clean kar raha hai. Normal behavior.
 
-**Fix:** Removed HEAD ping. Now relies on `navigator.onLine` events + visibilitychange.
+**Fix:** Pehla load hota hai to "smart deleting" + "sync complete" messages normal hain.
+
+### 7. Auth Session Lost After Refresh
+
+**Cause:** JWT token expired ya localStorage cleared
+
+**Fix:** App cached profile use karta hai. Session restore hota hai async. Agar persist kare to:
+- Check `localStorage` for `supabase.auth.token`
+- Clear IndexedDB + localStorage, re-login
+
+---
+
+## 💻 Development Workflow
+
+### Local Development
+
+```bash
+npm run dev
+# Opens at http://localhost:5173
+```
+
+### Build for Production
+
+```bash
+npm run build
+# Output in dist/
+```
+
+### Run Full Schema on Production DB
+
+```bash
+SCHEMA_SQL=$(cat supabase/schema/SUPER_MASTER_SCHEMA.sql)
+SCHEMA_JSON=$(python3 -c "import json,sys; print(json.dumps({'query': sys.stdin.read()}))" <<< "$SCHEMA_SQL")
+curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "$SCHEMA_JSON"
+```
+
+### Run Single Migration
+
+```bash
+SQL=$(cat supabase/migrations/20260710220000_add_enable_kot_printer.sql)
+SQL_JSON=$(python3 -c "import json,sys; print(json.dumps({'query': sys.stdin.read()}))" <<< "$SQL")
+curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "$SQL_JSON"
+```
+
+### Push Code to All Repos
+
+```bash
+git push jeanzone main
+git push minimahalpos main
+git push pizzamilano main
+```
+
+### Check a Column in Production DB
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT column_name FROM information_schema.columns WHERE table_name = '\''app_settings'\'' AND column_name = '\''enable_kot_printer'\''"}'
+```
 
 ---
 
 ## 🔑 Quick Reference: Management API
 
 ```bash
-# Run any SQL
+# Run SQL
 curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
   -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
   -H "Content-Type: application/json" \
@@ -485,3 +841,18 @@ curl -s "https://api.supabase.com/v1/projects" \
 curl -s "https://api.supabase.com/v1/projects/$SUPABASE_REF/api-keys?reveal=true" \
   -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY"
 ```
+
+---
+
+## 📌 Agent Rules (GEMINI.md + AGENTS.md)
+
+### ✅ setup.md Must Stay Updated
+
+Har agent ke liye mandatory rules:
+
+1. **Schema change kiya?** → `docs/setup.md` update karo (new column in table, verification checklist update)
+2. **Migration banayi?** → `docs/setup.md` mein migration workflow section check karo
+3. **Naya feature add kiya?** → `docs/setup.md` mein relevant section update karo
+4. **Kuch bhi DB/code change kiya?** → `docs/setup.md` + `SUPER_MASTER_SCHEMA.sql` dono sync mein rakhna
+
+> **Failure to keep setup.md updated = Violation of Prime Directive.**
