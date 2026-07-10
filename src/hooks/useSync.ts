@@ -10,6 +10,27 @@ export function useSync() {
     const [hasError, setHasError] = useState(false);
     const [isRetrying, setIsRetrying] = useState(false);
 
+    // Connectivity ping: verify server reachability every 30s
+    // (navigator.onLine is unreliable on mobile — returns true in Airplane Mode)
+    useEffect(() => {
+        const ping = async () => {
+            try {
+                const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
+                    method: 'HEAD',
+                    signal: AbortSignal.timeout(5000)
+                });
+                setIsOnline(res.ok);
+            } catch {
+                setIsOnline(false);
+            }
+        };
+        if (navigator.onLine) ping();
+        const timer = setInterval(() => {
+            if (navigator.onLine) ping();
+        }, 30_000);
+        return () => clearInterval(timer);
+    }, []);
+
     const refresh = useCallback(async () => {
         const count = await localDb.pendingOps.count();
         setPendingCount(count);

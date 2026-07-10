@@ -8,6 +8,10 @@ import { formatAppTime, formatAppDateTime } from '../../lib/dateUtils';
 export function SyncStatusBadge() {
     const { isOnline, isSyncing, pendingCount, lastSyncTime, hasError, isRetrying } = useSync();
     const [showManager, setShowManager] = useState(false);
+    const { state } = useApp();
+
+    const isStale = isOnline && !isSyncing && pendingCount === 0 && !hasError && lastSyncTime &&
+        (Date.now() - lastSyncTime.getTime()) > 5 * 60 * 1000;
 
     // 1. Syncing State (Yellow/Amber)
     if (isSyncing) {
@@ -76,8 +80,6 @@ export function SyncStatusBadge() {
     }
 
     // 3. Pending Sync Changes (Amber/Orange)
-    const { state } = useApp();
-
     if (pendingCount > 0) {
         if (isRetrying) {
             return (
@@ -130,7 +132,32 @@ export function SyncStatusBadge() {
         );
     }
 
-    // 4. Fully Synced State (Green)
+    // 4. Stale Data Warning (Amber) — online but no server contact in 5+ min
+    if (isStale) {
+        return (
+            <>
+                <button
+                    onClick={() => setShowManager(true)}
+                    style={{ minHeight: 'unset' }}
+                    className="flex items-center justify-center gap-1 sm:gap-1.5 flex-shrink-0 w-9 h-9 min-h-0 sm:w-auto sm:h-fit p-0 sm:px-2 sm:py-1 rounded-xl sm:rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 shadow-sm animate-pulse"
+                    title={`Data may be stale — last sync: ${lastSyncTime ? formatAppDateTime(lastSyncTime, state.settings.country) : 'never'}. Click to check.`}
+                >
+                    <Cloud className="h-5 w-5 sm:h-3 sm:w-3" />
+                    <div className="hidden sm:flex items-center gap-1 leading-none">
+                        <span className="text-[9px] font-bold uppercase tracking-tight">Stale</span>
+                        {lastSyncTime && (
+                            <span className="text-[8px] font-mono opacity-60 bg-primary/10 px-1 rounded-sm border border-primary/20">
+                                {formatAppTime(lastSyncTime, state.settings.country, false)}
+                            </span>
+                        )}
+                    </div>
+                </button>
+                {showManager && <SyncQueueManager onClose={() => setShowManager(false)} />}
+            </>
+        );
+    }
+
+    // 5. Fully Synced State (Green)
     return (
         <>
             <button
