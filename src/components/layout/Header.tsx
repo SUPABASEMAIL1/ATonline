@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   User, Settings, LogOut, ShoppingCart, Monitor, Smartphone, Menu, X, Percent,
   Receipt, Package, Users, BarChart3, Sun, Moon, Wallet, RefreshCw,
-  ChevronLeft, ChevronRight, Activity, Building2, Bell
+  ChevronLeft, ChevronRight, Activity, Building2, Bell, ChevronDown, MoreHorizontal
 } from 'lucide-react';
 import { settingsService } from '../../lib/services';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -38,6 +38,22 @@ export function Header({
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [mobileCanScrollLeft, setMobileCanScrollLeft] = useState(false);
   const [mobileCanScrollRight, setMobileCanScrollRight] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
+        setIsMoreOpen(false);
+      }
+    };
+    if (isMoreOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMoreOpen]);
 
   const checkScroll = useCallback(() => {
     if (navRef.current) {
@@ -200,7 +216,7 @@ export function Header({
         {/* ── Divider ── */}
         <div className="hidden md:block h-7 w-px bg-gray-100 dark:bg-white/5 flex-shrink-0 mx-1" />
 
-        {/* ── Scrollable Nav (Desktop only) ── */}
+        {/* ── Scrollable Nav (Desktop & Tablet/Laptop) ── */}
         <div className="hidden md:flex items-center flex-1 min-w-0 relative">
           {canScrollLeft && (
             <button onClick={() => scrollNav('left')}
@@ -211,20 +227,20 @@ export function Header({
             </button>
           )}
           <div ref={navRef}
-            className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth w-full snap-x snap-mandatory px-4 lg:px-6"
+            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth w-full snap-x snap-mandatory px-4 lg:px-6"
             style={{ paddingLeft: canScrollLeft ? 32 : undefined, paddingRight: canScrollRight ? 32 : undefined }}>
             {navigationItems.map((item) => {
               const active = currentView === item.id;
               return (
                 <button key={item.id} data-active={active} onClick={() => onViewChange(item.id)}
-                  className={`relative flex items-center gap-2 px-4 xl:px-6 py-2.5 xl:py-3 rounded-xl
-                    text-[11px] font-black uppercase tracking-widest whitespace-nowrap flex-shrink-0
+                  className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl
+                    text-[10px] font-black uppercase tracking-widest whitespace-nowrap flex-shrink-0
                     transition-all duration-300 group snap-start
                     ${active
                       ? 'bg-emerald-50 dark:bg-primary/10 text-primary dark:text-emerald-400'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5'
                     }`}>
-                  <item.icon className={`w-4 h-4 flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6
+                  <item.icon className={`w-3.5 h-3.5 flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6
                     ${active ? 'text-primary' : item.color}`} />
                   <span>{item.label}</span>
                   {active && (

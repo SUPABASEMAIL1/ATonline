@@ -488,27 +488,6 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                 </div>
               </div>
 
-              {/* SKU */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
-                  {t('sku')}
-                  <HelpTooltip content="Stock Keeping Unit: Unique internal code used to track inventory items across warehouses or stores." />
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    name="sku"
-                    value={formData.sku}
-                    onChange={handleChange}
-                    placeholder="Auto-generated"
-                    className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all uppercase font-medium placeholder:text-gray-600 pr-12"
-                  />
-                  <button type="button" onClick={generateSku} className="absolute right-1.5 top-1.5 bottom-1.5 w-8 flex items-center justify-center bg-emerald-50/80 dark:bg-zinc-900 rounded-lg text-primary">
-                    <Wand2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
               {/* Supplier */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
@@ -533,8 +512,29 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                 </div>
               </div>
 
+              {/* SKU */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
+                  {t('sku')}
+                  <HelpTooltip content="Stock Keeping Unit: Unique internal code used to track inventory items across warehouses or stores." />
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="sku"
+                    value={formData.sku}
+                    onChange={handleChange}
+                    placeholder="Auto-generated"
+                    className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all uppercase font-medium placeholder:text-gray-600 pr-12"
+                  />
+                  <button type="button" onClick={generateSku} className="absolute right-1.5 top-1.5 bottom-1.5 w-8 flex items-center justify-center bg-emerald-50/80 dark:bg-zinc-900 rounded-lg text-primary">
+                    <Wand2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
               {/* Barcode */}
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
                   {t('barcode')}
                   <HelpTooltip content="UPC/EAN standard barcode. Scan with hardware scanner or generate a random sequence for custom retail packaging." />

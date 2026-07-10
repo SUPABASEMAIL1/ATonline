@@ -551,25 +551,59 @@ export const TABLE_TO_ENTITY: Record<string, PendingOpEntity> = {
 };
 
 /**
- * Seed Local Database from Supabase data
- * Used during login/start to ensure local cache is warm.
+ * Seed Local Database from Supabase data — FIELD-LEVEL MERGE
+ * 
+ * CRITICAL FIX: The old version would skip an ENTIRE entity if it had ANY pending op.
+ * This caused stale prices/names/etc. to persist forever when an unrelated field
+ * (e.g. stock) had a pending update.
+ * 
+ * NEW BEHAVIOR: Remote data is always the BASE. Only the specific fields from pending
+ * ops are overlaid on top, so cloud changes (like price updates) always propagate.
  */
 export async function seedLocalDb(data: any) {
   try {
-    // We only seed if we don't have pending ops for that item to avoid overwriting local changes
     const pending = await localDb.pendingOps.toArray();
-    const pendingIds = new Set(pending.map(p => `${p.entity}:${p.entityId}`));
+
+    // Build a map: entity:entityId -> Set of pending payload field names
+    const pendingFieldsMap = new Map<string, Record<string, any>>();
+    for (const op of pending) {
+      if (op.opType === 'delete') continue; // Deletes don't need field-level merge
+      const key = `${op.entity}:${op.entityId}`;
+      const existing = pendingFieldsMap.get(key) || {};
+      // Merge all pending payloads for this entity (later ops override earlier ones)
+      pendingFieldsMap.set(key, { ...existing, ...op.payload });
+    }
+
+    // Set of entity IDs pending deletion
+    const pendingDeleteIds = new Set(
+      pending.filter(p => p.opType === 'delete').map(p => `${p.entity}:${p.entityId}`)
+    );
 
     const seedTable = async (tableName: keyof typeof localDb, items: any[] | undefined) => {
       if (!items || !Array.isArray(items)) return;
 
       const entityName = TABLE_TO_ENTITY[tableName as string] || (tableName as PendingOpEntity);
-      const filtered = items.filter(item => !pendingIds.has(`${entityName}:${item.id}`));
+      
+      // Skip items pending deletion — they should NOT be re-seeded
+      const nonDeletedItems = items.filter(item => !pendingDeleteIds.has(`${entityName}:${item.id}`));
+      
+      // FIELD-LEVEL MERGE: For items with pending ops, use remote as base
+      // but overlay the pending fields so local changes are preserved
+      const mergedItems = nonDeletedItems.map(item => {
+        const key = `${entityName}:${item.id}`;
+        const pendingPayload = pendingFieldsMap.get(key);
+        if (!pendingPayload) return item; // No pending ops — pure remote data
+        
+        // Start with remote (fresh) data, overlay only the pending local fields
+        // This ensures price/name/description from cloud always propagate
+        // while stock/qty changes from pending ops are preserved
+        return { ...item, ...pendingPayload };
+      });
 
-      if (filtered.length > 0) {
+      if (mergedItems.length > 0) {
         const table = localDb[tableName] as Table<any>;
         if (typeof table.bulkPut === 'function') {
-          await table.bulkPut(filtered);
+          await table.bulkPut(mergedItems);
         }
       }
     };
@@ -593,18 +627,22 @@ export async function seedLocalDb(data: any) {
     await Promise.all(tasks);
 
     if (data.settings) {
-      // CRITICAL: Don't overwrite local settings if we have a pending sync operation
-      const pending = await localDb.pendingOps
+      const settingsPending = await localDb.pendingOps
         .where('[entity+entityId]')
         .equals(['app_settings', SETTINGS_ID])
         .first();
 
-      if (!pending) {
+      if (!settingsPending) {
         await localDb.appSettings.put({ ...data.settings, id: SETTINGS_ID });
+      } else {
+        // Field-level merge for settings too — remote is base, pending fields overlay
+        const pendingPayload = settingsPending.payload || {};
+        const merged = { ...data.settings, ...pendingPayload, id: SETTINGS_ID };
+        await localDb.appSettings.put(merged);
       }
     }
 
-    console.log('[DB] ✅ Local seeding complete');
+    console.log('[DB] ✅ Local seeding complete (field-level merge)');
   } catch (err) {
     console.error('[DB] ❌ Seeding failed:', err);
   }

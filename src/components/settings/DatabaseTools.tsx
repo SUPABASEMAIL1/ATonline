@@ -590,213 +590,213 @@ export function DatabaseTools() {
   };
 
   return (
-    <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-2 border-b border-gray-50 dark:border-white/5">
+      <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-white/5">
         <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
           <Database className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Database Management</h2>
-          <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Backup &amp; Restore with Table Selection</p>
+          <h2 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Database Management</h2>
+          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">Backup &amp; Restore with Table Selection</p>
         </div>
       </div>
 
-      {/* Table Selection Grid */}
-      <div className="bg-white dark:bg-black/20 p-5 rounded-[1.75rem] border border-gray-200 dark:border-white/5 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">Select Tables</h3>
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-primary dark:text-emerald-400 hover:underline"
-          >
-            {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-            {allSelected ? 'Deselect All' : 'Select All'}
-          </button>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-          {STORE_OPTIONS.map(store => {
-            const Icon = store.icon;
-            const isSelected = selectedStores.has(store.key);
-            return (
-              <button
-                type="button"
-                key={store.key}
-                onClick={() => toggleStore(store.key)}
-                className={`flex items-center gap-2.5 p-3 rounded-xl text-left text-xs font-bold transition-all border ${isSelected
-                  ? 'bg-emerald-50 dark:bg-primary/10 border-emerald-200 dark:border-primary/30 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/20'
-                  : 'bg-gray-50 dark:bg-white/[0.02] border-gray-200 dark:border-white/5 text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5'
-                  }`}
-              >
-                <Icon className={`w-4 h-4 shrink-0 ${isSelected ? store.color : 'text-gray-600 dark:text-gray-500'}`} />
-                <span className="truncate">{store.label}</span>
-                {isSelected && <CheckCircle2 className="w-3.5 h-3.5 ml-auto text-primary shrink-0" />}
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-[10px] text-gray-600 font-bold mt-3 uppercase tracking-widest">
-          {selectedStores.size} of {STORE_OPTIONS.length} tables selected
-        </p>
-      </div>
-
-      {/* Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Export Card */}
-        <div className="bg-white dark:bg-black/20 p-6 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-xl group overflow-hidden relative">
-          <div className="relative z-10">
-            <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Download className="w-6 h-6 text-blue-500" />
-            </div>
-            <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight">Export Data</h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mt-2 mb-6 font-medium leading-relaxed">
-              Download selected tables as a JSON backup file.
-            </p>
+      {/* ROW 1: Table Selection (7) + Backups (5) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* LEFT COLUMN: Table Selection (7 Cols) */}
+        <div className="lg:col-span-7 bg-white dark:bg-black/20 p-5 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-md space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-white/5 pb-2">
+            <h3 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">Select Tables</h3>
             <button
               type="button"
-              onClick={handleExport}
-              disabled={isExporting || selectedStores.size === 0}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black uppercase text-xs tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+              onClick={toggleAll}
+              className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-primary dark:text-emerald-400 hover:underline"
             >
-              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />}
-              {isExporting ? 'Generating...' : `Export ${selectedStores.size} Tables`}
+              {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+              {allSelected ? 'Deselect All' : 'Select All'}
             </button>
           </div>
-          <History className="absolute -bottom-8 -right-8 w-32 h-32 text-blue-500/5" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {STORE_OPTIONS.map(store => {
+              const Icon = store.icon;
+              const isSelected = selectedStores.has(store.key);
+              return (
+                <button
+                  type="button"
+                  key={store.key}
+                  onClick={() => toggleStore(store.key)}
+                  className={`flex items-center gap-2 p-2 rounded-xl text-left text-[11px] font-bold transition-all border ${isSelected
+                    ? 'bg-emerald-50 dark:bg-primary/10 border-emerald-200 dark:border-primary/30 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/10'
+                    : 'bg-gray-50 dark:bg-white/[0.02] border-gray-200 dark:border-white/5 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5'
+                    }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? store.color : 'text-gray-600 dark:text-gray-500'}`} />
+                  <span className="truncate">{store.label}</span>
+                  {isSelected && <CheckCircle2 className="w-3 h-3 ml-auto text-primary shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">
+            {selectedStores.size} of {STORE_OPTIONS.length} tables selected
+          </div>
         </div>
 
-        {/* Import Card */}
-        <div className="bg-white dark:bg-black/20 p-6 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-xl group overflow-hidden relative">
-          <div className="relative z-10">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Upload className="w-6 h-6 text-primary" />
-            </div>
-            <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight">Import Data</h3>
-
-            {/* File Picker */}
-            <div className="mt-3 mb-4">
-              <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-2">Backup File</label>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex items-center gap-3 p-3 rounded-xl border-2 border-dashed cursor-pointer transition-all ${selectedFile
-                  ? 'border-emerald-300 dark:border-primary/40 bg-emerald-50/50 dark:bg-primary/5'
-                  : 'border-gray-200 dark:border-white/10 hover:border-emerald-300 dark:hover:border-primary/30 bg-gray-50/50 dark:bg-white/[0.02]'
-                  }`}
-              >
-                <FileJson className={`w-5 h-5 shrink-0 ${selectedFile ? 'text-primary' : 'text-gray-600'}`} />
-                <span className={`text-xs font-bold truncate ${selectedFile ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600'}`}>
-                  {selectedFile ? selectedFile.name : 'Click to select .json file'}
-                </span>
-                {selectedFile && <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />}
+        {/* RIGHT COLUMN: Export/Import Stack (5 Cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          <div className="bg-white dark:bg-black/20 p-5 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-md space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              {/* Export Panel */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Download className="w-4 h-4 text-blue-500" />
+                  <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">Export</h4>
+                </div>
+                <p className="text-[10px] text-gray-500 font-medium">Backup selected tables to JSON file.</p>
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  disabled={isExporting || selectedStores.size === 0}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileJson className="h-3.5 w-3.5" />}
+                  {isExporting ? 'Exporting...' : 'Export'}
+                </button>
               </div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                accept=".json"
-                className="hidden"
-              />
+
+              {/* Import Panel */}
+              <div className="space-y-3 border-t sm:border-t-0 sm:border-l border-gray-100 dark:border-white/5 sm:pl-4 pt-3 sm:pt-0">
+                <div className="flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-primary" />
+                  <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">Import</h4>
+                </div>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex items-center gap-2 p-2 rounded-xl border border-dashed cursor-pointer transition-all ${selectedFile
+                    ? 'border-emerald-300 dark:border-primary/40 bg-emerald-50/50 dark:bg-primary/5'
+                    : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.02]'
+                    }`}
+                >
+                  <FileJson className={`w-4 h-4 shrink-0 ${selectedFile ? 'text-primary' : 'text-gray-400'}`} />
+                  <span className={`text-[10px] font-bold truncate ${selectedFile ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-400'}`}>
+                    {selectedFile ? selectedFile.name : 'Select file'}
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept=".json"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={handleImport}
+                  disabled={isImporting || !selectedFile || selectedStores.size === 0}
+                  className="w-full py-2.5 bg-primary hover:bg-emerald-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  {isImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {isImporting ? 'Importing...' : 'Import'}
+                </button>
+              </div>
+
             </div>
 
-            <button
-              type="button"
-              onClick={handleImport}
-              disabled={isImporting || !selectedFile || selectedStores.size === 0}
-              className="btn btn-md btn-primary w-full hover:bg-emerald-700"
-            >
-              {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {isImporting ? 'Processing...' : `Import ${selectedStores.size} Tables`}
-            </button>
-          </div>
-          <Database className="absolute -bottom-8 -right-8 w-32 h-32 text-primary/5" />
-        </div>
-      </div>
-
-      {/* Safety Notice */}
-      <div className="p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 rounded-2xl flex items-start gap-3">
-        <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-        <div>
-          <h4 className="text-xs font-black text-amber-900 dark:text-amber-400 uppercase tracking-widest mb-1">Safety Notice</h4>
-          <p className="text-[11px] text-amber-800/70 dark:text-amber-400/60 font-bold leading-relaxed">
-            Import merges data without deleting existing records. Duplicates are detected by ID, SKU, Barcode, Invoice Number, Email, and Phone — then skipped automatically. Export your data first before importing to avoid conflicts.
-          </p>
-        </div>
-      </div>
-
-      {/* Advanced System Tools: Barcode Seeding & Stock Audit */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100 dark:border-white/5">
-        <div className="bg-emerald-50/40 dark:bg-emerald-950/10 p-6 rounded-[2rem] border border-emerald-100 dark:border-emerald-950/20 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start gap-4 mb-6">
-            <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/20 rounded-2xl flex items-center justify-center shrink-0">
-              <Barcode className="w-6 h-6 text-primary dark:text-emerald-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-emerald-950 dark:text-emerald-300 uppercase tracking-tight">Code 128 Barcode Seeding</h3>
-              <p className="text-emerald-800/70 dark:text-emerald-400/70 text-[11px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
-                Scans existing inventory catalog where barcodes are missing or null and automatically generates standard ZP-00000 Code 128 identifiers.
+            {/* Nested Safety Notice */}
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/25 rounded-xl flex items-start gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-[9px] text-amber-800/80 dark:text-amber-400/60 font-bold leading-relaxed uppercase tracking-wider">
+                Import merges records. Duplicates are auto-skipped by ID/SKU/Barcode/Invoice.
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleSeedBarcodes}
-            disabled={isSeeding}
-            className="btn btn-md btn-primary w-full hover:bg-emerald-700"
-          >
-            {isSeeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Barcode className="w-4 h-4" />}
-            {isSeeding ? 'Populating...' : 'Populate Missing Barcodes'}
-          </button>
         </div>
 
-        <div className="bg-blue-50/40 dark:bg-blue-950/10 p-6 rounded-[2rem] border border-blue-100 dark:border-blue-950/20 shadow-sm flex flex-col justify-between">
-          <div className="flex items-start gap-4 mb-6">
-            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center shrink-0">
-              <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-blue-950 dark:text-blue-300 uppercase tracking-tight">Stock Integrity Audit</h3>
-              <p className="text-blue-800/70 dark:text-blue-400/70 text-[11px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
-                Executes Rule F8 audit verification across products and FIFO batches to ensure exact numeric parity across all storage tiers.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleAuditStock}
-            disabled={isAuditing}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center justify-center gap-2"
-          >
-            {isAuditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-            {isAuditing ? 'Auditing...' : 'Run Stock Integrity Audit'}
-          </button>
-        </div>
       </div>
 
-      {/* Danger Zone: Purge All */}
-      <div className="pt-8 border-t border-red-100 dark:border-red-900/20">
-        <div className="bg-red-50/50 dark:bg-red-950/10 p-6 rounded-[2rem] border border-red-100 dark:border-red-950/20 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center shrink-0">
-                <ShieldAlert className="w-6 h-6 text-red-600 dark:text-red-500" />
+      {/* ROW 2: Advanced Audits (7) + Reset Danger Zone (5) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pt-4 border-t border-gray-100 dark:border-white/5">
+        
+        {/* LEFT COLUMN: Advanced Tools (7 Cols) */}
+        <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          
+          {/* Barcode Seeding */}
+          <div className="bg-emerald-50/40 dark:bg-emerald-950/10 p-5 rounded-[2rem] border border-emerald-100 dark:border-emerald-950/20 shadow-sm flex flex-col justify-between space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center shrink-0">
+                <Barcode className="w-5 h-5 text-primary dark:text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-red-900 dark:text-red-400 uppercase tracking-tight">Danger Zone: System Reset</h3>
-                <p className="text-red-800/60 dark:text-red-400/50 text-[11px] mt-1 font-bold leading-relaxed max-w-lg uppercase tracking-wider">
-                  Purge all local data and reset the environment. This will wipe everything locally and force a fresh sync with the cloud. Use this if your local data feels corrupted or mismatched. <b>Sync Markers will also be cleared.</b>
+                <h3 className="text-xs font-black text-emerald-950 dark:text-emerald-300 uppercase tracking-tight">Barcode Seeding</h3>
+                <p className="text-emerald-800/60 dark:text-emerald-400/50 text-[9px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
+                  Generate missing Code 128 barcodes for existing items.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSeedBarcodes}
+              disabled={isSeeding}
+              className="w-full py-2.5 bg-primary hover:bg-emerald-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+            >
+              {isSeeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Barcode className="w-3.5 h-3.5" />}
+              {isSeeding ? 'Populating...' : 'Populate Barcodes'}
+            </button>
+          </div>
+
+          {/* Stock Audit */}
+          <div className="bg-blue-50/40 dark:bg-blue-950/10 p-5 rounded-[2rem] border border-blue-100 dark:border-blue-950/20 shadow-sm flex flex-col justify-between space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center shrink-0">
+                <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black text-blue-950 dark:text-blue-300 uppercase tracking-tight">Integrity Audit</h3>
+                <p className="text-blue-800/60 dark:text-blue-400/50 text-[9px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
+                  Check Rule F8 parity across products & FIFO batches.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleAuditStock}
+              disabled={isAuditing}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+            >
+              {isAuditing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+              {isAuditing ? 'Auditing...' : 'Run Stock Audit'}
+            </button>
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN: Danger Zone (5 Cols) */}
+        <div className="lg:col-span-5">
+          <div className="bg-red-50/40 dark:bg-red-950/10 p-5 rounded-[2rem] border border-red-100 dark:border-red-950/20 shadow-sm space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-xl flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black text-red-950 dark:text-red-400 uppercase tracking-tight">System Reset</h3>
+                <p className="text-red-800/60 dark:text-red-400/50 text-[9px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
+                  Wipes local database and triggers a fresh sync from cloud.
                 </p>
               </div>
             </div>
             <button
               type="button"
               onClick={handlePurgeAll}
-              className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-lg shadow-red-600/20 active:scale-95 whitespace-nowrap"
+              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
             >
               Purge Local Database
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );

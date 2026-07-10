@@ -50,6 +50,7 @@ import { DatabaseTools } from './DatabaseTools';
 import { CloudSyncTab } from './CloudSyncTab';
 
 import { SearchableSelect } from '../common/SearchableSelect';
+import { StickyFormFooter } from '../common/StickyFormFooter';
 import { CURRENCIES } from '../../lib/currencies';
 import { localDb } from '../../lib/localDb';
 import { useSoundFeedback } from '../../hooks/useSoundFeedback';
@@ -626,263 +627,97 @@ export function Settings() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                  {/* Store Identity Card - Full Width */}
-                  <div className="lg:col-span-2 p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5">
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-200 dark:border-white/5">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-white dark:bg-white/10 rounded-xl shadow-sm">
-                          <Store className="w-5 h-5 text-[#10B981]" />
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  
+                  {/* LEFT COLUMN: Business Identity & Defaults (8 Cols) */}
+                  <div className="lg:col-span-8 space-y-6">
+                    {/* Store Profile & Logo */}
+                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-6">
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-6 border-b border-gray-200 dark:border-white/5">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-white dark:bg-white/10 rounded-xl shadow-sm">
+                            <Store className="w-5 h-5 text-[#10B981]" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("store_identity", "Store Identity")}</h3>
+                            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("store_identity_subtitle", "How your business appears to customers")}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("store_identity", "Store Identity")}</h3>
-                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("store_identity_subtitle", "How your business appears to customers")}</p>
-                        </div>
-                      </div>
-
-                      <div className="w-full md:w-auto">
-                        <LogoUpload
-                           currentLogo={formData.storeLogo}
-                          onLogoChange={(url: string | undefined) => {
-                            setFormData(prev => ({ ...prev, storeLogo: url }));
-                            handleInstantUpdate('storeLogo', url);
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("business_name", "Business Name")}</label>
-                        <input
-                          type="text"
-                          name="storeName"
-                          value={formData.storeName}
-                          onChange={handleChange}
-                          className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
-                          placeholder="Zaynahs POS"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("contact_phone", "Contact Phone")}</label>
-                        <input
-                          type="tel"
-                          name="storePhone"
-                          value={formData.storePhone}
-                          onChange={handleChange}
-                          className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
-                          placeholder="+94 7X XXX XXXX"
-                        />
-                      </div>
-                      <div className="md:col-span-2 space-y-2 relative">
-                        <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("store_currency", "Store Currency")}</label>
-                        <SearchableSelect
-                          options={CURRENCIES.map(c => ({ id: c.code, label: `${c.code} - ${c.name} (${c.symbol})` }))}
-                          value={formData.currency}
-                          onChange={(val) => {
-                            setFormData(prev => ({ ...prev, currency: val }));
-                            handleInstantUpdate('currency', val);
-                          }}
-                          placeholder="Select currency..."
-                          icon={Globe}
-                        />
-                      </div>
-                      <div className="space-y-2 relative">
-                        <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("system_language", "System Language")}</label>
-                        <SearchableSelect
-                          options={[
-                            { id: 'en', label: 'English (United States)' },
-                            { id: 'ur', label: 'Urdu (Pakistan)' },
-                            { id: 'ar', label: 'Arabic (UAE)' }
-                          ]}
-                          value={formData.language || 'en'}
-                          onChange={(val) => {
-                            setFormData(prev => ({ ...prev, language: val }));
-                            handleInstantUpdate('language', val);
-                          }}
-                          placeholder="Select language..."
-                          icon={Languages}
-                        />
-                      </div>
-                      <div className="space-y-2 relative">
-                        <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("default_pos_view", "Default POS View")}</label>
-                        <SearchableSelect
-                          options={[
-                            { id: 'retail', label: t('retail_sales', 'Retail Mode') },
-                            { id: 'wholesale', label: t('wholesale_mode', 'Wholesale Mode') },
-                            { id: 'estore', label: t('estore_mode', 'E-Store Mode') }
-                          ]}
-                          value={formData.defaultSaleType || 'retail'}
-                          onChange={(val) => {
-                            setFormData(prev => ({ ...prev, defaultSaleType: val as any }));
-                            handleInstantUpdate('defaultSaleType', val);
-                          }}
-                          placeholder="Select mode..."
-                          icon={LayoutGrid}
-                        />
-                      </div>
-                      <div className="space-y-2 relative">
-                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("standard_paper_size", "Standard Paper Size")}</label>
-                          <SearchableSelect
-                            options={[
-                              { id: '80mm', label: '80mm (Standard Thermal)' },
-                              { id: '58mm', label: '58mm (Compact Thermal)' },
-                              { id: 'a4', label: 'A4 (Invoice Style)' }
-                            ]}
-                            value={formData.receiptPaperSize}
-                            onChange={(val) => {
-                              setFormData(prev => ({ ...prev, receiptPaperSize: val as any }));
-                              handleInstantUpdate('receiptPaperSize', val);
+                        <div className="w-full md:w-auto">
+                          <LogoUpload
+                            currentLogo={formData.storeLogo}
+                            onLogoChange={(url: string | undefined) => {
+                              setFormData(prev => ({ ...prev, storeLogo: url }));
+                              handleInstantUpdate('storeLogo', url);
                             }}
-                            placeholder="Select size..."
-                            icon={Printer}
                           />
                         </div>
-                      <div className="md:col-span-2 space-y-1.5">
-                        <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("physical_address", "Physical Address")}</label>
-                        <textarea
-                          name="storeAddress"
-                          value={formData.storeAddress}
-                          onChange={handleChange}
-                          rows={2}
-                          className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2.5 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-sm text-gray-900 dark:text-white font-bold resize-none"
-                          placeholder="123 Main Street"
-                        />
+                      </div>
+
+                      {/* Store Core Contact Details */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("business_name", "Business Name")}</label>
+                          <input
+                            type="text"
+                            name="storeName"
+                            value={formData.storeName}
+                            onChange={handleChange}
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
+                            placeholder="Zaynahs POS"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("contact_phone", "Contact Phone")}</label>
+                          <input
+                            type="tel"
+                            name="storePhone"
+                            value={formData.storePhone}
+                            onChange={handleChange}
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
+                            placeholder="+94 7X XXX XXXX"
+                          />
+                        </div>
+                        <div className="md:col-span-2 space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("physical_address", "Physical Address")}</label>
+                          <textarea
+                            name="storeAddress"
+                            value={formData.storeAddress}
+                            onChange={handleChange}
+                            rows={2}
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2.5 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-sm text-gray-900 dark:text-white font-bold resize-none"
+                            placeholder="123 Main Street"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Left Column Stack */}
-                  <div className="flex flex-col gap-6">
-                    {/* System Experience Card */}
-                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5">
-                      <div className="flex items-center gap-3 mb-6">
+                    {/* Regional & Defaults */}
+                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-6">
+                      <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-white/5">
                         <div className="p-2.5 bg-white dark:bg-white/10 rounded-xl shadow-sm">
-                          <Layout className="w-5 h-5 text-primary" />
+                          <Globe className="w-5 h-5 text-blue-500" />
                         </div>
                         <div>
-                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("experience", "Experience")}</h3>
-                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("experience_subtitle", "Personalize your workspace")}</p>
+                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("localization_defaults", "Localization & Defaults")}</h3>
+                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("localization_defaults_subtitle", "Currencies, languages and system default types")}</p>
                         </div>
                       </div>
 
-                      <div className="space-y-6">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">{t("app_theme", "App Theme")}</label>
-                          <div className="grid grid-cols-3 gap-2 bg-white dark:bg-black/20 p-1.5 rounded-2xl border border-gray-200 dark:border-white/5">
-                            {(['light', 'dark', 'auto'] as const).map((tVal) => (
-                              <button
-                                key={tVal}
-                                type="button"
-                                onClick={() => {
-                                  setFormData(prev => ({ ...prev, theme: tVal }));
-                                  handleInstantUpdate('theme', tVal);
-                                }}
-                                className={`py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${formData.theme === tVal
-                                  ? 'bg-[#10B981] text-white shadow-lg shadow-[#10B981]/20'
-                                  : 'text-gray-600 hover:text-gray-900 dark:hover:text-white'
-                                  }`}
-                              >
-                                {tVal === 'light' ? t("theme_light", "Light") : (tVal === 'dark' ? t("theme_dark", "Dark") : tVal)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1">{t("interface_mode", "Interface Mode")}</label>
-                          <select
-                            name="interfaceMode"
-                            value={formData.interfaceMode || 'touch'}
-                            onChange={(e) => {
-                                handleChange(e);
-                                handleInstantUpdate('interfaceMode', e.target.value);
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2 relative z-30">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("store_currency", "Store Currency")}</label>
+                          <SearchableSelect
+                            options={CURRENCIES.map(c => ({ id: c.code, label: `${c.code} - ${c.name} (${c.symbol})` }))}
+                            value={formData.currency}
+                            onChange={(val) => {
+                              setFormData(prev => ({ ...prev, currency: val }));
+                              handleInstantUpdate('currency', val);
                             }}
-                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3 px-4 focus:ring-4 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-gray-900 dark:text-white font-bold"
-                          >
-                            <option value="touch">{t("touch_friendly", "Touch Friendly (POS Optimized)")}</option>
-                            <option value="traditional">{t("traditional", "Traditional (Keyboard Focused)")}</option>
-                          </select>
+                            placeholder="Select currency..."
+                            icon={Globe}
+                          />
                         </div>
-
-                        <div className="flex items-center justify-between p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-rose-500/10 rounded-lg">
-                              <AlertTriangle className="w-4 h-4 text-rose-500" />
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("hard_block_credit_limit", "Hard Block Credit Limit")}</p>
-                              <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{t("hard_block_credit_limit_subtitle", "Prevent sales if limit is exceeded")}</p>
-                            </div>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              name="allowCreditOverLimit"
-                              checked={!formData.allowCreditOverLimit}
-                              onChange={(e) => handleInstantUpdate('allowCreditOverLimit', !e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-rose-500"></div>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Business Logic Card */}
-                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="p-3 bg-white dark:bg-white/10 rounded-2xl shadow-sm">
-                          <ClipboardList className="w-5 h-5 text-blue-500" />
-                        </div>
-                        <div>
-                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("business_logic", "Business Logic")}</h3>
-                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("business_logic_subtitle", "Invoicing & Operations")}</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("invoice_prefix", "Invoice Prefix")}</label>
-                            <input
-                              type="text"
-                              name="invoicePrefix"
-                              value={formData.invoicePrefix}
-                              onChange={handleChange}
-                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-gray-900 dark:text-white font-bold"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("serial_start", "Serial Start")}</label>
-                            <input
-                              type="number"
-                              name="invoiceCounter"
-                              value={formData.invoiceCounter}
-                              onChange={handleChange}
-                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-gray-900 dark:text-white font-bold"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Column Stack */}
-                  <div className="flex flex-col gap-6">
-                    {/* Regional & Localization Card */}
-                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="p-3 bg-white dark:bg-white/10 rounded-2xl shadow-sm">
-                          <Globe className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("regional", "Regional")}</h3>
-                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("regional_subtitle", "Localization & Tax IDs")}</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
                         <div className="space-y-2 relative z-30">
                           <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("store_country", "Store Country")}</label>
                           <SearchableSelect
@@ -921,8 +756,58 @@ export function Settings() {
                             icon={Globe}
                           />
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2 relative z-20">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("system_language", "System Language")}</label>
+                          <SearchableSelect
+                            options={[
+                              { id: 'en', label: 'English (United States)' },
+                              { id: 'ur', label: 'Urdu (Pakistan)' },
+                              { id: 'ar', label: 'Arabic (UAE)' }
+                            ]}
+                            value={formData.language || 'en'}
+                            onChange={(val) => {
+                              setFormData(prev => ({ ...prev, language: val }));
+                              handleInstantUpdate('language', val);
+                            }}
+                            placeholder="Select language..."
+                            icon={Languages}
+                          />
+                        </div>
+                        <div className="space-y-2 relative z-20">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("default_pos_view", "Default POS View")}</label>
+                          <SearchableSelect
+                            options={[
+                              { id: 'retail', label: t('retail_sales', 'Retail Mode') },
+                              { id: 'wholesale', label: t('wholesale_mode', 'Wholesale Mode') },
+                              { id: 'estore', label: t('estore_mode', 'E-Store Mode') }
+                            ]}
+                            value={formData.defaultSaleType || 'retail'}
+                            onChange={(val) => {
+                              setFormData(prev => ({ ...prev, defaultSaleType: val as any }));
+                              handleInstantUpdate('defaultSaleType', val);
+                            }}
+                            placeholder="Select mode..."
+                            icon={LayoutGrid}
+                          />
+                        </div>
+                        <div className="space-y-2 relative z-10">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("standard_paper_size", "Standard Paper Size")}</label>
+                          <SearchableSelect
+                            options={[
+                              { id: '80mm', label: '80mm (Standard Thermal)' },
+                              { id: '58mm', label: '58mm (Compact Thermal)' },
+                              { id: 'a4', label: 'A4 (Invoice Style)' }
+                            ]}
+                            value={formData.receiptPaperSize}
+                            onChange={(val) => {
+                              setFormData(prev => ({ ...prev, receiptPaperSize: val as any }));
+                              handleInstantUpdate('receiptPaperSize', val);
+                            }}
+                            placeholder="Select size..."
+                            icon={Printer}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 relative">
                           <div className="space-y-1.5">
                             <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("default_tax_percent", "Default Tax %")}</label>
                             <input
@@ -931,7 +816,7 @@ export function Settings() {
                               value={formData.taxRate}
                               onChange={handleChange}
                               step="0.01"
-                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-gray-900 dark:text-white font-bold"
+                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
                               placeholder="0.00"
                             />
                           </div>
@@ -942,7 +827,7 @@ export function Settings() {
                               name="taxId"
                               value={formData.taxId}
                               onChange={handleChange}
-                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-gray-900 dark:text-white font-bold"
+                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
                               placeholder="NTN / VAT"
                             />
                           </div>
@@ -950,11 +835,112 @@ export function Settings() {
                       </div>
                     </div>
 
-                    {/* System Modules Card */}
-                    <div className="p-4 sm:p-6 bg-gradient-to-br from-violet-50/40 to-emerald-50/30 dark:from-violet-900/5 dark:to-emerald-900/5 rounded-[2rem] border border-violet-200/30 dark:border-violet-900/20">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="w-12 h-12 bg-violet-100 dark:bg-violet-900/20 rounded-2xl flex items-center justify-center">
-                          <Sliders className="w-6 h-6 text-violet-600" />
+                    {/* Business Invoicing & Counters */}
+                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-6">
+                      <div className="flex items-center gap-4 pb-4 border-b border-gray-200 dark:border-white/5">
+                        <div className="p-3 bg-white dark:bg-white/10 rounded-2xl shadow-sm">
+                          <ClipboardList className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("business_logic", "Business Logic")}</h3>
+                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("business_logic_subtitle", "Invoicing, prefix, and serialization controls")}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("invoice_prefix", "Invoice Prefix")}</label>
+                          <input
+                            type="text"
+                            name="invoicePrefix"
+                            value={formData.invoicePrefix}
+                            onChange={handleChange}
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-gray-900 dark:text-white font-bold"
+                          />
+                        </div>
+                        <div className="space-y-1.5 flex flex-col justify-end">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1 mb-1.5">{t("serial_start", "Serial Start")}</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              name="invoiceCounter"
+                              value={formData.invoiceCounter}
+                              onChange={handleChange}
+                              className="flex-1 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-gray-900 dark:text-white font-bold"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleRepairCounter}
+                              className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all active:scale-95 whitespace-nowrap"
+                            >
+                              Repair
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RIGHT COLUMN: Experience & System Modules (4 Cols) */}
+                  <div className="lg:col-span-4 space-y-6">
+                    {/* User Experience Theme */}
+                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-6">
+                      <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-white/5">
+                        <div className="p-2.5 bg-white dark:bg-white/10 rounded-xl shadow-sm">
+                          <Layout className="w-5 h-5 text-violet-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("experience", "Experience")}</h3>
+                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{t("experience_subtitle", "Personalize your workspace")}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("app_theme", "App Theme")}</label>
+                          <div className="grid grid-cols-3 gap-2 bg-white dark:bg-black/25 p-1 rounded-xl border border-gray-200 dark:border-white/5">
+                            {(['light', 'dark', 'auto'] as const).map((tVal) => (
+                              <button
+                                key={tVal}
+                                type="button"
+                                onClick={() => {
+                                  setFormData(prev => ({ ...prev, theme: tVal }));
+                                  handleInstantUpdate('theme', tVal);
+                                }}
+                                className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${formData.theme === tVal
+                                  ? 'bg-[#10B981] text-white shadow-md'
+                                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                                  }`}
+                              >
+                                {tVal === 'light' ? t("theme_light", "Light") : (tVal === 'dark' ? t("theme_dark", "Dark") : tVal)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("interface_mode", "Interface Mode")}</label>
+                          <select
+                            name="interfaceMode"
+                            value={formData.interfaceMode || 'touch'}
+                            onChange={(e) => {
+                              handleChange(e);
+                              handleInstantUpdate('interfaceMode', e.target.value);
+                            }}
+                            className="w-full bg-white dark:bg-black/25 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-xs font-bold text-gray-900 dark:text-white"
+                          >
+                            <option value="touch">{t("touch_friendly", "Touch Friendly (POS Optimized)")}</option>
+                            <option value="traditional">{t("traditional", "Traditional (Keyboard Focused)")}</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* System Modules Toggles */}
+                    <div className="p-4 sm:p-6 bg-gradient-to-br from-violet-50/40 to-emerald-50/30 dark:from-violet-900/5 dark:to-emerald-900/5 rounded-[2rem] border border-violet-200/30 dark:border-violet-900/20 space-y-6">
+                      <div className="flex items-center gap-4 pb-4 border-b border-violet-200/40 dark:border-violet-900/20">
+                        <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/20 rounded-xl flex items-center justify-center">
+                          <Sliders className="w-5 h-5 text-violet-600" />
                         </div>
                         <div>
                           <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("system_modules", "System Modules")}</h3>
@@ -964,39 +950,36 @@ export function Settings() {
 
                       <div className="space-y-3">
                         {/* Retail Mode Toggle */}
-                        <label className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer group">
-                          <div className="flex items-center gap-4">
-                            <Store className="w-5 h-5 text-gray-600 group-hover:text-violet-500 transition-colors" />
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <Store className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
                             <div>
-                              <span className="text-sm font-bold text-gray-700 dark:text-gray-300 block">{t("retail_sales", "Retail Sales")}</span>
-                              <span className="text-[10px] text-gray-600 font-medium">{t("retail_sales_subtitle", "Standard B2C direct sales mode")}</span>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("retail_sales", "Retail Sales")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("retail_sales_subtitle", "B2C direct sales")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
                             <input
                               type="checkbox"
                               name="retailEnabled"
                               checked={formData.retailEnabled}
-                              onChange={(e) => {
-                                handleInstantUpdate('retailEnabled', e.target.checked);
-                              }}
+                              onChange={(e) => handleInstantUpdate('retailEnabled', e.target.checked)}
                               className="sr-only peer"
                             />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
                           </div>
                         </label>
 
-
                         {/* Wholesale Mode Toggle */}
-                        <label className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer group">
-                          <div className="flex items-center gap-4">
-                            <ShoppingBag className="w-5 h-5 text-gray-600 group-hover:text-violet-500 transition-colors" />
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <ShoppingBag className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
                             <div>
-                              <span className="text-sm font-bold text-gray-700 dark:text-gray-300 block">{t("wholesale_mode", "Wholesale Mode")}</span>
-                              <span className="text-[10px] text-gray-600 font-medium">{t("wholesale_mode_subtitle", "Allow wholesale sale type at checkout")}</span>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("wholesale_mode", "Wholesale Mode")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("wholesale_mode_subtitle", "Allow wholesale price tiers")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
                             <input
                               type="checkbox"
                               name="wholesaleEnabled"
@@ -1007,20 +990,20 @@ export function Settings() {
                               }}
                               className="sr-only peer"
                             />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
                           </div>
                         </label>
 
                         {/* E-Store Mode Toggle */}
-                        <label className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer group">
-                          <div className="flex items-center gap-4">
-                            <Globe className="w-5 h-5 text-gray-600 group-hover:text-violet-500 transition-colors" />
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <Globe className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
                             <div>
-                              <span className="text-sm font-bold text-gray-700 dark:text-gray-300 block">{t("estore_mode", "E-Store Mode")}</span>
-                              <span className="text-[10px] text-gray-600 font-medium">{t("estore_mode_subtitle", "Allow e-store sale type at checkout")}</span>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("estore_mode", "E-Store Mode")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("estore_mode_subtitle", "Allow e-store channel")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
                             <input
                               type="checkbox"
                               name="estoreEnabled"
@@ -1031,20 +1014,20 @@ export function Settings() {
                               }}
                               className="sr-only peer"
                             />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
                           </div>
                         </label>
 
                         {/* Touch Keyboard Toggle */}
-                        <label className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer group">
-                          <div className="flex items-center gap-4">
-                            <Keyboard className="w-5 h-5 text-gray-600 group-hover:text-violet-500 transition-colors" />
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <Keyboard className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
                             <div>
-                              <span className="text-sm font-bold text-gray-700 dark:text-gray-300 block">{t("touch_keyboard", "Touch Keyboard")}</span>
-                              <span className="text-[10px] text-gray-600 font-medium">{t("touch_keyboard_subtitle", "On-screen keyboard for all inputs")}</span>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("touch_keyboard", "Touch Keyboard")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("touch_keyboard_subtitle", "On-screen layout inputs")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
                             <input
                               type="checkbox"
                               name="touchKeyboardEnabled"
@@ -1055,81 +1038,97 @@ export function Settings() {
                               }}
                               className="sr-only peer"
                             />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
                           </div>
                         </label>
 
                         {/* Sound Feedback Toggle */}
-                        <div className="bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl p-4 space-y-4">
-                          <label className="flex items-center justify-between cursor-pointer group">
-                            <div className="flex items-center gap-4">
-                              {formData.soundEnabled
-                                ? <Volume2 className="w-5 h-5 text-violet-500 transition-colors" />
-                                : <VolumeX className="w-5 h-5 text-gray-600 group-hover:text-violet-500 transition-colors" />
-                              }
-                              <div>
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 block">{t("sound_feedback", "Sound Feedback")}</span>
-                                <span className="text-[10px] text-gray-600 font-medium">{t("sound_feedback_subtitle", "UI sounds for actions and keyboard")}</span>
-                              </div>
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            {formData.soundEnabled
+                              ? <Volume2 className="w-4 h-4 text-violet-500 transition-colors" />
+                              : <VolumeX className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
+                            }
+                            <div>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("sound_feedback", "Sound Feedback")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("sound_feedback_subtitle", "Keyboard UI feedback sounds")}</span>
                             </div>
-                            <div className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
-                              <input
-                                type="checkbox"
-                                name="soundEnabled"
-                                checked={formData.soundEnabled}
-                                onChange={(e) => {
-                                  setFormData(p => ({ ...p, soundEnabled: e.target.checked }));
-                                  handleInstantUpdate('soundEnabled', e.target.checked);
-                                  if (e.target.checked) setTimeout(() => play('success'), 100);
-                                }}
-                                className="sr-only peer"
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
-                            </div>
-                          </label>
-                          
-                          <div className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                                <Layers className="w-4 h-4 text-blue-500" />
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-900 dark:text-white">{t("enable_split_payments", "Enable Split Payments")}</p>
-                                <p className="text-[8px] font-bold text-gray-500 uppercase">{t("enable_split_payments_subtitle", "Allow multi-method payments per sale")}</p>
-                              </div>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={formData.enableSplitPayment}
-                                onChange={(e) => handleInstantUpdate('enableSplitPayment', e.target.checked)}
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                            </label>
                           </div>
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
+                            <input
+                              type="checkbox"
+                              name="soundEnabled"
+                              checked={formData.soundEnabled}
+                              onChange={(e) => {
+                                setFormData(p => ({ ...p, soundEnabled: e.target.checked }));
+                                handleInstantUpdate('soundEnabled', e.target.checked);
+                                if (e.target.checked) setTimeout(() => play('success'), 100);
+                              }}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
+                          </div>
+                        </label>
 
-                          <div className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center">
-                                <PlusCircle className="w-4 h-4 text-amber-500" />
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-900 dark:text-white">{t("enable_dc_charges", "Enable DC Charges")}</p>
-                                <p className="text-[8px] font-bold text-gray-500 uppercase">{t("enable_dc_charges_subtitle", "Enable Delivery Charges (DC) for E-Store sales")}</p>
-                              </div>
+                        {/* Split Payments Toggle */}
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <Layers className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
+                            <div>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("enable_split_payments", "Split Payments")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("enable_split_payments_subtitle", "Allow split payment mode")}</span>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={formData.enableExtraCharges}
-                                onChange={(e) => handleInstantUpdate('enableExtraCharges', e.target.checked)}
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                            </label>
                           </div>
-                        </div>
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
+                            <input
+                              type="checkbox"
+                              checked={formData.enableSplitPayment}
+                              onChange={(e) => handleInstantUpdate('enableSplitPayment', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-[#10B981]"></div>
+                          </div>
+                        </label>
+
+                        {/* Delivery Charges Toggle */}
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <PlusCircle className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
+                            <div>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("enable_dc_charges", "Enable DC Charges")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("enable_dc_charges_subtitle", "Extra packaging & delivery fees")}</span>
+                            </div>
+                          </div>
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
+                            <input
+                              type="checkbox"
+                              checked={formData.enableExtraCharges}
+                              onChange={(e) => handleInstantUpdate('enableExtraCharges', e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-[#10B981]"></div>
+                          </div>
+                        </label>
+
+                        {/* Hard Block Credit Limit Toggle */}
+                        <label className="flex items-center justify-between p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <AlertTriangle className="w-4 h-4 text-rose-500" />
+                            <div>
+                              <span className="text-xs font-bold text-rose-600 dark:text-rose-400 block leading-none">{t("hard_block_credit_limit", "Block Credit Limit")}</span>
+                              <span className="text-[8px] text-rose-500/70 uppercase tracking-wider block mt-1">{t("hard_block_credit_limit_subtitle", "Block invoice if over limit")}</span>
+                            </div>
+                          </div>
+                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
+                            <input
+                              type="checkbox"
+                              checked={!formData.allowCreditOverLimit}
+                              onChange={(e) => handleInstantUpdate('allowCreditOverLimit', !e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-rose-500"></div>
+                          </div>
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -1146,369 +1145,371 @@ export function Settings() {
 
 
             {activeTab === 'receipt' && (
-              <section className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-                <div className="flex items-center gap-3 pb-2 border-b border-gray-50 dark:border-white/5">
+              <section className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-white/5">
                   <div className="w-10 h-10 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
                     <Printer className="w-5 h-5 text-[#10B981]" />
                   </div>
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Receipt Design</h2>
-                    <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Branding & Printing Orchestration</p>
+                    <h2 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Receipt Design</h2>
+                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">Branding & Printing Orchestration</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                  <div className="lg:col-span-7 space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-6">
-                        <div className="space-y-2 relative z-30">
-                          <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Paper Size</label>
-                          <SearchableSelect
-                            options={[
-                              { id: '80mm', label: 'Thermal 80mm (Standard)' },
-                              { id: '58mm', label: 'Thermal 58mm (Compact)' },
-                              { id: 'A4', label: 'Office A4 Sheet' }
-                            ]}
-                            value={formData.receiptPaperSize}
-                            onChange={(val) => {
-                                setFormData(p => ({ ...p, receiptPaperSize: val }));
-                                handleInstantUpdate('receiptPaperSize', val);
-                            }}
-                            placeholder="Select paper size..."
-                            icon={Printer}
-                          />
-                        </div>
-                        <div className="space-y-1.5 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/5">
-                          <label className="text-xs font-bold text-gray-600 dark:text-gray-400 ml-1 uppercase tracking-wider flex justify-between">
-                            Global Font Weight
-                            <span className="text-[#10B981] font-black">{formData.receiptFontWeight || 600}</span>
-                          </label>
-                           <input
-                            type="range"
-                            min="100"
-                            max="900"
-                            step="100"
-                            name="receiptFontWeight"
-                            value={formData.receiptFontWeight || 600}
-                            onChange={(e) => setFormData(p => ({ ...p, receiptFontWeight: parseInt(e.target.value) }))}
-                            onMouseUp={(e: any) => handleInstantUpdate('receiptFontWeight', parseInt(e.target.value))}
-                            onTouchEnd={(e: any) => handleInstantUpdate('receiptFontWeight', parseInt(e.target.value))}
-                            disabled={!canEditSettings}
-                            className="w-full h-2 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600 my-4"
-                          />
-                        </div>
-                        <div className="space-y-2 relative z-30">
-                          <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Visual Template</label>
-                          <SearchableSelect
-                            options={[
-                              { id: 'modern', label: 'Modern Clean' },
-                              { id: 'minimal', label: 'Minimalist' },
-                              { id: 'professional', label: 'Enterprise Pro' },
-                              { id: 'compact', label: 'Ultra Compact' },
-                              { id: 'classic', label: 'Legacy System' },
-                              { id: 'horizontal_header', label: 'Horizontal Header' },
-                              { id: 'centered_flow', label: 'Centered Flow' },
-                              { id: 'left_grid', label: 'Left-Aligned Grid' },
-                              { id: 'split_columns', label: 'Split Columns' },
-                              { id: 'floating_totals', label: 'Floating Totals' },
-                              { id: 'offset_logo', label: 'Offset Logo' },
-                              { id: 'boxed_sections', label: 'Boxed Sections' },
-                              { id: 'tear_off', label: 'Tear-Off Slip' },
-                              { id: 'vertical_line', label: 'Vertical Line Header' },
-                              { id: 'emphasized_total', label: 'Emphasized Total' }
-                            ]}
-                            value={formData.receiptTemplate}
-                            onChange={(val) => {
-                                setFormData(p => ({ ...p, receiptTemplate: val }));
-                                handleInstantUpdate('receiptTemplate', val);
-                            }}
-                            placeholder="Select template..."
-                            icon={LayoutGrid}
-                          />
-                        </div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  
+                  {/* Column 1: Layout & Templates (5 Cols) */}
+                  <div className="lg:col-span-5 space-y-6">
+                    <div className="p-4 sm:p-5 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-4">
+                      <div className="space-y-2 relative z-30">
+                        <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Paper Size</label>
+                        <SearchableSelect
+                          options={[
+                            { id: '80mm', label: 'Thermal 80mm (Standard)' },
+                            { id: '58mm', label: 'Thermal 58mm (Compact)' },
+                            { id: 'A4', label: 'Office A4 Sheet' }
+                          ]}
+                          value={formData.receiptPaperSize}
+                          onChange={(val) => {
+                            setFormData(p => ({ ...p, receiptPaperSize: val }));
+                            handleInstantUpdate('receiptPaperSize', val);
+                          }}
+                          placeholder="Select paper size..."
+                          icon={Printer}
+                        />
                       </div>
-                      <div className="space-y-4">
-                        <div className="space-y-1.5 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/5">
-                          <label className="text-xs font-bold text-gray-600 dark:text-gray-400 ml-1 uppercase tracking-wider flex justify-between">
-                            Zoom Scale
-                            <span className="text-[#10B981] font-black">{formData.receiptFontScale}x</span>
-                          </label>
-                           <input
-                            type="range"
-                            min="0.5"
-                            max="1.5"
-                            step="0.1"
-                            name="receiptFontScale"
-                            value={formData.receiptFontScale}
-                            onChange={(e) => setFormData(p => ({ ...p, receiptFontScale: parseFloat(e.target.value) }))}
-                            onMouseUp={(e: any) => handleInstantUpdate('receiptFontScale', parseFloat(e.target.value))}
-                            onTouchEnd={(e: any) => handleInstantUpdate('receiptFontScale', parseFloat(e.target.value))}
-                            disabled={!canEditSettings}
-                            className="w-full h-2 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600 my-4"
-                          />
-                        </div>
-                        <div className="space-y-3">
-                          <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer group">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Automatic Printing</span>
-                            <input
-                              type="checkbox"
-                              name="receiptPrinter"
-                              checked={formData.receiptPrinter}
-                              onChange={handleChange}
-                              disabled={!canEditSettings}
-                              className="w-5 h-5 rounded text-primary focus:ring-emerald-500"
-                            />
-                          </label>
 
-
-                          {/* KOT Printing Toggle */}
-                          <label className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer group">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Kitchen Order Ticket (KOT)</span>
-                            <input
-                              type="checkbox"
-                              name="enableKotPrinter"
-                              checked={!!formData.enableKotPrinter}
-                              onChange={(e) => {
-                                setFormData(p => ({ ...p, enableKotPrinter: e.target.checked }));
-                                handleInstantUpdate('enableKotPrinter', e.target.checked);
-                              }}
-                              disabled={!canEditSettings}
-                              className="w-5 h-5 rounded text-primary focus:ring-emerald-500"
-                            />
-                          </label>
-
-                          {/* Print Position Calibration */}
-                          <div className="space-y-4 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/5">
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="text-xs font-bold text-gray-600 dark:text-gray-400 ml-1 uppercase tracking-wider block">
-                                🎯 Hardware Calibration (mm)
-                              </label>
-                              <button
-                                type="button"
-                                onClick={handleResetCalibration}
-                                className="text-[10px] font-black uppercase tracking-widest text-primary dark:text-emerald-400 hover:text-primary transition-colors"
-                              >
-                                Reset
-                              </button>
-                            </div>
-
-                            {/* Padding Top */}
-                            <div className="space-y-1">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Margin Top</span>
-                                <span className="text-[10px] font-black text-[#10B981]">{formData.receiptPaddingTop ?? 0}mm</span>
-                              </div>
-                              <input type="range" min="-60" max="60" step="1"
-                                value={formData.receiptPaddingTop ?? 0}
-                                onChange={(e) => setFormData(p => ({ ...p, receiptPaddingTop: parseInt(e.target.value) }))}
-                                disabled={!canEditSettings}
-                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                              />
-                            </div>
-
-                            {/* Padding Bottom */}
-                            <div className="space-y-1">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Margin Bottom</span>
-                                <span className="text-[10px] font-black text-[#10B981]">{formData.receiptPaddingBottom ?? 0}mm</span>
-                              </div>
-                              <input type="range" min="-60" max="60" step="1"
-                                value={formData.receiptPaddingBottom ?? 0}
-                                onChange={(e) => setFormData(p => ({ ...p, receiptPaddingBottom: parseInt(e.target.value) }))}
-                                disabled={!canEditSettings}
-                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                              />
-                            </div>
-
-                            {/* Padding Left */}
-                            <div className="space-y-1">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Margin Left</span>
-                                <span className="text-[10px] font-black text-[#10B981]">{formData.receiptPaddingLeft ?? 0}mm</span>
-                              </div>
-                              <input type="range" min="-45" max="45" step="1"
-                                value={formData.receiptPaddingLeft ?? 0}
-                                onChange={(e) => setFormData(p => ({ ...p, receiptPaddingLeft: parseInt(e.target.value) }))}
-                                disabled={!canEditSettings}
-                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                              />
-                            </div>
-
-                            {/* Padding Right */}
-                            <div className="space-y-1">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Margin Right</span>
-                                <span className="text-[10px] font-black text-[#10B981]">{formData.receiptPaddingRight ?? 0}mm</span>
-                              </div>
-                              <input type="range" min="-45" max="45" step="1"
-                                value={formData.receiptPaddingRight ?? 0}
-                                onChange={(e) => setFormData(p => ({ ...p, receiptPaddingRight: parseInt(e.target.value) }))}
-                                disabled={!canEditSettings}
-                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                              />
-                            </div>
-
-                            {/* Global Horizontal Offset */}
-                            <div className="space-y-1 pt-2 border-t border-gray-200/50 dark:border-white/5">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-primary dark:text-emerald-400 uppercase tracking-[0.15em]">🚀 Global Shift (Everything)</span>
-                                <span className="text-[10px] font-black text-[#10B981]">{formData.receiptOffsetX ?? 0}mm</span>
-                              </div>
-                              <input type="range" min="-40" max="40" step="1"
-                                name="receiptOffsetX"
-                                value={formData.receiptOffsetX ?? 0}
-                                onChange={(e) => handleChange({ target: { name: 'receiptOffsetX', value: parseInt(e.target.value) } } as any)}
-                                disabled={!canEditSettings}
-                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                              />
-                            </div>
-
-                            {/* Header Offset */}
-                            <div className="space-y-1 pt-2 border-t border-gray-200 dark:border-white/5">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Header Indent</span>
-                                <span className="text-[10px] font-black text-blue-500">{formData.receiptHeaderOffsetX ?? 0}mm</span>
-                              </div>
-                              <input type="range" min="-30" max="30" step="1"
-                                name="receiptHeaderOffsetX"
-                                value={formData.receiptHeaderOffsetX ?? 0}
-                                onChange={(e) => handleChange({ target: { name: 'receiptHeaderOffsetX', value: parseInt(e.target.value) } } as any)}
-                                disabled={!canEditSettings}
-                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500/50"
-                              />
-                            </div>
-
-                            {/* Footer Offset */}
-                            <div className="space-y-1 pt-2 border-t border-gray-200 dark:border-white/5">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Footer Indent</span>
-                                <span className="text-[10px] font-black text-primary">{formData.receiptFooterOffsetX ?? 0}mm</span>
-                              </div>
-                              <input type="range" min="-30" max="30" step="1"
-                                name="receiptFooterOffsetX"
-                                value={formData.receiptFooterOffsetX ?? 0}
-                                onChange={(e) => handleChange({ target: { name: 'receiptFooterOffsetX', value: parseInt(e.target.value) } } as any)}
-                                disabled={!canEditSettings}
-                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500/50"
-                              />
-                            </div>
-
-                            <div className="pt-2">
-                              <p className="text-[9px] font-bold text-amber-500/80 uppercase tracking-widest leading-relaxed">
-                                ⚠️ Note: If settings don't save, ensure you've applied the SQL migration script in your database editor.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                      <div className="space-y-2 relative z-30">
+                        <label className="block text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Visual Template</label>
+                        <SearchableSelect
+                          options={[
+                            { id: 'modern', label: 'Modern Clean' },
+                            { id: 'minimal', label: 'Minimalist' },
+                            { id: 'professional', label: 'Enterprise Pro' },
+                            { id: 'compact', label: 'Ultra Compact' },
+                            { id: 'classic', label: 'Legacy System' },
+                            { id: 'horizontal_header', label: 'Horizontal Header' },
+                            { id: 'centered_flow', label: 'Centered Flow' },
+                            { id: 'left_grid', label: 'Left-Aligned Grid' },
+                            { id: 'split_columns', label: 'Split Columns' },
+                            { id: 'floating_totals', label: 'Floating Totals' },
+                            { id: 'offset_logo', label: 'Offset Logo' },
+                            { id: 'boxed_sections', label: 'Boxed Sections' },
+                            { id: 'tear_off', label: 'Tear-Off Slip' },
+                            { id: 'vertical_line', label: 'Vertical Line Header' },
+                            { id: 'emphasized_total', label: 'Emphasized Total' }
+                          ]}
+                          value={formData.receiptTemplate}
+                          onChange={(val) => {
+                            setFormData(p => ({ ...p, receiptTemplate: val }));
+                            handleInstantUpdate('receiptTemplate', val);
+                          }}
+                          placeholder="Select template..."
+                          icon={LayoutGrid}
+                        />
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Visibility Toggles */}
-                      {[
-                        { name: 'receiptShowLogo', label: 'Store Logo' },
-                        { name: 'receiptShowTax', label: 'Tax Breakdown' },
-                        { name: 'receiptShowDiscount', label: 'Discount Details' },
-                        { name: 'receiptFontBold', label: 'High Contrast Text' },
-                        { name: 'receiptShowStoreName', label: 'Store Name' },
-                        { name: 'receiptShowStoreAddress', label: 'Store Address' },
-                        { name: 'receiptShowStorePhone', label: 'Store Phone' },
-                        { name: 'receiptShowStoreEmail', label: 'Store Email' },
-                        { name: 'receiptShowCustomerName', label: 'Customer Name' },
-                        { name: 'receiptShowCustomerPhone', label: 'Customer Phone' },
-                        { name: 'receiptShowNotes', label: 'Show Transaction Notes' },
-                        { name: 'receiptShowBarcode', label: 'Show Bill Barcode' },
-                        { name: 'receiptShowFooter', label: 'Show Footer Message' },
-                      ].map((item) => (
-                        <label key={item.name} className="flex items-center p-3.5 bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:border-emerald-200 transition-all cursor-pointer shadow-sm">
+                      <div className="space-y-1.5 p-3 bg-white dark:bg-black/20 rounded-xl border border-gray-200 dark:border-white/5">
+                        <label className="text-[10px] font-bold text-gray-600 dark:text-gray-400 ml-1 uppercase tracking-wider flex justify-between">
+                          Global Font Weight
+                          <span className="text-[#10B981] font-black">{formData.receiptFontWeight || 600}</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="100"
+                          max="900"
+                          step="100"
+                          name="receiptFontWeight"
+                          value={formData.receiptFontWeight || 600}
+                          onChange={(e) => setFormData(p => ({ ...p, receiptFontWeight: parseInt(e.target.value) }))}
+                          onMouseUp={(e: any) => handleInstantUpdate('receiptFontWeight', parseInt(e.target.value))}
+                          onTouchEnd={(e: any) => handleInstantUpdate('receiptFontWeight', parseInt(e.target.value))}
+                          disabled={!canEditSettings}
+                          className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600 my-2"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5 p-3 bg-white dark:bg-black/20 rounded-xl border border-gray-200 dark:border-white/5">
+                        <label className="text-[10px] font-bold text-gray-600 dark:text-gray-400 ml-1 uppercase tracking-wider flex justify-between">
+                          Zoom Scale
+                          <span className="text-[#10B981] font-black">{formData.receiptFontScale}x</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="1.5"
+                          step="0.1"
+                          name="receiptFontScale"
+                          value={formData.receiptFontScale}
+                          onChange={(e) => setFormData(p => ({ ...p, receiptFontScale: parseFloat(e.target.value) }))}
+                          onMouseUp={(e: any) => handleInstantUpdate('receiptFontScale', parseFloat(e.target.value))}
+                          onTouchEnd={(e: any) => handleInstantUpdate('receiptFontScale', parseFloat(e.target.value))}
+                          disabled={!canEditSettings}
+                          className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600 my-2"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group">
+                          <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300">Auto Print</span>
                           <input
                             type="checkbox"
-                            name={item.name}
-                            checked={(formData as any)[item.name]}
+                            name="receiptPrinter"
+                            checked={formData.receiptPrinter}
                             onChange={handleChange}
                             disabled={!canEditSettings}
-                            className="rounded border-gray-300 text-primary h-5 w-5 bg-white dark:bg-[#1C1C1C]"
+                            className="w-4 h-4 rounded text-primary focus:ring-emerald-500"
                           />
-                          <span className="ml-3 text-sm font-bold text-gray-600 dark:text-gray-300">{item.label}</span>
                         </label>
-                      ))}
 
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group">
+                          <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300">Enable KOT</span>
+                          <input
+                            type="checkbox"
+                            name="enableKotPrinter"
+                            checked={!!formData.enableKotPrinter}
+                            onChange={(e) => {
+                              setFormData(p => ({ ...p, enableKotPrinter: e.target.checked }));
+                              handleInstantUpdate('enableKotPrinter', e.target.checked);
+                            }}
+                            disabled={!canEditSettings}
+                            className="w-4 h-4 rounded text-primary focus:ring-emerald-500"
+                          />
+                        </label>
+                      </div>
                     </div>
 
-                    <div className="space-y-4">
+                    {/* Texts Areas */}
+                    <div className="p-4 sm:p-5 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-4">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Header Welcome Text</label>
+                        <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Header Welcome Text</label>
                         <textarea
                           name="receiptHeader"
                           value={formData.receiptHeader}
                           onChange={handleChange}
                           disabled={!canEditSettings}
-                          className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-2xl py-3 px-4 transition-all text-gray-900 dark:text-white font-bold resize-none"
+                          className="w-full bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl py-2 px-3 transition-all text-xs font-bold text-gray-900 dark:text-white font-mono resize-none"
                           rows={2}
+                          placeholder="Welcome to our store..."
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Footer / Terms Text</label>
+                        <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">Footer / Terms Text</label>
                         <textarea
                           name="receiptFooter"
                           value={formData.receiptFooter}
                           onChange={handleChange}
                           disabled={!canEditSettings}
-                          className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-2xl py-3 px-4 transition-all text-gray-900 dark:text-white font-bold resize-none"
+                          className="w-full bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl py-2 px-3 transition-all text-xs font-bold text-gray-900 dark:text-white font-mono resize-none"
                           rows={2}
+                          placeholder="Thank you for shopping!"
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="lg:col-span-5 sticky top-10">
-                    <div className="bg-gray-100 dark:bg-white/[0.03] rounded-3xl p-4 sm:p-6 border border-gray-200 dark:border-white/5 flex flex-col items-center">
-                      <h3 className="text-xs font-black text-gray-600 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                        <div className="w-2 h-2 bg-[#10B981] rounded-full animate-pulse" />
-                        Signature Live Preview
-                      </h3>
-                      <div className="bg-white dark:bg-[#1C1C1C] rounded-2xl p-4 shadow-xl shadow-gray-200/50 dark:shadow-none ring-1 ring-black/5 overflow-hidden w-full max-w-[320px]">
-                        <ReceiptPreview settings={{
-                          ...state.settings,
-                          ...formData,
-                          taxRate: parseFloat(formData.taxRate) || 0,
-                          receiptFontScale: parseFloat(formData.receiptFontScale) || 1,
-                          invoiceCounter: parseInt(formData.invoiceCounter) || 1000,
-                        } as unknown as AppSettings} />
+                  {/* Column 2: Margin Settings & Toggles (4 Cols) */}
+                  <div className="lg:col-span-4 space-y-6">
+                    {/* Hardware Position Calibration */}
+                    <div className="p-4 sm:p-5 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-4">
+                      <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-white/5 pb-2">
+                        <label className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-wider block">
+                          🎯 Hardware Calibration (mm)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleResetCalibration}
+                          className="text-[9px] font-black uppercase tracking-widest text-primary dark:text-emerald-400 hover:text-primary transition-colors"
+                        >
+                          Reset
+                        </button>
                       </div>
-                      <p className="text-[10px] text-gray-600 font-bold mt-4 text-center leading-relaxed">
-                        Dynamic simulation of printed output.<br />Matches Thermal & Digital formats.
-                      </p>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const mockSale = {
-                            id: 'TEST-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
-                            invoiceNumber: (formData.invoicePrefix || 'INV') + '-' + formData.invoiceCounter,
-                            timestamp: new Date(),
-                            items: [
-                              { product: { id: 'p1', name: 'Sample Item 01 (Premium)', price: 1250 }, quantity: 2 },
-                              { product: { id: 'p2', name: 'Standard Utility Item', price: 450 }, quantity: 1 }
-                            ],
-                            subtotal: 2950,
-                            discountAmount: 0,
-                            taxAmount: 2950 * (parseFloat(formData.taxRate) / 100),
-                            total: 2950 * (1 + parseFloat(formData.taxRate) / 100),
-                            paymentMethod: 'cash' as const,
-                            cashier: profile?.name?.split(' ')[0] || 'ADMIN',
-                            saleType: 'retail' as const,
-                            saleDate: new Date().toLocaleDateString('en-CA')
-                          };
-                          setCompletedSale(mockSale as any);
-                          setShowReceipt(true);
-                        }}
-                        className="mt-6 w-full py-4 bg-primary hover:bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                      >
-                        <Printer className="w-4 h-4" />
-                        Execute Test Print
-                      </button>
+                      <div className="space-y-3">
+                        {/* Padding Top */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[9px] font-bold text-gray-600 uppercase">
+                            <span>Margin Top</span>
+                            <span className="font-black text-[#10B981]">{formData.receiptPaddingTop ?? 0}mm</span>
+                          </div>
+                          <input type="range" min="-60" max="60" step="1"
+                            value={formData.receiptPaddingTop ?? 0}
+                            onChange={(e) => setFormData(p => ({ ...p, receiptPaddingTop: parseInt(e.target.value) }))}
+                            disabled={!canEditSettings}
+                            className="w-full h-1 bg-gray-250 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                          />
+                        </div>
+
+                        {/* Padding Bottom */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[9px] font-bold text-gray-600 uppercase">
+                            <span>Margin Bottom</span>
+                            <span className="font-black text-[#10B981]">{formData.receiptPaddingBottom ?? 0}mm</span>
+                          </div>
+                          <input type="range" min="-60" max="60" step="1"
+                            value={formData.receiptPaddingBottom ?? 0}
+                            onChange={(e) => setFormData(p => ({ ...p, receiptPaddingBottom: parseInt(e.target.value) }))}
+                            disabled={!canEditSettings}
+                            className="w-full h-1 bg-gray-250 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                          />
+                        </div>
+
+                        {/* Padding Left */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[9px] font-bold text-gray-600 uppercase">
+                            <span>Margin Left</span>
+                            <span className="font-black text-[#10B981]">{formData.receiptPaddingLeft ?? 0}mm</span>
+                          </div>
+                          <input type="range" min="-45" max="45" step="1"
+                            value={formData.receiptPaddingLeft ?? 0}
+                            onChange={(e) => setFormData(p => ({ ...p, receiptPaddingLeft: parseInt(e.target.value) }))}
+                            disabled={!canEditSettings}
+                            className="w-full h-1 bg-gray-250 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                          />
+                        </div>
+
+                        {/* Padding Right */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-[9px] font-bold text-gray-600 uppercase">
+                            <span>Margin Right</span>
+                            <span className="font-black text-[#10B981]">{formData.receiptPaddingRight ?? 0}mm</span>
+                          </div>
+                          <input type="range" min="-45" max="45" step="1"
+                            value={formData.receiptPaddingRight ?? 0}
+                            onChange={(e) => setFormData(p => ({ ...p, receiptPaddingRight: parseInt(e.target.value) }))}
+                            disabled={!canEditSettings}
+                            className="w-full h-1 bg-gray-250 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                          />
+                        </div>
+
+                        {/* Global Horizontal Offset */}
+                        <div className="space-y-1 pt-2 border-t border-gray-200/50 dark:border-white/5">
+                          <div className="flex justify-between items-center text-[9px] font-black text-primary dark:text-emerald-400 uppercase tracking-wider">
+                            <span>🚀 Global Shift (Everything)</span>
+                            <span className="text-[#10B981]">{formData.receiptOffsetX ?? 0}mm</span>
+                          </div>
+                          <input type="range" min="-40" max="40" step="1"
+                            name="receiptOffsetX"
+                            value={formData.receiptOffsetX ?? 0}
+                            onChange={(e) => handleChange({ target: { name: 'receiptOffsetX', value: parseInt(e.target.value) } } as any)}
+                            disabled={!canEditSettings}
+                            className="w-full h-1 bg-gray-250 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                          />
+                        </div>
+
+                        {/* Header Offset */}
+                        <div className="space-y-1 pt-2 border-t border-gray-200/50 dark:border-white/5">
+                          <div className="flex justify-between items-center text-[9px] font-bold text-gray-600 uppercase">
+                            <span>Header Indent</span>
+                            <span className="font-black text-blue-500">{formData.receiptHeaderOffsetX ?? 0}mm</span>
+                          </div>
+                          <input type="range" min="-30" max="30" step="1"
+                            name="receiptHeaderOffsetX"
+                            value={formData.receiptHeaderOffsetX ?? 0}
+                            onChange={(e) => handleChange({ target: { name: 'receiptHeaderOffsetX', value: parseInt(e.target.value) } } as any)}
+                            disabled={!canEditSettings}
+                            className="w-full h-1 bg-gray-250 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500/50"
+                          />
+                        </div>
+
+                        {/* Footer Offset */}
+                        <div className="space-y-1 pt-2 border-t border-gray-200/50 dark:border-white/5">
+                          <div className="flex justify-between items-center text-[9px] font-bold text-gray-600 uppercase">
+                            <span>Footer Indent</span>
+                            <span className="font-black text-primary">{formData.receiptFooterOffsetX ?? 0}mm</span>
+                          </div>
+                          <input type="range" min="-30" max="30" step="1"
+                            name="receiptFooterOffsetX"
+                            value={formData.receiptFooterOffsetX ?? 0}
+                            onChange={(e) => handleChange({ target: { name: 'receiptFooterOffsetX', value: parseInt(e.target.value) } } as any)}
+                            disabled={!canEditSettings}
+                            className="w-full h-1 bg-gray-250 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-500/50"
+                          />
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Visibility Toggles */}
+                    <div className="p-4 sm:p-5 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-3">
+                      <label className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-wider block border-b border-gray-250/50 dark:border-white/5 pb-2">
+                        👁️ Print Visibility
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto scrollbar-hide">
+                        {[
+                          { name: 'receiptShowLogo', label: 'Store Logo' },
+                          { name: 'receiptShowTax', label: 'Tax Breakdown' },
+                          { name: 'receiptShowDiscount', label: 'Discount Details' },
+                          { name: 'receiptFontBold', label: 'High Contrast' },
+                          { name: 'receiptShowStoreName', label: 'Store Name' },
+                          { name: 'receiptShowStoreAddress', label: 'Store Address' },
+                          { name: 'receiptShowStorePhone', label: 'Store Phone' },
+                          { name: 'receiptShowStoreEmail', label: 'Store Email' },
+                          { name: 'receiptShowCustomerName', label: 'Customer Name' },
+                          { name: 'receiptShowCustomerPhone', label: 'Customer Phone' },
+                          { name: 'receiptShowNotes', label: 'Show Notes' },
+                          { name: 'receiptShowBarcode', label: 'Show Barcode' },
+                          { name: 'receiptShowFooter', label: 'Show Footer' },
+                        ].map((item) => (
+                          <label key={item.name} className="flex items-center gap-2 p-2 bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5">
+                            <input
+                              type="checkbox"
+                              name={item.name}
+                              checked={(formData as any)[item.name]}
+                              onChange={handleChange}
+                              disabled={!canEditSettings}
+                              className="rounded border-gray-300 text-primary h-3.5 w-3.5 bg-white dark:bg-[#1C1C1C]"
+                            />
+                            <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 truncate">{item.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 3: Live Preview (3 Cols) */}
+                  <div className="lg:col-span-3 lg:sticky lg:top-4 bg-gray-100 dark:bg-white/[0.03] rounded-[2.5rem] p-4 border border-gray-200 dark:border-white/5 flex flex-col items-center">
+                    <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 bg-[#10B981] rounded-full animate-pulse" />
+                      Live Preview
+                    </h3>
+                    <div className="bg-white dark:bg-[#1C1C1C] rounded-2xl p-3 shadow-xl overflow-hidden w-full max-w-[240px] border border-gray-200 dark:border-white/5">
+                      <ReceiptPreview settings={{
+                        ...state.settings,
+                        ...formData,
+                        taxRate: parseFloat(formData.taxRate) || 0,
+                        receiptFontScale: parseFloat(formData.receiptFontScale) || 1,
+                        invoiceCounter: parseInt(formData.invoiceCounter) || 1000,
+                      } as unknown as AppSettings} />
+                    </div>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const mockSale = {
+                          id: 'TEST-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+                          invoiceNumber: (formData.invoicePrefix || 'INV') + '-' + formData.invoiceCounter,
+                          timestamp: new Date(),
+                          items: [
+                            { product: { id: 'p1', name: 'Sample Item 01 (Premium)', price: 1250 }, quantity: 2 },
+                            { product: { id: 'p2', name: 'Standard Utility Item', price: 450 }, quantity: 1 }
+                          ],
+                          subtotal: 2950,
+                          discountAmount: 0,
+                          taxAmount: 2950 * (parseFloat(formData.taxRate) / 100),
+                          total: 2950 * (1 + parseFloat(formData.taxRate) / 100),
+                          paymentMethod: 'cash' as const,
+                          cashier: profile?.name?.split(' ')[0] || 'ADMIN',
+                          saleType: 'retail' as const,
+                          saleDate: new Date().toLocaleDateString('en-CA')
+                        };
+                        setCompletedSale(mockSale as any);
+                        setShowReceipt(true);
+                      }}
+                      className="mt-4 w-full py-3 bg-primary hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/10 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      Test Print
+                    </button>
                   </div>
                 </div>
               </section>
@@ -1617,9 +1618,13 @@ export function Settings() {
       </div>
 
       {/* Floating Action Bar - Standardized & Mobile Fit */}
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 right-0 bg-white/95 dark:bg-surface/95 border-t border-gray-200 dark:border-white/5 py-3 sm:py-4 z-[150] animate-in slide-in-from-bottom-full duration-500 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 flex items-center justify-between gap-4">
-          {/* Sync Status - Hidden on mobile to save space */}
+      <StickyFormFooter
+        isSaving={isSaving}
+        onDiscard={() => window.history.back()}
+        saveLabel={t("update_system", "Update System")}
+        formId="settings-form"
+        disabled={!canEditSettings}
+        statusBadge={
           <div className="hidden sm:flex items-center gap-4">
             {syncStatus === 'saving' && (
               <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-full border border-blue-100 dark:border-blue-900/30">
@@ -1640,39 +1645,8 @@ export function Settings() {
               </div>
             )}
           </div>
-
-          <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => window.history.back()}
-              className="px-6 py-3 rounded-xl border border-gray-200 dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-rose-500 transition-all active:scale-95 bg-white dark:bg-transparent shadow-sm sm:shadow-none"
-            >
-              {t("discard", "Discard")}
-            </button>
-            <button
-              form="settings-form"
-              type="submit"
-              disabled={isSaving || !canEditSettings}
-              className={`
-                flex-1 sm:flex-none flex items-center justify-center gap-3 px-8 py-3.5 rounded-2xl bg-primary text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 hover:bg-primary active:scale-[0.98] transition-all
-                ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
-              `}
-            >
-              {isSaving ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>{t("processing", "Saving...")}</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span>{t("update_system", "Update System")}</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Support Footer */}
       <div className="mt-12 pb-32 text-center space-y-4">

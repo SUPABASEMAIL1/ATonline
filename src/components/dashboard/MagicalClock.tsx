@@ -165,10 +165,10 @@ export function MagicalClock() {
 
       {/* Digital Time Overlay */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-20">
-        <span className="text-3xl sm:text-4xl font-black bg-gradient-to-br from-white via-white to-white/50 bg-clip-text text-transparent tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] tabular-nums leading-none">
+        <span className="text-[13px] sm:text-[15px] font-black bg-gradient-to-br from-white via-white to-white/50 bg-clip-text text-transparent tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] tabular-nums leading-none">
           {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
         </span>
-        <span className={`text-[10px] sm:text-xs font-black bg-clip-text text-transparent uppercase tracking-[0.3em] mt-2 drop-shadow-lg transition-colors duration-1000 ${
+        <span className={`text-[6px] sm:text-[7px] font-black bg-clip-text text-transparent uppercase tracking-[0.15em] mt-0.5 drop-shadow-lg transition-colors duration-1000 ${
            activeWatch === 0 ? 'bg-gradient-to-r from-emerald-400 to-blue-500' :
            activeWatch === 1 ? 'bg-gradient-to-r from-cyan-400 to-fuchsia-500' :
            'bg-gradient-to-r from-yellow-400 to-orange-500'

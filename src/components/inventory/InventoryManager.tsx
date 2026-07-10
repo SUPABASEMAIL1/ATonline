@@ -720,7 +720,7 @@ export function InventoryManager() {
           <div className="bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
             {/* Desktop Table View */}
             <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse table-fixed">
                 <thead>
                   <tr className="bg-gray-50/50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/5">
                     <th className="p-4 w-12 cursor-pointer" onClick={handleSelectAll}>
@@ -730,13 +730,12 @@ export function InventoryManager() {
                           ? <MinusSquare className="h-5 w-5 text-emerald-400" />
                           : <Square className="h-5 w-5 text-gray-600" />}
                     </th>
-                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center">{t("item", "ITEM")}</th>
-
-                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center hidden lg:table-cell">{t("sku", "IDENTIFIER")}</th>
-                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center hidden lg:table-cell">{t("barcode", "BARCODE")}</th>
-                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center">{t("price", "PRICING")}</th>
-                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center">{t("stock", "STOCK STATUS")}</th>
-                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-right">{t("actions", "Actions")}</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-left w-[32%]">{t("item", "ITEM")}</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-left hidden lg:table-cell w-[20%]">{t("sku", "IDENTIFIER")}</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center hidden lg:table-cell w-[14%]">{t("barcode", "BARCODE")}</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-left w-[13%]">{t("price", "PRICING")}</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center w-[11%]">{t("stock", "STOCK STATUS")}</th>
+                    <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-right w-[10%]">{t("actions", "Actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-white/5">
@@ -745,29 +744,35 @@ export function InventoryManager() {
                       <td className="p-4 cursor-pointer" onClick={() => handleSelectProduct(product.id)}>
                         {selectedProductIds.includes(product.id) ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5 text-gray-600" />}
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 text-left">
                         <div className="flex items-center gap-4 cursor-pointer group" onClick={() => handleEditProduct(product)}>
-                          <div className="h-10 w-10 bg-gray-100 dark:bg-white/5 rounded-xl flex items-center justify-center overflow-hidden border border-white/5 shadow-inner">
+                          <div className="h-10 w-10 bg-gray-100 dark:bg-white/5 rounded-xl flex items-center justify-center overflow-hidden border border-white/5 shadow-inner shrink-0">
                             {product.image ? <img src={product.image} className="h-full w-full object-cover transition-transform group-hover:scale-110" /> : <Package className="h-5 w-5 text-gray-600" />}
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-black text-gray-900 dark:text-white uppercase text-xs truncate max-w-[150px] group-hover:text-primary transition-colors">{product.name} {product.isFeatured && <Star className="h-2.5 w-2.5 inline text-yellow-500 fill-yellow-500 mb-1" />}</p>
-                            <p className="text-[10px] text-gray-600 font-bold uppercase">{product.category}{product.supplier ? ` · ${product.supplier}` : ''}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-black text-gray-900 dark:text-white uppercase text-xs truncate max-w-[200px] group-hover:text-primary transition-colors">{product.name} {product.isFeatured && <Star className="h-2.5 w-2.5 inline text-yellow-500 fill-yellow-500 mb-1" />}</p>
+                            <p className="text-[10px] text-gray-600 font-bold uppercase truncate">{product.category}{product.supplier ? ` · ${product.supplier}` : ''}</p>
                             {(product.isService || product.requireSerial) && (
-                              <div className="flex items-center gap-1 mt-1">
-                                {product.isService && <span className="text-[8px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">Service Item</span>}
-                                {product.requireSerial && <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded">IMEI / Serial Req</span>}
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {product.isService && <span className="text-[8px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded leading-none">Service</span>}
+                                {product.requireSerial && <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded leading-none">IMEI/SN Req</span>}
                               </div>
                             )}
                           </div>
                         </div>
                       </td>
 
-                      <td className="p-4 text-center font-mono text-[10px] text-gray-600 hidden lg:table-cell">{product.sku}</td>
-                      <td className="p-4 text-center hidden lg:table-cell">
-                        <BarcodePreview value={product.barcodeValue || product.barcode || ''} inline={true} />
+                      <td className="p-4 text-left font-mono text-[10px] text-gray-600 hidden lg:table-cell">
+                        <div className="truncate max-w-[150px] xl:max-w-[180px]" title={product.sku}>
+                          {product.sku}
+                        </div>
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="p-4 text-center hidden lg:table-cell">
+                        <div className="inline-flex justify-center w-full">
+                          <BarcodePreview value={product.barcodeValue || product.barcode || ''} inline={true} />
+                        </div>
+                      </td>
+                      <td className="p-4 text-left">
                         <p className="text-xs font-black text-gray-900 dark:text-white tracking-widest">{formatCurrency(product.price, state.settings.currency)}</p>
                         {(profile?.role === 'admin' || profile?.role === 'manager') && <p className="text-[9px] text-gray-600 uppercase font-black opacity-50">Cost: {formatCurrency(product.cost || 0, state.settings.currency)}</p>}
                       </td>

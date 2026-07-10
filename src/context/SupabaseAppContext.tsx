@@ -1361,27 +1361,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.stockHistory.bulkPut(remoteStockHistory).catch(() => { });
         }
 
-        // Processing & Merging logic
-        const filterPending = async (entity: string, remoteItems: any[]) => {
-          const pendingOps = await localDb.pendingOps.where('entity').equals(entity).toArray();
-          const pendingIds = new Set(pendingOps.map(op => op.entityId));
-          return remoteItems.filter(item => !pendingIds.has(item.id));
+        // ── FIELD-LEVEL SMART MERGE ──
+        // CRITICAL FIX: The old filterPending would completely exclude fresh remote data
+        // for any entity with ANY pending op (even unrelated fields like stock).
+        // This caused stale prices/names to persist forever.
+        //
+        // NEW: Remote data is always the BASE. Only the specific pending op fields are overlaid.
+        // Additionally, offline-only records (created locally, not yet synced) are included.
+        const allPendingOps = await localDb.pendingOps.toArray();
+
+        const smartMerge = async (entity: string, remoteItems: any[], localTable: any) => {
+          const entityOps = allPendingOps.filter(op => op.entity === entity);
+          
+          // Build map: entityId -> merged pending payload (for updates/creates/upserts)
+          const pendingPayloadMap = new Map<string, Record<string, any>>();
+          const pendingDeleteIds = new Set<string>();
+          const pendingCreateIds = new Set<string>();
+          
+          for (const op of entityOps) {
+            if (op.opType === 'delete') {
+              pendingDeleteIds.add(op.entityId);
+              continue;
+            }
+            if (op.opType === 'create') {
+              pendingCreateIds.add(op.entityId);
+            }
+            const existing = pendingPayloadMap.get(op.entityId) || {};
+            pendingPayloadMap.set(op.entityId, { ...existing, ...op.payload });
+          }
+
+          const remoteIds = new Set(remoteItems.map(item => item.id));
+
+          // 1. Start with remote items, applying field-level overlay for pending ops
+          const merged = remoteItems
+            .filter(item => !pendingDeleteIds.has(item.id)) // Remove deleted items
+            .map(item => {
+              const pendingFields = pendingPayloadMap.get(item.id);
+              if (!pendingFields) return item; // No pending ops — pure fresh remote
+              // Use remote as base, overlay ONLY the pending local fields
+              return { ...item, ...pendingFields };
+            });
+
+          // 2. Add offline-only records (pending creates not in remote set)
+          const offlineOnlyIds = [...pendingCreateIds].filter(id => !remoteIds.has(id));
+          if (offlineOnlyIds.length > 0) {
+            const offlineRecords = await localTable.where('id').anyOf(offlineOnlyIds).toArray();
+            merged.push(...offlineRecords);
+          }
+
+          return merged;
         };
 
-        const getPendingLocalItems = async (entity: string, localTable: any) => {
-          const pendingOps = await localDb.pendingOps.where('entity').equals(entity).toArray();
-          const pendingIds = [...new Set(pendingOps.filter(op => op.opType !== 'delete').map(op => op.entityId))];
-          if (pendingIds.length === 0) return [];
-          return await localTable.where('id').anyOf(pendingIds).toArray();
-        };
-
-        const freshProducts = await filterPending('products', products);
-        const pendingProducts = await getPendingLocalItems('products', localDb.products);
-        const rawMergedProducts = [...freshProducts, ...pendingProducts];
+        // ── PRODUCTS (with batch hydration) ──
+        const rawMergedProducts = await smartMerge('products', products, localDb.products);
 
         // Re-hydrate product.batches from the separate productBatches table.
-        // The Supabase 'products' table has no 'batches' column — they live in 'product_batches'.
-        // Without this step, every full sync wipes the embedded batches array causing "NO BATCHES".
         const allLocalBatches = await localDb.productBatches.toArray();
         const batchesByProductId = allLocalBatches.reduce((acc: Record<string, any[]>, b: any) => {
           const pid = b.productId || b.product_id;
@@ -1394,30 +1428,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           batches: batchesByProductId[p.id] || p.batches || []
         }));
 
-        const freshCustomers = await filterPending('customers', customers);
-        const pendingCustomers = await getPendingLocalItems('customers', localDb.customers);
-        const mergedCustomers = [...freshCustomers, ...pendingCustomers];
-
-        const freshSales = await filterPending('sales', sales);
-        const pendingSales = await getPendingLocalItems('sales', localDb.sales);
-        const allSales = [...freshSales, ...pendingSales];
-
-        const recentSales = allSales
+        // ── OTHER ENTITIES ──
+        const mergedCustomers = await smartMerge('customers', customers, localDb.customers);
+        
+        const allSales = await smartMerge('sales', sales, localDb.sales);
+        const mergedSales = allSales
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
           .slice(0, 1000);
-        const mergedSales = recentSales.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-        const mergedDiscounts = [...await filterPending('discounts', discounts), ...await getPendingLocalItems('discounts', localDb.discounts)];
-        const mergedUsers = [...await filterPending('users', usersList), ...await getPendingLocalItems('users', localDb.users)];
-        const mergedSuppliers = [...await filterPending('suppliers', suppliersData), ...await getPendingLocalItems('suppliers', localDb.suppliers)];
-        const mergedExpenses = [...await filterPending('expenses', expenses), ...await getPendingLocalItems('expenses', localDb.expenses)].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const mergedPurchaseRecords = [...await filterPending('purchase_records', purchaseRecords), ...await getPendingLocalItems('purchase_records', localDb.purchaseRecords)].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-
-        const mergedPayments = [...await filterPending('payments', remotePayments), ...await getPendingLocalItems('payments', localDb.payments)];
+        const mergedDiscounts = await smartMerge('discounts', discounts, localDb.discounts);
+        const mergedUsers = await smartMerge('users', usersList, localDb.users);
+        const mergedSuppliers = await smartMerge('suppliers', suppliersData, localDb.suppliers);
+        const mergedExpenses = (await smartMerge('expenses', expenses, localDb.expenses))
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const mergedPurchaseRecords = (await smartMerge('purchase_records', purchaseRecords, localDb.purchaseRecords))
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const mergedPayments = await smartMerge('payments', remotePayments, localDb.payments);
 
         const allBatches = mergedProducts.reduce((acc, p) => [...acc, ...(p.batches || [])], [] as ProductBatch[]);
-        const mergedSalesTabs = [...await filterPending('sales_tabs', salesTabs as SalesTab[]), ...await getPendingLocalItems('sales_tabs', localDb.salesTabs)].slice(0, 3);
+        const mergedSalesTabs = (await smartMerge('sales_tabs', salesTabs as SalesTab[], localDb.salesTabs)).slice(0, 3);
 
         dispatch({ type: 'SET_PRODUCTS', payload: mergedProducts });
         dispatch({ type: 'SET_CUSTOMERS', payload: mergedCustomers });
@@ -1539,29 +1568,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
         } // end if (!syncEngineWasBusy)
 
-        // ── FINAL RECONCILIATION: re-read from localDb so UI reflects actual IndexedDB state ──
-        // Fixes Case B race where mergedX missed a recently-created record that survived in localDb
+        // ── ADDITIVE RECONCILIATION: Only add offline-created records that weren't in the cloud set ──
+        // CRITICAL FIX: The old reconciliation re-read ALL of IndexedDB and dispatched it to React state.
+        // This OVERWROTE the fresh cloud data (just dispatched above) with stale IndexedDB data.
+        // New behavior: we only look for records in IndexedDB that are NOT in the merged sets (offline-only creates)
+        // and ADD them to state without overwriting the fresh cloud data.
         try {
-          const [reconProducts, reconCustomers, reconSales, reconDiscounts, reconSuppliers, reconExpenses, reconPurchaseRecords, reconPayments] = await Promise.all([
-            localDb.products.toArray(),
-            localDb.customers.toArray(),
-            localDb.sales.toArray(),
-            localDb.discounts.toArray(),
-            localDb.suppliers.toArray(),
-            localDb.expenses.toArray(),
-            localDb.purchaseRecords.toArray(),
-            localDb.payments.toArray(),
-          ]);
-          dispatch({ type: 'SET_PRODUCTS', payload: reconProducts });
-          dispatch({ type: 'SET_CUSTOMERS', payload: reconCustomers });
-          if (reconSales.length > 0) dispatch({ type: 'SET_SALES', payload: reconSales });
-          dispatch({ type: 'SET_DISCOUNTS', payload: reconDiscounts });
-          dispatch({ type: 'SET_SUPPLIERS', payload: reconSuppliers });
-          dispatch({ type: 'SET_EXPENSES', payload: reconExpenses });
-          dispatch({ type: 'SET_PURCHASE_RECORDS', payload: reconPurchaseRecords });
-          dispatch({ type: 'SET_PAYMENTS', payload: reconPayments });
+          const mergedProductIds = new Set(mergedProducts.map((p: any) => p.id));
+          const mergedCustomerIds = new Set(mergedCustomers.map((c: any) => c.id));
+
+          // Find orphaned local records that the smart merge missed (edge case: created during sync)
+          const localProducts = await localDb.products.toArray();
+          const localCustomers = await localDb.customers.toArray();
+          const orphanProducts = localProducts.filter(p => !mergedProductIds.has(p.id));
+          const orphanCustomers = localCustomers.filter(c => !mergedCustomerIds.has(c.id));
+
+          if (orphanProducts.length > 0) {
+            console.log(`[loadData] Adding ${orphanProducts.length} orphan local products to state`);
+            dispatch({ type: 'ADD_PRODUCTS_BULK', payload: orphanProducts });
+          }
+          if (orphanCustomers.length > 0) {
+            console.log(`[loadData] Adding ${orphanCustomers.length} orphan local customers to state`);
+            for (const c of orphanCustomers) {
+              dispatch({ type: 'ADD_CUSTOMER', payload: c });
+            }
+          }
         } catch (reconErr) {
-          console.error('[loadData] Reconciliation re-read failed (non-fatal, display-only):', reconErr);
+          console.error('[loadData] Additive reconciliation failed (non-fatal):', reconErr);
         }
 
         if (!silent) {

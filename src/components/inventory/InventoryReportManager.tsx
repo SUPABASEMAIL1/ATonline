@@ -9,7 +9,7 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
 import { formatAppDate } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
-import { auditStockIntegrity } from '../../lib/services';
+import { auditStockIntegrity, productsService } from '../../lib/services';
 import { localDb } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
 
@@ -33,7 +33,7 @@ export default function InventoryReportManager({
   globalStore = 'All',
   sales // Destructure sales prop
 }: InventoryReportManagerProps) {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'in' | 'low' | 'out'>('all');
@@ -104,8 +104,9 @@ export default function InventoryReportManager({
         if (!product) continue;
 
         const correctStock = issue.expectedStock;
-        await localDb.products.update(issue.productId, { stock: correctStock });
-        dispatch({ type: 'UPDATE_PRODUCT', payload: { ...product, stock: correctStock } });
+        // Use productsService.update() which handles local DB + cloud sync queue
+        const updated = await productsService.update(issue.productId, { stock: correctStock });
+        dispatch({ type: 'UPDATE_PRODUCT', payload: updated });
         fixed.push(issue.name);
       }
       setIntegrityResults([]);
@@ -445,8 +446,8 @@ export default function InventoryReportManager({
       {showIntegrity && (
         <div className="bg-white dark:bg-zinc-900/60 rounded-3xl border border-gray-200/50 dark:border-white/5 overflow-hidden shadow-xl shadow-black/5 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[10px] font-black uppercase tracking-widest">{t('integrity_results', 'Inventory Integrity Results')}</h3>
-            <button onClick={() => setShowIntegrity(false)} className="text-[10px] font-bold text-gray-600 hover:text-gray-900">&times;</button>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-900 dark:text-white">{t('integrity_results', 'Inventory Integrity Results')}</h3>
+            <button onClick={() => setShowIntegrity(false)} className="text-[10px] font-bold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">&times;</button>
           </div>
           {integrityResults.length === 0 ? (
             <div className="flex items-center gap-2 text-primary text-xs font-bold">

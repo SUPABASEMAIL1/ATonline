@@ -266,7 +266,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
           // Phase 3: Finalize UI
           dispatch({ type: 'ADD_SALE', payload: savedSale });
           dispatch({ type: 'CLEAR_CART' });
-          dispatch({ type: 'SET_EDITING_SALE', payload: null });
+          dispatch({ type: 'SET_EDITING_SALE_ID', payload: null });
 
           setCompletedSale(savedSale);
           onComplete(savedSale);

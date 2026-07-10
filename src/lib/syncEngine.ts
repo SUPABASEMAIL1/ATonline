@@ -651,6 +651,27 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                     if (finalOp && finalOp.status !== 'error') {
                         console.log(`[POS SYNC] SUCCESS: ${op.entity}/${op.entityId}`);
                         await localDb.pendingOps.delete(op.id!);
+
+                        // ── POST-SYNC CACHE REFRESH ──
+                        // After successful sync of key entities, fetch the latest version
+                        // from cloud and update localDb to prevent stale cache issues.
+                        // This is fire-and-forget — sync success is not dependent on it.
+                        if (op.opType !== 'delete' && ['products', 'customers', 'suppliers'].includes(op.entity)) {
+                            const tableMap: Record<string, string> = { products: 'products', customers: 'customers', suppliers: 'suppliers' };
+                            const table = tableMap[op.entity];
+                            if (table) {
+                                supabase.from(table).select('*').eq('id', op.entityId).maybeSingle()
+                                    .then(({ data }) => {
+                                        if (data) {
+                                            const localTable = op.entity === 'products' ? localDb.products
+                                                : op.entity === 'customers' ? localDb.customers
+                                                : localDb.suppliers;
+                                            (localTable as any).put(data).catch(() => {});
+                                        }
+                                    })
+                                    .catch(() => {}); // Non-critical, best-effort
+                            }
+                        }
                     } else if (finalOp?.status === 'error') {
                         console.warn(`[POS SYNC] STOPPED: ${op.entity}/${op.entityId} has permanent error. Stays in queue but will not retry.`);
                     }

@@ -146,67 +146,63 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
   const loading = false; // Placeholder
 
   return (
-    <div className="main-content-scroll p-2.5 sm:p-6 bg-gray-50/50 dark:bg-app flex flex-col gap-4 sm:gap-8">
-      {/* --- PREMIUM HERO SECTION --- */}
-      <div className="order-2 lg:order-1 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 items-stretch animate-in fade-in slide-in-from-top-4 duration-1000">
-
-        {/* Left: Identity & Greeting */}
-        <div className="lg:col-span-2 order-2 lg:order-1 flex flex-col justify-between p-6 sm:p-10 bg-gradient-to-br from-indigo-950 via-[#0A0A0A] to-black rounded-[3rem] border border-indigo-500/20 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none group-hover:scale-110 transition-transform duration-1000">
-            <TrendingUp className="w-64 h-64 -mr-16 -mt-16 text-indigo-500" />
+    <div className="main-content-scroll p-2.5 sm:p-4 bg-gray-50/50 dark:bg-app flex flex-col gap-4">
+      {/* --- COMPACT HERO GRID WITH MAGICAL WATCH --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch animate-in fade-in slide-in-from-top-4 duration-700">
+        
+        {/* Left: Identity Greeting Card */}
+        <div className="lg:col-span-2 flex flex-col justify-between p-4 sm:p-5 bg-gradient-to-br from-indigo-950 via-[#0A0A0A] to-black rounded-[2rem] border border-indigo-500/10 shadow-2xl relative overflow-hidden group min-h-[160px]">
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform duration-1000">
+            <TrendingUp className="w-32 h-32 -mr-8 -mt-8 text-indigo-500" />
           </div>
 
           <div className="relative z-10">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="px-4 py-1.5 bg-primary/10 text-primary rounded-full border border-primary/20 flex items-center gap-2">
-                <Zap className="w-3 h-3 animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-widest">{t("system_live", "System Live")}</span>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="px-2.5 py-0.5 bg-primary/10 text-primary rounded-full border border-primary/20 flex items-center gap-1.5">
+                <Zap className="w-2.5 h-2.5 animate-pulse" />
+                <span className="text-[8px] font-black uppercase tracking-widest">{t("system_live", "System Live")}</span>
               </div>
-              <div className="px-4 py-1.5 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 flex items-center gap-2">
-                <Activity className="w-3 h-3" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Zaynahs POS</span>
+              <div className="px-2.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 flex items-center gap-1.5">
+                <Activity className="w-2.5 h-2.5" />
+                <span className="text-[8px] font-black uppercase tracking-widest">Zaynahs POS</span>
               </div>
             </div>
 
-            <h1 className="text-4xl sm:text-6xl font-black text-white uppercase tracking-tight leading-[0.9] mb-4">
+            <h1 className="text-xl sm:text-2xl font-black text-white uppercase tracking-tight leading-none mb-1.5">
               {t("control_center", "Control Center")}
             </h1>
-            <p className="text-sm font-bold text-gray-600 max-w-md leading-relaxed">
+            <p className="text-[10px] font-bold text-gray-500 max-w-xl leading-normal">
               {t("welcome_back", "Welcome back. Your business pulse is stable and scaling.")}
               <br />
               {t("monitor_realtime", "Monitor real-time transactions and inventory health across your workspace.")}
             </p>
           </div>
 
-          <div className="relative z-10 mt-10 flex flex-wrap items-center gap-3">
+          <div className="relative z-10 mt-3 flex items-center gap-2">
             <button
               onClick={() => onNavigate?.('pos')}
-              className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/10 active:scale-95 transition-all flex items-center gap-1.5"
             >
-              {t("launch_pos", "Launch POS")} <ArrowRight className="w-4 h-4" />
+              {t("launch_pos", "Launch POS")} <ArrowRight className="w-3 h-3" />
             </button>
             <button
               onClick={() => onNavigate?.('inventory')}
-              className="px-8 py-4 bg-white/5 text-white border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+              className="px-5 py-2.5 bg-white/5 text-white border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
             >
               {t("manage_stock", "Manage Stock")}
             </button>
           </div>
         </div>
 
-        {/* Right: The Magical Watch (Analytic Hub) */}
-        <div className="order-1 lg:order-2 bg-gradient-to-b from-indigo-950 to-black rounded-[3rem] p-6 border border-indigo-500/20 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center min-h-[320px] group">
+        {/* Right: The Magical Clock Card */}
+        <div className="bg-gradient-to-b from-indigo-950 to-black rounded-[2rem] p-3 border border-indigo-500/15 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center min-h-[160px] group">
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-indigo-500/5 rounded-full" />
           </div>
 
-          <div className="relative z-10 w-full flex-1 flex flex-col items-center justify-center">
+          {/* Scale down the clock container so it fits the compact height perfectly */}
+          <div className="relative z-10 w-full h-full max-w-[130px] aspect-square flex items-center justify-center">
             <MagicalClock />
-          </div>
-
-          <div className="relative z-10 text-center mt-4 pb-2">
-            <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.4em] leading-none">{t("local_time", "Local Time")}</p>
-            <div className="h-px w-8 bg-primary/20 mx-auto mt-2" />
           </div>
         </div>
       </div>
@@ -216,133 +212,132 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="bg-gray-100 dark:bg-white/[0.03] rounded-2xl animate-pulse aspect-square" />)}
         </div>
       ) : (
-        <div className="order-1 lg:order-2 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 lg:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500">
-          {/* 1. Collections */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* 1. Revenue Today */}
           <div
-            className="stat-card bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-800 group cursor-pointer !min-h-[100px] sm:!min-h-[120px]"
+            className="stat-card bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-800 group cursor-pointer !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
             onClick={() => onNavigate?.('reports')}
           >
             <div className="stat-card-inner">
-              <div className="space-y-1">
-                <span className="stat-card-label">{t("revenue_today", "Revenue Today")}</span>
-                <span className="stat-card-value !text-lg sm:!text-xl lg:!text-2xl">{formatCurrency(walletStats.total, currency)}</span>
+              <div className="space-y-0.5">
+                <span className="stat-card-label text-[8.5px] tracking-widest">{t("revenue_today", "Revenue Today")}</span>
+                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{formatCurrency(walletStats.total, currency)}</span>
               </div>
-              <div className="mt-3 flex items-center gap-2">
-                <div className="px-2 py-0.5 bg-white/10 rounded-lg border border-white/5">
-                  <p className="text-[8px] font-black text-white uppercase tracking-widest">{walletStats.cash > 0 ? t("cash_ready", "CASH READY") : t("no_cash", "NO CASH")}</p>
-                </div>
+              <div className="mt-2">
+                <span className="text-[7.5px] font-black text-white/50 bg-white/15 px-1.5 py-0.5 rounded border border-white/5 uppercase tracking-wider">
+                  {walletStats.cash > 0 ? t("cash_ready", "CASH READY") : t("no_cash", "NO CASH")}
+                </span>
               </div>
             </div>
-            <Wallet className="stat-card-icon !h-10 !w-10 sm:!h-12 sm:!w-12 !opacity-20 group-hover:!opacity-40" />
+            <Wallet className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
-          {/* 2. Activity */}
+          {/* 2. Flow Monitor */}
           <div
-            className="stat-card bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-800 group cursor-pointer !min-h-[100px] sm:!min-h-[120px]"
+            className="stat-card bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-800 group cursor-pointer !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
             onClick={() => onNavigate?.('reports')}
           >
             <div className="stat-card-inner">
-              <div className="space-y-1">
-                <span className="stat-card-label">{t("flow_monitor", "Flow Monitor")}</span>
-                <div className="flex flex-col gap-1.5 mt-2">
-                  <div className="flex items-center justify-between text-[9px] font-black text-white/50">
+              <div className="space-y-0.5">
+                <span className="stat-card-label text-[8.5px] tracking-widest">{t("flow_monitor", "Flow Monitor")}</span>
+                <div className="flex flex-col gap-1 mt-1">
+                  <div className="flex items-center justify-between text-[8px] font-black text-white/60">
                     <span>{t("inflow", "INFLOW")}</span>
                     <span className="text-white">+{formatCurrency(todayStats.sales, currency, false)}</span>
                   </div>
-                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-400 w-3/4 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                  <div className="w-full h-0.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-400 w-3/4" />
                   </div>
                 </div>
               </div>
             </div>
-            <Activity className="stat-card-icon !h-10 !w-10 sm:!h-12 sm:!w-12 !opacity-20 group-hover:!opacity-40" />
+            <Activity className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
-          {/* 3. Customers */}
+          {/* 3. Receivables */}
           <div
-            className="stat-card bg-gradient-to-br from-emerald-500 via-teal-600 to-teal-800 group cursor-pointer shadow-emerald-500/10 !min-h-[100px] sm:!min-h-[120px]"
+            className="stat-card bg-gradient-to-br from-emerald-500 via-teal-600 to-teal-800 group cursor-pointer shadow-emerald-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
             onClick={() => onNavigate?.('customers')}
           >
             <div className="stat-card-inner">
-              <div className="space-y-1">
-                <span className="stat-card-label">{t("receivables", "Receivables")}</span>
-                <span className="stat-card-value !text-lg sm:!text-xl lg:!text-2xl">{formatCurrency(customerReceivableStats.toReceive, currency)}</span>
+              <div className="space-y-0.5">
+                <span className="stat-card-label text-[8.5px] tracking-widest">{t("receivables", "Receivables")}</span>
+                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{formatCurrency(customerReceivableStats.toReceive, currency)}</span>
               </div>
             </div>
-            <Users className="stat-card-icon !h-10 !w-10 sm:!h-12 sm:!w-12 !opacity-20 group-hover:!opacity-40" />
+            <Users className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
-          {/* 4. Suppliers */}
+          {/* 4. Payables */}
           <div
-            className="stat-card bg-gradient-to-br from-rose-500 via-red-600 to-red-800 group cursor-pointer shadow-red-500/10 !min-h-[100px] sm:!min-h-[120px]"
+            className="stat-card bg-gradient-to-br from-rose-500 via-red-600 to-red-800 group cursor-pointer shadow-red-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
             onClick={() => onNavigate?.('suppliers')}
           >
             <div className="stat-card-inner">
-              <div className="space-y-1">
-                <span className="stat-card-label">{t("payables", "Payables")}</span>
-                <span className="stat-card-value !text-lg sm:!text-xl lg:!text-2xl">{formatCurrency(payableStats.toPay, currency)}</span>
+              <div className="space-y-0.5">
+                <span className="stat-card-label text-[8.5px] tracking-widest">{t("payables", "Payables")}</span>
+                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{formatCurrency(payableStats.toPay, currency)}</span>
               </div>
             </div>
-            <Building2 className="stat-card-icon !h-10 !w-10 sm:!h-12 sm:!w-12 !opacity-20 group-hover:!opacity-40" />
+            <Building2 className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
           {/* 5. Orders */}
           <div
-            className="stat-card bg-gradient-to-br from-amber-500 via-orange-600 to-orange-800 group cursor-pointer shadow-orange-500/10 !min-h-[100px] sm:!min-h-[120px]"
+            className="stat-card bg-gradient-to-br from-amber-500 via-orange-600 to-orange-800 group cursor-pointer shadow-orange-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
             onClick={() => onNavigate?.('purchase-orders')}
           >
             <div className="stat-card-inner">
-              <div className="space-y-1">
-                <span className="stat-card-label">{t("pending", "Pending")}</span>
-                <span className="stat-card-value !text-lg sm:!text-xl lg:!text-2xl">{pendingPOsCount}</span>
+              <div className="space-y-0.5">
+                <span className="stat-card-label text-[8.5px] tracking-widest">{t("pending", "Pending")}</span>
+                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{pendingPOsCount}</span>
               </div>
             </div>
-            <ShoppingBag className="stat-card-icon !h-10 !w-10 sm:!h-12 sm:!w-12 !opacity-20 group-hover:!opacity-40" />
+            <ShoppingBag className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
           {/* 6. Inventory */}
           <div
-            className={`stat-card group cursor-pointer transition-all duration-500 !min-h-[100px] sm:!min-h-[120px] ${lowStockCount > 0
+            className={`stat-card group cursor-pointer transition-all duration-500 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem] ${lowStockCount > 0
               ? 'bg-gradient-to-br from-pink-600 to-rose-700 shadow-rose-500/20 ring-1 ring-white/20'
               : 'bg-gradient-to-br from-pink-500 to-fuchsia-700'
               }`}
             onClick={() => onNavigate?.('inventory')}
           >
             <div className="stat-card-inner">
-              <div className="space-y-1">
-                <span className="stat-card-label">{t("inventory", "Inventory")}</span>
-                <span className="stat-card-value !text-lg sm:!text-xl lg:!text-2xl">{lowStockCount}</span>
-                <p className="text-[9px] font-black uppercase tracking-widest text-white/50">{lowStockCount > 0 ? t("critical_alert", "CRITICAL ALERT") : t("optimized", "OPTIMIZED")}</p>
+              <div className="space-y-0.5">
+                <span className="stat-card-label text-[8.5px] tracking-widest">{t("inventory", "Inventory")}</span>
+                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{lowStockCount}</span>
+                <p className="text-[7.5px] font-black text-white/50 uppercase tracking-wider">{lowStockCount > 0 ? t("critical_alert", "CRITICAL ALERT") : t("optimized", "OPTIMIZED")}</p>
               </div>
             </div>
-            <Package className="stat-card-icon !h-10 !w-10 sm:!h-12 sm:!w-12 !opacity-20 group-hover:!opacity-40" />
+            <Package className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
         </div>
       )}
 
       {/* --- BUSINESS PULSE & LIVE FEED (THE ANALYTICS) --- */}
       {!loading && (
-        <div className="order-3 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8 animate-in slide-in-from-bottom-6 duration-1000 delay-300">
-
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Live Business Pulse Chart */}
-          <div className="lg:col-span-2 bg-white dark:bg-[#080808] rounded-[3rem] p-6 sm:p-10 border border-primary/10 dark:border-white/5 shadow-2xl relative overflow-hidden group min-h-[350px]">
-            <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none group-hover:scale-110 transition-transform duration-1000">
-              <Activity className="w-56 h-56 -mr-16 -mt-16 text-primary" />
+          <div className="lg:col-span-2 bg-white dark:bg-[#080808] rounded-[2.5rem] p-5 sm:p-6 border border-primary/10 dark:border-white/5 shadow-2xl relative overflow-hidden group h-[350px]">
+            <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:scale-110 transition-transform duration-1000">
+              <Activity className="w-48 h-48 -mr-12 -mt-12 text-primary" />
             </div>
 
             <div className="relative z-10 flex flex-col h-full">
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("business_pulse", "Business Pulse")}</h3>
-                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em] mt-1">{t("live_momentum_analytic", "Live Momentum Analytic")}</p>
+                  <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("business_pulse", "Business Pulse")}</h3>
+                  <p className="text-[9px] font-black text-primary uppercase tracking-[0.3em] mt-1">{t("live_momentum_analytic", "Live Momentum Analytic")}</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div className="text-right hidden sm:block">
-                    <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest leading-none mb-1">{t("peak_sales", "Peak Sales")}</p>
-                    <p className="text-sm font-black text-gray-900 dark:text-white">{formatCurrency(Math.max(...hourlyData.map(d => d.value), 0), currency)}</p>
+                    <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest leading-none mb-1">{t("peak_sales", "Peak Sales")}</p>
+                    <p className="text-xs font-black text-gray-900 dark:text-white">{formatCurrency(Math.max(...hourlyData.map(d => d.value), 0), currency)}</p>
                   </div>
-                  <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
-                    <Zap className="w-5 h-5 text-primary animate-pulse" />
+                  <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+                    <Zap className="w-4 h-4 text-primary animate-pulse" />
                   </div>
                 </div>
               </div>
@@ -385,10 +380,10 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
           </div>
 
           {/* Live Feed - Compact List */}
-          <div className="lg:col-span-1 bg-gradient-to-br from-[#0A0A0A] via-[#111] to-black rounded-[3rem] p-6 sm:p-8 border border-blue-500/10 dark:border-white/5 shadow-2xl relative overflow-hidden flex flex-col min-h-[350px]">
-            <div className="relative z-10 flex items-center justify-between mb-8">
+          <div className="lg:col-span-1 bg-gradient-to-br from-[#0A0A0A] via-[#111] to-black rounded-[2.5rem] p-5 sm:p-6 border border-blue-500/10 dark:border-white/5 shadow-2xl relative overflow-hidden flex flex-col h-[350px]">
+            <div className="relative z-10 flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-xl font-black text-white uppercase tracking-tight">{t("live_feed", "Live Feed")}</h3>
+                <h3 className="text-lg font-black text-white uppercase tracking-tight">{t("live_feed", "Live Feed")}</h3>
                 <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mt-1">{t("real_time_stream", "Real-time Stream")}</p>
               </div>
               <div className="w-8 h-8 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
@@ -396,33 +391,33 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
               </div>
             </div>
 
-            <div className="relative z-10 flex-1 flex flex-col gap-3 overflow-y-auto scrollbar-hide pb-10">
+            <div className="relative z-10 flex-1 flex flex-col gap-2 overflow-y-auto scrollbar-hide pb-2">
               {recentActivity.length === 0 ? (
                 <div className="flex flex-col items-center justify-center flex-1">
                   <div className="relative mb-4">
-                    <Star className="relative w-12 h-12 text-blue-400/30" />
+                    <Star className="relative w-10 h-10 text-blue-400/30" />
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">{t("standby", "Standby")}</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white/20">{t("standby", "Standby")}</p>
                 </div>
               ) : (
                 recentActivity.map((sale, i) => (
                   <div
                     key={sale.id}
-                    className="bg-white/[0.03] hover:bg-white/[0.08] transition-all p-4 rounded-[1.75rem] border border-white/5 flex items-center justify-between group active:scale-95"
+                    className="bg-white/[0.03] hover:bg-white/[0.08] transition-all p-3 rounded-[1.25rem] border border-white/5 flex items-center justify-between group active:scale-95 animate-fadeIn"
                     style={{ animationDelay: `${i * 100}ms` }}
                   >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${sale.paymentMethod === 'cash' ? 'bg-primary/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                        {sale.paymentMethod === 'cash' ? <Wallet className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${sale.paymentMethod === 'cash' ? 'bg-primary/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                        {sale.paymentMethod === 'cash' ? <Wallet className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-black text-white uppercase tracking-widest truncate">TRX-{sale.id.slice(-4)}</p>
-                        <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{formatInTimeZone(sale.createdAt || sale.timestamp, { hour: '2-digit', minute: '2-digit', hour12: false }, state.settings.country)}</p>
+                        <p className="text-[10px] font-black text-white uppercase tracking-widest truncate">TRX-{sale.id.slice(-4)}</p>
+                        <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{formatInTimeZone(sale.createdAt || sale.timestamp, { hour: '2-digit', minute: '2-digit', hour12: false }, state.settings.country)}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-[13px] font-black text-emerald-400">{formatCurrency(sale.total, currency, false)}</p>
-                      <p className="text-[8px] font-black text-white/20 uppercase tracking-widest">{sale.items?.length || 0} {sale.items?.length === 1 ? t("item", "ITEM") : t("items", "ITEMS")}</p>
+                      <p className="text-xs font-black text-emerald-400">{formatCurrency(sale.total, currency, false)}</p>
+                      <p className="text-[7.5px] font-black text-white/20 uppercase tracking-widest">{sale.items?.length || 0} {sale.items?.length === 1 ? t("item", "ITEM") : t("items", "ITEMS")}</p>
                     </div>
                   </div>
                 ))
@@ -430,11 +425,10 @@ export function DashboardManager({ onNavigate }: DashboardManagerProps) {
             </div>
 
             {/* Fade out bottom */}
-            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black to-transparent z-20 pointer-events-none rounded-b-[3rem]" />
+            <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black to-transparent z-20 pointer-events-none rounded-b-[2.5rem]" />
           </div>
         </div>
       )}
-
     </div>
   );
 }
