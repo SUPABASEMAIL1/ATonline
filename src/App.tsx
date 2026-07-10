@@ -149,7 +149,7 @@ function AppContent() {
   // Show loading spinner while auth is loading
   if (loading) {
     return (
-      <div className="min-h-[100dvh] bg-gray-50 dark:bg-app flex items-center justify-center transition-colors">
+      <div className="min-h-[100dvh] bg-gray-50 dark:bg-app flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -261,8 +261,8 @@ function AppContent() {
         <>
           <DialogProvider />
           <Header onShowMobileMenu={() => setIsMobileMenuOpen(true)} isMobileMenuOpen={isMobileMenuOpen} onHideMobileMenu={() => setIsMobileMenuOpen(false)} />
-          <main className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
-            <Suspense fallback={null}>
+          <main className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden bg-gray-50 dark:bg-app" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+            <Suspense fallback={<LoadingView />}>
               <Routes>
                 <Route path="/pos" element={<POSTerminal />} />
                 <Route path="/transactions" element={<RequireAccess viewId="transactions"><TransactionsManager /></RequireAccess>} />
@@ -285,7 +285,7 @@ function AppContent() {
             </Suspense>
 
             {state.loading && (
-              <div className="absolute inset-0 bg-white/60 dark:bg-black/80-[2px] z-[100] flex items-center justify-center animate-in fade-in duration-300">
+              <div className="absolute inset-0 bg-white/60 dark:bg-black/80 z-[100] flex items-center justify-center animate-in fade-in">
                 <div className="flex flex-col items-center gap-4">
                   <div className="relative">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>

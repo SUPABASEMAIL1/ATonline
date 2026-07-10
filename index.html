@@ -41,6 +41,7 @@
       var _textColor = _isDark ? '#f3f4f6' : '#111827';
       document.documentElement.style.backgroundColor = _bgColor;
       document.documentElement.style.color = _textColor;
+      document.documentElement.style.colorScheme = _isDark ? 'dark' : 'light';
 
       if (_isDark) {
         document.documentElement.classList.add('dark');

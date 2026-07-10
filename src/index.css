@@ -44,7 +44,6 @@
 
   html {
     scroll-behavior: smooth;
-    color-scheme: light dark;
     font-size: 13px; /* Base root size for mobile */
     /* Prevent viewport bounce / rubber-band on iOS PWA */
     overscroll-behavior: none;
