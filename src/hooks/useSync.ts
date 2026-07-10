@@ -10,48 +10,18 @@ export function useSync() {
     const [hasError, setHasError] = useState(false);
     const [isRetrying, setIsRetrying] = useState(false);
 
-    // Connectivity ping: verify server reachability every 30s
-    // (navigator.onLine is unreliable on mobile — returns true in Airplane Mode)
+    // Connectivity check: use navigator.onLine + online/offline events
+    // (HEAD ping removed — Supabase REST API returns 401 without auth,
+    //  causing noisy console spam. The sync engine's API calls naturally
+    //  detect real offline state when requests fail.)
     useEffect(() => {
-        let consecutiveFailures = 0;
-        let pingTimer: ReturnType<typeof setInterval>;
-
-        const ping = async () => {
-            try {
-                await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
-                    method: 'HEAD',
-                    signal: AbortSignal.timeout(5000)
-                });
-                // Any HTTP response (401/403/404) = server is reachable
-                consecutiveFailures = 0;
-                setIsOnline(true);
-            } catch {
-                consecutiveFailures++;
-                if (consecutiveFailures >= 2) {
-                    setIsOnline(false);
-                }
-            }
-        };
-
-        if (navigator.onLine) ping();
-        pingTimer = setInterval(() => {
-            if (navigator.onLine) ping();
-        }, 30_000);
-
-        // Re-check when app comes to foreground (mobile browsers
-        // often suspend timers in background)
         const handleVisibility = () => {
-            if (document.visibilityState === 'visible') {
-                consecutiveFailures = 0;
-                ping();
+            if (document.visibilityState === 'visible' && navigator.onLine) {
+                setIsOnline(true);
             }
         };
         document.addEventListener('visibilitychange', handleVisibility);
-
-        return () => {
-            clearInterval(pingTimer);
-            document.removeEventListener('visibilitychange', handleVisibility);
-        };
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
     }, []);
 
     const refresh = useCallback(async () => {

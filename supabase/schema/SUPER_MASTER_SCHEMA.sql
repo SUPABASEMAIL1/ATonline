@@ -114,6 +114,18 @@
 --   Both columns were in SUPER_MASTER_SCHEMA.sql from day one but were never applied
 --   to the live DB, causing every product sync to 400 → auto-blacklist loop.
 -- ════════════════════════════════════════════════════════════════
+--
+-- [2026-07-10] Sales query timeout fix + cache busting
+--   Files: services.ts, useSync.ts, supabase.ts, POSTerminal.tsx,
+--          Modal.tsx, SUPER_MASTER_SCHEMA.sql (changelog only)
+--   Changes:
+--   1. services.ts — sales.fetchRemote() now uses .order().limit(10000)
+--      to prevent "canceling statement due to statement timeout"
+--   2. supabase.ts — Cache-Control: no-cache on all requests
+--   3. useSync.ts — removed HEAD ping (/rest/v1/ returns 401)
+--   4. Modal.tsx + POSTerminal.tsx — safe-area-inset-top for notch
+--   5. SyncStatusBadge.tsx — stale-data amber badge 5min+ threshold
+-- ════════════════════════════════════════════════════════════════
 
 
 -- ════════════════════════════════════════════════════════════════

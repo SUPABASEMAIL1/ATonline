@@ -982,7 +982,11 @@ export const salesService = {
   },
 
   async fetchRemote(): Promise<Sale[]> {
-    const { data, error } = await supabase.from('sales').select('*');
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5000);
     if (error) throw error;
     return (data || []).map(mapSale);
   },
