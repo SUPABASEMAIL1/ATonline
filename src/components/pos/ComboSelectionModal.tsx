@@ -125,7 +125,7 @@ export function ComboSelectionModal({
       footer={footerContent}
     >
       <div className="space-y-6">
-        <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-white/5">
+        <div className="sticky top-0 z-10 -mx-5 sm:-mx-6 px-5 sm:px-6 bg-surface shadow-[0_1px_0_rgba(0,0,0,0.05)] dark:shadow-[0_1px_0_rgba(255,255,255,0.05)] flex justify-between items-center pb-3 pt-3 -mt-5 sm:-mt-6 mb-4 border-0">
           <p className="text-[10px] sm:text-[11px] text-gray-500 uppercase tracking-widest">
             {t('configure_combo', 'Configure your choices')}
           </p>
