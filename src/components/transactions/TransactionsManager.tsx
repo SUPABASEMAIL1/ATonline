@@ -1087,8 +1087,20 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
 
                     b.items.forEach((item: any, itemIdx: number) => {
                       rows.push(
-                        <tr key={`bundle-${b.bundleId}-item-${itemIdx}`} className="bg-violet-500/[0.005] border-t border-gray-100/50 dark:border-white/5">
-                          <td className="pl-10 pr-4 py-1.5 text-[9px] text-gray-600 dark:text-gray-400 uppercase">
+                        <tr
+                          key={`bundle-${b.bundleId}-item-${itemIdx}`}
+                          onClick={() => {
+                            if (item.product?.id) {
+                              dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: 'transactions' });
+                              dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: transaction.id });
+                              dispatch({ type: 'SET_LAST_PRODUCT_HUB', payload: item.product.id });
+                              window.dispatchEvent(new CustomEvent('navigate', { detail: 'inventory' }));
+                              onClose();
+                            }
+                          }}
+                          className={`${item.product?.id ? 'cursor-pointer hover:bg-violet-500/[0.03] dark:hover:bg-violet-500/[0.03] transition-colors group' : ''} bg-violet-500/[0.005] border-t border-gray-100/50 dark:border-white/5`}
+                        >
+                          <td className={`pl-10 pr-4 py-1.5 text-[9px] text-gray-600 dark:text-gray-400 uppercase ${item.product?.id ? 'group-hover:text-primary' : ''}`}>
                             <span className="font-bold">- {item.product?.name || 'Item'}</span>
                             {item.selectedVariant && <span className="text-[8px] text-gray-400"> ({item.selectedVariant})</span>}
                           </td>
@@ -1121,7 +1133,7 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                       <tr
                         key={`standalone-${index}`}
                         onClick={() => {
-                          if (canEditProducts && item.product?.id) {
+                          if (item.product?.id) {
                             dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: 'transactions' });
                             dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: transaction.id });
                             dispatch({ type: 'SET_LAST_PRODUCT_HUB', payload: item.product.id });
@@ -1129,9 +1141,9 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                             onClose();
                           }
                         }}
-                        className={canEditProducts && item.product?.id ? "cursor-pointer hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group" : ""}
+                        className={item.product?.id ? "cursor-pointer hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group" : ""}
                       >
-                        <td className={`px-2.5 sm:px-4 py-3 sm:py-4 text-[11px] font-black text-gray-900 dark:text-white uppercase transition-colors ${canEditProducts && item.product?.id ? 'group-hover:text-primary' : ''}`}>
+                        <td className={`px-2.5 sm:px-4 py-3 sm:py-4 text-[11px] font-black text-gray-900 dark:text-white uppercase transition-colors ${item.product?.id ? 'group-hover:text-primary' : ''}`}>
                           <div className="flex items-center gap-2">
                             <div className="w-7 h-7 rounded-md overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center">
                               {item.product?.image ? (
