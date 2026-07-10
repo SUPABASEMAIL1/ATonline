@@ -18,8 +18,8 @@
     "dev": "vite --host",
     "electron:dev": "concurrently \"vite --host\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
-    "build:win": "vite build && electron-builder --win --x64",
-    "build:mac": "vite build && electron-builder --mac",
+    "build:win": "vite build --mode electron && electron-builder --win --x64",
+    "build:mac": "vite build --mode electron && electron-builder --mac",
     "lint": "eslint .",
     "preview": "vite preview"
   },
