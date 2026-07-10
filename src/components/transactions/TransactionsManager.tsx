@@ -1091,10 +1091,7 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                           key={`bundle-${b.bundleId}-item-${itemIdx}`}
                           onClick={() => {
                             if (item.product?.id) {
-                              dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: 'transactions' });
-                              dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: transaction.id });
-                              dispatch({ type: 'SET_LAST_PRODUCT_HUB', payload: item.product.id });
-                              window.dispatchEvent(new CustomEvent('navigate', { detail: 'inventory' }));
+                              detailNavigate('/inventory/products', { state: { productId: item.product.id, fromSale: transaction.id } });
                               onClose();
                             }
                           }}
@@ -1130,18 +1127,15 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
 
                   standaloneItems.forEach((item, index) => {
                     rows.push(
-                      <tr
-                        key={`standalone-${index}`}
-                        onClick={() => {
-                          if (item.product?.id) {
-                            dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: 'transactions' });
-                            dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: transaction.id });
-                            dispatch({ type: 'SET_LAST_PRODUCT_HUB', payload: item.product.id });
-                            window.dispatchEvent(new CustomEvent('navigate', { detail: 'inventory' }));
-                            onClose();
-                          }
-                        }}
-                        className={item.product?.id ? "cursor-pointer hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group" : ""}
+                        <tr
+                          key={`standalone-${index}`}
+                          onClick={() => {
+                            if (item.product?.id) {
+                              detailNavigate('/inventory/products', { state: { productId: item.product.id, fromSale: transaction.id } });
+                              onClose();
+                            }
+                          }}
+                          className={item.product?.id ? "cursor-pointer hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors group" : ""}
                       >
                         <td className={`px-2.5 sm:px-4 py-3 sm:py-4 text-[11px] font-black text-gray-900 dark:text-white uppercase transition-colors ${item.product?.id ? 'group-hover:text-primary' : ''}`}>
                           <div className="flex items-center gap-2">

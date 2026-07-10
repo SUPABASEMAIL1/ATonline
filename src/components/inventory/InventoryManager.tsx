@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../context/AuthContext';
 import { Plus, Search, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, ChevronRight, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift } from 'lucide-react';
@@ -32,6 +32,7 @@ type TabType = 'inventory' | 'purchase_orders' | 'groups' | 'media' | 'purchases
 
 export function InventoryManager() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { subTab } = useParams();
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
@@ -126,16 +127,18 @@ export function InventoryManager() {
     }
   }, [state.products, showBarcodeGenerator, selectedProductIds]);
 
-  // Handle auto-opening hub when returning from transactions
+  // Handle auto-opening hub when navigating from sale breakdown (via location.state)
   useEffect(() => {
-    if (state.lastProductHubId) {
-      const product = state.products.find((p: Product) => p.id === state.lastProductHubId);
+    const navState = location.state as { productId?: string; fromSale?: string } | null;
+    if (navState?.productId) {
+      const product = state.products.find((p: Product) => p.id === navState.productId);
       if (product) {
         setDetailProduct(product);
       }
-      dispatch({ type: 'SET_LAST_PRODUCT_HUB', payload: null });
+      // Clear the state so back button works correctly (don't reopen on re-render)
+      window.history.replaceState({}, document.title);
     }
-  }, [state.lastProductHubId, state.products, dispatch]);
+  }, [location.state, state.products]);
 
   // Handle return redirection to specific tabs (e.g. Stock History)
   useEffect(() => {
@@ -481,7 +484,11 @@ export function InventoryManager() {
           product={freshProduct}
           onBack={() => {
             setDetailProduct(null);
-            if (state.pendingReturnTab) {
+            const navState = location.state as { fromSale?: string } | null;
+            if (navState?.fromSale) {
+              dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: navState.fromSale });
+              navigate('/transactions');
+            } else if (state.pendingReturnTab) {
               const targetTab = state.pendingReturnTab;
               dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: null });
               window.dispatchEvent(new CustomEvent('navigate', { detail: targetTab }));
