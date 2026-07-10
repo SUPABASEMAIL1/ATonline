@@ -240,7 +240,7 @@ export function Header({
             className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth w-full snap-x snap-mandatory px-4 lg:px-6"
             style={{ paddingLeft: canScrollLeft ? 32 : undefined, paddingRight: canScrollRight ? 32 : undefined }}>
             {navigationItems.map((item) => {
-              const active = location.pathname === '/' + item.id;
+              const active = location.pathname === '/' + item.id || location.pathname.startsWith('/' + item.id + '/');
               return (
                 <button key={item.id} data-active={active} onClick={() => navigate('/' + item.id)}
                   className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl
@@ -426,7 +426,7 @@ export function Header({
               {/* Nav grid — 3 cols */}
               <nav className="grid grid-cols-3 gap-1 mb-2 px-4">
                 {navigationItems.map((item) => {
-                  const active = location.pathname === '/' + item.id;
+                  const active = location.pathname === '/' + item.id || location.pathname.startsWith('/' + item.id + '/');
                   return (
                     <button key={item.id}
                       onClick={() => { navigate('/' + item.id); onHideMobileMenu?.(); }}

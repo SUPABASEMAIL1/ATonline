@@ -40,7 +40,7 @@ export function MobileBottomNav({ onShowMenu }: MobileBottomNavProps) {
     <div className="md:hidden bg-white dark:bg-app border-t border-gray-200 dark:border-white/5 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-[40] flex-shrink-0">
       <div className="flex items-center justify-around h-14 max-w-md mx-auto">
         {navItems.map((item) => {
-          const active = location.pathname === '/' + item.id;
+          const active = location.pathname === '/' + item.id || location.pathname.startsWith('/' + item.id + '/');
           return (
             <button
               key={item.id}
