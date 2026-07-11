@@ -52,7 +52,7 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
   const avgOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6">
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Total Customers */}

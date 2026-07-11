@@ -11,7 +11,7 @@ interface InventoryReportProps {
 
 export function InventoryReport({ startDate, endDate, globalSupplier, globalCategory, globalStore, sales }: InventoryReportProps) {
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 -mx-4 lg:-mx-6 -mt-2">
+    <div className="-mx-4 lg:-mx-6 -mt-2">
       <InventoryReportManager
         startDate={startDate}
         endDate={endDate}

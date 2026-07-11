@@ -71,6 +71,15 @@ function RequireAccess({ viewId, children }: { viewId: string; children: React.R
 ### Step 3: Animation Opacity Stabilisation
 Updated `fadeInSubtle` in [index.css](file:///Users/shoaib/Desktop/v12.2/src/index.css) to preserve opacity values on component updates, so any re-renders are completely seamless with zero visual glitching.
 
+### Step 4: Defer or Remove Sub-tab Transition Animations
+When switching between sub-tabs inside managers (e.g. Reports, Settings, and Inventory), the sub-components are conditionally rendered (`activeTab === '...'` or `reportType === '...'`). Having entrance animations (`animate-in fade-in slide-in`) on these container wrappers forces them to visual fade/slide every time you switch. Removing these animation classes keeps tab changes instant and completely solid across all modules.
+
+
+### Step 5: Replace Loading Spinners with High-Fidelity Skeletons
+Instead of showing generic text loader spinners (like "LOADING MODULE...") during module chunk resolution via React `<Suspense>`, replace the fallback component with a high-fidelity workspace skeleton container (pulsing header, card grid, charts, and list lines). This makes the interface feel highly responsive and aligned with premium design guidelines.
+
+
+
 ---
 
 ## 🧠 Guidelines for the Future

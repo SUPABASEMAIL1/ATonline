@@ -1145,7 +1145,7 @@ export function ReportsManager() {
       </div>
       {/* Premium Dashboard summary row */}
       {reportType === 'sales' && (
-        <div className="relative z-20 animate-in fade-in slide-in-from-top-4 duration-500 mt-2 sm:mt-4">
+        <div className="relative z-20 mt-2 sm:mt-4">
         <SalesReport
             filteredSales={filteredSales}
             paginatedSales={paginatedSales}
@@ -1181,7 +1181,7 @@ export function ReportsManager() {
 
 
       {reportType === 'customers' && (
-        <div className="relative z-20 animate-in fade-in slide-in-from-top-4 duration-500 mt-2 sm:mt-4">
+        <div className="relative z-20 mt-2 sm:mt-4">
           <CustomersReport
             customerData={customerData}
             currency={state.settings.currency}
@@ -1192,7 +1192,7 @@ export function ReportsManager() {
       )}
 
       {reportType === 'expenses' && (
-        <div className="relative z-20 animate-in fade-in slide-in-from-top-4 duration-500 mt-2 sm:mt-4">
+        <div className="relative z-20 mt-2 sm:mt-4">
           <ExpensesReport
             filteredExpenses={filteredExpenses}
             expensesTrendData={expensesTrendData}
@@ -1209,7 +1209,7 @@ export function ReportsManager() {
       )}
 
       {reportType === 'financial' && (
-        <div className="relative z-20 animate-in fade-in slide-in-from-top-4 duration-500 mt-2 sm:mt-4">
+        <div className="relative z-20 mt-2 sm:mt-4">
           <FinancialReport
             totalRevenue={totalRevenue}
             totalTransactions={totalTransactions}
@@ -1226,7 +1226,7 @@ export function ReportsManager() {
 
 
       {reportType === 'inventory' && (
-        <div className="relative z-20 animate-in fade-in slide-in-from-top-4 duration-500 mt-2 sm:mt-4">
+        <div className="relative z-20 mt-2 sm:mt-4">
           <InventoryReport
             startDate={validStartDate}
             endDate={validEndDate}

@@ -479,7 +479,7 @@ export function InventoryManager() {
   if (detailProduct) {
     const freshProduct = state.products.find(p => p.id === detailProduct.id) || detailProduct;
     return (
-      <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full animate-in fade-in duration-500 max-w-[1400px] mx-auto">
+      <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full max-w-[1400px] mx-auto">
         <ProductDetailHub
           product={freshProduct}
           onBack={() => {
@@ -550,7 +550,7 @@ export function InventoryManager() {
   // ─── Product Editor Page Mode ───
   if (showProductModal) {
     return (
-      <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full animate-in fade-in duration-500 max-w-[1400px] mx-auto">
+      <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full max-w-[1400px] mx-auto">
         <ProductModal
           product={editingProduct}
           isOpen={true}
@@ -1013,11 +1013,11 @@ export function InventoryManager() {
           <PurchaseHistory />
         ) : <div className="p-20 text-center uppercase font-black text-gray-600">Access Denied</div>
       ) : activeTab === 'bundles' ? (
-        <div className="animate-in slide-in-from-bottom-4 duration-500">
+        <div>
           <BundleManager />
         </div>
       ) : activeTab === 'groups' ? (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6">
           <div className="bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto">

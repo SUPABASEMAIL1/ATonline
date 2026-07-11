@@ -520,7 +520,7 @@ export function Settings() {
   const visibleTabs = tabs.filter(t => !t.adminOnly || profile?.role === 'admin');
 
   return (
-    <div className="main-content-scroll p-1 sm:p-4 lg:p-6 py-4 sm:py-6 animate-in fade-in duration-500 bg-gray-50/50 dark:bg-app max-w-[1400px] mx-auto">
+    <div className="main-content-scroll p-1 sm:p-4 lg:p-6 py-4 sm:py-6 bg-gray-50/50 dark:bg-app max-w-[1400px] mx-auto">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6 pb-2">
         <div className="flex items-center gap-4 shrink-0">
@@ -620,7 +620,7 @@ export function Settings() {
           <form id="settings-form" onSubmit={handleSubmit} className="p-3.5 sm:p-8 space-y-6 sm:space-y-8">
 
             {activeTab === 'general' && (
-              <section className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <section className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-white/5">
                   <div className="w-10 h-10 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
                     <Sliders className="w-5 h-5 text-[#10B981]" />
@@ -1141,7 +1141,7 @@ export function Settings() {
             )}
 
             {activeTab === 'database' && profile?.role === 'admin' && (
-              <section className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              <section className="space-y-8">
                 <DatabaseTools />
               </section>
             )}
@@ -1149,7 +1149,7 @@ export function Settings() {
 
 
             {activeTab === 'receipt' && (
-              <section className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <section className="space-y-6">
                 <div className="flex items-center gap-3 pb-4 border-b border-gray-50 dark:border-white/5">
                   <div className="w-10 h-10 bg-[#10B981]/10 rounded-xl flex items-center justify-center">
                     <Printer className="w-5 h-5 text-[#10B981]" />
@@ -1520,13 +1520,13 @@ export function Settings() {
             )}
 
             {activeTab === 'security' && (
-              <section className="animate-in slide-in-from-right-4 duration-300">
+              <section>
                 <PasswordChange />
               </section>
             )}
 
             {activeTab === 'database' && (window as any).electronAPI?.isElectron && (
-              <section className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              <section className="space-y-8">
                 <div className="flex items-center gap-3 pb-2 border-b border-gray-50 dark:border-white/5">
                   <div className="w-10 h-10 bg-cyan-100/30 rounded-xl flex items-center justify-center">
                     <Globe className="w-5 h-5 text-cyan-600" />

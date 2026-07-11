@@ -29,7 +29,7 @@ export function FinancialReport({
   const { t } = useTranslation();
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6">
       {/* Main Profit Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="stat-card bg-gradient-to-br from-blue-600 to-indigo-700">

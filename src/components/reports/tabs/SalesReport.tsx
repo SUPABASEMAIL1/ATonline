@@ -103,7 +103,7 @@ export function SalesReport({
   return (
     <>
       {/* Summary Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3 lg:gap-4 animate-in fade-in duration-500">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3 lg:gap-4">
         <div className="stat-card bg-gradient-to-br from-emerald-500 to-teal-700">
           <div className="stat-card-inner">
             <span className="stat-card-label">{t("total_revenue", "Total Revenue")}</span>
