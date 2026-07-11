@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Wallet,
@@ -29,6 +29,8 @@ export function DashboardManager() {
   const { currency } = state.settings;
 
   const timezone = getTimezone(state.settings.country);
+
+
 
   const walletStats = useMemo(() => {
     const now = new Date();
@@ -141,12 +143,10 @@ export function DashboardManager() {
   const pendingPOsCount = 0; // Placeholder
   const lowStockCount = state.products.filter(p => p.trackInventory && p.stock <= (p.minStock || 5)).length;
 
-  const loading = false; // Placeholder
-
   return (
     <div className="main-content-scroll p-2.5 sm:p-4 bg-gray-50/50 dark:bg-app flex flex-col gap-4">
       {/* --- COMPACT HERO GRID WITH MAGICAL WATCH --- */}
-      <div className="grid grid-cols-[1fr_auto] lg:grid-cols-3 gap-3 items-stretch animate-in fade-in slide-in-from-top-4 duration-700">
+      <div className="grid grid-cols-[1fr_auto] lg:grid-cols-3 gap-3 items-stretch">
         
         {/* Left: Identity Greeting Card */}
         <div className="lg:col-span-2 flex flex-col justify-between p-4 sm:p-5 bg-gradient-to-br from-indigo-950 via-[#0A0A0A] to-black rounded-[2rem] border border-indigo-500/10 shadow-2xl relative overflow-hidden group min-h-[140px] sm:min-h-[160px]">
@@ -205,11 +205,7 @@ export function DashboardManager() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="bg-gray-100 dark:bg-white/[0.03] rounded-2xl animate-pulse aspect-square" />)}
-        </div>
-      ) : (
+      {/* Cards always mounted — never swap with skeleton to prevent blink */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* 1. Revenue Today */}
           <div
@@ -312,10 +308,8 @@ export function DashboardManager() {
             <Package className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
         </div>
-      )}
 
       {/* --- BUSINESS PULSE & LIVE FEED (THE ANALYTICS) --- */}
-      {!loading && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Live Business Pulse Chart */}
           <div className="lg:col-span-2 bg-white dark:bg-[#080808] rounded-[2.5rem] p-5 sm:p-6 border border-primary/10 dark:border-white/5 shadow-2xl relative overflow-hidden group h-[350px]">
@@ -401,8 +395,7 @@ export function DashboardManager() {
                 recentActivity.map((sale, i) => (
                   <div
                     key={sale.id}
-                    className="bg-white/[0.03] hover:bg-white/[0.08] transition-all p-3 rounded-[1.25rem] border border-white/5 flex items-center justify-between group active:scale-95 animate-fadeIn"
-                    style={{ animationDelay: `${i * 100}ms` }}
+                    className="bg-white/[0.03] hover:bg-white/[0.08] transition-all p-3 rounded-[1.25rem] border border-white/5 flex items-center justify-between group active:scale-95"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${sale.paymentMethod === 'cash' ? 'bg-primary/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
@@ -410,7 +403,7 @@ export function DashboardManager() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-[10px] font-black text-white uppercase tracking-widest truncate">TRX-{sale.id.slice(-4)}</p>
-                        <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{formatInTimeZone(sale.createdAt || sale.timestamp, { hour: '2-digit', minute: '2-digit', hour12: false }, state.settings.country)}</p>
+                        <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest">{formatInTimeZone(sale.createdAt || sale.timestamp, state.settings.country, 'HH:mm')}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -426,7 +419,6 @@ export function DashboardManager() {
             <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-black to-transparent z-20 pointer-events-none rounded-b-[2.5rem]" />
           </div>
         </div>
-      )}
     </div>
   );
 }

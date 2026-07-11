@@ -37,7 +37,8 @@ export function getTimezone(countryName: string): string {
     'Singapore': 'Asia/Singapore',
     'Malaysia': 'Asia/Kuala_Lumpur'
   };
-  return timezones[countryName] || DEFAULT_TZ;
+  // Also check the COUNTRY_CODE_TZ map for 2-letter codes (e.g. 'PK', 'AE')
+  return timezones[countryName] || COUNTRY_CODE_TZ[countryName] || DEFAULT_TZ;
 }
 
 export function formatAppDate(date: Date | string, timezone?: string): string {
@@ -156,9 +157,37 @@ export function getEndOfInputDayInTimezone(dateStr: string, timezone: string): D
 }
 
 
-export function formatInTimeZone(date: Date | string, tz: string, format: string): string {
+export function formatInTimeZone(date: Date | string, tz: string | Intl.DateTimeFormatOptions, formatOrCountry?: string): string {
   if (!date) return "";
   const d = new Date(date);
   if (isNaN(d.getTime())) return "";
-  try { return d.toLocaleDateString("en-GB", { timeZone: safeTZ(tz) }); } catch { return d.toLocaleDateString(); }
+
+  // Resolve timezone from the arguments
+  let timezone: string;
+  if (typeof tz === 'string') {
+    timezone = safeTZ(tz);
+  } else {
+    // Legacy call: formatInTimeZone(date, options, country)
+    timezone = safeTZ(formatOrCountry || '');
+  }
+
+  try {
+    // Smart format: detect what the caller wants
+    if (typeof tz === 'object') {
+      // Called with Intl options object (legacy path)
+      return new Intl.DateTimeFormat('en-US', { ...tz, timeZone: timezone }).format(d);
+    }
+    // Default: format date + time compactly
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(d);
+  } catch {
+    return d.toLocaleDateString();
+  }
 }

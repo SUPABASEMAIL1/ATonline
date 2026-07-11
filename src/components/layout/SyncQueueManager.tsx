@@ -99,7 +99,10 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
     };
 
     const handleClear = async () => {
-        if (!confirm('This will delete all items that have failed 5+ times. Are you sure?')) return;
+        const all = await localDb.pendingOps.toArray();
+        const stuckCount = all.filter(o => (o.retries || 0) >= 5).length;
+        if (stuckCount === 0) return;
+        if (!confirm(`This will delete ${stuckCount} stuck item(s). Are you sure?`)) return;
         await clearStuckOps();
         window.dispatchEvent(new Event('pendingops-changed'));
         refresh();
@@ -287,24 +290,33 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                         })}
 
                         {ungrouped.map((op) => (
-                            <div key={op.id} className="group p-2.5 rounded-xl border border-gray-200 dark:border-white/5 bg-[#f8f9fa] dark:bg-white/[0.02] flex items-center justify-between gap-3 transition-all hover:bg-white dark:hover:bg-white/5">
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="p-2 rounded-lg bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 shrink-0 shadow-sm">
-                                        {getEntityIcon(op.entity)}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-[9px] font-black uppercase text-gray-900 dark:text-white truncate tracking-tight leading-none mb-1">
-                                            {op.opType} {op.entity}
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[7px] font-bold text-gray-600 uppercase tracking-widest">ID:{op.entityId?.slice(0, 6)}</span>
-                                            {getStatusBadge(op)}
+                            <div key={op.id}>
+                                <div className="group p-2.5 rounded-xl border border-gray-200 dark:border-white/5 bg-[#f8f9fa] dark:bg-white/[0.02] flex items-center justify-between gap-3 transition-all hover:bg-white dark:hover:bg-white/5">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="p-2 rounded-lg bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 shrink-0 shadow-sm">
+                                            {getEntityIcon(op.entity)}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[9px] font-black uppercase text-gray-900 dark:text-white truncate tracking-tight leading-none mb-1">
+                                                {op.opType} {op.entity}
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[7px] font-bold text-gray-600 uppercase tracking-widest">ID:{op.entityId?.slice(0, 6)}</span>
+                                                {getStatusBadge(op)}
+                                            </div>
                                         </div>
                                     </div>
+                                    <button onClick={() => handleDeleteOp(op.id)} className="p-2 text-gray-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all active:scale-90">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
-                                <button onClick={() => handleDeleteOp(op.id)} className="p-2 text-gray-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all active:scale-90">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                {op.lastError && (
+                                    <div className="mt-1 mx-2.5 p-2 rounded-xl bg-rose-500/5 border border-rose-500/10">
+                                        <p className="text-[7px] font-black text-rose-500 break-words leading-tight uppercase tracking-tight">
+                                            {t('rejected', 'REJECTED')}: {op.lastError}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

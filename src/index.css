@@ -748,19 +748,33 @@ select option {
   }
 }
 
+/* ── ENTRY ANIMATIONS (subtle to prevent re-render blink) ── */
 .animate-in {
   animation-duration: 250ms;
-  animation-fill-mode: forwards;
+  animation-fill-mode: both;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.animate-in.duration-100 { animation-duration: 100ms; }
+.animate-in.duration-200 { animation-duration: 200ms; }
+.animate-in.duration-300 { animation-duration: 300ms; }
+.animate-in.duration-500 { animation-duration: 500ms; }
+.animate-in.duration-700 { animation-duration: 700ms; }
+
 .fade-in {
-  animation-name: fadeIn;
+  animation-name: fadeInSubtle;
 }
 
 .zoom-in-95 {
   animation-name: scaleIn;
 }
+
+.slide-in-from-top-2 { animation-name: slideInFromTop2; }
+.slide-in-from-top-4 { animation-name: slideInFromTop4; }
+.slide-in-from-bottom-1 { animation-name: slideInFromBottom1; }
+.slide-in-from-bottom-2 { animation-name: slideInFromBottom2; }
+.slide-in-from-bottom-4 { animation-name: slideInFromBottom4; }
+.slide-in-from-right-4 { animation-name: slideInFromRight4; }
 
 @keyframes slideUp {
   from {
@@ -772,6 +786,46 @@ select option {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* fade-in is a no-op for opacity — prevents re-render blink across ALL pages.
+   Slide and zoom keyframes have their own opacity transitions built in. */
+@keyframes fadeInSubtle {
+  from { opacity: 1; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideInFromTop2 {
+  from { opacity: 0.4; transform: translateY(-8px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
+@keyframes slideInFromTop4 {
+  from { opacity: 0.4; transform: translateY(-16px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
+@keyframes slideInFromBottom1 {
+  from { opacity: 0.4; transform: translateY(4px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
+@keyframes slideInFromBottom2 {
+  from { opacity: 0.4; transform: translateY(8px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
+@keyframes slideInFromBottom4 {
+  from { opacity: 0.4; transform: translateY(16px); }
+  to   { opacity: 1;   transform: translateY(0); }
+}
+@keyframes slideInFromRight4 {
+  from { opacity: 0.4; transform: translateX(16px); }
+  to   { opacity: 1;   transform: translateX(0); }
+}
+
+@keyframes animFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fadeIn {
+  animation: animFadeIn 0.3s ease-out both;
 }
 
 /* Print styles */

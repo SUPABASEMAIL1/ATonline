@@ -26,7 +26,6 @@
 
 ## 🧠 Agent Rules
 0. **Architecture**: 1 Clone = 1 Shop. Never use workspace_id or shift_id.
-0. **Architecture**: 1 Clone = 1 Shop. Never use  or .
 
 1. **Think Before Acting**: Analyze, break into steps, avoid unnecessary complexity
 2. **Code Quality**: Clean, readable, modular, DRY

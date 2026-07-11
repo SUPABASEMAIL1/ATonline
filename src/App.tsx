@@ -159,51 +159,53 @@ function AppContent() {
 
 
 
-  // ── Route-based access control ──
-  function RequireAccess({ viewId, children }: { viewId: string; children: React.ReactNode }) {
-    const userRole = state.currentUser?.role;
-    const perms = state.currentUser?.permissions || [];
+// ── Route-based access control (moved outside AppContent to prevent unmount blinking) ──
+function RequireAccess({ viewId, children }: { viewId: string; children: React.ReactNode }) {
+  const { state } = useApp();
+  const userRole = state.currentUser?.role;
+  const perms = state.currentUser?.permissions || [];
 
-    const allowed = (() => {
-      if (userRole === 'admin') return true;
-      switch (viewId) {
-        case 'pos': return true;
-        case 'transactions': return userRole === 'manager' || userRole === 'cashier';
-        case 'expenses': return userRole === 'manager' || perms.includes('access_expenses');
-        case 'inventory': return userRole === 'manager' || perms.includes('access_inventory') || !!state.currentUser?.canManageStock || !!state.currentUser?.canManagePO || !!state.currentUser?.canViewRecords;
-        case 'customers': return userRole === 'manager' || perms.includes('access_customers');
-        case 'reports': return userRole === 'manager' || perms.includes('access_reports') || !!state.currentUser?.canViewProfit;
-        case 'discounts': return userRole === 'manager' || !!state.currentUser?.canGiveDiscount;
-        case 'users': return false;
-        case 'settings': return userRole === 'manager';
-        case 'suppliers': return userRole === 'manager';
-        case 'purchase-orders': return userRole === 'manager' || !!state.currentUser?.canManagePO;
-        case 'dashboard': return userRole === 'manager';
-        default: return false;
-      }
-    })();
+  const allowed = (() => {
+    if (userRole === 'admin') return true;
+    switch (viewId) {
+      case 'pos': return true;
+      case 'transactions': return userRole === 'manager' || userRole === 'cashier';
+      case 'expenses': return userRole === 'manager' || perms.includes('access_expenses');
+      case 'inventory': return userRole === 'manager' || perms.includes('access_inventory') || !!state.currentUser?.canManageStock || !!state.currentUser?.canManagePO || !!state.currentUser?.canViewRecords;
+      case 'customers': return userRole === 'manager' || perms.includes('access_customers');
+      case 'reports': return userRole === 'manager' || perms.includes('access_reports') || !!state.currentUser?.canViewProfit;
+      case 'discounts': return userRole === 'manager' || !!state.currentUser?.canGiveDiscount;
+      case 'users': return false;
+      case 'settings': return userRole === 'manager';
+      case 'suppliers': return userRole === 'manager';
+      case 'purchase-orders': return userRole === 'manager' || !!state.currentUser?.canManagePO;
+      case 'dashboard': return userRole === 'manager';
+      default: return false;
+    }
+  })();
 
-    if (!allowed) return <Navigate to="/pos" replace />;
-    return <>{children}</>;
-  }
+  if (!allowed) return <Navigate to="/pos" replace />;
+  return <>{children}</>;
+}
 
-  // ── Root redirect based on role and saved preference ──
-  function RootRedirect() {
-    const currentUser = state.currentUser;
-    useEffect(() => {
-      if (!currentUser) return;
-      const savedView = localStorage.getItem('pos_current_view');
-      if (savedView) {
-        navigate('/' + savedView, { replace: true });
-      } else if (currentUser.role === 'admin' || currentUser.role === 'manager') {
-        navigate('/dashboard', { replace: true });
-      } else {
-        navigate('/pos', { replace: true });
-      }
-    }, [currentUser]);
-    // Show nothing (transparent) until redirect fires — avoids LoadingView blink
-    return null;
-  }
+// ── Root redirect based on role and saved preference ──
+function RootRedirect() {
+  const { state } = useApp();
+  const currentUser = state.currentUser;
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!currentUser) return;
+    const savedView = localStorage.getItem('pos_current_view');
+    if (savedView) {
+      navigate('/' + savedView, { replace: true });
+    } else if (currentUser.role === 'admin' || currentUser.role === 'manager') {
+      navigate('/dashboard', { replace: true });
+    } else {
+      navigate('/pos', { replace: true });
+    }
+  }, [currentUser, navigate]);
+  return null;
+}
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="h-[100dvh] bg-gray-50 dark:bg-app flex flex-col overflow-hidden">
