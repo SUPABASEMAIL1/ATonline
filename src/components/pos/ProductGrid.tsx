@@ -260,7 +260,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
         {/* Search and Filter Bar */}
         <div className="p-1 lg:p-6 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-app transition-colors">
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-4 xl:items-center">
-            <div className="flex-1 flex items-center gap-1.5 lg:gap-3 w-full min-w-[280px] sm:min-w-[340px] xl:min-w-[380px]">
+            <div className="flex-1 xl:flex-none xl:w-[380px] flex items-center gap-1.5 lg:gap-3 w-full min-w-[280px] sm:min-w-[340px]">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5 lg:h-5 lg:w-5" />
                 <input
@@ -308,7 +308,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
               )}
             </div>
 
-            <div className="relative flex items-center w-full xl:w-auto min-w-0 xl:max-w-xl">
+            <div className="relative flex items-center w-full xl:flex-1 min-w-0">
               {showLeftScroll && (
                 <button
                   onClick={() => scrollCategories('left')}
@@ -321,22 +321,23 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
 
               <div
                 ref={categoriesRef}
-                className="flex overflow-x-auto space-x-1.5 lg:space-x-3 w-full max-w-full xl:max-w-xl scrollbar-hide scroll-smooth px-1 lg:px-6"
+                className="flex overflow-x-auto space-x-1.5 w-full scrollbar-hide scroll-smooth px-1"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
                 {categories.map((category) => (
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`btn whitespace-nowrap transition-all flex-shrink-0 flex items-center gap-1 px-2.5 ${selectedCategory === category
-                      ? category === '__BUNDLES__'
-                        ? 'bg-violet-600 text-white font-black shadow-lg shadow-violet-500/20'
-                        : 'bg-primary text-white font-black shadow-lg shadow-emerald-500/20'
-                      : 'bg-white dark:bg-[#1C1C1C] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5'
-                      } ${isTouchMode ? 'h-7 lg:h-12 rounded-lg lg:rounded-2xl text-[7px] lg:text-[10px] uppercase tracking-wider lg:tracking-widest' : 'h-7 lg:h-10 rounded-lg lg:rounded-xl text-[9px] lg:text-xs font-bold'}`}
+                    className={`whitespace-nowrap transition-all flex-shrink-0 flex items-center gap-1 px-3 sm:px-4 h-8 sm:h-9 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider active:scale-95 ${
+                      selectedCategory === category
+                        ? category === '__BUNDLES__'
+                          ? 'bg-violet-600 text-white font-black shadow-lg shadow-violet-500/20'
+                          : 'bg-primary text-white font-black shadow-lg shadow-emerald-500/20'
+                        : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                    }`}
                   >
-                    {category === 'Featured' && <Star className="w-2.5 h-2.5 lg:w-3.5 lg:h-3.5 fill-current" />}
-                    {category === '__BUNDLES__' && <Gift className="w-2.5 h-2.5 lg:w-3.5 lg:h-3.5" />}
+                    {category === 'Featured' && <Star className="w-2.5 h-2.5 lg:w-3 h-3 fill-current" />}
+                    {category === '__BUNDLES__' && <Gift className="w-2.5 h-2.5 lg:w-3 h-3" />}
                     {category === '__BUNDLES__'
                       ? t('bundles_and_deals', 'Bundles & Deals')
                       : category === 'Featured'
