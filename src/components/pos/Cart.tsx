@@ -240,7 +240,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   onClick={() =>
                     sonner.confirm('Clear Cart?', 'Remove all items?').then((r) => r.isConfirmed && dispatch({ type: 'CLEAR_CART' }))
                   }
-                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors flex items-center gap-1 text-[9px] font-black uppercase"
+                  className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-full transition-all active:scale-95 flex items-center gap-1"
                   title="Clear Cart"
                 >
                   <Eraser className="h-3.5 w-3.5" />
@@ -251,7 +251,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
             {isMobileDrawer && onClose ? (
               <button
                 onClick={onClose}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors"
               >
                 <X className="h-4 w-4 text-gray-600" />
               </button>
@@ -263,7 +263,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
         
         {/* Editing Sale Banner */}
         {state.editingSaleId && (
-          <div className="mb-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 flex items-center justify-between">
+          <div className="mb-2 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="h-6 w-6 bg-amber-500 rounded-lg flex items-center justify-center">
                 <Edit2 className="h-3 w-3 text-white" />
@@ -282,7 +282,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   if (r.isConfirmed) dispatch({ type: 'CLEAR_CART' });
                 });
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500 text-white rounded-lg text-[8px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-sm shadow-amber-500/20"
+              className="flex items-center gap-1.5 px-3 h-7 bg-amber-500 text-white rounded-full text-[8px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-sm shadow-amber-500/20"
             >
               <X className="h-2.5 w-2.5" /> <span>{t('cancel', 'Cancel')}</span>
             </button>
@@ -292,7 +292,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
         {/* Customer row */}
         <div className="relative">
           {state.selectedCustomer ? (
-            <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/30 rounded-xl px-3 py-2">
+            <div className="flex items-center justify-between bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 rounded-full px-3.5 py-1.5">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-black text-emerald-800 dark:text-emerald-400 truncate leading-none">
                   {state.selectedCustomer.name}
@@ -308,7 +308,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                       const clean = state.selectedCustomer!.phone.replace(/\D/g, '');
                       window.open(`https://wa.me/${clean}`, '_blank');
                     }}
-                    className="p-1 text-primary hover:bg-emerald-100 dark:hover:bg-emerald-800/30 rounded-lg transition-colors"
+                    className="p-1.5 text-primary hover:bg-emerald-500/10 rounded-full transition-all active:scale-95"
                     title="WhatsApp"
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
@@ -316,14 +316,14 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 )}
                 <button
                   onClick={() => setViewingCustomer(state.selectedCustomer)}
-                  className="p-1 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                  className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded-full transition-all active:scale-95"
                   title="View Customer"
                 >
                   <Eye className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => dispatch({ type: 'SET_SELECTED_CUSTOMER', payload: null })}
-                  className="p-1 text-primary hover:bg-emerald-100 dark:hover:bg-emerald-800/30 rounded-lg transition-colors"
+                  className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-full transition-all active:scale-95"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -333,7 +333,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setShowCustomerSearch(true)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-white/10 text-[10px] font-black text-gray-600 uppercase tracking-widest hover:border-emerald-400 hover:text-primary hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all"
+                className="w-full flex items-center justify-center gap-2 h-9 rounded-full border border-dashed border-gray-300 dark:border-white/10 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:border-emerald-400 hover:text-primary hover:bg-emerald-500/5 active:scale-95 transition-all"
               >
                 <User className="h-3.5 w-3.5" />
                 {t('select_customer', 'Select Customer')}
@@ -726,9 +726,9 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
 
           {/* Bill Discount Row */}
           <div className="pl-4 pr-5 pb-2">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 w-full">
               {/* % / $ toggle */}
-              <div className="flex items-center bg-gray-200 dark:bg-white/5 p-0.5 rounded-lg border border-gray-300 dark:border-white/10 shrink-0 self-center">
+              <div className="flex items-center bg-gray-150 dark:bg-white/5 p-0.5 rounded-full shrink-0 self-center">
                 {(['percentage', 'fixed'] as const).map((type) => (
                   <button
                     key={type}
@@ -739,9 +739,9 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                       })
                     }
                     disabled={profile?.role !== 'admin' && !profile?.canGiveDiscount}
-                    className={`flex items-center justify-center min-w-[32px] h-[26px] px-1.5 text-[10px] font-black rounded-md transition-all ${state.billDiscountType === type
+                    className={`flex items-center justify-center min-w-[32px] h-[26px] px-2 text-[10px] font-black rounded-full transition-all ${state.billDiscountType === type
                       ? 'bg-white dark:bg-zinc-800 text-primary dark:text-white shadow-sm'
-                      : 'text-gray-600'
+                      : 'text-gray-500'
                       } disabled:opacity-40`}
                   >
                     {type === 'percentage' ? '%' : getCurrencySymbol(state.settings.currency)}
@@ -774,7 +774,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   }}
                   onKeyDown={(e) => e.stopPropagation()}
                   placeholder={t('bill_discount', 'Bill discount')}
-                  className={`w-full text-left text-[10px] font-black bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-lg py-1.5 pl-2 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 ${billDiscountAmount > 0 ? 'pr-16' : 'pr-2'}`}
+                  className={`w-full text-left text-[11px] font-bold bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-full h-[32px] py-1 pl-3 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 ${billDiscountAmount > 0 ? 'pr-16' : 'pr-3'}`}
                 />
                 <HelpTooltip content="Apply a discount to the entire bill (either percentage or fixed currency amount). Requires authorized discount privileges." />
                 {showDiscount && Math.abs(billDiscountAmount) > 0 && (
@@ -793,7 +793,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                       payload: { id: state.activeSalesTab, updates: { billDiscountValue: 0 } },
                     });
                   }}
-                  className="shrink-0 p-1.5 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+                  className="shrink-0 w-[32px] h-[32px] flex items-center justify-center bg-gray-100 dark:bg-white/5 border border-transparent rounded-full text-gray-500 hover:text-red-500 hover:bg-rose-500/10 transition-colors active:scale-95"
                   title="Clear Discount"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -808,7 +808,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                     if (!promos.length) { sonner.info('No active promotions.'); return; }
                     setShowPromoModal(true);
                   }}
-                  className="shrink-0 p-1.5 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-600 hover:text-primary hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors"
+                  className="shrink-0 w-[32px] h-[32px] flex items-center justify-center bg-gray-100 dark:bg-white/5 border border-transparent rounded-full text-gray-500 hover:text-primary hover:bg-emerald-500/10 transition-colors active:scale-95"
                   title="Browse Promotions"
                 >
                   <Gift className="h-3.5 w-3.5" />
@@ -818,7 +818,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
           </div>
 
           {/* Grand Total + Buttons */}
-          <div className="flex items-center justify-between pl-4 pr-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-1 border-t border-gray-200 dark:border-white/10">
+          <div className="flex items-center justify-between pl-4 pr-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-2.5 border-t border-gray-200 dark:border-white/10">
             <div>
               <p className="text-[8px] font-black text-gray-600 uppercase tracking-widest leading-none">{t('grand_total', 'Grand Total')}</p>
               <div className="flex items-center gap-1 mt-0.5">
@@ -835,7 +835,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   onClick={onSaveDraft}
                   disabled={state.cart.length === 0 || state.cart.reduce((s, i) => s + Math.abs(i.quantity), 0) === 0}
                   title="Save Draft / Hold Order"
-                  className="p-2 rounded-xl border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
+                  className="p-2.5 rounded-full bg-gray-150/70 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-250 dark:hover:bg-white/10 transition-all active:scale-95 disabled:opacity-40"
                 >
                   <FileText className="h-3.5 w-3.5" />
                 </button>
@@ -845,7 +845,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 <button
                   onClick={onCheckout}
                   disabled={state.cart.length === 0 || state.cart.reduce((s, i) => s + Math.abs(i.quantity), 0) === 0}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:from-emerald-700 hover:to-emerald-800 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-5 py-2.5 h-[40px] rounded-full bg-primary text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {t('checkout', 'Checkout')}
                 </button>
@@ -1099,10 +1099,10 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
             {Math.abs(item.quantity)}
           </span>
         ) : (
-          <div className="flex items-center self-center bg-gray-100 dark:bg-white/5 rounded-full border border-gray-200 dark:border-white/5 shrink-0">
+          <div className="flex items-center self-center bg-gray-150/70 dark:bg-white/5 rounded-full p-0.5 shrink-0">
             <button
               onClick={() => onUpdateQuantity(index, item.quantity - 1)}
-              className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-red-500 transition-colors"
+              className="w-5.5 h-5.5 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-red-500 active:scale-90 transition-all"
             >
               <Minus className="h-2.5 w-2.5" />
             </button>
@@ -1112,11 +1112,11 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               value={item.quantity || ''}
               onChange={(e) => { const v = parseInt(e.target.value.replace(/[^0-9.-]/g, '')); onUpdateQuantity(index, isNaN(v) ? 0 : v); }}
               onKeyDown={(e) => e.stopPropagation()}
-              className={`w-6 bg-transparent text-center text-[9px] font-black focus:outline-none no-spinners ${item.quantity < 0 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}
+              className={`w-6 bg-transparent text-center text-[10px] font-black focus:outline-none no-spinners ${item.quantity < 0 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}
             />
             <button
               onClick={() => onUpdateQuantity(index, item.quantity + 1)}
-              className="w-5 h-5 flex items-center justify-center text-gray-600 hover:text-primary transition-colors"
+              className="w-5.5 h-5.5 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-primary active:scale-90 transition-all"
             >
               <Plus className="h-2.5 w-2.5" />
             </button>
@@ -1135,7 +1135,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               {(profile?.role === 'admin' || profile?.canGiveDiscount) && (
                 <button
                   onClick={() => setShowDiscountInput(!showDiscountInput)}
-                  className={`w-4 h-4 flex items-center justify-center text-[7px] font-black leading-none rounded transition-colors ${item.discount > 0 ? 'text-primary bg-emerald-50 dark:bg-primary/10' : 'text-gray-500 hover:text-primary'}`}
+                  className={`w-5.5 h-5.5 flex items-center justify-center text-[8px] font-black leading-none rounded-full transition-colors ${item.discount > 0 ? 'text-primary bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-primary'}`}
                   title="Discount"
                 >
                   %
@@ -1144,10 +1144,10 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               {(profile?.role === 'admin' || profile?.canGiveDiscount) && item.discount > 0 && (
                 <button
                   onClick={clearItemDiscount}
-                  className="w-4 h-4 flex items-center justify-center text-primary hover:text-red-500 transition-colors"
+                  className="w-5.5 h-5.5 flex items-center justify-center text-primary hover:text-red-500 hover:bg-rose-500/10 rounded-full transition-colors"
                   title="Clear Item Discount"
                 >
-                  <X className="h-2 w-2" />
+                  <X className="h-2.5 w-2.5" />
                 </button>
               )}
               {(profile?.role === 'admin' || profile?.canEditPrice) && (
@@ -1156,14 +1156,14 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
                     setTempPrice(item.product.price.toString());
                     setIsEditingPrice(!isEditingPrice);
                   }}
-                  className={`w-4 h-4 flex items-center justify-center rounded transition-colors ${isEditingPrice ? 'text-primary bg-emerald-50 dark:bg-primary/10' : 'text-gray-500 hover:text-primary'}`}
+                  className={`w-5.5 h-5.5 flex items-center justify-center rounded-full transition-colors ${isEditingPrice ? 'text-primary bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-primary'}`}
                   title="Edit Price"
                 >
-                  <Edit2 className="h-2 w-2" />
+                  <Edit2 className="h-2.5 w-2.5" />
                 </button>
               )}
-              <button onClick={() => onRemove(index)} className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors" title="Remove">
-                <Trash2 className="h-2 w-2" />
+              <button onClick={() => onRemove(index)} className="w-5.5 h-5.5 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-rose-500/10 rounded-full transition-colors" title="Remove">
+                <Trash2 className="h-2.5 w-2.5" />
               </button>
             </div>
           )}

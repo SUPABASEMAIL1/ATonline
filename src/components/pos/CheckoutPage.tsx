@@ -59,7 +59,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
   const finalTotal = baseTotal + extraChargesTotal;
 
-  const showDiscount = state.settings.receiptShowDiscount !== false && 
+  const showDiscount = state.settings.receiptShowDiscount !== false &&
     !checkoutCartItems.some(item => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
 
   useEffect(() => {
@@ -160,7 +160,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   };
 
   // Ref so usePOSKeyboard can call handlePayment without TDZ issues
-  const handlePaymentRef = useRef<() => Promise<void>>(async () => {});
+  const handlePaymentRef = useRef<() => Promise<void>>(async () => { });
 
   // ── Keyboard Shortcuts (must come after canProcessPayment is defined) ──
   usePOSKeyboard({
@@ -399,7 +399,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const footer = (
     <div className="flex flex-col w-full gap-2">
       {/* Keyboard hint strip — desktop only */}
-      <div 
+      <div
         onClick={() => setIsShortcutsModalOpen(true)}
         className="hidden sm:flex items-center justify-center gap-3 flex-wrap cursor-pointer hover:opacity-80 transition-opacity"
         title={t('click_to_open_guide', 'Click to open shortcuts guide')}
@@ -423,11 +423,11 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
       </div>
       <div className="flex w-full items-center gap-2 sm:gap-3">
         <button onClick={onClose} disabled={isProcessing}
-          className="px-4 sm:px-8 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0">
+          className="px-5 py-2.5 h-[40px] rounded-full border border-rose-500/20 text-[#ff4b6e] hover:bg-rose-500/10 text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center shrink-0">
           {t("cancel", "Cancel")}
         </button>
         <button onClick={handlePayment} disabled={!canProcessPayment() || isProcessing}
-          className="btn btn-md btn-primary flex-1 disabled:grayscale active:scale-[0.98] touch-manipulation !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]">
+          className="btn btn-md btn-primary flex-1 !rounded-full !h-[40px] !py-2.5 !text-[9px] font-black uppercase tracking-widest active:scale-[0.98] shadow-lg shadow-emerald-500/20 disabled:grayscale transition-all">
           {isProcessing ? (
             <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
           ) : (
@@ -450,8 +450,8 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
       maxWidth="lg"
       headerActions={headerActions}
       footer={footer}
-      
-      
+
+
     >
       {/* ── BODY ── */}
       <div className="flex flex-col md:grid md:grid-cols-2 md:divide-x divide-gray-100 dark:divide-white/5 min-h-full">
@@ -488,7 +488,6 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
               })}
             </div>
           )}
-
           {/* Payment Method */}
           <div>
             <p className="text-[8px] sm:text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1.5 sm:mb-2 flex items-center">
@@ -500,8 +499,8 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 const isActive = paymentMethod === m.id;
                 return (
                   <button key={m.id} onClick={() => setPaymentMethod(m.id as any)}
-                    className={`flex flex-col items-center justify-center gap-1 py-2 sm:py-3 rounded-xl border transition-all active:scale-95 touch-manipulation ${isActive ? 'bg-primary border-primary shadow-lg shadow-emerald-500/20' : 'bg-white dark:bg-white/[0.03] border-gray-200 dark:border-white/10 hover:border-primary/30'}`}>
-                    <m.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${isActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`} />
+                    className={`flex flex-col items-center justify-center gap-1.5 py-2.5 sm:py-3.5 rounded-2xl border transition-all active:scale-95 touch-manipulation ${isActive ? 'bg-primary border-primary shadow-lg shadow-emerald-500/20' : 'bg-white dark:bg-white/[0.03] border-gray-200 dark:border-white/10 hover:border-primary/30'}`}>
+                    <m.icon className={`w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 ${isActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`} />
                     <span className={`text-[7px] sm:text-[8px] font-black uppercase tracking-widest ${isActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>{t(m.id, m.label)}</span>
                   </button>
                 );
@@ -524,7 +523,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                       <select
                         value={p.method}
                         onChange={(e) => handleUpdateSplitMethod(i, e.target.value)}
-                        className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[10px] font-black uppercase px-2 py-2.5 w-[100px]"
+                        className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full text-[10px] font-black uppercase px-3 py-2.5 w-[110px] focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         <option value="cash">{t("cash", "Cash")}</option>
                         <option value="card">{t("card", "Card")}</option>
@@ -538,10 +537,10 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                           const val = e.target.value.replace(/[^0-9.]/g, '');
                           handleUpdateSplit(i, parseFloat(val) || 0);
                         }}
-                        className="flex-1 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[12px] font-black px-4 py-2.5 text-center"
+                        className="flex-1 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full text-[12px] font-black px-4 py-2.5 text-center focus:outline-none focus:ring-2 focus:ring-primary/20"
                         placeholder="0"
                       />
-                      <button onClick={() => removeSplitLine(i)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl">
+                      <button onClick={() => removeSplitLine(i)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-full active:scale-95 transition-all">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -562,7 +561,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex justify-between items-center">
                   <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{t("amount_paid", "Received Amount")}</label>
-                  <button onClick={() => setAmountPaid(finalTotal.toString())} className="text-[8px] font-black text-primary uppercase tracking-widest touch-manipulation hover:underline">{t("exact_amount", "Exact Amount")}</button>
+                  <button onClick={() => setAmountPaid(finalTotal.toString())} className="text-[8px] font-black text-primary bg-primary/10 px-3 py-1 rounded-full hover:bg-primary/20 active:scale-95 transition-all">{t("exact_amount", "Exact Amount")}</button>
                 </div>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-600">{state.settings.currency || 'PKR'}</span>
@@ -570,34 +569,40 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                     type="text" inputMode="decimal"
                     value={amountPaid}
                     onChange={e => setAmountPaid(e.target.value.replace(/[^0-9.]/g, ''))}
-                    className="w-full pl-12 pr-12 py-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/5 rounded-xl text-xl font-black text-gray-900 dark:text-white focus:border-primary outline-none transition-all [appearance:textfield] text-center"
+                    className="w-full h-14 pl-12 pr-12 py-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 rounded-full text-xl font-black text-gray-900 dark:text-white focus:border-primary outline-none transition-all [appearance:textfield] text-center"
                     placeholder="0"
                   />
                 </div>
-                <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
+                <div className="grid grid-cols-4 gap-1.5">
                   {quickAmounts.map((amt, idx) => (
                     <button key={`${amt}-${idx}`} onClick={() => setAmountPaid(amt.toString())}
-                      className="py-1.5 sm:py-2 bg-white dark:bg-white/5 text-gray-700 dark:text-gray-300 rounded-lg text-[8px] sm:text-[9px] font-black border border-gray-200 dark:border-white/5 hover:border-primary/30 active:scale-95 touch-manipulation transition-all tabular-nums">
+                      className="py-1.5 sm:py-2 bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 text-[8px] sm:text-[9px] font-black border border-gray-200 dark:border-white/10 rounded-full active:scale-95 touch-manipulation transition-all tabular-nums hover:border-transparent">
                       {state.settings.currency || 'Rs'} {Math.round(amt)}
                     </button>
                   ))}
                 </div>
 
-                {/* Change / Due Display */}
-                {amountPaid && (
-                  <div className={`p-3 rounded-xl flex items-center justify-between border ${change >= 0 ? 'bg-primary/10 border-primary/20' : 'bg-rose-500/10 border-rose-500/20'}`}>
-                    <div>
-                      <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${change >= 0 ? 'text-primary' : 'text-rose-500'}`}>{change >= 0 ? t("change", "Change") : t("due", "Due")}</p>
-                      <p className={`text-xl font-black tabular-nums tracking-tighter ${change >= 0 ? 'text-primary dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                        {formatCurrency(Math.abs(change), state.settings.currency)}
-                      </p>
-                    </div>
-                    {change >= 0
-                      ? <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20"><Check className="w-5 h-5 text-white" /></div>
-                      : <div className="w-9 h-9 bg-rose-500/20 rounded-full flex items-center justify-center"><AlertCircle className="w-5 h-5 text-rose-500" /></div>
-                    }
+                {/* Change / Due Display (Always visible, solves blank area issue) */}
+                <div className={`p-4 rounded-2xl flex items-center justify-between border transition-all duration-300 animate-in fade-in zoom-in-95 ${change >= 0 ? 'bg-primary/10 border-transparent text-primary dark:text-emerald-400' : 'bg-amber-500/10 border-transparent text-amber-600 dark:text-amber-400'
+                  }`}>
+                  <div>
+                    <p className="text-[8px] font-black uppercase tracking-widest mb-1">
+                      {change >= 0 ? t("change", "Change") : t("due", "Balance Due")}
+                    </p>
+                    <p className="text-xl font-black tabular-nums tracking-tighter">
+                      {formatCurrency(Math.abs(change), state.settings.currency)}
+                    </p>
                   </div>
-                )}
+                  {change >= 0 ? (
+                    <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                      <Check className="w-4.5 h-4.5" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 bg-amber-500/10 text-amber-500 dark:text-amber-400 rounded-full flex items-center justify-center">
+                      <AlertCircle className="w-4.5 h-4.5" />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -752,7 +757,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                       {showDiscount && !isNested && item.discount > 0 && (
                         <div className="flex items-center justify-between text-[8px] text-rose-500 font-black mt-1.5 uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">
                           <span className="flex items-center gap-1">
-                            <Gift className="w-2.5 h-2.5" /> 
+                            <Gift className="w-2.5 h-2.5" />
                             {t("discount", "Discount")} {item.discountType === 'percentage' && item.discountValue ? `(${item.discountValue}%)` : ''}
                           </span>
                           <span className="tabular-nums">-{formatCurrency(item.discount, state.settings.currency)}</span>
@@ -873,7 +878,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         </div>
       </div>
 
-      <ShortcutsModal 
+      <ShortcutsModal
         isOpen={isShortcutsModalOpen}
         onClose={() => setIsShortcutsModalOpen(false)}
       />

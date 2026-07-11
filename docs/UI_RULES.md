@@ -250,6 +250,33 @@ Before committing any UI code, confirm:
 
 ---
 
+## 8. CIRCULAR & CAPSULE MODERN STYLING (CAPSULE PARITY)
+
+To maintain a premium, state-of-the-art modern visual aesthetic and avoid boxy or heavy outlines, all components must follow these design standards:
+
+1. **Circular Action Buttons:**
+   - Icons such as cogs, log-out, refresh/sync, theme toggles, search-clear, edit pencils, and trash/delete buttons must be enclosed in borderless circular wrappers:
+     `rounded-full w-8 h-8 sm:w-9 sm:h-9 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 active:scale-95 transition-all flex items-center justify-center`
+   - Minimize raw, boxy outlines or heavy borders around action icons.
+
+2. **Compact Capsule Badges:**
+   - Status pills (Sync indicators, role badges, cart counts) and selection triggers (Select Customer dotted box) must be rendered as borderless, flat capsules with a 10% opacity background of their thematic color:
+     `rounded-full h-8 sm:h-9 px-3 text-[10px] font-bold flex items-center gap-1.5 border border-transparent`
+   - Use `bg-primary/10 text-primary` for positive states, `bg-amber-500/10 text-amber-600` for warning/pending, and `bg-rose-500/10 text-rose-600` for critical/danger.
+
+3. **Borderless Stepper Controls:**
+   - Quantity adjustment steppers `[- 1 +]` must use a unified, flat, borderless pill container:
+     `rounded-full bg-gray-100 dark:bg-white/5 shrink-0 flex items-center p-0.5`
+   - Stepper adjustment buttons inside must be perfectly circular:
+     `w-5.5 h-5.5 rounded-full flex items-center justify-center hover:bg-gray-250 dark:hover:bg-white/10 text-gray-500 active:scale-90 transition-all`
+
+4. **Capsule Input Fields:**
+   - Search fields, discount text inputs, and other custom POS field inputs must be styled as rounded-full capsules:
+     `rounded-full h-9 pl-4 pr-4 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all`
+
+
+---
+
 ## 7. Z-INDEX SCALE
 
 Always follow this global stacking order to prevent overlapping bugs:

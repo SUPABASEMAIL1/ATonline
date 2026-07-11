@@ -542,24 +542,24 @@ export function POSTerminal() {
         </div>
 
         {/* Mobile + Tablet Cart Bottom Bar */}
-        <div className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-4 right-4 bg-black/90 border border-white/10 p-2 px-4 flex items-center justify-between z-40 rounded-[1.5rem] shadow-2xl transition-all animate-slide-up active:scale-[0.98]">
+        <div className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-4 right-4 bg-zinc-900/95 dark:bg-black/90 border border-white/10 p-2 pl-3.5 pr-2 flex items-center justify-between z-40 rounded-full shadow-2xl transition-all animate-slide-up backdrop-blur-md">
           <div className="flex items-center space-x-3">
             <div className="relative">
-              <div className="bg-primary p-1.5 rounded-xl shadow-lg shadow-emerald-500/20">
-                <ShoppingCart className="h-4 w-4 text-white" />
+              <div className="bg-primary/25 p-2 rounded-full text-primary shrink-0">
+                <ShoppingCart className="h-4 w-4" />
               </div>
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-full ring-2 ring-black shadow-lg">
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-black w-4 h-4 flex items-center justify-center rounded-full ring-2 ring-zinc-900 shadow-lg">
                 {state.cart.reduce((sum, item) => sum + item.quantity, 0)}
               </span>
             </div>
             <div className="flex flex-col">
-              <span className="text-[8px] text-gray-600 font-black uppercase tracking-widest opacity-60">{t('total', 'Total')}</span>
-              <span className="font-black text-white text-base tracking-tighter leading-none">{formatCurrency(cartTotal, state.settings.currency)}</span>
+              <span className="text-[8px] text-zinc-400 font-black uppercase tracking-widest leading-none mb-0.5">{t('total', 'Total')}</span>
+              <span className="font-black text-white text-sm tracking-tight leading-none">{formatCurrency(cartTotal, state.settings.currency)}</span>
             </div>
           </div>
           <button
             onClick={() => setIsMobileCartOpen(true)}
-            className="bg-primary hover:bg-primary text-white px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest shadow-xl shadow-emerald-500/30 active:scale-95 transition-all"
+            className="bg-primary hover:bg-primary text-white px-5 h-9 rounded-full font-black text-[9px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
           >
             {t('review_cart', 'Review Cart')}
           </button>

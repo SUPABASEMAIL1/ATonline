@@ -62,7 +62,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     freeGifts
   } = useCartCalculations(paymentMethod === 'split' ? 'cash' : paymentMethod); // Use cash as base for split
 
-  const showDiscount = state.settings.receiptShowDiscount !== false && 
+  const showDiscount = state.settings.receiptShowDiscount !== false &&
     !state.cart.some(item => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
 
   useEffect(() => {
@@ -96,6 +96,34 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
   }, [isOpen, appliedDiscounts.length]);
 
   const change = parseFloat(amountPaid) - total;
+
+  const quickAmounts = useMemo(() => {
+    const amounts = new Set<number>();
+    amounts.add(total);
+    if (total < 500) {
+      amounts.add(Math.ceil(total / 50) * 50);
+      amounts.add(Math.ceil(total / 100) * 100);
+      amounts.add(500);
+    } else if (total < 1000) {
+      amounts.add(Math.ceil(total / 100) * 100);
+      amounts.add(1000);
+      amounts.add(1500);
+    } else if (total < 5000) {
+      amounts.add(Math.ceil(total / 500) * 500);
+      amounts.add(Math.ceil(total / 1000) * 1000);
+      if (total < 4500) amounts.add(5000);
+    } else {
+      amounts.add(Math.ceil(total / 1000) * 1000);
+      const next5k = Math.ceil(total / 5000) * 5000;
+      amounts.add(next5k === Math.ceil(total) ? next5k + 5000 : next5k);
+      amounts.add(Math.ceil(total / 5000) * 5000 + 5000);
+    }
+
+    return Array.from(amounts)
+      .filter(a => a >= total)
+      .sort((a, b) => a - b)
+      .slice(0, 3);
+  }, [total]);
 
   // ── CASH DRAWER VALIDATION (BUG 2) ──
   const currentDrawerCash = useMemo(() => {
@@ -169,7 +197,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         }
       }
     }
-    
+
     // ── CASH DRAWER INSUFFICIENT CHECK (BUG 2) ──
     if (paymentMethod === 'cash' && change > 0 && change > currentDrawerCash) {
       const confirmed = await sonner.confirm(
@@ -365,14 +393,14 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
           <div className="flex w-full items-center gap-2 sm:gap-3">
             <button
               onClick={onClose}
-              className="px-4 sm:px-8 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+              className="px-5 py-2.5 h-[40px] rounded-full border border-rose-500/20 text-[#ff4b6e] hover:bg-rose-500/10 text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center shrink-0"
             >
               {t("cancel", "Cancel")}
             </button>
             <button
               onClick={handlePayment}
               disabled={isProcessing || !canProcessPayment()}
-              className="btn btn-md btn-primary flex-[2] sm:min-w-[280px] active:scale-[0.98] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+              className="btn btn-md btn-primary flex-[2] !rounded-full !h-[40px] !py-2.5 !text-[9px] font-black uppercase tracking-widest active:scale-[0.98] shadow-lg shadow-emerald-500/20 disabled:grayscale transition-all"
             >
               {isProcessing ? (
                 <>
@@ -515,7 +543,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                               {showDiscount && !isNested && item.discount > 0 && (
                                 <div className="flex items-center justify-between text-[8px] text-rose-500 font-black mt-1.5 uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">
                                   <span className="flex items-center gap-1">
-                                    <Gift className="w-2.5 h-2.5" /> 
+                                    <Gift className="w-2.5 h-2.5" />
                                     {t("discount", "Discount")} {item.discountType === 'percentage' && item.discountValue ? `(${item.discountValue}%)` : ''}
                                   </span>
                                   <span className="tabular-nums">-{formatCurrency(item.discount, state.settings.currency)}</span>
@@ -733,28 +761,41 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         autoFocus
                         value={amountPaid}
                         onChange={(e) => setAmountPaid(e.target.value.replace(/[^0-9.]/g, ''))}
-                        className="w-full bg-gray-50 dark:bg-black/75 border-none rounded-2xl px-16 py-4 text-3xl font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/20 tabular-nums text-center"
+                        className="w-full h-14 pl-12 pr-12 py-3 bg-white dark:bg-surface border border-gray-200 dark:border-white/10 rounded-full text-xl font-black text-gray-900 dark:text-white focus:border-primary outline-none transition-all [appearance:textfield] text-center"
                         placeholder="0"
                       />
                     </div>
 
-                    {amountPaid && parseFloat(amountPaid) >= total ? (
-                      <div className="bg-blue-600 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg">
-                        <div>
-                          <p className="text-[8px] font-black text-white/70 uppercase mb-1">{t("balance", "Balance")}</p>
-                          <p className="text-xl font-black tabular-nums">{formatCurrency(change, state.settings.currency)}</p>
-                        </div>
-                        <Check className="w-5 h-5" />
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {quickAmounts.map((amt, idx) => (
+                        <button key={`${amt}-${idx}`} onClick={() => setAmountPaid(amt.toString())}
+                          className="py-1.5 sm:py-2 bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 text-[8px] sm:text-[9px] font-black border border-gray-200 dark:border-white/10 rounded-full active:scale-95 touch-manipulation transition-all tabular-nums hover:border-transparent">
+                          {state.settings.currency || 'Rs'} {Math.round(amt)}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Change / Due Display (Always visible) */}
+                    <div className={`p-4 rounded-2xl flex items-center justify-between border transition-all duration-300 animate-in fade-in zoom-in-95 ${change >= 0 ? 'bg-primary/10 border-transparent text-primary dark:text-emerald-400' : 'bg-amber-500/10 border-transparent text-amber-600 dark:text-amber-400'
+                      }`}>
+                      <div>
+                        <p className="text-[8px] font-black uppercase tracking-widest mb-1">
+                          {change >= 0 ? t("change", "Change") : t("due", "Balance Due")}
+                        </p>
+                        <p className="text-xl font-black tabular-nums tracking-tighter">
+                          {formatCurrency(Math.abs(change), state.settings.currency)}
+                        </p>
                       </div>
-                    ) : amountPaid && (
-                      <div className="bg-amber-500 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg animate-pulse">
-                        <div>
-                          <p className="text-[8px] font-black text-white/90 uppercase mb-1">{t("remaining", "Remaining")}</p>
-                          <p className="text-xl font-black tabular-nums">{formatCurrency(total - parseFloat(amountPaid), state.settings.currency)}</p>
+                      {change >= 0 ? (
+                        <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                          <Check className="w-4.5 h-4.5" />
                         </div>
-                        <AlertCircle className="w-5 h-5" />
-                      </div>
-                    )}
+                      ) : (
+                        <div className="w-8 h-8 bg-amber-500/10 text-amber-500 dark:text-amber-400 rounded-full flex items-center justify-center">
+                          <AlertCircle className="w-4.5 h-4.5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : paymentMethod === 'split' ? (
                   <div className="space-y-4 animate-in fade-in zoom-in-95">

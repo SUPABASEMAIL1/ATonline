@@ -5,6 +5,7 @@ import {
   Receipt, Package, Users, BarChart3, Sun, Moon, Wallet, RefreshCw,
   ChevronLeft, ChevronRight, Activity, Building2, Bell, ChevronDown, MoreHorizontal
 } from 'lucide-react';
+import { AppIcons } from '../../lib/icons';
 import { settingsService } from '../../lib/services';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -163,33 +164,33 @@ export function Header({
     const items = [];
 
     if (role === 'admin' || role === 'manager')
-      items.push({ id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: Activity, color: 'text-primary' });
+      items.push({ id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: AppIcons.dashboard, color: 'text-primary' });
 
-    items.push({ id: 'pos', label: t('pos', 'POS'), icon: ShoppingCart, color: 'text-blue-500' });
+    items.push({ id: 'pos', label: t('pos', 'POS'), icon: AppIcons.pos, color: 'text-blue-500' });
 
     if (role === 'admin' || role === 'manager' || role === 'cashier')
-      items.push({ id: 'transactions', label: t('sales', 'Sales'), icon: Receipt, color: 'text-orange-500' });
+      items.push({ id: 'transactions', label: t('sales', 'Sales'), icon: AppIcons.sales, color: 'text-orange-500' });
 
     if (role === 'admin' || perms.includes('access_expenses'))
-      items.push({ id: 'expenses', label: t('expenses', 'Expenses'), icon: Wallet, color: 'text-rose-500' });
+      items.push({ id: 'expenses', label: t('expenses', 'Expenses'), icon: AppIcons.expenses, color: 'text-rose-500' });
 
     if (role === 'admin' || role === 'manager' || state.currentUser?.canManagePO || state.currentUser?.canViewRecords)
-      items.push({ id: 'inventory', label: t('inventory', 'Inventory'), icon: Package, color: 'text-purple-500' });
+      items.push({ id: 'inventory', label: t('inventory', 'Inventory'), icon: AppIcons.inventory, color: 'text-purple-500' });
 
     if (role === 'admin' || perms.includes('access_customers'))
-      items.push({ id: 'customers', label: t('customers', 'Customers'), icon: Users, color: 'text-sky-500' });
+      items.push({ id: 'customers', label: t('customers', 'Customers'), icon: AppIcons.customers, color: 'text-sky-500' });
 
     if (role === 'admin' || state.currentUser?.canGiveDiscount)
-      items.push({ id: 'discounts', label: t('discounts', 'Discounts'), icon: Percent, color: 'text-pink-500' });
+      items.push({ id: 'discounts', label: t('discounts', 'Discounts'), icon: AppIcons.discounts, color: 'text-pink-500' });
 
     if (role === 'admin' || perms.includes('access_reports'))
-      items.push({ id: 'reports', label: t('reports', 'Reports'), icon: BarChart3, color: 'text-red-500' });
+      items.push({ id: 'reports', label: t('reports', 'Reports'), icon: AppIcons.reports, color: 'text-red-500' });
 
     if (role === 'admin' || role === 'manager')
-      items.push({ id: 'suppliers', label: t('suppliers', 'Suppliers'), icon: Building2, color: 'text-amber-500' });
+      items.push({ id: 'suppliers', label: t('suppliers', 'Suppliers'), icon: AppIcons.suppliers, color: 'text-amber-500' });
 
     if (role === 'admin')
-      items.push({ id: 'users', label: t('users', 'Users'), icon: User, color: 'text-teal-500' });
+      items.push({ id: 'users', label: t('users', 'Users'), icon: AppIcons.users, color: 'text-teal-500' });
 
     return items;
   };
@@ -283,7 +284,7 @@ export function Header({
           {/* Force Sync */}
           <button
             onClick={async () => {
-              sonner.loading(t('clear_cache_toast', 'Force cleaning system cache & syncing...'));
+              sonner.loading(t('clear_toast', 'Force cleaning system cache & syncing...'));
               try {
                 // 1. Clear PWA Caches
                 if ('caches' in window) {
@@ -301,27 +302,24 @@ export function Header({
               }
             }}
             title="Force Fresh Cloud Sync & Clear Cache"
-            className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl text-blue-500 hover:text-blue-700 dark:hover:text-blue-300
-                       hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center flex-shrink-0 rounded-full text-blue-500 hover:text-blue-700 dark:hover:text-blue-300
+                       hover:bg-blue-500/10 dark:hover:bg-blue-500/15 active:scale-95 transition-all"
           >
-            <RefreshCw className="h-5 w-5" />
+            <RefreshCw className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
           </button>
 
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
             title={state.settings.theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className={`w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl transition-all active:scale-95 ${state.settings.theme === 'dark'
-              ? 'text-amber-400 hover:bg-amber-400/10'
-              : 'text-blue-600 hover:bg-blue-600/10'
-              }`}
+            className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center flex-shrink-0 rounded-full transition-all active:scale-95 ${
+              state.settings.theme === 'dark'
+                ? 'text-amber-400 hover:bg-amber-400/10'
+                : 'text-blue-600 hover:bg-blue-600/10'
+            }`}
           >
-            {state.settings.theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            {state.settings.theme === 'dark' ? <Sun className="h-4.5 w-4.5 sm:h-5 sm:w-5" /> : <Moon className="h-4.5 w-4.5 sm:h-5 sm:w-5" />}
           </button>
-
-
-
-
 
           {/* ── User Section ── */}
           <div
@@ -340,24 +338,24 @@ export function Header({
               </div>
             </div>
 
-            <div className="h-9 w-9 lg:h-10 lg:w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-blue-600
-                            flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0 ring-offset-2 ring-emerald-500/0 group-active:ring-2 group-active:ring-emerald-500/50 transition-all">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-emerald-500 to-blue-600
+                            flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0 transition-all active:scale-95">
               {state.currentUser?.avatar
                 ? <img src={state.currentUser.avatar} alt="Avatar" className="h-full w-full object-cover" />
-                : <User className="h-5 w-5 text-white" />}
+                : <User className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-white" />}
             </div>
 
             <div className="hidden md:flex items-center gap-0.5">
               <button onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
-                className="p-2 rounded-xl text-gray-600 hover:text-gray-700 dark:hover:text-white
-                           hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                <Settings className="h-5 w-5" />
+                className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white
+                           hover:bg-gray-100 dark:hover:bg-white/10 active:scale-95 transition-all">
+                <Settings className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleLogout(); }}
-                className="p-2 rounded-xl text-gray-600 hover:text-red-500 dark:hover:text-red-400
-                           hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
-                <LogOut className="h-5 w-5" />
+                className="p-2 rounded-full text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400
+                           hover:bg-red-500/10 dark:hover:bg-red-500/15 active:scale-95 transition-all">
+                <LogOut className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </button>
             </div>
           </div>
@@ -450,7 +448,7 @@ export function Header({
                 <button onClick={toggleTheme}
                   className="flex items-center justify-between w-full p-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-all border border-gray-200 dark:border-white/5 active:scale-95">
                   <div className="flex items-center gap-3">
-                    {state.settings.theme === 'dark' ? <Moon className="h-5 w-5 text-blue-400" /> : <Sun className="h-5 w-5 text-amber-500" />}
+                    {state.settings.theme === 'dark' ? <AppIcons.moon className="h-5 w-5 text-blue-400" /> : <AppIcons.sun className="h-5 w-5 text-amber-500" />}
                     <span>{state.settings.theme === 'dark' ? t('theme_dark', 'Dark Mode') : t('theme_light', 'Light Mode')}</span>
                   </div>
                   <div className={`w-10 h-5 rounded-full p-1 transition-colors ${state.settings.theme === 'dark' ? 'bg-primary' : 'bg-gray-300'}`}>
@@ -461,7 +459,7 @@ export function Header({
                 <button onClick={() => { navigate('/settings'); onHideMobileMenu?.(); }}
                   className="flex items-center gap-3 p-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-all border border-gray-200 dark:border-white/5">
                   <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-500">
-                    <Settings className="w-5 h-5" />
+                    <AppIcons.settings className="w-5 h-5" />
                   </div>
                   {t('settings', 'Settings')}
                 </button>
@@ -470,7 +468,7 @@ export function Header({
                   onClick={() => { onHideMobileMenu?.(); handleLogout(); }}
                   className="w-full flex items-center gap-3 px-4 py-3.5 bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-red-500/20 active:scale-95 transition-all">
                   <div className="p-2.5 rounded-2xl bg-white/20 text-white">
-                    <LogOut className="h-5 w-5" />
+                    <AppIcons.logout className="h-5 w-5" />
                   </div>
                   {t('logout', 'Logout Account')}
                 </button>

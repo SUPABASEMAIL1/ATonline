@@ -260,9 +260,9 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
         {/* Search and Filter Bar */}
         <div className="p-1 lg:p-6 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-app transition-colors">
           <div className="flex flex-col xl:flex-row gap-3 xl:gap-4 xl:items-center">
-            <div className="flex-1 xl:flex-none xl:w-[380px] flex items-center gap-1.5 lg:gap-3 w-full min-w-[280px] sm:min-w-[340px]">
+            <div className="flex-1 xl:flex-none xl:w-[380px] flex items-center gap-1.5 lg:gap-2.5 w-full min-w-[280px] sm:min-w-[340px]">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5 lg:h-5 lg:w-5" />
+                <Search className="absolute left-3 lg:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5 lg:h-4 lg:w-4" />
                 <input
                   ref={searchRef}
                   type="text"
@@ -270,37 +270,39 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
-                  className={`input pl-7 pr-14 lg:pl-12 lg:pr-24 w-full transition-all bg-white dark:bg-[#1C1C1C] dark:text-white border-gray-200 dark:border-white/10 ${isTouchMode ? 'h-8 lg:h-14 text-xs lg:text-lg' : 'h-8 lg:h-12'}`}
+                  className={`w-full transition-all bg-gray-50 dark:bg-white/5 dark:text-white border border-gray-200/60 dark:border-white/10 focus:border-primary/50 focus:ring-4 focus:ring-primary/10 rounded-full pl-9 pr-16 lg:pl-11 lg:pr-20 outline-none ${
+                    isTouchMode ? 'h-9 lg:h-10 text-xs lg:text-sm' : 'h-9 lg:h-10 text-xs lg:text-sm'
+                  }`}
                 />
 
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 lg:gap-2">
+                <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
                   {searchTerm && (
                     <button
                       onClick={() => setSearchTerm('')}
-                      className="p-1 lg:p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg lg:rounded-xl transition-all"
+                      className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-full transition-all active:scale-95"
                       title="Clear Search"
                     >
-                      <X className="h-3 w-3 lg:h-4 lg:w-4" />
+                      <X className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                     </button>
                   )}
                   <button
                     onClick={() => setShowScanner(true)}
-                    className="p-1 lg:p-2 bg-primary/10 text-primary rounded-lg active:bg-primary active:text-white transition-all shadow-sm"
+                    className="p-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-full transition-all active:scale-95"
                     title="Scan with Camera"
                   >
-                    <Camera className="h-3 w-3 lg:h-4 lg:w-4" />
+                    <Camera className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                   </button>
                 </div>
               </div>
               {onOpenDrafts && (
                 <button
                   onClick={onOpenDrafts}
-                  className={`btn btn-secondary relative flex items-center justify-center flex-shrink-0 ${isTouchMode ? 'h-8 lg:h-14 w-8 lg:w-14' : 'h-8 lg:h-12 w-8 lg:w-12 px-0'}`}
+                  className="h-9 lg:h-10 w-9 lg:w-10 rounded-full bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200/60 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center flex-shrink-0 relative transition-all active:scale-95"
                   title="View saved drafts"
                 >
-                  <FileText className={`${isTouchMode ? 'h-3.5 w-3.5 lg:h-7 lg:w-7' : 'h-4 w-4 lg:h-6 lg:w-6'}`} />
+                  <FileText className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                   {draftsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-primary text-white text-[8px] lg:text-[10px] font-black h-4 w-4 lg:h-5 lg:w-5 flex items-center justify-center rounded-full border-2 border-white dark:border-[#0A0A0A]">
+                    <span className="absolute -top-0.5 -right-0.5 bg-primary text-white text-[8px] lg:text-[9px] font-black h-4 lg:h-4.5 w-4 lg:w-4.5 flex items-center justify-center rounded-full border border-white dark:border-[#0A0A0A]">
                       {draftsCount}
                     </span>
                   )}
