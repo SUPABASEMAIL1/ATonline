@@ -274,6 +274,11 @@ To maintain a premium, state-of-the-art modern visual aesthetic and avoid boxy o
    - Search fields, discount text inputs, and other custom POS field inputs must be styled as rounded-full capsules:
      `rounded-full h-9 pl-4 pr-4 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all`
 
+5. **Unified Iconography Registry (AppIcons):**
+   - **Mandatory Icon Source:** ALL icons used across page headers, sidebars, main menus, drawers, layout tabs, settings, checkout modals, and payment methods MUST be imported from the single source of truth:
+     `import { AppIcons } from '../../lib/icons';` (or equivalent relative path to `src/lib/icons.ts`).
+   - Do NOT import raw Lucide icons directly into UI components if a mapped icon exists in the `AppIcons` registry. This prevents mismatched layout icons (e.g., using `Activity` on desktop dashboard nav while using `LayoutDashboard` on mobile bottom nav).
+   - If a new icon is required, add it to `AppIcons` in `src/lib/icons.ts` first, then import it in the component.
 
 ---
 
