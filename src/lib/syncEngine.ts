@@ -1,5 +1,6 @@
 import { supabase, enableFullAuthInit } from './supabase';
 import { localDb, PendingOp, SETTINGS_ID } from './localDb';
+import { mapProduct, mapCustomer } from './services';
 
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
 const BACKOFF_INITIAL = 5 * 1000; // 5s
@@ -39,9 +40,17 @@ function filterPayload(entity: string, payload: any) {
     const strippedCols: string[] = [];
 
     for (const key in payload) {
-        // Skip if value is undefined or null (prevents NOT NULL violations on partial updates/upserts)
-        if (payload[key] === undefined || payload[key] === null) {
+        // Skip if value is undefined (prevents keys that are not set from being sent)
+        if (payload[key] === undefined) {
             continue;
+        }
+
+        // Keep null unless the column is a known NOT NULL column in the DB
+        if (payload[key] === null) {
+            const notNullColumns = ['id', 'created_at', 'updated_at', 'name', 'price', 'sku', 'category', 'total', 'subtotal', 'quantity', 'invoice_number', 'items'];
+            if (notNullColumns.includes(key)) {
+                continue;
+            }
         }
 
         if (blacklist && blacklist.has(key)) {
@@ -638,7 +647,7 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                         // ── POST-SYNC CACHE REFRESH ──
                         // After successful sync of key entities, fetch the latest version
                         // from cloud and update localDb to prevent stale cache issues.
-                        // This is fire-and-forget — sync success is not dependent on it.
+                        // This must map snake_case -> camelCase to keep localDb consistent.
                         if (op.opType !== 'delete' && ['products', 'customers', 'suppliers'].includes(op.entity)) {
                             const tableMap: Record<string, string> = { products: 'products', customers: 'customers', suppliers: 'suppliers' };
                             const table = tableMap[op.entity];
@@ -649,7 +658,10 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                                             const localTable = op.entity === 'products' ? localDb.products
                                                 : op.entity === 'customers' ? localDb.customers
                                                 : localDb.suppliers;
-                                            (localTable as any).put(data).catch(() => {});
+                                            const mapped = op.entity === 'products' ? mapProduct(data)
+                                                : op.entity === 'customers' ? mapCustomer(data)
+                                                : data;
+                                            (localTable as any).put(mapped).catch(() => {});
                                         }
                                     })
                                     .catch(() => {}); // Non-critical, best-effort

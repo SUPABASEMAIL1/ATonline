@@ -90,7 +90,7 @@ export function LoginPage() {
       <div className="w-full max-w-md animate-fade-in m-auto">
         <div className="text-center mb-8">
           <img
-            src="./logo.png"
+            src="/logo.png"
             alt="Zaynah's POS"
             width={80}
             height={80}

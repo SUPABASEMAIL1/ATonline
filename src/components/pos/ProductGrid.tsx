@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Minus, Package, X, ChevronLeft, ChevronRight, FileText, Star, Infinity, Camera, LayoutGrid, Gift, ChevronDown, ChevronUp } from 'lucide-react';
 import { CameraScanner } from '../common/CameraScanner';
@@ -175,7 +175,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
   const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints > 0 && /Macintosh/i.test(navigator.userAgent));
 
-  const filteredProducts = state.products.filter(product => {
+  const filteredProducts = useMemo(() => state.products.filter(product => {
     const matchesSearch = (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
       (product.sku && product.sku.toLowerCase().includes((searchTerm || '').toLowerCase())) ||
       (product.barcodeValue && product.barcodeValue.toLowerCase().includes((searchTerm || '').toLowerCase())) ||
@@ -190,7 +190,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
     if (a.isFeatured && !b.isFeatured) return -1;
     if (!a.isFeatured && b.isFeatured) return 1;
     return a.name.localeCompare(b.name);
-  });
+  }), [state.products, searchTerm, selectedCategory]);
 
   const categories = ['Featured', 'All', '__BUNDLES__', ...Array.from(new Set(state.products.map(p => p.category))).filter(Boolean)];
   const isTouchMode = state.settings.interfaceMode === 'touch';
@@ -235,7 +235,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
 
   const gridCols = state.settings.posGridColumns ?? 4;
 
-  const getGridClasses = () => {
+  const getGridClasses = useMemo(() => {
     const base = "grid gap-2 lg:gap-4";
     const mobileDefaults = "grid-cols-[repeat(auto-fill,minmax(110px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(130px,1fr))]";
     const desktopCols: Record<number, string> = {
@@ -252,7 +252,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
       ? "lg:grid-cols-[repeat(auto-fill,minmax(140px,1fr))]"
       : (desktopCols[gridCols] || "lg:grid-cols-4");
     return `${base} ${mobileDefaults} ${desktopClass}`;
-  };
+  }, [gridCols]);
 
   return (
     <>
@@ -378,7 +378,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
               <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">{t('no_products_found', 'No products found')}</p>
             </div>
           ) : (
-            <div className={getGridClasses()}>
+            <div className={getGridClasses}>
               {filteredProducts.map((product) => {
                 const cartItem = state.cart.find(item => !item.bundleId && !item.bundle_id && item.product.id === product.id);
                 return (
@@ -470,7 +470,7 @@ interface ProductCardProps {
   gridCols?: number;
 }
 
-function ProductCard({ product, onAddToCart, onUpdateQuantity, cartQuantity = 0, isTouchMode, currency, gridCols = 4 }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, onAddToCart, onUpdateQuantity, cartQuantity = 0, isTouchMode, currency, gridCols = 4 }: ProductCardProps) {
   const { t } = useTranslation();
   const shouldTrackInventory = product.trackInventory !== false;
   const isNegativeStock = shouldTrackInventory && product.stock < 0;
@@ -483,7 +483,7 @@ function ProductCard({ product, onAddToCart, onUpdateQuantity, cartQuantity = 0,
       onClick={() => {
         onAddToCart(product);
       }}
-      className={`group relative bg-white dark:bg-[#1C1C1C] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer ${cartQuantity !== 0 ? 'ring-2 ring-emerald-500 shadow-md shadow-emerald-500/10' : ''
+      className={`group relative bg-white dark:bg-[#1C1C1C] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer ${cartQuantity !== 0 ? 'ring-2 ring-emerald-500 shadow-md shadow-emerald-500/10' : ''
         }`}
       style={{
         minHeight: (typeof window !== 'undefined' && window.innerWidth >= 1024)
@@ -588,7 +588,7 @@ function ProductCard({ product, onAddToCart, onUpdateQuantity, cartQuantity = 0,
       </div>
     </div>
   );
-}
+});
 
 // ─── BUNDLE GRID ──────────────────────────────────────────────────────────────
 interface BundleGridProps {
@@ -907,7 +907,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           return (
             <div
               key={item.id}
-              className={`group relative bg-white dark:bg-[#1C1C1C] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer ${bundleQty > 0 ? 'ring-2 ring-emerald-500 shadow-md shadow-emerald-500/10' : ''}`}
+              className={`group relative bg-white dark:bg-[#1C1C1C] rounded-xl border border-gray-100 dark:border-white/5 overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer ${bundleQty > 0 ? 'ring-2 ring-emerald-500 shadow-md shadow-emerald-500/10' : ''}`}
               style={{
                 minHeight: (typeof window !== 'undefined' && window.innerWidth >= 1024)
                   ? (gridCols === 0 || gridCols >= 4 ? (isTouchMode ? '120px' : '140px') :
@@ -987,7 +987,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
 
                 {/* Floating Stepper Overlay */}
                 {bundleQty > 0 && (
-                  <div className="absolute inset-x-0.5 bottom-0.5 flex items-center justify-between bg-white/95 dark:bg-black/95 rounded-lg p-0.5 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-300 z-20">
+          <div className="absolute inset-x-0.5 bottom-0.5 flex items-center justify-between bg-white/95 dark:bg-black/95 rounded-lg p-0.5 shadow-lg z-20">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

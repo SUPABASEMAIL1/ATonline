@@ -210,7 +210,7 @@ export function Header({
               <img src={state.settings.storeLogo} alt="Logo"
                 className="h-7 w-7 md:h-12 md:w-12 lg:h-14 lg:w-14 object-contain p-0.5" />
             ) : (
-              <img src="./logo.png" alt="POS"
+              <img src="/logo.png" alt="POS"
                 className="h-7 w-7 md:h-12 md:w-12 lg:h-14 lg:w-14 object-contain p-1" />
             )}
           </div>

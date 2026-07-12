@@ -355,8 +355,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
       }
 
-      await productsService.update(product.id, updatedProduct);
-      dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
+      const saved = await productsService.update(product.id, updatedProduct);
+      dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
       sonner.success(t('product_updated_success', 'Product updated successfully'));
       setIsEditMode(false);
     } catch (error) {
@@ -385,6 +385,20 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
 
   const removeBatch = (index: number) => {
     setBatches(batches.filter((_, i) => i !== index));
+  };
+
+  const updateBatchPrices = async (field: 'costPrice' | 'salePrice', newValue: number) => {
+    const activeBatches = batches.filter(b => (b.qtyRemaining || 0) > 0);
+    if (activeBatches.length === 0) return;
+    const now = new Date();
+    for (const batch of activeBatches) {
+      const updatedBatch = { ...batch, [field]: newValue, updatedAt: now };
+      await localDb.productBatches.put(updatedBatch);
+      await queueOp('product_batches', 'update', batch.id, toRemoteProductBatch({ [field]: newValue, updatedAt: now }));
+    }
+    setBatches(prev => prev.map(b =>
+      (b.qtyRemaining || 0) > 0 ? { ...b, [field]: newValue } : b
+    ));
   };
 
   const generateBarcode = () => {
@@ -724,8 +738,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                       onClick={async () => {
                         try {
                           const newMin = parseInt(formData.minStock) || 0;
-                          await productsService.update(product.id, { minStock: newMin });
-                          dispatch({ type: 'UPDATE_PRODUCT', payload: { ...product, minStock: newMin } });
+                          const saved = await productsService.update(product.id, { minStock: newMin });
+                          dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
                           sonner.success('Min stock alert updated');
                         } catch (e) {
                           sonner.error('Failed to save min stock');
@@ -747,7 +761,47 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
               {isEditMode && (
                 <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
                   <div>
-                    <p className="text-[9px] text-gray-600 uppercase font-bold mb-1 ml-1">{t('sale_price', 'Sale Price')}</p>
+                    <div className="flex items-center justify-between mb-1 ml-1">
+                      <div className="flex items-center gap-1">
+                        <p className="text-[9px] text-gray-600 uppercase font-bold">{t('sale_price', 'Sale Price')}</p>
+                        <HelpTooltip content="YES → Updates product price AND all active batch sale prices. NO → Updates product price only. Batch sale prices are purely historical." />
+                      </div>
+                      {parseFloat(formData.price) !== product.price && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const newPrice = parseFloat(formData.price) || 0;
+                              const saved = await productsService.update(product.id, { price: newPrice });
+                              dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
+                              const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
+                              if (activeCount > 0) {
+                                const confirm = await sonner.confirm(
+                                  'Update batch sale prices?',
+                                  `${activeCount} batch${activeCount > 1 ? 'es have' : ' has'} remaining stock. Update their sale price to ${newPrice}?`,
+                                  'Yes, update batches'
+                                );
+                                if (confirm.isConfirmed) {
+                                  await updateBatchPrices('salePrice', newPrice);
+                                  sonner.success(`Sale price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
+                                } else {
+                                  sonner.success('Sale price updated (batches unchanged)');
+                                }
+                              } else {
+                                sonner.success('Sale price updated');
+                              }
+                            } catch (e) {
+                              sonner.error('Failed to save sale price');
+                            }
+                          }}
+                          className="text-[9px] font-black text-primary uppercase hover:underline"
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>{t('save', 'Save')}</span>
+                            <HelpTooltip position="bottom" content="YES = product + batches both update. NO = only product price changes." />
+                          </div>
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="number"
                       value={formData.price}
@@ -756,7 +810,35 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                     />
                   </div>
                   <div>
-                    <p className="text-[9px] text-gray-600 uppercase font-bold mb-1 ml-1">{t('cost_price', 'Cost Price')}</p>
+                    <div className="flex items-center justify-between mb-1 ml-1">
+                      <div className="flex items-center gap-1">
+                        <p className="text-[9px] text-gray-600 uppercase font-bold">{t('cost_price', 'Cost Price')}</p>
+                        <HelpTooltip content="Cost changes auto-update ALL active batch cost prices for accurate FIFO COGS and stock valuation." />
+                      </div>
+                      {parseFloat(formData.cost) !== product.cost && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const newCost = parseFloat(formData.cost) || 0;
+                              const saved = await productsService.update(product.id, { cost: newCost });
+                              dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
+                              const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
+                              if (activeCount > 0) {
+                                await updateBatchPrices('costPrice', newCost);
+                                sonner.success(`Cost price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
+                              } else {
+                                sonner.success('Cost price updated');
+                              }
+                            } catch (e) {
+                              sonner.error('Failed to save cost price');
+                            }
+                          }}
+                          className="text-[9px] font-black text-primary uppercase hover:underline"
+                        >
+                          {t('save', 'Save')}
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="number"
                       value={formData.cost}

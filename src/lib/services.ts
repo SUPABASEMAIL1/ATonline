@@ -186,12 +186,12 @@ export const mapSettings = (item: any): AppSettings => {
   return {
     id: s.id || SETTINGS_ID,
     // Core Identity
-    storeName: s.store_name ?? s.storeName,
-    storeAddress: s.store_address ?? s.storeAddress,
-    storePhone: s.store_phone ?? s.storePhone,
-    storeEmail: s.store_email ?? s.storeEmail,
-    storeLogo: s.store_logo ?? s.storeLogo,
-    storeWebsite: s.store_website ?? s.storeWebsite,
+    storeName: s.store_name !== undefined ? s.store_name : s.storeName,
+    storeAddress: s.store_address !== undefined ? s.store_address : s.storeAddress,
+    storePhone: s.store_phone !== undefined ? s.store_phone : s.storePhone,
+    storeEmail: s.store_email !== undefined ? s.store_email : s.storeEmail,
+    storeLogo: s.store_logo !== undefined ? s.store_logo : s.storeLogo,
+    storeWebsite: s.store_website !== undefined ? s.store_website : s.storeWebsite,
 
     // Finance & UI
     taxRate: s.tax_rate ?? s.taxRate ?? 0,
@@ -294,12 +294,12 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   // Mapping logic: Send ONLY snake_case to Supabase to prevent 400 errors
   // for columns that do not exist in camelCase format.
 
-  if ('storeName' in s) { remote.store_name = s.storeName; }
-  if ('storeAddress' in s) { remote.store_address = s.storeAddress; }
-  if ('storePhone' in s) { remote.store_phone = s.storePhone; }
-  if ('storeEmail' in s) { remote.store_email = s.storeEmail; }
-  if ('storeLogo' in s) { remote.store_logo = s.storeLogo; }
-  if ('storeWebsite' in s) { remote.store_website = s.storeWebsite; }
+  if ('storeName' in s) { remote.store_name = s.storeName ?? null; }
+  if ('storeAddress' in s) { remote.store_address = s.storeAddress ?? null; }
+  if ('storePhone' in s) { remote.store_phone = s.storePhone ?? null; }
+  if ('storeEmail' in s) { remote.store_email = s.storeEmail ?? null; }
+  if ('storeLogo' in s) { remote.store_logo = s.storeLogo ?? null; }
+  if ('storeWebsite' in s) { remote.store_website = s.storeWebsite ?? null; }
 
   if ('taxRate' in s) { remote.tax_rate = s.taxRate; }
   if ('currency' in s) { remote.currency = s.currency; }
@@ -313,8 +313,8 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('receiptPaperSize' in s) { remote.receipt_paper_size = s.receiptPaperSize; }
   if ('receiptDensity' in s) { remote.receipt_density = s.receiptDensity; }
   if ('receiptTemplate' in s) { remote.receipt_template = s.receiptTemplate; }
-  if ('receiptHeader' in s) { remote.receipt_header = s.receiptHeader; }
-  if ('receiptFooter' in s) { remote.receipt_footer = s.receiptFooter; }
+  if ('receiptHeader' in s) { remote.receipt_header = s.receiptHeader ?? null; }
+  if ('receiptFooter' in s) { remote.receipt_footer = s.receiptFooter ?? null; }
 
   if ('receiptShowLogo' in s) { remote.receipt_show_logo = s.receiptShowLogo; }
   if ('receiptShowFooter' in s) { remote.receipt_show_footer = s.receiptShowFooter; }
@@ -372,7 +372,7 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('offlineMode' in s) { remote.offline_mode = s.offlineMode; }
   if ('autoSync' in s) { remote.auto_sync = s.autoSync; }
   if ('country' in s) { remote.country = s.country; }
-  if ('taxId' in s) { remote.tax_id = s.taxId; }
+  if ('taxId' in s) { remote.tax_id = s.taxId ?? null; }
   if ('businessType' in s) { remote.business_type = s.businessType; }
   if ('subscriptionTier' in s) { remote.subscription_tier = s.subscriptionTier; }
   if ('isLocked' in s) { remote.is_locked = s.isLocked; }
