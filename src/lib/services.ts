@@ -1611,16 +1611,20 @@ export const salesService = {
  */
 export const categoriesService = {
   async getAll() { return await localDb.categories.toArray(); },
-  async create(name: string) {
-    const id = generateId();
-    const cat = { id, name, active: true, createdAt: new Date() };
+  async create(nameOrObj: string | Category) {
+    const id = typeof nameOrObj === 'object' ? (nameOrObj.id || generateId()) : generateId();
+    const name = typeof nameOrObj === 'object' ? nameOrObj.name : nameOrObj;
+    const description = typeof nameOrObj === 'object' ? nameOrObj.description : undefined;
+    const cat = { id, name, description, active: true, createdAt: new Date() };
     await localDb.categories.add(cat);
-    queueOp('categories', 'create', id, {
+    await queueOp('categories', 'create', id, {
       id,
       name,
+      description,
       active: true,
       created_at: new Date().toISOString()
     });
+    return cat;
   },
   async fetchRemote(): Promise<Category[]> {
     const { data, error } = await supabase.from('categories').select('*');

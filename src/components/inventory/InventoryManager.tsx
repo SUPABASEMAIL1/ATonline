@@ -151,7 +151,16 @@ export function InventoryManager() {
   }, [state.pendingReturnTab]);
 
   const categories = useMemo(() => {
-    return ['All', ...Array.from(new Set(state.products.map((p: Product) => p.category)))];
+    const rawCategories = state.products.map((p: Product) => {
+      const cat = p.category;
+      if (typeof cat === 'string' && cat.trim().startsWith('{')) {
+        try {
+          return JSON.parse(cat).name || cat;
+        } catch (_) {}
+      }
+      return cat;
+    }).filter(Boolean);
+    return ['All', ...Array.from(new Set(rawCategories))];
   }, [state.products]);
 
   const suppliers = useMemo(() => {

@@ -128,11 +128,47 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
 
   const categories = useMemo(() => {
     // PRIMARY: use state.categories
-    const fromCatTable = state.categories.map(c => c.name).filter(Boolean);
+    const fromCatTable = state.categories.map(c => {
+      if (typeof c === 'object' && c !== null) {
+        if (typeof c.name === 'string' && c.name.trim().startsWith('{')) {
+          try {
+            return JSON.parse(c.name).name || c.name;
+          } catch (_) {}
+        }
+        return c.name;
+      }
+      if (typeof c === 'string') {
+        if (c.trim().startsWith('{')) {
+          try {
+            return JSON.parse(c).name || c;
+          } catch (_) {}
+        }
+        return c;
+      }
+      return '';
+    }).filter(Boolean);
+
     // FALLBACK: from existing products
-    const fromProducts = state.products.map(p => p.category).filter(Boolean);
+    const fromProducts = state.products.map(p => {
+      const cat = p.category;
+      if (typeof cat === 'string' && cat.trim().startsWith('{')) {
+        try {
+          return JSON.parse(cat).name || cat;
+        } catch (_) {}
+      }
+      return cat;
+    }).filter(Boolean);
+
     const list = new Set([...fromCatTable, ...fromProducts]);
-    if (formData.category) list.add(formData.category);
+    if (formData.category) {
+      let cat = formData.category;
+      if (typeof cat === 'string' && cat.trim().startsWith('{')) {
+        try {
+          cat = JSON.parse(cat).name || cat;
+        } catch (_) {}
+      }
+      list.add(cat);
+    }
     return Array.from(list).sort();
   }, [state.categories, state.products, formData.category]);
 
