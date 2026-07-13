@@ -121,7 +121,7 @@ export function ExpenseManager() {
     return state.expenses.filter(expense => {
       const expenseDate = new Date(expense.date).getTime();
 
-      const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (expense.description || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || expense.category === selectedCategory;
       const matchesPayment = selectedPaymentMethod === 'all' || expense.paymentMethod === selectedPaymentMethod;
       const matchesDate = dateRange === 'all' || (expenseDate >= effectiveStart && expenseDate <= effectiveEnd);
