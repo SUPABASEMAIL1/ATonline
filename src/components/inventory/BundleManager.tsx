@@ -680,7 +680,6 @@ export function BundleManager() {
           </button>
         </div>
       </div>
-        </div>
       )}
 
       {/* ─── LIST MODE (always mounted, hidden when form is open) ─── */}
@@ -1022,7 +1021,9 @@ export function BundleManager() {
             );
           })}
         </div>
-      )} {/* end !showForm list mode */}
+      )} {/* end ternary */}
+      </div>
+      )} {/* end !showForm */}
     </>
   );
 }
