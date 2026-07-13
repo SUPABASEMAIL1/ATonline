@@ -475,96 +475,99 @@ export function InventoryManager() {
 
 
 
-  // ─── If a product is selected for detail view, show the Hub ───
-  if (detailProduct) {
-    const freshProduct = state.products.find(p => p.id === detailProduct.id) || detailProduct;
-    return (
-      <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full max-w-[1400px] mx-auto">
-        <ProductDetailHub
-          product={freshProduct}
-          onBack={() => {
-            setDetailProduct(null);
-            const navState = location.state as { fromSale?: string } | null;
-            if (navState?.fromSale) {
-              dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: navState.fromSale });
-              navigate('/transactions');
-            } else if (state.pendingReturnTab) {
-              const targetTab = state.pendingReturnTab;
-              dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: null });
-              window.dispatchEvent(new CustomEvent('navigate', { detail: targetTab }));
-            }
-          }}
-          onEdit={() => { }}
-        />
-      </div>
-    );
-  }
+  // ─── All views rendered in a single return to prevent unmount on sync ───
+  // CRITICAL FIX: Old code used early `if (x) { return (...) }` which caused
+  // the component to switch render trees on every state.products update (sync),
+  // unmounting ProductDetailHub/ProductModal and closing all inner popups.
+  const freshProduct = detailProduct
+    ? (state.products.find(p => p.id === detailProduct.id) || detailProduct)
+    : null;
 
-  // ─── Barcode Generator Page Mode ───
-  if (showBarcodeGenerator) {
-    return (
-      <div className="fixed inset-0 z-[450] bg-white dark:bg-surface animate-in fade-in zoom-in-95 duration-300 flex flex-col">
-        {/* Navigation Safety Header */}
-        <div className="flex-shrink-0 flex items-center gap-4 px-4 py-2.5 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-app">
-          <button 
-            onClick={() => {
-              setShowBarcodeGenerator(false);
-              setBarcodeProducts([]);
-              setSelectedProductIds([]);
-              clearPersistedBarcodeState();
-              localStorage.removeItem('barcode_selected_product_ids');
-              localStorage.removeItem('barcode_selected_quantities');
-              localStorage.removeItem('barcode_show_generator');
-            }} 
-            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1"
-          >
-            <ChevronLeft className="h-5 w-5" />
-            <span className="text-[10px] font-black uppercase tracking-widest">{t("back", "Back")}</span>
-          </button>
-          <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-1" />
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest opacity-60">Management / Barcode Print Engine</p>
-        </div>
-
-        <div className="flex-1 min-h-0">
-          <BarcodeGenerator
-            products={barcodeProducts}
-            onClose={() => {
-              setShowBarcodeGenerator(false);
-              setBarcodeProducts([]);
-              setSelectedProductIds([]);
-              clearPersistedBarcodeState();
-              localStorage.removeItem('barcode_selected_product_ids');
-              localStorage.removeItem('barcode_selected_quantities');
-              localStorage.removeItem('barcode_show_generator');
+  return (
+    <>
+      {/* ─── Product Detail Hub (overlay, stays mounted) ─── */}
+      {detailProduct && freshProduct && (
+        <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full max-w-[1400px] mx-auto">
+          <ProductDetailHub
+            product={freshProduct}
+            onBack={() => {
+              setDetailProduct(null);
+              const navState = location.state as { fromSale?: string } | null;
+              if (navState?.fromSale) {
+                dispatch({ type: 'SET_PENDING_RETURN_SALE_ID', payload: navState.fromSale });
+                navigate('/transactions');
+              } else if (state.pendingReturnTab) {
+                const targetTab = state.pendingReturnTab;
+                dispatch({ type: 'SET_PENDING_RETURN_TAB', payload: null });
+                window.dispatchEvent(new CustomEvent('navigate', { detail: targetTab }));
+              }
             }}
-            onProductsChange={(next) => {
-              const nextIds = next.map(p => p.id);
-              setSelectedProductIds(nextIds);
+            onEdit={() => { }}
+          />
+        </div>
+      )}
+
+      {/* ─── Barcode Generator Page Mode ─── */}
+      {showBarcodeGenerator && (
+        <div className="fixed inset-0 z-[450] bg-white dark:bg-surface animate-in fade-in zoom-in-95 duration-300 flex flex-col">
+          <div className="flex-shrink-0 flex items-center gap-4 px-4 py-2.5 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-app">
+            <button
+              onClick={() => {
+                setShowBarcodeGenerator(false);
+                setBarcodeProducts([]);
+                setSelectedProductIds([]);
+                clearPersistedBarcodeState();
+                localStorage.removeItem('barcode_selected_product_ids');
+                localStorage.removeItem('barcode_selected_quantities');
+                localStorage.removeItem('barcode_show_generator');
+              }}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1"
+            >
+              <ChevronLeft className="h-5 w-5" />
+              <span className="text-[10px] font-black uppercase tracking-widest">{t("back", "Back")}</span>
+            </button>
+            <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-1" />
+            <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest opacity-60">Management / Barcode Print Engine</p>
+          </div>
+          <div className="flex-1 min-h-0">
+            <BarcodeGenerator
+              products={barcodeProducts}
+              onClose={() => {
+                setShowBarcodeGenerator(false);
+                setBarcodeProducts([]);
+                setSelectedProductIds([]);
+                clearPersistedBarcodeState();
+                localStorage.removeItem('barcode_selected_product_ids');
+                localStorage.removeItem('barcode_selected_quantities');
+                localStorage.removeItem('barcode_show_generator');
+              }}
+              onProductsChange={(next) => {
+                const nextIds = next.map(p => p.id);
+                setSelectedProductIds(nextIds);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ─── Product Editor Page Mode ─── */}
+      {showProductModal && (
+        <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full max-w-[1400px] mx-auto">
+          <ProductModal
+            product={editingProduct}
+            isOpen={true}
+            onClose={() => {
+              setShowProductModal(false);
+              setEditingProduct(null);
             }}
           />
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // ─── Product Editor Page Mode ───
-  if (showProductModal) {
-    return (
-      <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50 dark:bg-app font-sans w-full max-w-[1400px] mx-auto">
-        <ProductModal
-          product={editingProduct}
-          isOpen={true}
-          onClose={() => {
-            setShowProductModal(false);
-            setEditingProduct(null);
-          }}
-        />
-      </div>
-    );
-  }
+      {/* ─── Main Inventory List (hidden when detail/editor/barcode is open) ─── */}
+      {!detailProduct && !showProductModal && !showBarcodeGenerator && (
+        <div className="main-content-scroll p-1 sm:p-4 lg:p-6 space-y-3 lg:space-y-6 bg-gray-50 dark:bg-app max-w-[1400px] mx-auto">
 
-  return (
-    <div className="main-content-scroll p-1 sm:p-4 lg:p-6 space-y-3 lg:space-y-6 bg-gray-50 dark:bg-app max-w-[1400px] mx-auto">
       {/* Layer 1: Identity & Hub Navigation (Smart Stack) */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 pb-0 sm:pb-2">
         <div className="flex flex-col md:flex-row md:items-center gap-4 sm:gap-6 xl:gap-10">
@@ -1116,24 +1119,24 @@ export function InventoryManager() {
         />
       )}
 
-      <BulkEditModal selectedIds={selectedProductIds} isOpen={showBulkEditModal} onClose={() => setShowBulkEditModal(false)} categories={categories} suppliers={suppliers} />
+        <BulkEditModal selectedIds={selectedProductIds} isOpen={showBulkEditModal} onClose={() => setShowBulkEditModal(false)} categories={categories} suppliers={suppliers} />
 
-      {viewingSale && (
-        <ReceiptPrint
-          sale={viewingSale}
-          onClose={() => setViewingSale(null)}
+        {viewingSale && (
+          <ReceiptPrint
+            sale={viewingSale}
+            onClose={() => setViewingSale(null)}
+          />
+        )}
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept=".json"
+          style={{ display: 'none' }}
         />
-      )}
-
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept=".json"
-        style={{ display: 'none' }}
-      />
-    </div>
-
-
+      </div>
+      )} {/* end !detailProduct && !showProductModal && !showBarcodeGenerator */}
+    </>
   );
 }

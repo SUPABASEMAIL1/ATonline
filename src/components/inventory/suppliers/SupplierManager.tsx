@@ -164,23 +164,27 @@ export function SupplierManager() {
     return { validStartDate: startDate, validEndDate: endDate };
   }, [dateFilter, startDateInput, endDateInput, state.settings.country]);
 
-  // If a supplier is selected, show their ledger
-  if (selectedSupplierId) {
-    const supplier = state.suppliers.find(s => s.id === selectedSupplierId);
-    if (!supplier) return null;
-    return (
-      <SupplierLedger
-        supplier={supplier}
-        onBack={() => setSelectedSupplierId(null)}
-        startDate={validStartDate}
-        endDate={validEndDate}
-        dateFilter={dateFilter}
-      />
-    );
-  }
+  // CRITICAL FIX: Single return — conditional rendering prevents unmount on sync
+  const selectedSupplier = selectedSupplierId
+    ? state.suppliers.find(s => s.id === selectedSupplierId) ?? null
+    : null;
 
   return (
-    <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50/50 dark:bg-app space-y-3 lg:space-y-6 max-w-[1400px] mx-auto">
+    <>
+      {/* ─── Supplier Ledger (stays mounted across syncs) ─── */}
+      {selectedSupplierId && selectedSupplier && (
+        <SupplierLedger
+          supplier={selectedSupplier}
+          onBack={() => setSelectedSupplierId(null)}
+          startDate={validStartDate}
+          endDate={validEndDate}
+          dateFilter={dateFilter}
+        />
+      )}
+
+      {/* ─── Supplier List (hidden when ledger is open) ─── */}
+      {!selectedSupplierId && (
+        <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50/50 dark:bg-app space-y-3 lg:space-y-6 max-w-[1400px] mx-auto">
       {/* Layer 1: Identity & Tab Navigation */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 pb-2">
         <div className="flex flex-col md:flex-row md:items-center gap-4 sm:gap-6 xl:gap-10">
@@ -355,11 +359,13 @@ export function SupplierManager() {
       </div>
 
       <SupplierModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveSupplier}
-        supplier={editingSupplier}
-      />
-    </div>
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleSaveSupplier}
+          supplier={editingSupplier}
+        />
+        </div>
+      )} {/* end !selectedSupplierId list */}
+    </>
   );
 }

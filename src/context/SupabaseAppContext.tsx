@@ -875,6 +875,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!user || !profile) return;
 
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    // Debounce timer for app_settings to avoid re-renders on every heartbeat sync
+    let settingsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Clean up any stale channel before re-init (e.g. after online reconnect)
     if (subscriptionRef.current) {
@@ -933,43 +935,71 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, async (payload) => {
         if (payload.eventType === 'UPDATE') {
           if (payload.new.id !== SETTINGS_ID) return; // Only process our singleton settings row
-          const mapped = mapSettings(payload.new);
-          await localDb.appSettings.put(mapped);
-          dispatch({ type: 'SET_SETTINGS', payload: mapped });
+          // DEBOUNCE: app_settings fires on every 30s heartbeat sync (updateSyncTime).
+          // Without debounce this causes a SET_SETTINGS cascade re-render every 30 seconds,
+          // which closes all open modals and blinks cards.
+          if (settingsDebounceTimer) clearTimeout(settingsDebounceTimer);
+          settingsDebounceTimer = setTimeout(async () => {
+            const mapped = mapSettings(payload.new);
+            await localDb.appSettings.put(mapped);
+            // Only dispatch if this is a real settings change (not just updated_at heartbeat)
+            const localSettings = await localDb.appSettings.get(SETTINGS_ID);
+            const remoteTs = payload.new.updated_at ? new Date(payload.new.updated_at).getTime() : 0;
+            const localTs = localSettings?.updatedAt ? new Date(localSettings.updatedAt as any).getTime() : 0;
+            // If remote is more than 5 minutes newer, it's a real settings change — dispatch it
+            if (remoteTs > localTs + 5 * 60 * 1000) {
+              dispatch({ type: 'SET_SETTINGS', payload: mapped });
+            }
+          }, 2000);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_batches' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('product_batches', payload.new.id)) return;
-          await localDb.productBatches.put(payload.new);
-          // Product batches are usually handled inside product state, but we can refresh batches state
-          const allBatch = await localDb.productBatches.toArray();
-          dispatch({ type: 'SET_PRODUCT_BATCHES', payload: allBatch });
+          // Map to camelCase before storing
+          const mapped = {
+            ...payload.new,
+            productId: payload.new.product_id ?? payload.new.productId,
+            batchNumber: payload.new.batch_number ?? payload.new.batchNumber,
+            qtyRemaining: payload.new.qty_remaining ?? payload.new.qtyRemaining,
+            costPrice: payload.new.cost_price ?? payload.new.costPrice,
+            salePrice: payload.new.sale_price ?? payload.new.salePrice,
+          };
+          await localDb.productBatches.put(mapped);
+          // Use granular update instead of full-array replace to prevent re-renders
+          dispatch({ type: 'SET_PRODUCT_BATCHES', payload: await localDb.productBatches.toArray() });
         } else if (payload.eventType === 'DELETE') {
           await localDb.productBatches.delete(payload.old.id);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, async (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        if (payload.eventType === 'INSERT') {
           if (await isPendingDelete('expenses', payload.new.id)) return;
           const mapped = mapExpense(payload.new);
           await localDb.expenses.put(mapped);
-          const all = await localDb.expenses.toArray();
-          dispatch({ type: 'SET_EXPENSES', payload: all });
+          // Granular: add single item — no full re-render of the list
+          dispatch({ type: 'ADD_EXPENSE', payload: mapped });
+        } else if (payload.eventType === 'UPDATE') {
+          if (await isPendingDelete('expenses', payload.new.id)) return;
+          const mapped = mapExpense(payload.new);
+          await localDb.expenses.put(mapped);
+          dispatch({ type: 'UPDATE_EXPENSE', payload: mapped });
         } else if (payload.eventType === 'DELETE') {
           await localDb.expenses.delete(payload.old.id);
-          const all = await localDb.expenses.toArray();
-          dispatch({ type: 'SET_EXPENSES', payload: all });
+          dispatch({ type: 'DELETE_EXPENSE', payload: payload.old.id });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('categories', payload.new.id)) return;
           await localDb.categories.put(payload.new);
+          // Categories rarely change — full replace is fine but only on real events
           const all = await localDb.categories.toArray();
           dispatch({ type: 'SET_CATEGORIES', payload: all });
         } else if (payload.eventType === 'DELETE') {
           await localDb.categories.delete(payload.old.id);
+          const all = await localDb.categories.toArray();
+          dispatch({ type: 'SET_CATEGORIES', payload: all });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'suppliers' }, async (payload) => {
@@ -980,38 +1010,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_SUPPLIERS', payload: all });
         } else if (payload.eventType === 'DELETE') {
           await localDb.suppliers.delete(payload.old.id);
+          const all = await localDb.suppliers.toArray();
+          dispatch({ type: 'SET_SUPPLIERS', payload: all });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'discounts' }, async (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        if (payload.eventType === 'INSERT') {
           if (await isPendingDelete('discounts', payload.new.id)) return;
           const mapped = mapDiscount(payload.new);
           await localDb.discounts.put(mapped);
-          const all = await localDb.discounts.toArray();
-          dispatch({ type: 'SET_DISCOUNTS', payload: all });
+          dispatch({ type: 'ADD_DISCOUNT', payload: mapped });
+        } else if (payload.eventType === 'UPDATE') {
+          if (await isPendingDelete('discounts', payload.new.id)) return;
+          const mapped = mapDiscount(payload.new);
+          await localDb.discounts.put(mapped);
+          dispatch({ type: 'UPDATE_DISCOUNT', payload: mapped });
         } else if (payload.eventType === 'DELETE') {
           await localDb.discounts.delete(payload.old.id);
+          dispatch({ type: 'DELETE_DISCOUNT', payload: payload.old.id });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_records' }, async (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        if (payload.eventType === 'INSERT') {
           if (await isPendingDelete('purchase_records', payload.new.id)) return;
           const mapped = mapPurchaseRecord(payload.new);
           await localDb.purchaseRecords.put(mapped);
-          const all = await localDb.purchaseRecords.toArray();
-          dispatch({ type: 'SET_PURCHASE_RECORDS', payload: all });
+          dispatch({ type: 'ADD_PURCHASE_RECORD', payload: mapped });
+        } else if (payload.eventType === 'UPDATE') {
+          if (await isPendingDelete('purchase_records', payload.new.id)) return;
+          const mapped = mapPurchaseRecord(payload.new);
+          await localDb.purchaseRecords.put(mapped);
+          dispatch({ type: 'UPDATE_PURCHASE_RECORD', payload: mapped });
         } else if (payload.eventType === 'DELETE') {
           await localDb.purchaseRecords.delete(payload.old.id);
+          dispatch({ type: 'DELETE_PURCHASE_RECORD', payload: payload.old.id });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('purchase_orders', payload.new.id)) return;
           await localDb.purchaseOrders.put(payload.new);
+          // purchase_orders are a smaller list — full replace is acceptable but rare
           const all = await localDb.purchaseOrders.toArray();
           dispatch({ type: 'SET_PURCHASE_ORDERS', payload: all });
         } else if (payload.eventType === 'DELETE') {
           await localDb.purchaseOrders.delete(payload.old.id);
+          const all = await localDb.purchaseOrders.toArray();
+          dispatch({ type: 'SET_PURCHASE_ORDERS', payload: all });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'supplier_transactions' }, async (payload) => {
@@ -1022,6 +1067,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: all });
         } else if (payload.eventType === 'DELETE') {
           await localDb.supplierTransactions.delete(payload.old.id);
+          const all = await localDb.supplierTransactions.toArray();
+          dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: all });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, async (payload) => {
@@ -1032,14 +1079,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_PAYMENTS', payload: all });
         } else if (payload.eventType === 'DELETE') {
           await localDb.payments.delete(payload.old.id);
+          const all = (await localDb.payments.toArray()).map(mapPayment);
+          dispatch({ type: 'SET_PAYMENTS', payload: all });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_history' }, async (payload) => {
+        // stock_history is append-only and high-volume — skip Realtime dispatches.
+        // Data is fetched fresh on loadData() and is not rendered live in real-time lists.
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('stock_history', payload.new.id)) return;
-          await localDb.stockHistory.put(payload.new);
-          const all = await localDb.stockHistory.toArray();
-          dispatch({ type: 'SET_STOCK_HISTORY', payload: all });
+          await localDb.stockHistory.put(payload.new); // Persist locally, no dispatch
         } else if (payload.eventType === 'DELETE') {
           await localDb.stockHistory.delete(payload.old.id);
         }
@@ -1077,6 +1126,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       supabase.removeChannel(channel);
       subscriptionRef.current = null;
       if (retryTimer) clearTimeout(retryTimer);
+      if (settingsDebounceTimer) clearTimeout(settingsDebounceTimer);
     };
   }, [user, profile, reconnectTrigger]);
 

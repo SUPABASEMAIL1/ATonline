@@ -319,10 +319,11 @@ export function BundleManager() {
 
   const bundles = state.bundles || [];
 
-  // ─── FORM MODE ────────────────────────────────────────────────
-  if (showForm) {
-    return (
-      <div className="animate-in fade-in duration-300 space-y-4 max-w-2xl mx-auto">
+  return (
+    <>
+      {/* ─── FORM MODE (kept mounted so sync doesn't reset fields) ─── */}
+      {showForm && (
+        <div className="animate-in fade-in duration-300 space-y-4 max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={closeForm} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all">
@@ -679,12 +680,12 @@ export function BundleManager() {
           </button>
         </div>
       </div>
-    );
-  }
+        </div>
+      )}
 
-  // ─── LIST MODE ────────────────────────────────────────────────
-  return (
-    <div className="space-y-4 animate-in fade-in duration-300">
+      {/* ─── LIST MODE (always mounted, hidden when form is open) ─── */}
+      {!showForm && (
+        <div className="space-y-4 animate-in fade-in duration-300">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1021,7 +1022,7 @@ export function BundleManager() {
             );
           })}
         </div>
-      )}
-    </div>
+      )} {/* end !showForm list mode */}
+    </>
   );
 }
