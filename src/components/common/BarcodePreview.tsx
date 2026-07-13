@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { renderBarcodeSVG, BarcodeOptions } from '../../utils/barcode';
+import React from 'react';
+import JsBarcode from 'jsbarcode';
+import { BarcodeOptions } from '../../utils/barcode';
 
 interface BarcodePreviewProps {
   value: string;
@@ -8,6 +9,49 @@ interface BarcodePreviewProps {
   inline?: boolean;
   height?: number;
   showValue?: boolean;
+}
+
+// Memory cache for generated SVG path data to avoid re-running JsBarcode on every single update/render
+const barcodeCache = new Map<string, { innerHTML: string; width: string; height: string; viewBox: string }>();
+
+function getBarcodeData(value: string, options?: any) {
+  const cacheKey = `${value}_${JSON.stringify(options)}`;
+  if (barcodeCache.has(cacheKey)) {
+    return barcodeCache.get(cacheKey)!;
+  }
+
+  try {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    JsBarcode(svg, value, {
+      format: 'CODE128',
+      width: 1.5,
+      height: 60,
+      fontSize: 12,
+      displayValue: false,
+      margin: 2,
+      background: 'transparent',
+      lineColor: 'currentColor',
+      ...options
+    });
+
+    const w = svg.getAttribute('width') || '100';
+    const h = svg.getAttribute('height') || '40';
+    const widthVal = w.replace('px', '');
+    const heightVal = h.replace('px', '');
+    const viewBox = `0 0 ${widthVal} ${heightVal}`;
+
+    const data = {
+      innerHTML: svg.innerHTML,
+      width: w,
+      height: h,
+      viewBox
+    };
+    barcodeCache.set(cacheKey, data);
+    return data;
+  } catch (err) {
+    console.error('[Barcode] Failed to generate in-memory SVG:', err);
+    return { innerHTML: '', width: '100', height: '40', viewBox: '0 0 100 40' };
+  }
 }
 
 export const BarcodePreview = React.memo(
@@ -19,26 +63,18 @@ export const BarcodePreview = React.memo(
     height,
     showValue
   }: BarcodePreviewProps) => {
-    const svgRef = useRef<SVGSVGElement>(null);
-
-    useEffect(() => {
-      if (value && svgRef.current) {
-        renderBarcodeSVG(value, svgRef.current, {
-          height: height !== undefined ? height : (inline ? 12 : 28),
-          width: inline ? 0.75 : 0.9,
-          fontSize: 0,
-          displayValue: false,
-          margin: 2,
-          ...options
-        });
-      }
-    }, [value, inline, options, height, showValue]);
-
     if (!value) {
       return inline ? (
         <span className="text-[11px] font-medium text-gray-600 dark:text-gray-500">No Barcode</span>
       ) : null;
     }
+
+    const barcode = getBarcodeData(value, {
+      height: height !== undefined ? height : (inline ? 12 : 28),
+      width: inline ? 0.75 : 0.9,
+      ...options
+    });
+
     const containerStyle: React.CSSProperties = inline
       ? {
           display: 'inline-flex',
@@ -99,9 +135,10 @@ export const BarcodePreview = React.memo(
         style={containerStyle}
       >
         <svg
-          ref={svgRef}
+          viewBox={barcode.viewBox}
           className={`${height !== undefined ? '' : (inline ? 'h-[16px]' : 'h-[32px]')} w-auto text-black`}
           style={svgStyle}
+          dangerouslySetInnerHTML={{ __html: barcode.innerHTML }}
         />
         {value && (
           <span
@@ -125,4 +162,3 @@ export const BarcodePreview = React.memo(
     );
   }
 );
-

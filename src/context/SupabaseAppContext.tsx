@@ -147,16 +147,20 @@ type AppAction =
   | { type: 'SET_SYNC_PROGRESS'; payload: AppState['syncProgress'] };
 
 
-const initialState: AppState = {
-  products: [],
-  customers: [],
-  sales: [],
-  users: [],
-  discounts: [],
-  cart: [],
-  currentUser: null,
-  selectedCustomer: null,
-  settings: {
+const getCachedCurrentUser = (): User | null => {
+  try {
+    const cached = localStorage.getItem('pos_offline_profile');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.lastLogin) parsed.lastLogin = new Date(parsed.lastLogin);
+      return parsed;
+    }
+  } catch (_) {}
+  return null;
+};
+
+const getCachedSettings = (): AppState['settings'] => {
+  const defaultSettings: AppState['settings'] = {
     storeName: 'ZaynahsPos',
     storeAddress: 'Sample Address, City, Country',
     storePhone: '',
@@ -179,7 +183,31 @@ const initialState: AppState = {
     receiptShowStoreName: true,
     receiptShowStoreAddress: true,
     receiptShowStorePhone: true,
+    receiptShowStoreWebsite: true,
     receiptShowStoreEmail: true,
+    receiptShowStoreHeader: true,
+    receiptShowStoreFooter: true,
+    receiptHeaderNotes: 'Thank you for your business!',
+    receiptFooterNotes: 'Developed by ZaynahsPos',
+    enableLowStockAlert: true,
+    lowStockThreshold: 5,
+    quickCashButtons: [100, 500, 1000, 5000],
+    smsTemplate: 'Hello {customer}, your bill amount is {amount}. Thank you for shopping with us!',
+    smsEnabled: false,
+    retailEnabled: true,
+    wholesaleEnabled: false,
+    estoreEnabled: false,
+    autoBackupOnClose: false,
+    syncRequiredOnClose: false,
+    soundEnabled: true,
+    customLabels: {
+      retail: 'Retail Sales',
+      wholesale: 'Wholesale Sales',
+      estore: 'E-Store Sales',
+      cash: 'Cash Register',
+      card: 'Card Machine',
+      digital: 'Mobile Wallet'
+    },
     receiptShowCustomerName: true,
     receiptShowCustomerPhone: true,
     receiptShowNotes: true,
@@ -206,13 +234,9 @@ const initialState: AppState = {
     country: 'PK',
     taxId: '',
     businessType: 'general',
-    retailEnabled: true,
-    wholesaleEnabled: false,
-    estoreEnabled: false,
     defaultSaleType: 'retail',
     language: 'en',
     touchKeyboardEnabled: false,
-    soundEnabled: true,
     receiptPaddingTop: 0,
     receiptPaddingBottom: 0,
     receiptPaddingLeft: 0,
@@ -228,7 +252,27 @@ const initialState: AppState = {
     posGridColumns: 4,
     enableSplitPayment: false,
     enableExtraCharges: false,
-  },
+  };
+
+  try {
+    const cached = localStorage.getItem('pos_settings');
+    if (cached) {
+      return { ...defaultSettings, ...JSON.parse(cached) };
+    }
+  } catch (_) {}
+  return defaultSettings;
+};
+
+const initialState: AppState = {
+  products: [],
+  customers: [],
+  sales: [],
+  users: [],
+  discounts: [],
+  cart: [],
+  currentUser: getCachedCurrentUser(),
+  selectedCustomer: null,
+  settings: getCachedSettings(),
   salesTabs: [],
   activeSalesTab: '',
   billDiscountValue: 0,
@@ -252,7 +296,7 @@ const initialState: AppState = {
   pendingReturnSaleId: null,
   pendingSearch: null,
   inventoryPurchasesPage: 1,
-  loading: false,
+  loading: true,
   error: null,
   syncProgress: null,
 };
@@ -822,6 +866,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('theme', state.settings.theme || 'dark');
   }, [state.settings.theme]);
+
+  // Mirror settings to localStorage to allow synchronous zero-flash load on refresh
+  useEffect(() => {
+    if (state.settings) {
+      localStorage.setItem('pos_settings', JSON.stringify(state.settings));
+    }
+  }, [state.settings]);
 
 
 

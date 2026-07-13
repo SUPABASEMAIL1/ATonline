@@ -169,7 +169,7 @@ export function ReportsManager() {
   const [selectedPayment, setSelectedPayment] = useState('All');
 
   // Performance: Defer heavy content to prevent navigation jitter
-  const [isRendered, setIsRendered] = useState(false);
+  const [isRendered, setIsRendered] = useState(true);
   useEffect(() => {
     const timer = setTimeout(() => setIsRendered(true), 150);
     return () => clearTimeout(timer);
