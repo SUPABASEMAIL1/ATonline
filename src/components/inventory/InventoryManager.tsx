@@ -150,56 +150,68 @@ export function InventoryManager() {
     }
   }, [state.pendingReturnTab]);
 
-  const categories = ['All', ...Array.from(new Set(state.products.map((p: Product) => p.category)))];
-  const suppliers = ['All', ...Array.from(new Set(state.products.map((p: Product) => p.supplier).filter(Boolean) as string[]))];
+  const categories = useMemo(() => {
+    return ['All', ...Array.from(new Set(state.products.map((p: Product) => p.category)))];
+  }, [state.products]);
 
-  const filteredProducts = state.products
-    .filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-      const matchesSupplier = selectedSupplier === 'All' || product.supplier === selectedSupplier;
-      const matchesType = selectedType === 'All' ||
-        (selectedType === 'services' && product.isService) ||
-        (selectedType === 'serialized' && product.requireSerial) ||
-        (selectedType === 'standard' && !product.isService && !product.requireSerial);
-      return matchesSearch && matchesCategory && matchesSupplier && matchesType;
-    })
-    .sort((a, b) => {
-      let aValue: string | number;
-      let bValue: string | number;
+  const suppliers = useMemo(() => {
+    return ['All', ...Array.from(new Set(state.products.map((p: Product) => p.supplier).filter(Boolean) as string[]))];
+  }, [state.products]);
 
-      switch (sortBy) {
-        case 'name':
-          aValue = a.name.toLowerCase();
-          bValue = b.name.toLowerCase();
-          break;
-        case 'stock':
-          aValue = a.stock;
-          bValue = b.stock;
-          break;
-        case 'price':
-          aValue = a.price;
-          bValue = b.price;
-          break;
-        default:
-          aValue = a.name.toLowerCase();
-          bValue = b.name.toLowerCase();
-      }
+  const filteredProducts = useMemo(() => {
+    return state.products
+      .filter(product => {
+        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+        const matchesSupplier = selectedSupplier === 'All' || product.supplier === selectedSupplier;
+        const matchesType = selectedType === 'All' ||
+          (selectedType === 'services' && product.isService) ||
+          (selectedType === 'serialized' && product.requireSerial) ||
+          (selectedType === 'standard' && !product.isService && !product.requireSerial);
+        return matchesSearch && matchesCategory && matchesSupplier && matchesType;
+      })
+      .sort((a, b) => {
+        let aValue: string | number;
+        let bValue: string | number;
 
-      if (sortOrder === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
-      }
-    });
+        switch (sortBy) {
+          case 'name':
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+            break;
+          case 'stock':
+            aValue = a.stock;
+            bValue = b.stock;
+            break;
+          case 'price':
+            aValue = a.price;
+            bValue = b.price;
+            break;
+          default:
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+        }
 
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const paginatedProducts = filteredProducts.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+        if (sortOrder === 'asc') {
+          return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        } else {
+          return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        }
+      });
+  }, [state.products, searchTerm, selectedCategory, selectedSupplier, selectedType, sortBy, sortOrder]);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  }, [filteredProducts.length]);
+
+  const paginatedProducts = useMemo(() => {
+    return filteredProducts.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
+  }, [filteredProducts, currentPage]);
 
   // Barcode scanner logic (Hardware Scanner)
   useBarcodeScanner((barcode: string) => {
