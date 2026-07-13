@@ -1225,11 +1225,12 @@ export const salesService = {
     const now = new Date();
     const affectedProducts: Product[] = [];
 
-    // 1. Reverse Stock
+    // 1. Reverse Stock (Only restore what has not been refunded/returned yet)
     for (const item of sale.items) {
       const product = await localDb.products.get(item.product.id);
       if (product && product.trackInventory) {
-        const qty = item.weight || item.quantity;
+        const qty = (item.weight || item.quantity) - (item.refundedQuantity || 0);
+        if (qty <= 0) continue;
         const newStock = (product.stock || 0) + qty;
 
         // --- START EXACT BATCH-LEVEL RESTORATION (Reverse FIFO) ---
@@ -1312,10 +1313,11 @@ export const salesService = {
       const customer = await localDb.customers.get(sale.customerId);
       if (customer) {
         const isCreditSale = sale.paymentMethod === 'credit' || sale.status === 'credit';
+        const remainingTotal = sale.total - (sale.refundedAmount || 0);
         const updatedCustomer = {
           ...customer,
-          creditUsed: isCreditSale ? Math.max(0, (customer.creditUsed || 0) - sale.total) : (customer.creditUsed || 0),
-          totalPurchases: Math.max(0, (customer.totalPurchases || 0) - sale.total),
+          creditUsed: isCreditSale ? Math.max(0, (customer.creditUsed || 0) - remainingTotal) : (customer.creditUsed || 0),
+          totalPurchases: Math.max(0, (customer.totalPurchases || 0) - remainingTotal),
           updatedAt: now
         };
         await localDb.customers.put(updatedCustomer);

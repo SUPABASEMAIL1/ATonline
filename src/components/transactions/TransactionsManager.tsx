@@ -678,7 +678,14 @@ export function TransactionsManager() {
                     <div>{tx.customerName || t("walk_in", "Walk-in")}</div>
                     {tx.cashier && <div className="text-[9px] font-bold text-primary uppercase mt-0.5">{t("by", "By")} {tx.cashier}</div>}
                   </td>
-                  <td className="px-4 py-3 text-sm font-black text-primary dark:text-emerald-400">{formatCurrency(tx.total, state.settings.currency)}</td>
+                  <td className="px-4 py-3 text-sm font-black text-primary dark:text-emerald-400">
+                    <div>{formatCurrency(tx.total, state.settings.currency)}</div>
+                    {tx.refundedAmount > 0 && (
+                      <div className="text-[9px] font-bold text-rose-500 mt-0.5">
+                        -{formatCurrency(tx.refundedAmount, state.settings.currency)} {tx.status === 'partially_refunded' ? 'Refunded' : ''}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${getStatusColor(tx.status)}`}>
                       {tx.status}
@@ -749,9 +756,25 @@ export function TransactionsManager() {
             </div>
           ) : paginatedTransactions.map(tx => (
             <div key={tx.id} onClick={() => setSelectedTransaction(tx)} className="p-3 rounded-[1.5rem] bg-white dark:bg-surface border border-gray-200 dark:border-white/5 shadow-sm active:scale-[0.98] transition-all">
-              <p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase mb-1">#{tx.invoiceNumber || tx.receiptNumber}</p>
+              <div className="flex justify-between items-start gap-1">
+                <p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase mb-1">#{tx.invoiceNumber || tx.receiptNumber}</p>
+                {tx.status !== 'completed' && tx.status !== 'credit' && (
+                  <span className={`text-[7px] font-bold px-1 py-0.5 rounded-md uppercase ${getStatusColor(tx.status)}`}>
+                    {tx.status}
+                  </span>
+                )}
+              </div>
               <h3 className="text-[10px] font-black text-gray-900 dark:text-white uppercase truncate mb-2">{tx.customerName || t("walk_in", "Walk-in")}</h3>
-              <p className="text-[11px] font-black text-primary dark:text-primary">{formatCurrency(tx.total, state.settings.currency)}</p>
+              <div className="flex flex-col">
+                <span className={`text-[11px] font-black text-primary dark:text-primary ${tx.refundedAmount > 0 ? 'line-through text-gray-400 text-[10px]' : ''}`}>
+                  {formatCurrency(tx.total, state.settings.currency)}
+                </span>
+                {tx.refundedAmount > 0 && (
+                  <span className="text-[11px] font-black text-rose-500 leading-none mt-0.5">
+                    {formatCurrency(tx.total - tx.refundedAmount, state.settings.currency)}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -855,20 +878,39 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
       await salesService.returnSale(transaction.id, request, profile?.name || 'Cashier');
 
       // 2. Update local state
-      // Find out if it's completely refunded based on the items in transaction + request
-      // But it's easier to just trigger a local reload or optimistically update
+      const updatedTx: Sale = {
+        ...transaction,
+        status: request.type === 'full' ? 'refunded' : 'partially_refunded',
+        refundedAmount: (transaction.refundedAmount || 0) + request.totalRefundAmount,
+        items: transaction.items.map((item: any, idx: number) => {
+          if (request.type === 'full') {
+            return {
+              ...item,
+              refundedQuantity: item.quantity
+            };
+          } else {
+            const reqItem = request.items.find((ri: any) => ri.index === idx);
+            if (reqItem) {
+              return {
+                ...item,
+                refundedQuantity: (item.refundedQuantity || 0) + reqItem.qty
+              };
+            }
+          }
+          return item;
+        })
+      };
+
       dispatch({
         type: 'UPDATE_SALE',
-        payload: {
-          ...transaction,
-          status: request.type === 'full' ? 'refunded' : 'partially_refunded',
-          refundedAmount: (transaction.refundedAmount || 0) + request.totalRefundAmount
-        }
+        payload: updatedTx
       });
+
+      // Update parent component selectedTransaction state to trigger dynamic re-render inside this modal!
+      onNavigate(updatedTx);
 
       sonner.success('Sale successfully refunded.');
       setIsRefundModalOpen(false);
-      onClose();
     } catch (error) {
       console.error('[RefundError]', error);
       sonner.error('Error refunding sale.');
@@ -1000,6 +1042,18 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
       >
         {/* Modal body... */}
         <div className="space-y-4">
+          {transaction.status === 'refunded' && (
+            <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 p-3 rounded-2xl text-xs font-black text-center uppercase tracking-widest flex items-center justify-center gap-2">
+              <RotateCcw className="h-4 w-4 shrink-0" />
+              <span>This sale is fully refunded</span>
+            </div>
+          )}
+          {transaction.status === 'partially_refunded' && (
+            <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 p-3 rounded-2xl text-xs font-black text-center uppercase tracking-widest flex items-center justify-center gap-2">
+              <RotateCcw className="h-4 w-4 shrink-0" />
+              <span>This sale is partially refunded</span>
+            </div>
+          )}
           <div className="flex items-center justify-center mb-0">
             <span className="text-[9px] font-black bg-primary/10 text-primary dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest">
               {getDealCountBreakdown(transaction.items, state.bundles).label}
@@ -1101,7 +1155,14 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                             <span className="font-bold">- {item.product?.name || 'Item'}</span>
                             {item.selectedVariant && <span className="text-[8px] text-gray-400"> ({item.selectedVariant})</span>}
                           </td>
-                          <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] font-bold text-gray-500">{item.quantity}</td>
+                          <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] font-bold text-gray-500">
+                            <div>{item.quantity}</div>
+                            {item.refundedQuantity > 0 && (
+                              <div className="text-[7px] font-black text-rose-500 uppercase tracking-tight mt-0.5 leading-none">
+                                {item.refundedQuantity} {t("returned_caps", "Returned")}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] text-gray-400">
                             {!hideItemPrices && formatCurrency(item.product?.price * item.quantity, state.settings.currency)}
                           </td>
@@ -1166,7 +1227,14 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
                             </div>
                           </div>
                         </td>
-                        <td className="px-2.5 sm:px-4 py-3 sm:py-4 text-right text-[11px] font-bold text-gray-600 dark:text-gray-400 whitespace-nowrap">{item.quantity}</td>
+                        <td className="px-2.5 sm:px-4 py-3 sm:py-4 text-right text-[11px] font-bold text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                          <div>{item.quantity}</div>
+                          {item.refundedQuantity > 0 && (
+                            <div className="text-[8px] font-black text-rose-500 uppercase tracking-tight mt-0.5 leading-none">
+                              {item.refundedQuantity} {t("returned_caps", "Returned")}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-2.5 sm:px-4 py-3 sm:py-4 text-right text-[11px] font-black text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(item.subtotal, state.settings.currency)}</td>
                       </tr>
                     );
@@ -1227,9 +1295,25 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
               </div>
             ))}
 
+            {transaction.refundedAmount > 0 && (
+              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-rose-500">
+                <span>Refunded Amount</span>
+                <span className="tabular-nums">-{formatCurrency(transaction.refundedAmount, state.settings.currency)}</span>
+              </div>
+            )}
+
             <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-white/10">
               <span className="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white">{t("net_total", "Net Total")}</span>
-              <span className="text-lg font-black text-primary tabular-nums">{formatCurrency(transaction.total, state.settings.currency)}</span>
+              <div className="flex flex-col items-end">
+                <span className={`text-xs tabular-nums ${transaction.refundedAmount > 0 ? 'line-through text-gray-400 font-bold' : 'text-lg font-black text-primary'}`}>
+                  {formatCurrency(transaction.total, state.settings.currency)}
+                </span>
+                {transaction.refundedAmount > 0 && (
+                  <span className="text-lg font-black text-primary tabular-nums leading-none mt-0.5">
+                    {formatCurrency(transaction.total - transaction.refundedAmount, state.settings.currency)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
