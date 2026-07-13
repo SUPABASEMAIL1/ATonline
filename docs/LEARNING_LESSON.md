@@ -92,3 +92,20 @@ Instead of showing generic text loader spinners (like "LOADING MODULE...") durin
 - [ ] Are all JSX-returning components declared at the top level of their files?
 - [ ] Are route elements wrapped in stable component definitions?
 - [ ] Do page entry animations only target initial mount and avoid infinite replay loops?
+
+---
+
+## 🚨 Popups / Modals Auto-Closing & JSON Categories Fix
+
+### 1. The Auto-Closing Popups Issue
+* **Symptoms:** Opening a popup/modal (such as the product creation modal in Inventory or the expense creation modal in Expenses) would cause the modal to instantly close by itself during background data sync or reconnect events.
+* **Why did it happen?** Because the route authorization wrapper `RequireAccess` was nested inside `AppContent`. Every sync event updated the global context state, causing `AppContent` to re-render. Since `RequireAccess` was re-created, React treated it as a new component type and fully unmounted/remounted the router tree. This unmounting completely destroyed the local `useState` states inside the managers (such as `showProductModal` in `InventoryManager` or `isAddExpenseOpen` in `ExpenseManager`), causing all active popups to instantly close and reset to their default (`false`) state.
+* **How it was fixed:** Moving `RequireAccess` and `RootRedirect` completely outside `AppContent` to the module top level preserved their component references. React now reconciles the route tree instead of unmounting it, keeping local modal states alive and stable during background syncs.
+
+### 2. Raw JSON Category Dropdown Values
+* **Symptoms:** The categories dropdown select in the Add/Edit Product modal rendered raw JSON strings instead of actual category names.
+* **Why did it happen?** The Pizza Milano seed script (`seedPizzaMilano.ts`) was passing raw Category *objects* to `categoriesService.create` instead of the expected string `name`. Since `categoriesService.create(name: string)` expected a string, it saved the object directly into IndexedDB, and during sync, it sent the sub-object to Supabase. Supabase serialized the JSON object into the `TEXT` column (`category`), poisoning the entries. When listing categories via `state.products.map(p => p.category)` or `state.categories`, they contained JSON string objects.
+* **How it was fixed:**
+  1. Modified `categoriesService.create(nameOrObj)` in `services.ts` to check if the parameter is a string or a Category object, safely extracting the `name` and `description` properties.
+  2. Sanitized the category mapping arrays in `ProductModal.tsx` and `InventoryManager.tsx` to automatically check if a category string starts with `{` and parse it on-the-fly, extracting the correct `.name` text.
+
