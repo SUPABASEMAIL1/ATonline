@@ -1094,6 +1094,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                   </div>
                 </div>
               </div>
+              </div>
 
               {/* Card 2.5: E-Store Settings */}
               <div className="bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col h-fit">
