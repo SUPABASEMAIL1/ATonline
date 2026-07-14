@@ -101,6 +101,7 @@ export const mapProduct = (item: any): Product => ({
   modifiers: item.modifiers ?? [],
   isService: item.is_service ?? item.isService ?? false,
   requireSerial: item.require_serial ?? item.requireSerial ?? false,
+  showInEstore: item.show_in_estore ?? item.showInEstore ?? true,
   createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
 });
@@ -159,6 +160,12 @@ export const mapSale = (item: any): Sale => ({
   splitPayments: item.split_payments ?? item.splitPayments,
   total: item.total ? Number(item.total) : 0,
   subtotal: item.subtotal ? Number(item.subtotal) : 0,
+  estoreStatus: item.estore_status ?? item.estoreStatus,
+  deliveryAddress: item.delivery_address ?? item.deliveryAddress,
+  deliveryFee: item.delivery_fee ? Number(item.delivery_fee) : (item.deliveryFee ? Number(item.deliveryFee) : 0),
+  deliveryLocationLat: item.delivery_location_lat ?? item.deliveryLocationLat,
+  deliveryLocationLng: item.delivery_location_lng ?? item.deliveryLocationLng,
+  customerNotes: item.customer_notes ?? item.customerNotes,
   timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
   createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
@@ -255,6 +262,21 @@ export const mapSettings = (item: any): AppSettings => {
     retailEnabled: s.retail_enabled ?? s.retailEnabled ?? true,
     wholesaleEnabled: s.wholesale_enabled ?? s.wholesaleEnabled ?? false,
     estoreEnabled: s.estore_enabled ?? s.estoreEnabled ?? false,
+    estoreThemeColor: s.estore_theme_color ?? s.estoreThemeColor ?? '#10b981',
+    estorePrimaryColorHover: s.estore_primary_color_hover ?? s.estorePrimaryColorHover ?? '#059669',
+    estoreBgColor: s.estore_bg_color ?? s.estoreBgColor ?? '#f9fafb',
+    estoreTextColor: s.estore_text_color ?? s.estoreTextColor ?? '#111827',
+    estoreCardBgColor: s.estore_card_bg_color ?? s.estoreCardBgColor ?? '#ffffff',
+    estoreOrderTimerEnabled: s.estore_order_timer_enabled ?? s.estoreOrderTimerEnabled ?? false,
+    estoreOrderTimerMinutes: s.estore_order_timer_minutes ?? s.estoreOrderTimerMinutes ?? 30,
+    estoreDeliveryFee: s.estore_delivery_fee ?? s.estoreDeliveryFee ?? 0,
+    estoreMinOrder: s.estore_min_order ?? s.estoreMinOrder ?? 0,
+    estoreCodEnabled: s.estore_cod_enabled ?? s.estoreCodEnabled ?? true,
+    estoreLocationLat: s.estore_location_lat ?? s.estoreLocationLat,
+    estoreLocationLng: s.estore_location_lng ?? s.estoreLocationLng,
+    estoreDeliveryRadius: s.estore_delivery_radius ?? s.estoreDeliveryRadius ?? 5,
+    estoreWhatsappEnabled: s.estore_whatsapp_enabled ?? s.estoreWhatsappEnabled ?? false,
+    estoreWhatsappNumber: s.estore_whatsapp_number ?? s.estoreWhatsappNumber,
     defaultSaleType: s.default_sale_type ?? s.defaultSaleType ?? 'retail',
     language: s.language ?? s.language ?? 'en',
     touchKeyboardEnabled: s.touch_keyboard_enabled ?? s.touchKeyboardEnabled ?? false,
@@ -363,6 +385,21 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('retailEnabled' in s) { remote.retail_enabled = s.retailEnabled; }
   if ('wholesaleEnabled' in s) { remote.wholesale_enabled = s.wholesaleEnabled; }
   if ('estoreEnabled' in s) { remote.estore_enabled = s.estoreEnabled; }
+  if ('estoreThemeColor' in s) { remote.estore_theme_color = s.estoreThemeColor; }
+  if ('estorePrimaryColorHover' in s) { remote.estore_primary_color_hover = s.estorePrimaryColorHover; }
+  if ('estoreBgColor' in s) { remote.estore_bg_color = s.estoreBgColor; }
+  if ('estoreTextColor' in s) { remote.estore_text_color = s.estoreTextColor; }
+  if ('estoreCardBgColor' in s) { remote.estore_card_bg_color = s.estoreCardBgColor; }
+  if ('estoreOrderTimerEnabled' in s) { remote.estore_order_timer_enabled = s.estoreOrderTimerEnabled; }
+  if ('estoreOrderTimerMinutes' in s) { remote.estore_order_timer_minutes = s.estoreOrderTimerMinutes; }
+  if ('estoreDeliveryFee' in s) { remote.estore_delivery_fee = s.estoreDeliveryFee; }
+  if ('estoreMinOrder' in s) { remote.estore_min_order = s.estoreMinOrder; }
+  if ('estoreCodEnabled' in s) { remote.estore_cod_enabled = s.estoreCodEnabled; }
+  if ('estoreLocationLat' in s) { remote.estore_location_lat = s.estoreLocationLat; }
+  if ('estoreLocationLng' in s) { remote.estore_location_lng = s.estoreLocationLng; }
+  if ('estoreDeliveryRadius' in s) { remote.estore_delivery_radius = s.estoreDeliveryRadius; }
+  if ('estoreWhatsappEnabled' in s) { remote.estore_whatsapp_enabled = s.estoreWhatsappEnabled; }
+  if ('estoreWhatsappNumber' in s) { remote.estore_whatsapp_number = s.estoreWhatsappNumber; }
   if ('defaultSaleType' in s) { remote.default_sale_type = s.defaultSaleType; }
   if ('language' in s) { remote.language = s.language; }
 
@@ -469,6 +506,7 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   if ('updatedAt' in p) { remote.updated_at = p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt; delete remote.updatedAt; }
   if ('isService' in p) { remote.is_service = p.isService; delete remote.isService; }
   if ('requireSerial' in p) { remote.require_serial = p.requireSerial; delete remote.requireSerial; }
+  if ('showInEstore' in p) { remote.show_in_estore = p.showInEstore; delete remote.showInEstore; }
   if ('variantData' in p) { remote.variant_data = p.variantData; delete remote.variantData; }
   delete remote.batches;
   delete remote.product_batches;
@@ -596,6 +634,12 @@ export const toRemoteSale = (s: Partial<Sale>) => {
   if ('billDiscountType' in s) { remote.bill_discount_type = s.billDiscountType; delete remote.billDiscountType; }
   if ('extraCharges' in s) { remote.extra_charges = s.extraCharges; delete remote.extraCharges; }
   if ('splitPayments' in s) { remote.split_payments = s.splitPayments; delete remote.splitPayments; }
+  if ('estoreStatus' in s) { remote.estore_status = s.estoreStatus; delete remote.estoreStatus; }
+  if ('deliveryAddress' in s) { remote.delivery_address = s.deliveryAddress; delete remote.deliveryAddress; }
+  if ('deliveryFee' in s) { remote.delivery_fee = s.deliveryFee; delete remote.deliveryFee; }
+  if ('deliveryLocationLat' in s) { remote.delivery_location_lat = s.deliveryLocationLat; delete remote.deliveryLocationLat; }
+  if ('deliveryLocationLng' in s) { remote.delivery_location_lng = s.deliveryLocationLng; delete remote.deliveryLocationLng; }
+  if ('customerNotes' in s) { remote.customer_notes = s.customerNotes; delete remote.customerNotes; }
   if ('createdAt' in s) { remote.created_at = s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt; delete remote.createdAt; }
   if ('updatedAt' in s) { remote.updated_at = s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt; delete remote.updatedAt; }
   if ('timestamp' in s) {

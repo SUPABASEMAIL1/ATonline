@@ -47,6 +47,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
     active: true,
     trackInventory: true,
     isFeatured: false,
+    showInEstore: true,
     image: '',
     isService: false,
     requireSerial: false,
@@ -89,6 +90,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         taxable: product.taxable ?? true,
         active: product.active ?? true,
         isFeatured: product.isFeatured ?? false,
+        showInEstore: product.showInEstore ?? true,
         trackInventory: product.trackInventory ?? true,
         image: product.image || '',
         isService: product.isService ?? false,
@@ -114,6 +116,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         taxable: true,
         active: true,
         isFeatured: false,
+        showInEstore: true,
         trackInventory: true,
         image: '',
         isService: false,
@@ -243,6 +246,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       image: formData.image || undefined,
       trackInventory: formData.trackInventory,
       isFeatured: formData.isFeatured,
+      showInEstore: formData.showInEstore,
       isService: formData.isService,
       requireSerial: formData.requireSerial,
       batches,
@@ -302,6 +306,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
           active: true,
           trackInventory: true,
           isFeatured: false,
+          showInEstore: true,
           image: '',
           isService: false,
           requireSerial: false,
@@ -596,6 +601,48 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                   <BarcodePreview value={formData.barcode} />
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* E-STORE VISIBILITY & SORTING */}
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
+              <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
+              E-Store Visibility & Sorting
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="flex items-start gap-3 cursor-pointer group p-4 bg-emerald-50 dark:bg-primary/10 rounded-xl border border-emerald-100 dark:border-primary/20 transition-all hover:bg-emerald-100 dark:hover:bg-primary/20">
+                <input
+                  type="checkbox"
+                  name="showInEstore"
+                  checked={formData.showInEstore}
+                  onChange={handleChange}
+                  className="w-5 h-5 mt-0.5 rounded border-gray-300 text-primary"
+                />
+                <div>
+                  <div className="text-xs font-black text-emerald-900 dark:text-primary uppercase tracking-wide flex items-center">
+                    Show in E-Store
+                  </div>
+                  <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-0.5">Allow online ordering</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer group p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-500/20 transition-all hover:bg-amber-100 dark:hover:bg-amber-900/20">
+                <input
+                  type="checkbox"
+                  name="isFeatured"
+                  checked={formData.isFeatured}
+                  onChange={handleChange}
+                  className="w-5 h-5 mt-0.5 rounded border-gray-300 text-amber-600"
+                />
+                <div>
+                  <div className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wide flex items-center">
+                    {t('featured', 'Featured')}
+                  </div>
+                  <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mt-0.5">Sorts to top of E-Store</div>
+                </div>
+              </label>
             </div>
           </div>
 
@@ -1062,7 +1109,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
 
           {/* Configuration */}
           <div className="pt-6 border-t border-gray-200 dark:border-white/5 flex flex-wrap gap-4 sm:gap-6">
-             {['taxable', 'active', 'isFeatured'].map((field) => (
+             {['taxable', 'active'].map((field) => (
                 <label key={field} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1072,7 +1119,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                     className="w-4 h-4 rounded border-gray-300 text-primary"
                   />
                   <span className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">
-                    {field === 'isFeatured' ? t('featured') : field === 'taxable' ? t('taxable') : t('active')}
+                    {field === 'taxable' ? t('taxable') : t('active')}
                   </span>
                 </label>
              ))}

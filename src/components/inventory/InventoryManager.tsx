@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Search, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, ChevronRight, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, ChevronRight, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift, Globe } from 'lucide-react';
 import { Product } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { ProductModal } from './ProductModal';
@@ -97,6 +97,7 @@ export function InventoryManager() {
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [viewingSale, setViewingSale] = useState<any | null>(null);
   const [showScannerInInventory, setShowScannerInInventory] = useState(false);
+  const [showEstoreOnly, setShowEstoreOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
@@ -179,7 +180,8 @@ export function InventoryManager() {
           (selectedType === 'services' && product.isService) ||
           (selectedType === 'serialized' && product.requireSerial) ||
           (selectedType === 'standard' && !product.isService && !product.requireSerial);
-        return matchesSearch && matchesCategory && matchesSupplier && matchesType;
+        const matchesEstore = showEstoreOnly ? product.showInEstore : true;
+        return matchesSearch && matchesCategory && matchesSupplier && matchesType && matchesEstore;
       })
       .sort((a, b) => {
         let aValue: string | number;
@@ -209,7 +211,7 @@ export function InventoryManager() {
           return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
         }
       });
-  }, [state.products, searchTerm, selectedCategory, selectedSupplier, selectedType, sortBy, sortOrder]);
+  }, [state.products, searchTerm, selectedCategory, selectedSupplier, selectedType, sortBy, sortOrder, showEstoreOnly]);
 
   const totalPages = useMemo(() => {
     return Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
@@ -716,6 +718,17 @@ export function InventoryManager() {
                   onChange={val => { setSelectedType(val); setCurrentPage(1); }}
                   placeholder={t("type", "Item Type")}
                 />
+                <button
+                  onClick={() => setShowEstoreOnly(!showEstoreOnly)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+                    showEstoreOnly 
+                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
+                      : 'bg-white dark:bg-black/20 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/5 hover:border-gray-300'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  E-Store Only
+                </button>
                 <SearchableSelect
                   options={[
                     { id: 'name-asc', label: t("sort_az", "Sort: A-Z") },

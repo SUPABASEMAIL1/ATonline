@@ -86,6 +86,26 @@
           });
         }
       }
+
+      // ─── Dynamic Manifest for E-Store ───
+      var _manifestLink = document.querySelector('link[rel="manifest"]');
+      if (window.location.pathname.startsWith('/store')) {
+        if (_manifestLink) {
+          _manifestLink.setAttribute('href', '/manifest-store.json');
+        } else {
+          var link = document.createElement('link');
+          link.rel = 'manifest';
+          link.href = '/manifest-store.json';
+          document.head.appendChild(link);
+        }
+        document.title = "Zaynahs Online Store";
+      } else {
+        if (_manifestLink) {
+          // In production, Vite PWA generates a manifest usually injected automatically,
+          // but we set a fallback here.
+          _manifestLink.setAttribute('href', '/site.webmanifest');
+        }
+      }
     </script>
   </head>
   <body>

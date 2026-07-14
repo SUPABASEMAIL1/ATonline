@@ -52,6 +52,7 @@ export interface Product {
   modifiers?: ProductModifier[];
   isService?: boolean;
   requireSerial?: boolean;
+  showInEstore?: boolean;
 }
 
 
@@ -267,6 +268,13 @@ export interface Sale {
   splitPayments?: SplitPayment[];
   refundedAt?: string;
   refundedAmount?: number; // Total amount refunded from this sale
+  // E-Store features
+  estoreStatus?: 'pending' | 'accepted' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  deliveryAddress?: string;
+  deliveryFee?: number;
+  deliveryLocationLat?: number;
+  deliveryLocationLng?: number;
+  customerNotes?: string;
 }
 
 export interface RefundRequest {
@@ -400,6 +408,21 @@ export interface AppSettings {
   retailEnabled: boolean;
   wholesaleEnabled: boolean;
   estoreEnabled: boolean;
+  estoreThemeColor?: string;
+  estorePrimaryColorHover?: string;
+  estoreBgColor?: string;
+  estoreTextColor?: string;
+  estoreCardBgColor?: string;
+  estoreOrderTimerEnabled?: boolean;
+  estoreOrderTimerMinutes?: number;
+  estoreDeliveryFee?: number;
+  estoreMinOrder?: number;
+  estoreCodEnabled?: boolean;
+  estoreLocationLat?: number;
+  estoreLocationLng?: number;
+  estoreDeliveryRadius?: number;
+  estoreWhatsappEnabled?: boolean;
+  estoreWhatsappNumber?: string;
   defaultSaleType?: 'retail' | 'wholesale' | 'estore';
   language?: string;
   touchKeyboardEnabled: boolean;

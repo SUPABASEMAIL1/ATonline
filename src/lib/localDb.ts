@@ -96,6 +96,35 @@ export class ZaynahsPosDB extends Dexie {
     const dbName = `ZaynahsPosDB_${projectRef}`;
 
     super(dbName);
+    this.version(17).stores({
+      products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock, showInEstore',
+      categories: 'id, name',
+      suppliers: 'id, name',
+      sales: 'id, invoiceNumber, customerId, timestamp, saleDate, status, dcNumber, extraCharges, estoreStatus',
+      customers: 'id, name, phone, email',
+      expenses: 'id, categoryId, date',
+      discounts: 'id, name, type, active',
+      users: 'id, username, email',
+      productBatches: 'id, productId, created_at, status',
+      purchaseRecords: 'id, productId, supplierId, date',
+      purchaseOrders: 'id, poNumber, supplierId',
+      purchaseOrderItems: 'id, poId, productId',
+      supplierTransactions: 'id, supplierId',
+      payments: 'id, supplierId',
+      stockHistory: 'id, productId, timestamp, type',
+      salesTabs: 'id, userId',
+      appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',
+      pendingOps: '++id, [entity+entityId], status, createdAt',
+      syncHistory: '++id, timestamp',
+      bundles: 'id, name, active',
+      bundleItems: 'id, bundleId, productId',
+      bundleSlots: 'id, bundleId',
+      bundleSlotOptions: 'id, slotId, productId',
+      // Legacy compatibility:
+      app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
+      purchase_records: 'id, productId, supplierId, date'
+    });
+
     this.version(16).stores({
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock',
       categories: 'id, name',

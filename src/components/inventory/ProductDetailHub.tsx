@@ -77,6 +77,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     image: product.image || '',
     isService: product.isService || false,
     requireSerial: product.requireSerial || false,
+    showInEstore: product.showInEstore ?? true,
   });
 
   const [batches, setBatches] = useState(product.batches || []);
@@ -102,6 +103,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       image: product.image || '',
       isService: product.isService || false,
       requireSerial: product.requireSerial || false,
+      showInEstore: product.showInEstore ?? true
     });
     setBatches(product.batches || []);
     setVariants((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
@@ -315,6 +317,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         modifiers: modifiers,
         isService: formData.isService,
         requireSerial: formData.requireSerial,
+        showInEstore: formData.showInEstore,
         updatedAt: now,
       };
 
@@ -996,8 +999,10 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
               </div>
             </div>
 
-            {/* Card 2: Status & Controls (Col span 4) */}
-            <div className="lg:col-span-4 bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col justify-between">
+            {/* Right Column: Status & E-Store Controls */}
+            <div className="lg:col-span-4 space-y-8">
+              {/* Card 2: Status & Controls */}
+              <div className="bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col justify-between h-fit">
               <div>
                 <div className="flex items-center gap-3 mb-8">
                   <div className="p-3 bg-primary/10 text-primary rounded-[1.5rem]"><Tag className="w-6 h-6" /></div>
@@ -1026,24 +1031,6 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/[0.03] rounded-[1.5rem] border border-gray-200 dark:border-white/5">
-                    <div className="flex flex-col">
-                      <span className="text-[11px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center">
-                        {t('featured', 'Featured')}
-                        <HelpTooltip content="Highlights this product with a gold star badge across inventory and POS quick-select grids." />
-                      </span>
-                      <span className="text-[9px] font-bold text-gray-600 uppercase">{t('star_product', 'Star Product')}</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer scale-110">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={formData.isFeatured}
-                        onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
-                      />
-                      <div className="w-10 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-500"></div>
-                    </label>
-                  </div>
 
                   <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/[0.03] rounded-[1.5rem] border border-gray-200 dark:border-white/5">
                     <div className="flex flex-col">
@@ -1103,6 +1090,56 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                         onChange={(e) => setFormData({ ...formData, requireSerial: e.target.checked })}
                       />
                       <div className="w-10 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2.5: E-Store Settings */}
+              <div className="bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col h-fit">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-[1.5rem]"><Globe className="w-6 h-6" /></div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">E-Store Control</h3>
+                    <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Visibility & Sorting</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/[0.03] rounded-[1.5rem] border border-gray-200 dark:border-white/5">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center">
+                        Show In E-Store
+                        <HelpTooltip content="Controls whether this product is visible for customers in the online store." />
+                      </span>
+                      <span className="text-[9px] font-bold text-gray-600 uppercase">Allow Online Ordering</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer scale-110">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={formData.showInEstore}
+                        onChange={(e) => setFormData({ ...formData, showInEstore: e.target.checked })}
+                      />
+                      <div className="w-10 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/[0.03] rounded-[1.5rem] border border-gray-200 dark:border-white/5">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center">
+                        {t('featured', 'Featured')}
+                        <HelpTooltip content="Sorts to top of E-Store and highlights with a gold star badge across inventory." />
+                      </span>
+                      <span className="text-[9px] font-bold text-gray-600 uppercase">Star Product</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer scale-110">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={formData.isFeatured}
+                        onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
+                      />
+                      <div className="w-10 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
                     </label>
                   </div>
                 </div>

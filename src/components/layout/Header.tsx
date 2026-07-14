@@ -167,6 +167,10 @@ export function Header({
       items.push({ id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: AppIcons.dashboard, color: 'text-primary' });
 
     items.push({ id: 'pos', label: t('pos', 'POS'), icon: AppIcons.pos, color: 'text-blue-500' });
+    
+    if (state.settings.estoreEnabled) {
+      items.push({ id: 'online-orders', label: 'Orders', icon: ShoppingCart, color: 'text-emerald-500' });
+    }
 
     if (role === 'admin' || role === 'manager' || role === 'cashier')
       items.push({ id: 'transactions', label: t('sales', 'Sales'), icon: AppIcons.sales, color: 'text-orange-500' });

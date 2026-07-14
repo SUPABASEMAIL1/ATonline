@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Download, Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, ChevronRight, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag } from 'lucide-react';
+import { Search, Download, Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, ChevronRight, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag, MapPin } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
@@ -228,6 +228,7 @@ export function TransactionsManager() {
 
     return list.filter(sale => {
       if (isDraftSale(sale)) return false;
+      if (sale.status === 'pending') return false;
       const matchesSearch = isCloudSearch || (
         (sale.receiptNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (sale.invoiceNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1066,6 +1067,18 @@ function TransactionDetailModal({ transaction, allTransactions, onNavigate, onCl
             <div><p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">{t("cashier", "Cashier")}</p><p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">{transaction.cashier || 'System'}</p></div>
             {transaction.dcNumber && (
               <div className="col-span-2"><p className="text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">{t("dc_number", "DC Number")}</p><p className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tight tabular-nums">#{transaction.dcNumber}</p></div>
+            )}
+            {transaction.deliveryLocationLat && transaction.deliveryLocationLng && (
+              <div className="col-span-2 mt-1">
+                <a 
+                  href={`https://maps.google.com/?q=${transaction.deliveryLocationLat},${transaction.deliveryLocationLng}`}
+                  target="_blank"
+                  rel="noopener noreferrer" 
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-emerald-100 dark:border-emerald-900/30"
+                >
+                  <MapPin className="w-3.5 h-3.5 shrink-0" /> {t("view_location", "View Delivery Location")}
+                </a>
+              </div>
             )}
           </div>
 

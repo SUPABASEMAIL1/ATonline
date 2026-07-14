@@ -211,10 +211,22 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
 
     setIsProcessing(true);
     try {
-      const invoiceNumber = await generateInvoice();
+      let finalInvoiceNumber = '';
+      let oldSale: Sale | undefined = undefined;
+      
+      if (state.editingSaleId) {
+        oldSale = state.sales.find(s => s.id === state.editingSaleId);
+      }
+
+      if (oldSale && oldSale.invoiceNumber) {
+        finalInvoiceNumber = oldSale.invoiceNumber;
+      } else {
+        finalInvoiceNumber = await generateInvoice();
+      }
+
       const sale: Sale = {
         id: generateId(),
-        invoiceNumber,
+        invoiceNumber: finalInvoiceNumber,
         customerId: state.selectedCustomer?.id,
         customerName: state.selectedCustomer?.name,
         customerPhone: state.selectedCustomer?.phone,
@@ -229,7 +241,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         status: (paymentMethod === 'credit' || (paymentMethod === 'split' && splitPayments.some(p => p.method === 'credit'))) ? 'credit' : 'completed',
         cashier: profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown',
         timestamp: new Date(),
-        receiptNumber: invoiceNumber,
+        receiptNumber: finalInvoiceNumber,
         notes: saleNotes || undefined,
         appliedDiscounts,
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
@@ -242,8 +254,14 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         otherAmount: parseFloat(otherAmount) || undefined,
         otherAmountName: otherAmountName || undefined,
         splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
+        // Preserve E-Store specific fields from oldSale if available
+        estoreStatus: oldSale?.estoreStatus ? 'delivered' : undefined,
+        deliveryAddress: oldSale?.deliveryAddress,
+        deliveryFee: oldSale?.deliveryFee,
+        deliveryLocationLat: oldSale?.deliveryLocationLat,
+        deliveryLocationLng: oldSale?.deliveryLocationLng,
+        customerNotes: oldSale?.customerNotes,
       };
-
 
       // ── BILL EDIT: Safe two-phase create → delete (Replaces broken delete-first pattern) ──
       if (state.editingSaleId) {

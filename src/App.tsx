@@ -19,7 +19,8 @@ const ExpenseManager = lazy(() => import('./components/expenses/ExpenseManager')
 const SupplierManager = lazy(() => import('./components/inventory/suppliers/SupplierManager').then(m => ({ default: m.SupplierManager })));
 const PurchaseOrderSystem = lazy(() => import('./components/inventory/PurchaseOrderSystem').then(m => ({ default: m.PurchaseOrderSystem })));
 const DashboardManager = lazy(() => import('./components/dashboard/DashboardManager').then(m => ({ default: m.DashboardManager })));
-
+const EStoreApp = lazy(() => import('./components/estore/EStoreApp').then(m => ({ default: m.EStoreApp })));
+const OnlineOrdersPage = lazy(() => import('./components/orders/OnlineOrdersPage').then(m => ({ default: m.OnlineOrdersPage })));
 import { playPageSound } from './lib/sounds';
 import { TouchKeyboardProvider, useTouchKeyboard } from './providers/TouchKeyboardProvider';
 import { startSyncEngine } from './lib/syncEngine';
@@ -98,6 +99,7 @@ function RequireAccess({ viewId, children }: { viewId: string; children: React.R
     if (userRole === 'admin') return true;
     switch (viewId) {
       case 'pos': return true;
+      case 'online-orders': return true; // Anyone who can access POS can manage online orders or we can restrict it. Let's make it true for now.
       case 'transactions': return userRole === 'manager' || userRole === 'cashier';
       case 'expenses': return userRole === 'manager' || perms.includes('access_expenses');
       case 'inventory': return userRole === 'manager' || perms.includes('access_inventory') || !!state.currentUser?.canManageStock || !!state.currentUser?.canManagePO || !!state.currentUser?.canViewRecords;
@@ -299,7 +301,11 @@ function AppContent() {
           },
         }}
       />
-      {isRecoveringPassword ? (
+      {location.pathname.startsWith('/store') ? (
+        <Suspense fallback={<LoadingView />}>
+          <EStoreApp />
+        </Suspense>
+      ) : isRecoveringPassword ? (
         <ResetPasswordPage />
       ) : !user || !state.currentUser || !state.currentUser.active ? (
         <LoginPage />
@@ -311,6 +317,7 @@ function AppContent() {
             <Suspense fallback={<LoadingView />}>
               <Routes>
                 <Route path="/pos" element={<POSTerminal />} />
+                <Route path="/online-orders" element={<RequireAccess viewId="online-orders"><OnlineOrdersPage /></RequireAccess>} />
                 <Route path="/transactions" element={<RequireAccess viewId="transactions"><TransactionsManager /></RequireAccess>} />
                 <Route path="/expenses" element={<RequireAccess viewId="expenses"><ExpenseManager /></RequireAccess>} />
                 <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />

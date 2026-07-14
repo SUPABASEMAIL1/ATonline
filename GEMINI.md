@@ -740,5 +740,11 @@ Supabase ka free plan 1 hafte baad database pause kar deta hai. Isey 24/7 active
 4.  **Quiet Consoles (`main.tsx`, `SupabaseAppContext.tsx`)**:
     *   Configured React Router v7 future flags (`v7_startTransition`, `v7_relativeSplatPath`) on `<BrowserRouter>` to silence upgrade warnings.
     *   Downgraded realtime disconnect/retry console logs from warning (`console.warn`) to standard info (`console.log`) level.
+### [2026-07-14] E-Store Integration - Phase 1 Schema
+**Files Updated:** `SUPER_MASTER_SCHEMA.sql`
+**Changes:**
+1.  **products table:** Added `show_in_estore BOOLEAN DEFAULT true` to control online visibility.
+2.  **sales table:** Added `estore_status TEXT DEFAULT 'pending'`, `delivery_address TEXT`, `delivery_fee DECIMAL(12,2) DEFAULT 0`, `customer_notes TEXT`.
+3.  **Idempotent Schema:** Added `ALTER TABLE ADD COLUMN IF NOT EXISTS` block in `SUPER_MASTER_SCHEMA.sql` for post-launch updates.
 
 ✅ **All Done!**

@@ -1,10 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ProductGrid } from './ProductGrid';
 import { Cart } from './Cart';
 import { CheckoutPage } from './CheckoutPage';
 import { SalesTabManager } from './SalesTabManager';
 import { GridDensityController } from './GridDensityController';
 import { DraftsModal } from './DraftsModal';
+
 import { ProductOptionsModal } from './ProductOptionsModal';
 import { ShortcutsModal } from './ShortcutsModal';
 import { Product, Sale, ProductModifier } from '../../types';
@@ -12,7 +14,7 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { salesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
-import { ShoppingCart, Keyboard, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ShoppingCart, Keyboard, ChevronLeft, ChevronRight, Plus, Bell } from 'lucide-react';
 import { formatCurrency } from '../../lib/currencies';
 import { useHardwareScanner } from '../../hooks/useHardwareScanner';
 import { usePOSKeyboard } from '../../hooks/usePOSKeyboard';
@@ -21,14 +23,18 @@ import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export function POSTerminal() {
+  const navigate = useNavigate();
   const { state, dispatch } = useApp();
   const { user } = useAuth();
   const { t } = useTranslation();
   const [showCheckout, setShowCheckout] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
+
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isReturnMode, setIsReturnMode] = useState(false);
+
+  const pendingEstoreOrders = state.sales.filter(s => s.estoreStatus === 'pending').length;
 
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
   const [pendingWeight, setPendingWeight] = useState<number | undefined>(undefined);
@@ -496,6 +502,22 @@ export function POSTerminal() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              {state.settings.estoreEnabled && (
+                <button
+                  onClick={() => navigate('/online-orders')}
+                  style={{ minHeight: 'unset' }}
+                  className="relative px-3 py-1.5 min-h-0 bg-primary text-white hover:bg-emerald-600 rounded-xl transition-all active:scale-95 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 font-black tracking-widest uppercase text-[10px] sm:text-xs"
+                  title="Online Orders"
+                >
+                  <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5" />
+                  Orders
+                  {pendingEstoreOrders > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-sm ring-2 ring-white dark:ring-[#1E1E1E]">
+                      {pendingEstoreOrders}
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => setIsShortcutsModalOpen(true)}
                 style={{ minHeight: 'unset' }}
@@ -604,6 +626,7 @@ export function POSTerminal() {
           onClose={() => setIsDraftsModalOpen(false)}
           onLoadDraft={loadDraft}
         />
+
 
         {optionsProduct && (
           <ProductOptionsModal

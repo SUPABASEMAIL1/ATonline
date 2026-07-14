@@ -77,10 +77,11 @@ export default defineConfig(({ mode }) => {
     host: true,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
     },
   },
   optimizeDeps: {
+    force: true,
     exclude: ['lucide-react', '@electric-sql/pglite', '@electric-sql/pglite-react'],
   },
   };

@@ -262,6 +262,21 @@ CREATE TABLE IF NOT EXISTS app_settings (
     retail_enabled              BOOLEAN DEFAULT true,
     wholesale_enabled           BOOLEAN DEFAULT false,
     estore_enabled              BOOLEAN DEFAULT false,
+    estore_theme_color          TEXT DEFAULT '#10b981',
+    estore_delivery_fee         NUMERIC DEFAULT 0,
+    estore_min_order            NUMERIC DEFAULT 0,
+    estore_cod_enabled          BOOLEAN DEFAULT true,
+    estore_location_lat         NUMERIC,
+    estore_location_lng         NUMERIC,
+    estore_delivery_radius      NUMERIC DEFAULT 5,
+    estore_whatsapp_enabled     BOOLEAN DEFAULT false,
+    estore_whatsapp_number      TEXT,
+    estore_primary_color_hover  TEXT DEFAULT '#059669',
+    estore_bg_color             TEXT DEFAULT '#f9fafb',
+    estore_text_color           TEXT DEFAULT '#111827',
+    estore_card_bg_color        TEXT DEFAULT '#ffffff',
+    estore_order_timer_enabled  BOOLEAN DEFAULT false,
+    estore_order_timer_minutes  INTEGER DEFAULT 30,
     sound_enabled               BOOLEAN DEFAULT true,
     touch_keyboard_enabled      BOOLEAN DEFAULT false,
     enable_kot_printer          BOOLEAN DEFAULT false,
@@ -374,6 +389,7 @@ CREATE TABLE IF NOT EXISTS products (
     modifiers           JSONB DEFAULT '[]'::jsonb,
     is_service          BOOLEAN DEFAULT false,
     require_serial      BOOLEAN DEFAULT false,
+    show_in_estore      BOOLEAN DEFAULT true,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
 
@@ -517,6 +533,12 @@ CREATE TABLE IF NOT EXISTS sales (
     extra_charges       JSONB DEFAULT '[]'::jsonb,
     split_payments      JSONB DEFAULT '[]'::jsonb,
     refunded_amount     DECIMAL(12,2) DEFAULT 0,
+    estore_status       TEXT DEFAULT 'pending' CHECK (estore_status IN ('pending', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled')),
+    delivery_address    TEXT,
+    delivery_fee        DECIMAL(12,2) DEFAULT 0,
+    delivery_location_lat NUMERIC,
+    delivery_location_lng NUMERIC,
+    customer_notes      TEXT,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT now()
 );
@@ -1451,7 +1473,12 @@ ALTER TABLE app_settings
   ADD COLUMN IF NOT EXISTS enable_split_payment           BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS enable_extra_charges           BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS allow_credit_over_limit        BOOLEAN DEFAULT true,
-  ADD COLUMN IF NOT EXISTS pos_grid_columns               INTEGER DEFAULT 4;
+  ADD COLUMN IF NOT EXISTS pos_grid_columns               INTEGER DEFAULT 4,
+  ADD COLUMN IF NOT EXISTS estore_location_lat            NUMERIC,
+  ADD COLUMN IF NOT EXISTS estore_location_lng            NUMERIC,
+  ADD COLUMN IF NOT EXISTS estore_delivery_radius         NUMERIC DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS estore_whatsapp_enabled        BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS estore_whatsapp_number         TEXT;
 
 DO $$
 BEGIN
@@ -1472,7 +1499,11 @@ END $$;
 ALTER TABLE sales
   ADD COLUMN IF NOT EXISTS split_payments  JSONB DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS extra_charges   JSONB DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS refunded_amount DECIMAL(12,2) DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS refunded_amount DECIMAL(12,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS delivery_fee    DECIMAL(12,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS delivery_address TEXT,
+  ADD COLUMN IF NOT EXISTS delivery_location_lat NUMERIC,
+  ADD COLUMN IF NOT EXISTS delivery_location_lng NUMERIC;
 
 DO $$
 BEGIN
@@ -1808,3 +1839,24 @@ LEFT JOIN (
 ) sh_sum ON sh_sum.product_id = p.id
 WHERE p.track_inventory = true
   AND ABS(p.stock - COALESCE(sh_sum.total_change, 0)) > 1;
+
+-- ════════════════════════════════════════════════════════════════
+-- IDEMPOTENT COLUMN ADDITIONS (Post-Launch schema updates)
+-- ════════════════════════════════════════════════════════════════
+
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS show_in_estore BOOLEAN DEFAULT true;
+
+ALTER TABLE sales
+  ADD COLUMN IF NOT EXISTS estore_status TEXT DEFAULT 'pending' CHECK (estore_status IN ('pending', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled')),
+  ADD COLUMN IF NOT EXISTS delivery_address TEXT,
+  ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(12,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS customer_notes TEXT;
+
+ALTER TABLE app_settings
+  ADD COLUMN IF NOT EXISTS estore_primary_color_hover TEXT DEFAULT '#059669',
+  ADD COLUMN IF NOT EXISTS estore_bg_color TEXT DEFAULT '#f9fafb',
+  ADD COLUMN IF NOT EXISTS estore_text_color TEXT DEFAULT '#111827',
+  ADD COLUMN IF NOT EXISTS estore_card_bg_color TEXT DEFAULT '#ffffff',
+  ADD COLUMN IF NOT EXISTS estore_order_timer_enabled BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS estore_order_timer_minutes INTEGER DEFAULT 30;

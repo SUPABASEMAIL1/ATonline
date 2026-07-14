@@ -48,6 +48,7 @@ import { ReceiptPrint } from '../pos/ReceiptPrint';
 import { AppSettings } from '../../types';
 import { useSync } from '../../hooks/useSync';
 import { DatabaseTools } from './DatabaseTools';
+import { HelpTooltip } from '../common/HelpTooltip';
 import { CloudSyncTab } from './CloudSyncTab';
 
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -57,7 +58,7 @@ import { localDb } from '../../lib/localDb';
 import { useSoundFeedback } from '../../hooks/useSoundFeedback';
 import { useTranslation } from '../../hooks/useTranslation';
 
-type TabType = 'general' | 'receipt' | 'backup' | 'security' | 'database';
+type TabType = 'general' | 'receipt' | 'backup' | 'security' | 'database' | 'estore';
 
 export function Settings() {
   const navigate = useNavigate();
@@ -70,7 +71,8 @@ export function Settings() {
     general: 'general_settings',
     receipt: 'receipt_design',
     security: 'security_account',
-    database: 'db_tools'
+    database: 'db_tools',
+    estore: 'estore_settings'
   };
   const { isOnline, isSyncing, pendingCount, lastSyncTime, hasError, syncNow } = useSync();
   const { play } = useSoundFeedback();
@@ -512,9 +514,10 @@ export function Settings() {
 
   const tabs: { id: TabType; label: string; icon: any; adminOnly?: boolean }[] = [
     { id: 'general', label: 'General Settings', icon: Sliders },
+    ...(state.settings?.estoreEnabled ? [{ id: 'estore' as TabType, label: 'Online Store', icon: Globe }] : []),
     { id: 'receipt', label: 'Receipt Design', icon: Printer },
     { id: 'security', label: 'Security & Account', icon: Shield },
-    { id: 'database', label: 'Zaynahs DB', icon: Globe, adminOnly: true },
+    { id: 'database', label: 'Zaynahs DB', icon: Database, adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(t => !t.adminOnly || profile?.role === 'admin');
@@ -564,7 +567,8 @@ export function Settings() {
                 general: 'bg-primary',
                 receipt: 'bg-cyan-600',
                 security: 'bg-blue-600',
-                database: 'bg-indigo-600'
+                database: 'bg-indigo-600',
+                estore: 'bg-emerald-600'
               };
               const activeColor = tabColors[tab.id] || 'bg-primary';
 
@@ -596,7 +600,8 @@ export function Settings() {
                   general: 'bg-primary',
                   receipt: 'bg-cyan-600',
                   security: 'bg-blue-600',
-                  database: 'bg-indigo-600'
+                  database: 'bg-indigo-600',
+                  estore: 'bg-emerald-600'
                 };
                 const activeColor = tabColors[tab.id] || 'bg-primary';
 
@@ -1614,6 +1619,294 @@ export function Settings() {
                   <p className="text-[10px] text-gray-600 font-bold text-center uppercase tracking-widest leading-relaxed">
                     Connecting to restricted infrastructure.<br />Ensure SSL/TLS endpoint is verified.
                   </p>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'estore' && (
+              <section className="space-y-8">
+                <div className="flex items-center gap-3 pb-2 border-b border-gray-50 dark:border-white/5">
+                  <div className="w-10 h-10 bg-emerald-100/30 rounded-xl flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Online Store Settings</h2>
+                    <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Manage your public E-Store</p>
+                  </div>
+                </div>
+
+                <div className="p-4 sm:p-8 bg-emerald-50/20 dark:bg-emerald-900/5 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/20 space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl">
+                    <div>
+                      <h4 className="font-bold text-gray-900 dark:text-white">Your Public Store Link</h4>
+                      <p className="text-xs text-gray-500 mt-1">Share this link with your customers to start receiving orders.</p>
+                    </div>
+                    <a href="/store" target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all">
+                      Visit Store
+                    </a>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* --- ADVANCED THEME SETTINGS --- */}
+                    <div className="col-span-1 md:col-span-2 pt-2 border-t border-gray-100 dark:border-white/5">
+                      <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Advanced Theme Customization</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 mb-2 block">Theme Presets</label>
+                          <div className="flex flex-wrap gap-3 items-center">
+                            {[
+                              { name: 'Green', primary: '#10b981', hover: '#059669', bg: '#f9fafb', text: '#111827', card: '#ffffff' },
+                              { name: 'Blue', primary: '#3b82f6', hover: '#2563eb', bg: '#0f172a', text: '#f8fafc', card: '#1e293b' },
+                              { name: 'Rose', primary: '#fb7185', hover: '#e11d48', bg: '#fff1f2', text: '#4c0519', card: '#ffffff' },
+                              { name: 'Orange', primary: '#f97316', hover: '#ea580c', bg: '#fff7ed', text: '#431407', card: '#ffffff' },
+                              { name: 'Purple', primary: '#8b5cf6', hover: '#7c3aed', bg: '#faf5ff', text: '#2e1065', card: '#ffffff' },
+                              { name: 'Dark', primary: '#6366f1', hover: '#4f46e5', bg: '#000000', text: '#ffffff', card: '#111111' },
+                              { name: 'Coffee', primary: '#d97706', hover: '#b45309', bg: '#fefce8', text: '#713f12', card: '#fffbeb' },
+                              { name: 'Ocean', primary: '#06b6d4', hover: '#0891b2', bg: '#f0fdfa', text: '#164e63', card: '#ffffff' },
+                              { name: 'Crimson', primary: '#e11d48', hover: '#be123c', bg: '#fff1f2', text: '#881337', card: '#ffffff' },
+                              { name: 'Mono', primary: '#000000', hover: '#333333', bg: '#ffffff', text: '#000000', card: '#fafafa' }
+                            ].map((preset, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                title={preset.name}
+                                onClick={() => setFormData(prev => ({ 
+                                  ...prev, 
+                                  estoreThemeColor: preset.primary,
+                                  estorePrimaryColorHover: preset.hover,
+                                  estoreBgColor: preset.bg,
+                                  estoreTextColor: preset.text,
+                                  estoreCardBgColor: preset.card
+                                }))}
+                                className={`px-4 py-2 rounded-xl border-2 transition-transform hover:-translate-y-0.5 shadow-sm flex items-center gap-2 font-bold text-xs ${formData.estoreThemeColor === preset.primary && formData.estoreBgColor === preset.bg ? 'border-primary ring-2 ring-primary/20 shadow-md' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'}`}
+                                style={{ backgroundColor: preset.card, color: preset.text }}
+                              >
+                                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: preset.primary }}></span>
+                                {preset.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">Primary</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" name="estoreThemeColor" value={formData.estoreThemeColor || '#10b981'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                              <span className="text-xs text-gray-600 font-mono">{formData.estoreThemeColor || '#10b981'}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">Btn Hover</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" name="estorePrimaryColorHover" value={formData.estorePrimaryColorHover || '#059669'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                              <span className="text-xs text-gray-600 font-mono">{formData.estorePrimaryColorHover || '#059669'}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">Page BG</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" name="estoreBgColor" value={formData.estoreBgColor || '#f9fafb'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                              <span className="text-xs text-gray-600 font-mono">{formData.estoreBgColor || '#f9fafb'}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">Card BG</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" name="estoreCardBgColor" value={formData.estoreCardBgColor || '#ffffff'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                              <span className="text-xs text-gray-600 font-mono">{formData.estoreCardBgColor || '#ffffff'}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase">Text</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" name="estoreTextColor" value={formData.estoreTextColor || '#111827'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                              <span className="text-xs text-gray-600 font-mono">{formData.estoreTextColor || '#111827'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* --- ORDER TIMER SETTINGS --- */}
+                    <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-100 dark:border-white/5">
+                      <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Live Order Timer</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer">
+                          <div>
+                            <h4 className="font-bold text-sm text-gray-900 dark:text-white">Enable Countdown</h4>
+                            <p className="text-[10px] text-gray-500 font-medium">Show live countdown on customer order screen</p>
+                          </div>
+                          <div className="relative">
+                            <input type="checkbox" name="estoreOrderTimerEnabled" checked={formData.estoreOrderTimerEnabled === true} onChange={handleChange} className="sr-only peer" />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                          </div>
+                        </label>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Default Prep Time (Minutes)</label>
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">Min</span>
+                            <input
+                              type="number"
+                              name="estoreOrderTimerMinutes"
+                              value={formData.estoreOrderTimerMinutes || 30}
+                              onChange={handleChange}
+                              min="1"
+                              disabled={!formData.estoreOrderTimerEnabled}
+                              className="w-full pl-12 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all disabled:opacity-50"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <label className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer">
+                      <div>
+                        <h4 className="font-bold text-sm text-gray-900 dark:text-white">Cash on Delivery</h4>
+                        <p className="text-[10px] text-gray-500 font-medium">Allow customers to pay when order arrives</p>
+                      </div>
+                      <div className="relative">
+                        <input type="checkbox" name="estoreCodEnabled" checked={formData.estoreCodEnabled !== false} onChange={handleChange} className="sr-only peer" />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                      </div>
+                    </label>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Delivery Fee</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{formData.currency || 'Rs'}</span>
+                        <input
+                          type="number"
+                          name="estoreDeliveryFee"
+                          value={formData.estoreDeliveryFee || 0}
+                          onChange={handleChange}
+                          min="0"
+                          className="w-full pl-12 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Min Order for Free Delivery</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{formData.currency || 'Rs'}</span>
+                        <input
+                          type="number"
+                          name="estoreMinOrder"
+                          value={formData.estoreMinOrder || 0}
+                          onChange={handleChange}
+                          min="0"
+                          className="w-full pl-12 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Geofencing Settings */}
+                    <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-100 dark:border-white/5">
+                      <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Delivery Geofencing</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
+                            Store Latitude
+                            <HelpTooltip content={<span>The central Latitude coordinate of your physical store. You can find this by right-clicking your location on <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">Google Maps</a>. E.g. 31.5204</span>} />
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            name="estoreLocationLat"
+                            value={formData.estoreLocationLat || ''}
+                            onChange={handleChange}
+                            placeholder="e.g. 24.8607"
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
+                            Store Longitude
+                            <HelpTooltip content={<span>The central Longitude coordinate of your physical store. You can find this by right-clicking your location on <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">Google Maps</a>. E.g. 74.3587</span>} />
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            name="estoreLocationLng"
+                            value={formData.estoreLocationLng || ''}
+                            onChange={handleChange}
+                            placeholder="e.g. 67.0011"
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
+                            Max Radius (km)
+                            <HelpTooltip content="The maximum distance (in kilometers) from your store where you offer delivery. Customers outside this range will not be able to checkout." />
+                          </label>
+                          <div className="relative">
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">km</span>
+                            <input
+                              type="number"
+                              name="estoreDeliveryRadius"
+                              value={formData.estoreDeliveryRadius || 5}
+                              onChange={handleChange}
+                              min="1"
+                              className="w-full pr-12 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-r-xl text-sm">
+                        <p className="font-bold text-blue-800 dark:text-blue-300">How to get your coordinates?</p>
+                        <p className="text-blue-700 dark:text-blue-400 mt-1">
+                          1. Open <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline font-bold">Google Maps</a><br/>
+                          2. Search for your store location.<br/>
+                          3. Right-click the red pin and click the numbers (e.g. 31.5204, 74.3587) to copy them.<br/>
+                          4. Paste the first number in Latitude and the second in Longitude.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* WhatsApp Support Settings */}
+                    <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-100 dark:border-white/5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            WhatsApp Support Icon
+                            <HelpTooltip content="Displays a floating WhatsApp icon in the bottom right corner of the online store, allowing customers to message you directly." />
+                          </h4>
+                          <p className="text-xs text-gray-500">Show a floating WhatsApp button on your E-Store</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" name="estoreWhatsappEnabled" checked={formData.estoreWhatsappEnabled || false} onChange={handleChange} className="sr-only peer" />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-black/40 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                        </label>
+                      </div>
+                      
+                      {formData.estoreWhatsappEnabled && (
+                        <div className="space-y-1.5 max-w-sm">
+                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
+                            WhatsApp Phone Number
+                            <HelpTooltip content="Enter your number in international format without plus or zeros. Example for Pakistan: 923001234567" />
+                          </label>
+                          <input
+                            type="text"
+                            name="estoreWhatsappNumber"
+                            value={formData.estoreWhatsappNumber || ''}
+                            onChange={handleChange}
+                            placeholder="e.g. +923001234567"
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                  
+                  <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5 mt-6">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      Note: You can turn individual products on or off for the E-Store from the Inventory section by checking the "Show in Online Store" option when editing a product.
+                    </p>
+                  </div>
                 </div>
               </section>
             )}
