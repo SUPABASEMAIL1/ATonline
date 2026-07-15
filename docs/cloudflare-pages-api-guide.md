@@ -78,7 +78,7 @@ for p in d['result']:
 "
 ```
 
-### Create a new pages project
+### Create a new pages project (with env vars)
 
 ```bash
 # GitHub se connect karna hai — pehle GitHub access token dena hoga
@@ -175,7 +175,9 @@ curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCO
 
 ## 6. DEPLOY TRIGGER KARNA
 
-### Manual deploy (last commit se)
+### GitHub-connected project deploy
+
+Agar project GitHub se connected hai (OAuth through dashboard), to sirf trigger karo:
 
 ```bash
 curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/my-project/deployments" \
@@ -183,13 +185,29 @@ curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOU
   -H "Content-Type: application/json"
 ```
 
-### Specific branch deploy
+### Direct Upload — build karo aur files upload karo (recommended)
+
+> **⚠️ Sabse fast tarika.** CURL multipart se direct upload karte waqt 404 aata hai (Cloudflare ka bug/manifest format issue).
+> **Isliye hamesha Wrangler CLI use karo:**
 
 ```bash
-curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/my-project/deployments" \
-  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"branch": "staging"}'
+# 1. Pehle build karo
+npm run build
+
+# 2. Wrangler se deploy (yeh API token auto-detect karega)
+npx wrangler pages deploy dist --project-name my-project
+
+# Ya specific branch ke saath
+npx wrangler pages deploy dist --project-name my-project --branch main
+```
+
+> Wrangler CLI automatically `CLOUDFLARE_API_TOKEN` ko `.env.local` se pick karega.
+> Agar nahi, to `CLOUDFLARE_API_TOKEN` env set karo.
+
+### Specific branch deploy (upload via wrangler)
+
+```bash
+npx wrangler pages deploy dist --project-name my-project --branch staging
 ```
 
 ---
@@ -340,19 +358,17 @@ curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages
   }"
 echo "✓ Project created"
 
-# 3. Trigger deploy
-echo "Triggering deploy..."
-curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments" \
-  -H "Authorization: Bearer $TOKEN"
-echo "✓ Deploy started"
+# 3. Build + Deploy via Wrangler (recommended — avoids 404 bug)
+echo "Building..."
+npm run build
+echo "Deploying via Wrangler..."
+npx wrangler pages deploy dist --project-name "$PROJECT_NAME"
 
-# 4. Wait and check status
-sleep 10
-DEP_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
-  "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments" | \
-  python3 -c "import json,sys; d=json.load(sys.stdin); print(d['result'][0]['id'] if d['result'] else '')")
-echo "Deployment ID: $DEP_ID"
-echo "Check status: curl .../deployments/$DEP_ID"
+# 4. Ya sirf API trigger (agar GitHub connected ho)
+# echo "Triggering deploy..."
+# curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/pages/projects/$PROJECT_NAME/deployments" \
+#   -H "Authorization: Bearer $TOKEN"
+echo "✓ Deploy initiated"
 ```
 
 ---
@@ -380,6 +396,46 @@ echo "Check status: curl .../deployments/$DEP_ID"
 
 ---
 
+---
+
+## ⚠️ GOTCHAS — TIME-SAVING TIPS (Zaroor Padho)
+
+### ❌ CURL direct upload se 404 aata hai
+
+Cloudflare Pages ka Direct Upload API (`curl -F manifest=...`) deploy to success dikhata hai, lekin site 404 return karti hai. **Yeh Cloudflare ka internal bug hai — manifest multipart format sahi se parse nahi hota.**
+
+**✅ Fix:** Hamesha **Wrangler CLI** use karo deploy ke liye:
+```bash
+npx wrangler pages deploy dist --project-name my-project
+```
+Wrangler internally sahi API call karta hai, files properly upload hoti hain, aur site 200 deti hai.
+
+### ❌ Git-connected project bina OAuth ke nahi bana sakte
+
+Project create karte waqt `source` field mein GitHub repo nahi daal sakte bina OAuth ke. **Pehle dashboard se GitHub connect karo, phir API use karo.**
+
+### ✅ Jo kaam API se seedha hota hai:
+
+| Kaam | Status |
+|------|--------|
+| Project create (bina git) | ✅ |
+| Env vars set karna | ✅ |
+| Build config update | ✅ |
+| Direct upload deploy | ❌ (404 bug — wrangler use karo) |
+| List deployments | ✅ |
+| Cancel / retry deploy | ✅ |
+| Custom domain add/remove | ✅ |
+
+### ✅ Jo kaam API se nahi hota:
+
+| Kaam | Solution |
+|------|----------|
+| GitHub repo connect karna | Dashboard se karo (OAuth) |
+| SSL/TLS settings | Dashboard ya Zone API |
+| Workers routes | Workers API se (alag hai) |
+
+---
+
 ## 🚀 QUICK REFERENCE (Agent ke liye)
 
 Jab bhi Cloudflare Pages operation karna ho:
@@ -390,7 +446,7 @@ Jab bhi Cloudflare Pages operation karna ho:
 4. **Operation select karo:**
    - Naya project? → Section 4 (Create)
    - Env vars update? → Section 5
-   - Deploy? → Section 6
+   - Deploy? → Section 6 (hamesha wrangler use karo, NOT curl multipart)
    - Build check? → Section 7
    - Config change? → Section 8
    - Domain? → Section 9
