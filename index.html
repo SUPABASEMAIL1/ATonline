@@ -91,9 +91,11 @@
       (function() {
         var _settings = {};
         try { _settings = JSON.parse(localStorage.getItem('pos_settings') || '{}'); } catch(e) {}
-        var _bizName = _settings.store_name || 'Zaynahs';
-        var _storeLogo = _settings.store_logo || '';
-        var _themeColor = _settings.estore_theme_color || '#10b981';
+        
+        // Correct keys: settings mapped to localStorage are stored in camelCase
+        var _bizName = _settings.storeName || 'Zaynahs';
+        var _storeLogo = _settings.storeLogo || '';
+        var _themeColor = _settings.estoreThemeColor || '#10b981';
         var _isStore = window.location.pathname.startsWith('/store');
 
         function _generateManifest(name, shortName, desc, startUrl, scope, bgColor, icons) {
@@ -117,9 +119,25 @@
           { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
           { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
         ];
-        // Prepend store logo as primary icon if available
+
+        // Store PWA uses custom uploaded logo. POS PWA retains default Zaynahs icons for clear differentiation.
         if (_isStore && _storeLogo) {
-          _icons.unshift({ src: _storeLogo, sizes: '512x512', type: 'image/png', purpose: 'any' });
+          _icons = [
+            { src: _storeLogo, sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: _storeLogo, sizes: '192x192', type: 'image/png', purpose: 'any' }
+          ];
+          
+          // Dynamically set Apple Touch Icon for iOS home screen installation
+          var _appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+          if (_appleIcon) {
+            _appleIcon.setAttribute('href', _storeLogo);
+          }
+
+          // Dynamically set standard favicon tab icons to store logo
+          var _favicons = document.querySelectorAll('link[rel*="icon"]');
+          for (var _i = 0; _i < _favicons.length; _i++) {
+            _favicons[_i].setAttribute('href', _storeLogo);
+          }
         }
 
         var _manifest;
@@ -138,7 +156,7 @@
             _bizName + ' POS',
             (_bizName + ' POS').substring(0, 12),
             'Point-of-sale system for ' + _bizName,
-            './', './',
+            '/pos', '/',
             '#0a0a0a',
             _icons
           );

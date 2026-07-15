@@ -1,9 +1,51 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Plus, Minus, Check, Gift, Package } from 'lucide-react';
+import { X, Plus, Minus, Check, Gift, Package, Timer, Flame } from 'lucide-react';
 import { Bundle, Product, CartItem } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
 import { bundlesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
+
+const Dealtimer = ({ bundle }: { bundle: Bundle }) => {
+  const [display, setDisplay] = useState('');
+  useEffect(() => {
+    if (!bundle.scheduleType || bundle.scheduleType === 'always') return;
+    const tick = () => {
+      const now = new Date();
+      let target: number | null = null;
+      if (bundle.endTime) {
+        const [eh, em] = bundle.endTime.split(':').map(Number);
+        const endToday = new Date(now);
+        endToday.setHours(eh, em, 0, 0);
+        let diff = endToday.getTime() - now.getTime();
+        if (diff > 0) target = diff;
+        if (diff < 0 && bundle.startTime && bundle.startTime > bundle.endTime) {
+          endToday.setDate(endToday.getDate() + 1);
+          diff = endToday.getTime() - now.getTime();
+          if (diff > 0) target = diff;
+        }
+      }
+      if (!target && bundle.endDate) {
+        target = new Date(bundle.endDate + 'T23:59:59').getTime() - now.getTime();
+      }
+      if (target && target > 0) {
+        const h = Math.floor(target / 3600000);
+        const m = Math.floor((target % 3600000) / 60000);
+        const s = Math.floor((target % 60000) / 1000);
+        setDisplay(h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`);
+      } else { setDisplay(''); }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [bundle]);
+  if (!display) return null;
+  return (
+    <div className="flex items-center gap-1 mt-2 text-white/80 text-[11px] font-black">
+      <Timer className="h-3.5 w-3.5" />
+      <span className="tabular-nums">{display}</span>
+    </div>
+  );
+};
 
 interface StoreDealModalProps {
   bundle: Bundle;
@@ -154,10 +196,10 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
   const bannerImage = previewProducts[0]?.image || null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
 
-      <div className="relative w-full max-w-xl bg-[var(--color-card-bg)] sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl flex flex-col max-h-[90vh] animate-slide-up sm:animate-in sm:zoom-in-95 overflow-hidden">
+      <div className="relative w-full max-w-xl bg-[var(--color-card-bg)] rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] animate-scale-up overflow-hidden">
         
         {/* Close button */}
         <button 
@@ -195,12 +237,22 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
           
           <div className="absolute bottom-4 left-6 right-6 text-white">
-            <span className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full inline-block mb-2 shadow">
-              {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF Deal
-            </span>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full inline-block shadow">
+                {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF Deal
+              </span>
+              {bundle.scheduleType === 'scheduled' && (
+                <span className="bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full inline-block shadow flex items-center gap-1">
+                  <Flame className="h-3 w-3" /> Hot Deal
+                </span>
+              )}
+            </div>
             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight leading-tight line-clamp-1">{bundle.name}</h2>
             {bundle.description && (
               <p className="text-xs text-white/70 line-clamp-1 mt-1 font-medium">{bundle.description}</p>
+            )}
+            {bundle.scheduleType === 'scheduled' && (
+              <Dealtimer bundle={bundle} />
             )}
           </div>
         </div>

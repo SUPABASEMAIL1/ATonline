@@ -436,6 +436,12 @@ export interface AppSettings {
   storeType?: 'physical' | 'online' | 'both';
   storeLatitude?: number;
   storeLongitude?: number;
+  shopOpenTime?: string;      // HH:mm
+  shopCloseTime?: string;     // HH:mm
+  deliveryStartTime?: string; // HH:mm
+  deliveryEndTime?: string;   // HH:mm
+  pickupStartTime?: string;   // HH:mm
+  pickupEndTime?: string;     // HH:mm
   defaultSaleType?: 'retail' | 'wholesale' | 'estore';
   language?: string;
   touchKeyboardEnabled: boolean;
@@ -509,6 +515,8 @@ export interface BundleSlot {
   createdAt?: Date;
 }
 
+export type ScheduleType = 'always' | 'scheduled';
+
 export interface Bundle {
   id: string;
   name: string;
@@ -516,6 +524,12 @@ export interface Bundle {
   discountValue: number;
   discountType: 'percentage' | 'fixed';
   active: boolean;
+  scheduleType?: ScheduleType;
+  startDate?: string;   // YYYY-MM-DD
+  endDate?: string;     // YYYY-MM-DD
+  repeatDays?: string[]; // ['mon','tue','wed','thu','fri','sat','sun']
+  startTime?: string;   // HH:mm (24h)
+  endTime?: string;     // HH:mm (24h)
   hideItemPrices?: boolean;
   isCombo?: boolean;
   items?: BundleItem[];

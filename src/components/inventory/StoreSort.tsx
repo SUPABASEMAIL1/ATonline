@@ -671,6 +671,14 @@ export function StoreSort() {
                         <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
                         <span>·</span>
                         <span>{bundle.discountValue}{bundle.discountType === 'percentage' ? '%' : ''} off</span>
+                        {bundle.scheduleType === 'scheduled' && (
+                          <>
+                            <span>·</span>
+                            <span className="text-amber-600 dark:text-amber-400 font-bold uppercase">
+                              {bundle.startDate || '—'}{bundle.startTime ? ` ${bundle.startTime}` : ''}
+                            </span>
+                          </>
+                        )}
                         {bundle.image && (
                           <>
                             <span>·</span>

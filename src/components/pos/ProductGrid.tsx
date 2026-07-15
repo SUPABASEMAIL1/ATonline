@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Minus, Package, X, ChevronLeft, ChevronRight, FileText, Star, Infinity, Camera, LayoutGrid, Gift, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, Plus, Minus, Package, X, ChevronLeft, ChevronRight, FileText, Star, Infinity, Camera, LayoutGrid, Gift, ChevronDown, ChevronUp, Flame } from 'lucide-react';
 import { CameraScanner } from '../common/CameraScanner';
 import { Product } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -10,6 +10,7 @@ import { sonner } from '../../lib/sonner';
 import { useTranslation } from '../../hooks/useTranslation';
 import { ComboSelectionModal } from './ComboSelectionModal';
 import { DealSizeSelectorModal } from './DealSizeSelectorModal';
+import { SkeletonLoader } from '../common/SkeletonLoader';
 
 interface ProductGridProps {
   onAddToCart: (product: Product, weight?: number) => void;
@@ -30,8 +31,8 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
   // Safety check to prevent black screen
   if (!state?.settings || !state?.products) {
     return (
-      <div className="flex-1 flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex-1 p-6 bg-gray-50 dark:bg-transparent">
+        <SkeletonLoader type="grid" count={8} />
       </div>
     );
   }
@@ -701,7 +702,8 @@ const BundleCard = memo(
           )}
 
           {!isGroup && item.discountValue > 0 && (
-            <div className="absolute top-1 left-1 bg-violet-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-lg z-10">
+            <div className="absolute top-1 left-1 bg-violet-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-lg z-10 flex items-center gap-1">
+              {item.scheduleType === 'scheduled' && <Flame className="h-2.5 w-2.5" />}
               -{item.discountValue}{item.discountType === 'percentage' ? '%' : ` ${currency}`}
             </div>
           )}
@@ -713,7 +715,7 @@ const BundleCard = memo(
           )}
 
           <div className="absolute top-1 right-1 flex items-center bg-violet-500/90 text-white p-1 rounded-lg text-[8px] font-black shadow-md z-10">
-            <Gift className="h-2.5 w-2.5" />
+            {item.scheduleType === 'scheduled' ? <Flame className="h-2.5 w-2.5" /> : <Gift className="h-2.5 w-2.5" />}
           </div>
 
           {/* Floating Stepper Overlay */}
@@ -797,7 +799,39 @@ interface BundleGridProps {
 function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols = 4 }: BundleGridProps) {
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
-  const rawBundles = (state.bundles || []).filter(b => b.active !== false);
+  const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+  function getPrevDayKey(day: string): string {
+    const idx = DAYS.indexOf(day as any);
+    return DAYS[idx <= 0 ? 6 : idx - 1];
+  }
+  function timeWraps(st: string, et: string): boolean {
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = et.split(':').map(Number);
+    return (eh * 60 + em) <= (sh * 60 + sm);
+  }
+  function inTimeW(nowMin: number, st: string, et: string): boolean {
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = et.split(':').map(Number);
+    const s = sh * 60 + sm, e = eh * 60 + em;
+    return e > s ? (nowMin >= s && nowMin < e) : (nowMin >= s || nowMin < e);
+  }
+  function isBundleInSchedule(b: any): boolean {
+    if (!b.scheduleType || b.scheduleType === 'always') return true;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const todayKey = DAYS[now.getDay()];
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    if (b.startDate && todayStr < b.startDate) return false;
+    if (b.endDate && todayStr > b.endDate) return false;
+    const wraps = b.startTime && b.endTime ? timeWraps(b.startTime, b.endTime) : false;
+    const todayIn = b.repeatDays?.length ? b.repeatDays.includes(todayKey) : true;
+    const prevIn = b.repeatDays?.length ? b.repeatDays.includes(getPrevDayKey(todayKey)) : false;
+    const dayOk = todayIn || (wraps && prevIn && b.endTime && nowMin < (() => { const [eh, em] = b.endTime.split(':').map(Number); return eh * 60 + em; })());
+    if (!todayIn && !dayOk) return false;
+    if (b.startTime && b.endTime && !inTimeW(nowMin, b.startTime, b.endTime)) return false;
+    return true;
+  }
+  const rawBundles = (state.bundles || []).filter(b => b.active !== false && isBundleInSchedule(b));
 
   const [activeCombo, setActiveCombo] = useState<any>(null);
   const [activeGroup, setActiveGroup] = useState<any>(null);

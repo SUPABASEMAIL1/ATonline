@@ -84,10 +84,10 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
       
-      <div className="relative w-full max-w-lg bg-[var(--color-card-bg)] sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl flex flex-col max-h-[90vh] animate-slide-up sm:animate-in sm:zoom-in-95">
+      <div className="relative w-full max-w-lg bg-[var(--color-card-bg)] rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] animate-scale-up overflow-hidden">
         
         {/* Image Header */}
         <div className="relative h-64 bg-gray-100 sm:rounded-t-[2rem] rounded-t-[2rem] overflow-hidden shrink-0">

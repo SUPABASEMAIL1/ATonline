@@ -7,8 +7,10 @@ import { StoreFront } from './StoreFront';
 import { StoreCheckout } from './StoreCheckout';
 import { OrderTracker } from './OrderTracker';
 import { useSearchParams } from 'react-router-dom';
-import { ShoppingBag, Phone } from 'lucide-react';
+import { ShoppingBag, Phone, Clock } from 'lucide-react';
+import { formatTime12h } from '../../lib/timeFormat';
 import { sonner } from '../../lib/sonner';
+import { SkeletonLoader } from '../common/SkeletonLoader';
 
 function TrackPage({ settings }: { settings: AppSettings | null }) {
   const [searchParams] = useSearchParams();
@@ -54,6 +56,7 @@ export function EStoreApp() {
         if (settingsData) {
           activeSettings = mapSettings(settingsData);
           setSettings(activeSettings);
+          localStorage.setItem('pos_settings', JSON.stringify(activeSettings));
         }
 
         // Fetch Products
@@ -151,6 +154,68 @@ export function EStoreApp() {
     }
     loadData();
   }, []);
+
+  // Dynamic PWA Manifest Updater for E-Store Customer storefront visitors
+  useEffect(() => {
+    if (!settings) return;
+    const bizName = settings.storeName || 'Zaynahs';
+    const storeLogo = settings.storeLogo || '';
+    const themeColor = settings.estoreThemeColor || '#10b981';
+
+    const generateManifest = (name: string, shortName: string, desc: string, startUrl: string, scope: string, bgColor: string, icons: any[]) => ({
+      name,
+      short_name: shortName,
+      description: desc,
+      theme_color: themeColor,
+      background_color: bgColor,
+      display: 'standalone' as const,
+      orientation: 'portrait' as const,
+      start_url: startUrl,
+      scope: scope,
+      categories: ['shopping', 'food', 'lifestyle'],
+      icons: icons
+    });
+
+    let iconsList = [
+      { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ];
+
+    if (storeLogo) {
+      iconsList = [
+        { src: storeLogo, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: storeLogo, sizes: '192x192', type: 'image/png', purpose: 'any' }
+      ];
+      const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+      if (appleIcon) {
+        appleIcon.setAttribute('href', storeLogo);
+      }
+    }
+
+    const manifest = generateManifest(
+      bizName,
+      bizName.length > 12 ? bizName.substring(0, 12) : bizName,
+      'Order online from ' + bizName,
+      '/store', '/store',
+      '#f9fafb',
+      iconsList
+    );
+
+    document.title = bizName + ' - Online Store';
+
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    if (manifestLink) {
+      manifestLink.setAttribute('href', url);
+    } else {
+      const newLink = document.createElement('link');
+      newLink.rel = 'manifest';
+      newLink.href = url;
+      document.head.appendChild(newLink);
+    }
+  }, [settings]);
 
   // Sync E-Store light/dark mode class and restore admin theme on unmount
   useEffect(() => {
@@ -297,11 +362,7 @@ export function EStoreApp() {
   const clearCart = () => setCart([]);
 
   if (loading) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <SkeletonLoader type="storefront" />;
   }
 
   if (settings && !settings.estoreEnabled) {
@@ -393,6 +454,38 @@ export function EStoreApp() {
       } as React.CSSProperties}
     >
       <style dangerouslySetInnerHTML={{ __html: estoreThemeStyles }} />
+
+      {(() => {
+        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        const inWin = (st: string | undefined, et: string | undefined) => {
+          if (!st || !et) return true;
+          const [sh, sm] = st.split(':').map(Number);
+          const [eh, em] = et.split(':').map(Number);
+          const s = sh * 60 + sm, e = eh * 60 + em;
+          return e > s ? (nowMin >= s && nowMin < e) : (nowMin >= s || nowMin < e);
+        };
+        const delOk = inWin(settings?.deliveryStartTime, settings?.deliveryEndTime);
+        const pickOk = inWin(settings?.pickupStartTime, settings?.pickupEndTime);
+        const shopOk = inWin(settings?.shopOpenTime, settings?.shopCloseTime);
+        if (settings?.estoreEnabled === false || settings?.estoreEnabled === undefined) return null;
+        if (!shopOk && (settings?.shopOpenTime || settings?.shopCloseTime)) {
+          return (
+            <div className="bg-red-500 text-white font-black px-4 py-3 text-center text-[10px] uppercase tracking-wider sticky top-0 z-[100] flex items-center justify-center gap-2 shadow-lg">
+              <Clock className="w-4 h-4 shrink-0" />
+              Store is currently closed — Open {formatTime12h(settings.shopOpenTime)} – {formatTime12h(settings.shopCloseTime)}
+            </div>
+          );
+        }
+        if (!delOk && (settings?.deliveryStartTime || settings?.deliveryEndTime)) {
+          return (
+            <div className="bg-amber-500 text-white font-black px-4 py-3 text-center text-[10px] uppercase tracking-wider sticky top-0 z-[100] flex items-center justify-center gap-2 shadow-lg">
+              <Clock className="w-4 h-4 shrink-0" />
+              Delivery available {formatTime12h(settings.deliveryStartTime)} – {formatTime12h(settings.deliveryEndTime)} — Pickup only right now
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {isOutOfRange && (
         <div className="bg-amber-500 text-white font-black px-4 py-3 text-center text-[10px] uppercase tracking-wider sticky top-0 z-[100] flex items-center justify-center gap-2 shadow-lg">

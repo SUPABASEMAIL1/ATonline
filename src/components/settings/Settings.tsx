@@ -1695,37 +1695,76 @@ export function Settings() {
                     </a>
                   </div>
 
-                  {/* Fulfillment Methods Toggles */}
-                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
+                  {/* Fulfillment Methods (KFC Style) */}
+                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-5">
                     <h4 className="text-sm font-bold text-gray-800 dark:text-white">Fulfillment Methods (KFC Style)</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <label className="flex items-center justify-between p-4 bg-gray-50/50 dark:bg-white/[0.02] border border-gray-255/10 dark:border-white/5 rounded-2xl cursor-pointer">
-                        <div>
-                          <h4 className="font-bold text-sm text-gray-900 dark:text-white">Enable Home Delivery</h4>
-                          <p className="text-[10px] text-gray-500 font-medium">Allow customers to choose delivery at checkout</p>
-                        </div>
-                        <div className="relative">
-                          <input type="checkbox" name="estoreDeliveryEnabled" checked={formData.estoreDeliveryEnabled !== false} onChange={(e) => {
-                            handleChange(e);
-                            handleInstantUpdate('estoreDeliveryEnabled', e.target.checked);
-                          }} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
-                        </div>
-                      </label>
 
-                      <label className="flex items-center justify-between p-4 bg-gray-50/50 dark:bg-white/[0.02] border border-gray-255/10 dark:border-white/5 rounded-2xl cursor-pointer">
+                    {/* Shop Hours (master boundary) */}
+                    <div className="bg-gray-50/50 dark:bg-white/[0.02] rounded-2xl border border-gray-200 dark:border-white/5 p-4 space-y-3">
+                      <h5 className="text-[11px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Shop Hours</h5>
+                      <p className="text-[9px] text-gray-500 -mt-2">Overall operating hours — delivery & pickup times must fall within this window</p>
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <h4 className="font-bold text-sm text-gray-900 dark:text-white">Enable Customer Pickup</h4>
-                          <p className="text-[10px] text-gray-500 font-medium">Allow customers to order for self-pickup</p>
+                          <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Open</label>
+                          <input type="time" name="shopOpenTime" value={formData.shopOpenTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('shopOpenTime', e.target.value); }} className="input w-full text-xs py-2" />
                         </div>
-                        <div className="relative">
-                          <input type="checkbox" name="estorePickupEnabled" checked={formData.estorePickupEnabled !== false} onChange={(e) => {
-                            handleChange(e);
-                            handleInstantUpdate('estorePickupEnabled', e.target.checked);
-                          }} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                        <div>
+                          <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Close</label>
+                          <input type="time" name="shopCloseTime" value={formData.shopCloseTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('shopCloseTime', e.target.value); }} className="input w-full text-xs py-2" />
                         </div>
-                      </label>
+                      </div>
+                    </div>
+
+                    {/* Home Delivery */}
+                    <div className="bg-gray-50/50 dark:bg-white/[0.02] rounded-2xl border border-gray-200 dark:border-white/5 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h5 className="text-[11px] font-bold text-gray-900 dark:text-white">Home Delivery</h5>
+                          <p className="text-[9px] text-gray-500">Allow customers to choose delivery at checkout</p>
+                        </div>
+                        <label className="relative cursor-pointer">
+                          <input type="checkbox" name="estoreDeliveryEnabled" checked={formData.estoreDeliveryEnabled !== false} onChange={(e) => { handleChange(e); handleInstantUpdate('estoreDeliveryEnabled', e.target.checked); }} className="sr-only peer" />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500" />
+                        </label>
+                      </div>
+                      {formData.estoreDeliveryEnabled !== false && (
+                        <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                          <div>
+                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Delivery Start</label>
+                            <input type="time" name="deliveryStartTime" value={formData.deliveryStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('deliveryStartTime', e.target.value); }} className="input w-full text-xs py-2" />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Delivery End</label>
+                            <input type="time" name="deliveryEndTime" value={formData.deliveryEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('deliveryEndTime', e.target.value); }} className="input w-full text-xs py-2" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Customer Pickup */}
+                    <div className="bg-gray-50/50 dark:bg-white/[0.02] rounded-2xl border border-gray-200 dark:border-white/5 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h5 className="text-[11px] font-bold text-gray-900 dark:text-white">Customer Pickup</h5>
+                          <p className="text-[9px] text-gray-500">Allow customers to order for self-pickup</p>
+                        </div>
+                        <label className="relative cursor-pointer">
+                          <input type="checkbox" name="estorePickupEnabled" checked={formData.estorePickupEnabled !== false} onChange={(e) => { handleChange(e); handleInstantUpdate('estorePickupEnabled', e.target.checked); }} className="sr-only peer" />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500" />
+                        </label>
+                      </div>
+                      {formData.estorePickupEnabled !== false && (
+                        <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                          <div>
+                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Pickup Start</label>
+                            <input type="time" name="pickupStartTime" value={formData.pickupStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupStartTime', e.target.value); }} className="input w-full text-xs py-2" />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Pickup End</label>
+                            <input type="time" name="pickupEndTime" value={formData.pickupEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupEndTime', e.target.value); }} className="input w-full text-xs py-2" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

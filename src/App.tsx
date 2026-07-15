@@ -22,6 +22,7 @@ const DashboardManager = lazy(() => import('./components/dashboard/DashboardMana
 const EStoreApp = lazy(() => import('./components/estore/EStoreApp').then(m => ({ default: m.EStoreApp })));
 const OnlineOrdersPage = lazy(() => import('./components/orders/OnlineOrdersPage').then(m => ({ default: m.OnlineOrdersPage })));
 import { playPageSound } from './lib/sounds';
+import { SkeletonLoader } from './components/common/SkeletonLoader';
 import { TouchKeyboardProvider, useTouchKeyboard } from './providers/TouchKeyboardProvider';
 import { startSyncEngine } from './lib/syncEngine';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
@@ -159,10 +160,87 @@ function AppContent() {
   const prevPath = useRef(location.pathname);
   useEffect(() => {
     if (prevPath.current !== location.pathname) {
-      playPageSound();
+      if (!location.pathname.startsWith('/store')) {
+        playPageSound();
+      }
       prevPath.current = location.pathname;
     }
   }, [location.pathname]);
+
+  // Dynamic PWA Manifest Updater
+  useEffect(() => {
+    if (!state.settings) return;
+    const bizName = state.settings.storeName || 'Zaynahs';
+    const storeLogo = state.settings.storeLogo || '';
+    const themeColor = state.settings.estoreThemeColor || '#10b981';
+    const isStore = location.pathname.startsWith('/store');
+
+    const generateManifest = (name: string, shortName: string, desc: string, startUrl: string, scope: string, bgColor: string, icons: any[]) => ({
+      name,
+      short_name: shortName,
+      description: desc,
+      theme_color: themeColor,
+      background_color: bgColor,
+      display: 'standalone' as const,
+      orientation: isStore ? ('portrait' as const) : ('any' as const),
+      start_url: startUrl,
+      scope: scope,
+      categories: isStore ? ['shopping', 'food', 'lifestyle'] : ['business', 'finance', 'productivity'],
+      icons: icons
+    });
+
+    let iconsList = [
+      { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ];
+
+    if (isStore && storeLogo) {
+      iconsList = [
+        { src: storeLogo, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: storeLogo, sizes: '192x192', type: 'image/png', purpose: 'any' }
+      ];
+      const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+      if (appleIcon) {
+        appleIcon.setAttribute('href', storeLogo);
+      }
+    }
+
+    let manifest;
+    if (isStore) {
+      manifest = generateManifest(
+        bizName,
+        bizName.length > 12 ? bizName.substring(0, 12) : bizName,
+        'Order online from ' + bizName,
+        '/store', '/store',
+        '#f9fafb',
+        iconsList
+      );
+      document.title = bizName + ' - Online Store';
+    } else {
+      manifest = generateManifest(
+        bizName + ' POS',
+        (bizName + ' POS').substring(0, 12),
+        'Point-of-sale system for ' + bizName,
+        '/pos', '/',
+        '#0a0a0a',
+        iconsList
+      );
+      document.title = bizName + ' POS';
+    }
+
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    if (manifestLink) {
+      manifestLink.setAttribute('href', url);
+    } else {
+      const newLink = document.createElement('link');
+      newLink.rel = 'manifest';
+      newLink.href = url;
+      document.head.appendChild(newLink);
+    }
+  }, [state.settings, location.pathname]);
 
   // Global navigation listener (convert old viewId events to router navigation)
   useEffect(() => {
@@ -244,11 +322,8 @@ function AppContent() {
 
   // Show loading spinner while auth is loading
   if (loading) {
-    return (
-      <div className="min-h-[100dvh] bg-gray-50 dark:bg-app flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+    const isStore = window.location.pathname.startsWith('/store');
+    return <SkeletonLoader type={isStore ? "storefront" : "list"} count={8} />;
   }
 
   // Intercept for password recovery mode

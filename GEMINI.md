@@ -20,6 +20,7 @@
    - Update `supabase/schema/SUPER_MASTER_SCHEMA.sql` (both CREATE TABLE + ALTER TABLE ADD COLUMN IF NOT EXISTS blocks)
    - Update `docs/setup.md` (add column to post-launch table, update checklist if applicable)
    - Failure to keep both in sync is a violation.
+10. **💀 SKELETON LOADING RULE (MANDATORY)**: All loading states for main layout switches, routes, or grid views (storefront, product grid, list pages) MUST use the centralized `<SkeletonLoader />` component (`src/components/common/SkeletonLoader.tsx`) to provide a premium, smooth shimmer load experience. Generic spinner loaders are strictly prohibited for primary loaders.
 
 ---
 
@@ -472,6 +473,31 @@ Whenever a database change is made, it MUST be recorded here.
 4.  **Defaults:** `storeType: 'both'` in `SupabaseAppContext.tsx` defaults.
 5.  **UI:** Store Type selector (Physical/Online/Both), Shop Location lat/lng inputs with "Use Current Location" button, and Max Radius field consolidated into single "Shop Location & Delivery Area" section in `Settings.tsx`.
 6.  **Store Checkout:** Self Pickup tab shows shop location + "Get Directions" Google Maps link.
+
+### [2026-07-15] Delivery & Pickup Operating Hours
+**Files:** `types/index.ts`, `SUPER_MASTER_SCHEMA.sql`, `services.ts`, `SupabaseAppContext.tsx`, `Settings.tsx`, `StoreCheckout.tsx`, `EStoreApp.tsx`, `supabase/migrations/20260715010000_delivery_pickup_hours.sql`
+**Changes:**
+1. **Schema Migration:** `supabase/migrations/20260715010000_delivery_pickup_hours.sql` adds `shop_open_time TIME`, `shop_close_time TIME`, `delivery_start_time TIME`, `delivery_end_time TIME`, `pickup_start_time TIME`, `pickup_end_time TIME` to `app_settings`.
+2. **Master Schema:** Added columns to `CREATE TABLE` + post-launch `ALTER TABLE` block in `SUPER_MASTER_SCHEMA.sql`.
+3. **Types & Services:** New fields in `AppSettings`; mapped in `mapSettings`/`toRemoteSettings`.
+4. **Default values:** Added to `SupabaseAppContext.tsx` defaults.
+5. **Settings UI:** "Fulfillment Methods (KFC Style)" section now has Shop Hours (master boundary), Delivery Hours, and Pickup Hours with time inputs — each method's toggle + time range in its own card.
+6. **Checkout:** Delivery/Pickup tabs auto-disable outside their hours with clock icon + time range shown. Auto-switches selection if current mode becomes unavailable.
+7. **EStoreApp:** Sticky header banner shows "Store Closed — Open HH:MM–HH:MM" (red) / "Delivery available HH:MM–HH:MM — Pickup only" (amber) based on current time.
+
+### [2026-07-15] Bundle / Deal Scheduling with Live Countdown
+**Files:** `types/index.ts`, `SUPER_MASTER_SCHEMA.sql`, `services.ts`, `BundleManager.tsx`, `StoreFront.tsx`, `StoreDealModal.tsx`, `ProductGrid.tsx`, `StoreSort.tsx`, `supabase/migrations/20260715000000_bundle_scheduling.sql`, `hooks/useScheduleStatus.ts`
+**Changes:**
+1. **Schema Migration:** `supabase/migrations/20260715000000_bundle_scheduling.sql` adds `schedule_type TEXT`, `start_date DATE`, `end_date DATE`, `repeat_days TEXT[]`, `start_time TIME`, `end_time TIME` to `bundles` table.
+2. **Master Schema:** Added columns to `CREATE TABLE IF NOT EXISTS bundles` in `SUPER_MASTER_SCHEMA.sql`.
+3. **Types:** Added `ScheduleType = 'always' | 'scheduled'` and fields `scheduleType`, `startDate`, `endDate`, `repeatDays`, `startTime`, `endTime` to `Bundle` interface.
+4. **Services:** Updated `mapBundle`, `bundlesService.create`, `bundlesService.update` to map and persist schedule fields.
+5. **Hook:** Created `hooks/useScheduleStatus.ts` with `isBundleInSchedule()`, `getTimeRemainingMs()`, and `useScheduleStatus()` hook returning `{ isScheduleActive, timeRemaining, isHotDeal }`.
+6. **BundleManager.tsx:** Added "Deal Schedule" section with Always On / Scheduled toggle, date range pickers, Mon-Sun day toggles, time window inputs. Schedule fields passed to create/update/dispatch.
+7. **StoreFront.tsx:** Bundles filtered by schedule. Deal cards show live countdown timer (`DealCountdown` component) + flame icon on discount badge for scheduled deals.
+8. **StoreDealModal.tsx:** Modal shows "Hot Deal" badge + countdown timer for scheduled bundles.
+9. **ProductGrid.tsx (POS):** Bundles filtered by schedule. BundleCard shows flame icon on discount badge for scheduled deals.
+10. **StoreSort.tsx:** Deals tab shows schedule summary (date/time) next to deal type.
 
 ### [2026-07-15] 24-Hour Cancelled Orders Auto-Deletion System
 **Files Updated:** `syncEngine.ts`, `AGENTS.md`, `GEMINI.md`

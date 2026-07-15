@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
   Package, Plus, Edit, Trash2, Tag, Search, X, ChevronDown, ChevronUp, Check,
-  Percent, DollarSign, ToggleLeft, ToggleRight, Gift, Info, MoreHorizontal
+  Percent, DollarSign, ToggleLeft, ToggleRight, Gift, Info, MoreHorizontal,
+  Calendar, Clock, Repeat
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -34,6 +35,12 @@ interface BundleForm {
   discountType: 'percentage' | 'fixed';
   hideItemPrices: boolean;
   isCombo: boolean;
+  scheduleType: 'always' | 'scheduled';
+  startDate: string;
+  endDate: string;
+  repeatDays: string[];
+  startTime: string;
+  endTime: string;
   items: BundleFormItem[];
   slots: BundleFormSlot[];
 }
@@ -45,6 +52,12 @@ const emptyForm: BundleForm = {
   discountType: 'percentage',
   hideItemPrices: false,
   isCombo: false,
+  scheduleType: 'always',
+  startDate: '',
+  endDate: '',
+  repeatDays: [],
+  startTime: '',
+  endTime: '',
   items: [],
   slots: [],
 };
@@ -91,6 +104,12 @@ export function BundleManager() {
       discountType: bundle.discountType || 'percentage',
       hideItemPrices: bundle.hideItemPrices || false,
       isCombo: isCombo,
+      scheduleType: bundle.scheduleType || 'always',
+      startDate: bundle.startDate || '',
+      endDate: bundle.endDate || '',
+      repeatDays: bundle.repeatDays || [],
+      startTime: bundle.startTime || '',
+      endTime: bundle.endTime || '',
       items: (bundle.items || []).map(bi => ({ productId: bi.productId, quantity: bi.quantity })),
       slots: (bundle.slots || []).map(s => ({
         id: s.id,
@@ -231,6 +250,12 @@ export function BundleManager() {
           items: itemsPayload,
           slots: slotsPayload,
           isCombo: form.isCombo,
+          scheduleType: form.scheduleType,
+          startDate: form.startDate || null,
+          endDate: form.endDate || null,
+          repeatDays: form.repeatDays.length > 0 ? form.repeatDays : null,
+          startTime: form.startTime || null,
+          endTime: form.endTime || null,
         });
         dispatch({
           type: 'UPDATE_BUNDLE',
@@ -242,6 +267,12 @@ export function BundleManager() {
             discountType: form.discountType,
             hideItemPrices: form.hideItemPrices,
             isCombo: form.isCombo,
+            scheduleType: form.scheduleType,
+            startDate: form.startDate || undefined,
+            endDate: form.endDate || undefined,
+            repeatDays: form.repeatDays.length > 0 ? form.repeatDays : undefined,
+            startTime: form.startTime || undefined,
+            endTime: form.endTime || undefined,
             items: (itemsPayload || []).map((i, idx) => ({
               id: `${editingBundle.id}-${idx}`,
               bundleId: editingBundle.id,
@@ -276,6 +307,12 @@ export function BundleManager() {
           items: itemsPayload,
           slots: slotsPayload,
           isCombo: form.isCombo,
+          scheduleType: form.scheduleType,
+          startDate: form.startDate || null,
+          endDate: form.endDate || null,
+          repeatDays: form.repeatDays.length > 0 ? form.repeatDays : null,
+          startTime: form.startTime || null,
+          endTime: form.endTime || null,
         });
         dispatch({ type: 'ADD_BUNDLE', payload: created });
         sonner.success(wasOffline
@@ -448,6 +485,128 @@ export function BundleManager() {
                 />
               </button>
             </div>
+          </div>
+
+          {/* Deal Schedule */}
+          <div className="bg-gray-50 dark:bg-white/[0.02] rounded-2xl border border-gray-100 dark:border-white/5 p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-gray-500" />
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Deal Schedule</label>
+              </div>
+              <div className="flex bg-gray-100 dark:bg-white/5 rounded-xl p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, scheduleType: 'always' }))}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${form.scheduleType === 'always' ? 'bg-white dark:bg-surface shadow-md text-primary' : 'text-gray-500'}`}
+                >
+                  Always On
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, scheduleType: 'scheduled' }))}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${form.scheduleType === 'scheduled' ? 'bg-white dark:bg-surface shadow-md text-primary' : 'text-gray-500'}`}
+                >
+                  Scheduled
+                </button>
+              </div>
+            </div>
+
+            {form.scheduleType === 'scheduled' && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                {/* Date Range */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={form.startDate}
+                      onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))}
+                      className="input w-full text-xs py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={form.endDate}
+                      onChange={e => setForm(p => ({ ...p, endDate: e.target.value }))}
+                      className="input w-full text-xs py-2"
+                    />
+                  </div>
+                </div>
+
+                {/* Repeat Days */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
+                    <Repeat className="h-3 w-3 inline -mt-0.5 mr-1" />
+                    Repeat On
+                  </label>
+                  <div className="flex gap-1">
+                    {[
+                      { key: 'mon', label: 'M' },
+                      { key: 'tue', label: 'T' },
+                      { key: 'wed', label: 'W' },
+                      { key: 'thu', label: 'T' },
+                      { key: 'fri', label: 'F' },
+                      { key: 'sat', label: 'S' },
+                      { key: 'sun', label: 'S' },
+                    ].map(d => {
+                      const isSelected = form.repeatDays.includes(d.key);
+                      return (
+                        <button
+                          key={d.key}
+                          type="button"
+                          onClick={() => {
+                            setForm(p => ({
+                              ...p,
+                              repeatDays: isSelected
+                                ? p.repeatDays.filter(k => k !== d.key)
+                                : [...p.repeatDays, d.key]
+                            }));
+                          }}
+                          className={`h-8 w-8 rounded-lg text-[10px] font-black uppercase transition-all ${
+                            isSelected
+                              ? 'bg-primary text-white shadow-md'
+                              : 'bg-gray-100 dark:bg-white/10 text-gray-500 hover:bg-gray-200 dark:hover:bg-white/20'
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Time Window */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">
+                      <Clock className="h-3 w-3 inline -mt-0.5 mr-1" />
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={form.startTime}
+                      onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
+                      className="input w-full text-xs py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">
+                      <Clock className="h-3 w-3 inline -mt-0.5 mr-1" />
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={form.endTime}
+                      onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))}
+                      className="input w-full text-xs py-2"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Items / Slots Builder */}
@@ -793,6 +952,11 @@ export function BundleManager() {
                         {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${formatCurrency(discAmt, state.settings.currency)}`}
                       </span>
                       <span className="text-[10px] font-black text-primary">{formatCurrency(finalAmt, state.settings.currency)}</span>
+                      {bundle.scheduleType === 'scheduled' && (
+                        <span className="text-[8px] font-black uppercase bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                          Scheduled
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -919,17 +1083,22 @@ export function BundleManager() {
                       )}
                     </div>
                   </div>
-                  {/* Line 2: Details + Thumbnails (aligned under name) */}
-                  <div className="flex items-center justify-between gap-2 pl-[52px]">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span className="text-[10px] text-gray-500 whitespace-nowrap">
-                        {t('products_count', '{count} products').replace('{count}', String(itemCount))}
-                      </span>
-                      <span className="text-[10px] font-black text-red-500 whitespace-nowrap">
-                        {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${formatCurrency(discAmt, state.settings.currency)}`}
-                      </span>
-                      <span className="text-[10px] font-black text-primary whitespace-nowrap">{formatCurrency(finalAmt, state.settings.currency)}</span>
-                    </div>
+                    {/* Line 2: Details + Thumbnails (aligned under name) */}
+                    <div className="flex items-center justify-between gap-2 pl-[52px]">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className="text-[10px] text-gray-500 whitespace-nowrap">
+                          {t('products_count', '{count} products').replace('{count}', String(itemCount))}
+                        </span>
+                        <span className="text-[10px] font-black text-red-500 whitespace-nowrap">
+                          {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${formatCurrency(discAmt, state.settings.currency)}`}
+                        </span>
+                        <span className="text-[10px] font-black text-primary whitespace-nowrap">{formatCurrency(finalAmt, state.settings.currency)}</span>
+                        {bundle.scheduleType === 'scheduled' && (
+                          <span className="text-[8px] font-black uppercase bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                            Scheduled
+                          </span>
+                        )}
+                      </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {productImages.slice(0, 3).map(({ bi, product }, idx) => (
                         <div

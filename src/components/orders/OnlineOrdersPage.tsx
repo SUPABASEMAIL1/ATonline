@@ -21,19 +21,38 @@ const OrderTimer = ({ order, settings, onExpire }: { order: Sale, settings: any,
     const durationMs = settings.estoreOrderTimerMinutes * 60 * 1000;
     const targetTime = createdAt + durationMs;
     setTimeTotal(durationMs);
+
+    const initialRemaining = targetTime - Date.now();
+    const twoThird = (durationMs * 2) / 3;
+    const oneThird = durationMs / 3;
+
+    // Set initial alert states based on time already passed to prevent alert bombarding on mount/remount
+    setNotifiedHalf(initialRemaining <= twoThird);
+    setNotifiedThird(initialRemaining <= oneThird);
+
+    if (initialRemaining <= 0) {
+      setTimeLeft(0);
+      setExpired(true);
+      return;
+    }
+
+    setExpired(false);
+    setTimeLeft(initialRemaining);
+
     const tick = () => {
       const remaining = targetTime - Date.now();
       if (remaining <= 0) {
         setTimeLeft(0);
-        if (!expired) {
-          setExpired(true);
-          onExpire?.(order.id);
-        }
+        setExpired(prev => {
+          if (!prev) {
+            onExpire?.(order.id);
+          }
+          return true;
+        });
       } else {
         setTimeLeft(remaining);
       }
     };
-    tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [order.createdAt, settings?.estoreOrderTimerEnabled, settings?.estoreOrderTimerMinutes]);

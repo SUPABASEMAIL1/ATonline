@@ -506,13 +506,13 @@ export function POSTerminal() {
                 <button
                   onClick={() => navigate('/online-orders')}
                   style={{ minHeight: 'unset' }}
-                  className="relative px-3 py-1.5 min-h-0 bg-primary text-white hover:bg-emerald-600 rounded-xl transition-all active:scale-95 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 font-black tracking-widest uppercase text-[10px] sm:text-xs"
+                  className="relative w-7 h-7 sm:w-auto sm:h-auto min-h-0 bg-primary text-white hover:bg-emerald-600 rounded-full sm:rounded-xl transition-all active:scale-95 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20 font-black tracking-widest uppercase text-[10px] sm:text-xs sm:px-3 sm:py-1.5"
                   title="Online Orders"
                 >
-                  <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5" />
-                  Orders
+                  <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Orders</span>
                   {pendingEstoreOrders > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-sm ring-2 ring-white dark:ring-[#1E1E1E]">
+                    <span className="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] sm:text-[9px] font-black text-white shadow-sm ring-2 ring-white dark:ring-[#1E1E1E]">
                       {pendingEstoreOrders}
                     </span>
                   )}

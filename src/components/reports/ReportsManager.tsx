@@ -24,6 +24,7 @@ import { ExpensesReport } from './tabs/ExpensesReport';
 import { CustomersReport } from './tabs/CustomersReport';
 import { FinancialReport } from './tabs/FinancialReport';
 import { InventoryReport } from './tabs/InventoryReport';
+import { SkeletonLoader } from '../common/SkeletonLoader';
 
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -90,8 +91,8 @@ export function ReportsManager() {
   // Safety check to prevent black screen if settings haven't loaded yet
   if (!state?.settings) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="p-6 bg-gray-50 dark:bg-transparent">
+        <SkeletonLoader type="list" count={6} />
       </div>
     );
   }

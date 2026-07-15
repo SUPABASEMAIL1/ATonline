@@ -260,6 +260,12 @@ const getCachedSettings = (): AppState['settings'] => {
     storeType: 'both',
     storeLatitude: undefined,
     storeLongitude: undefined,
+    shopOpenTime: undefined,
+    shopCloseTime: undefined,
+    deliveryStartTime: undefined,
+    deliveryEndTime: undefined,
+    pickupStartTime: undefined,
+    pickupEndTime: undefined,
   };
 
   try {
@@ -992,10 +998,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.sales.put(mapped);
           
           // Play loud sound for new online orders (pending OR preparing)
-          // Only trigger if this order was NOT created/edited locally by this device
+          // Only trigger if this order was NOT created/edited locally by this device and not on storefront
           if (!existsLocally && mapped.saleType === 'estore' && ['pending', 'preparing'].includes(mapped.estoreStatus || '')) {
-            playOnlineOrderSound();
-            sonner.success(`🚨 NEW ONLINE ORDER: ${mapped.invoiceNumber} — ${mapped.customerName || 'Guest'} — ${mapped.total}`, { duration: 20000 });
+            if (!window.location.pathname.startsWith('/store')) {
+              playOnlineOrderSound();
+              sonner.success(`🚨 NEW ONLINE ORDER: ${mapped.invoiceNumber} — ${mapped.customerName || 'Guest'} — ${mapped.total}`, { duration: 20000 });
+            }
           }
 
           const exists = state.sales.some(s => s.id === mapped.id);

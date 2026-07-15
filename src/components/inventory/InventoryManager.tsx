@@ -16,6 +16,7 @@ import { ReceiptPrint } from '../pos/ReceiptPrint';
 import { PurchaseOrderSystem } from './PurchaseOrderSystem';
 import { CameraScanner } from '../common/CameraScanner';
 import { BarcodePreview } from '../common/BarcodePreview';
+import { SkeletonLoader } from '../common/SkeletonLoader';
 
 import { SupplierManager } from './suppliers/SupplierManager';
 import { sonner } from '../../lib/sonner';
@@ -42,8 +43,8 @@ export function InventoryManager() {
   // Safety check to prevent black screen if state/settings haven't loaded yet
   if (!state?.settings || !state?.products) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="p-6 bg-gray-50 dark:bg-transparent">
+        <SkeletonLoader type="list" count={6} />
       </div>
     );
   }

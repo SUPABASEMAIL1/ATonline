@@ -169,7 +169,7 @@ export function Header({
     items.push({ id: 'pos', label: t('pos', 'POS'), icon: AppIcons.pos, color: 'text-blue-500' });
     
     if (state.settings.estoreEnabled) {
-      items.push({ id: 'online-orders', label: 'Orders', icon: ShoppingCart, color: 'text-emerald-500' });
+      items.push({ id: 'online-orders', label: 'Orders', icon: Bell, color: 'text-emerald-500' });
     }
 
     if (role === 'admin' || role === 'manager' || role === 'cashier')

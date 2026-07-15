@@ -288,6 +288,12 @@ export const mapSettings = (item: any): AppSettings => {
     storeType: s.store_type ?? s.storeType ?? 'both',
     storeLatitude: s.store_latitude ?? s.storeLatitude,
     storeLongitude: s.store_longitude ?? s.storeLongitude,
+    shopOpenTime: s.shop_open_time ?? s.shopOpenTime,
+    shopCloseTime: s.shop_close_time ?? s.shopCloseTime,
+    deliveryStartTime: s.delivery_start_time ?? s.deliveryStartTime,
+    deliveryEndTime: s.delivery_end_time ?? s.deliveryEndTime,
+    pickupStartTime: s.pickup_start_time ?? s.pickupStartTime,
+    pickupEndTime: s.pickup_end_time ?? s.pickupEndTime,
     defaultSaleType: s.default_sale_type ?? s.defaultSaleType ?? 'retail',
     language: s.language ?? s.language ?? 'en',
     touchKeyboardEnabled: s.touch_keyboard_enabled ?? s.touchKeyboardEnabled ?? false,
@@ -430,6 +436,12 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('storeType' in s) { remote.store_type = s.storeType; }
   if ('storeLatitude' in s) { remote.store_latitude = s.storeLatitude === '' || s.storeLatitude === null || s.storeLatitude === undefined ? null : Number(s.storeLatitude); }
   if ('storeLongitude' in s) { remote.store_longitude = s.storeLongitude === '' || s.storeLongitude === null || s.storeLongitude === undefined ? null : Number(s.storeLongitude); }
+  if ('shopOpenTime' in s) { remote.shop_open_time = s.shopOpenTime || null; }
+  if ('shopCloseTime' in s) { remote.shop_close_time = s.shopCloseTime || null; }
+  if ('deliveryStartTime' in s) { remote.delivery_start_time = s.deliveryStartTime || null; }
+  if ('deliveryEndTime' in s) { remote.delivery_end_time = s.deliveryEndTime || null; }
+  if ('pickupStartTime' in s) { remote.pickup_start_time = s.pickupStartTime || null; }
+  if ('pickupEndTime' in s) { remote.pickup_end_time = s.pickupEndTime || null; }
   if ('defaultSaleType' in s) { remote.default_sale_type = s.defaultSaleType; }
   if ('language' in s) { remote.language = s.language; }
 
@@ -2311,6 +2323,12 @@ export const mapBundle = (row: any): Bundle => ({
   discountValue: Number(row.discount_value) || 0,
   discountType: row.discount_type || 'percentage',
   active: row.active !== false,
+  scheduleType: row.schedule_type || 'always',
+  startDate: row.start_date || undefined,
+  endDate: row.end_date || undefined,
+  repeatDays: row.repeat_days || undefined,
+  startTime: row.start_time || undefined,
+  endTime: row.end_time || undefined,
   hideItemPrices: row.hide_item_prices === true,
   image: row.image,
   items: (row.bundle_items || []).map((bi: any): BundleItem => ({
@@ -2505,6 +2523,12 @@ export const bundlesService = {
     slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string }[] }[];
     hideItemPrices?: boolean;
     isCombo?: boolean;
+    scheduleType?: 'always' | 'scheduled';
+    startDate?: string;
+    endDate?: string;
+    repeatDays?: string[];
+    startTime?: string;
+    endTime?: string;
   }): Promise<Bundle> {
     const id = generateId();
     const now = new Date().toISOString();
@@ -2549,6 +2573,12 @@ export const bundlesService = {
       description: data.description || '',
       discountValue: data.discountValue,
       discountType: data.discountType,
+      scheduleType: data.scheduleType || 'always',
+      startDate: data.startDate || null,
+      endDate: data.endDate || null,
+      repeatDays: data.repeatDays || null,
+      startTime: data.startTime || null,
+      endTime: data.endTime || null,
       hideItemPrices: data.hideItemPrices || false,
       isCombo: data.isCombo || false,
       active: true,
@@ -2589,6 +2619,12 @@ export const bundlesService = {
         description: data.description || '',
         discount_value: data.discountValue,
         discount_type: data.discountType,
+        schedule_type: data.scheduleType || 'always',
+        start_date: data.startDate || null,
+        end_date: data.endDate || null,
+        repeat_days: data.repeatDays || null,
+        start_time: data.startTime || null,
+        end_time: data.endTime || null,
         hide_item_prices: data.hideItemPrices || false,
         is_combo: data.isCombo || false,
         active: true,
@@ -2619,6 +2655,12 @@ export const bundlesService = {
           description: data.description || '',
           discount_value: data.discountValue,
           discount_type: data.discountType,
+          schedule_type: data.scheduleType || 'always',
+          start_date: data.startDate || null,
+          end_date: data.endDate || null,
+          repeat_days: data.repeatDays || null,
+          start_time: data.startTime || null,
+          end_time: data.endTime || null,
           hide_item_prices: data.hideItemPrices || false,
           is_combo: data.isCombo || false,
           active: true,
@@ -2656,6 +2698,12 @@ export const bundlesService = {
     isCombo?: boolean;
     estoreSortOrder?: number;
     image?: string;
+    scheduleType?: 'always' | 'scheduled';
+    startDate?: string;
+    endDate?: string;
+    repeatDays?: string[];
+    startTime?: string;
+    endTime?: string;
   }): Promise<void> {
     const now = new Date().toISOString();
     const updates: any = { updated_at: now };
@@ -2668,6 +2716,12 @@ export const bundlesService = {
     if (data.active !== undefined) updates.active = data.active;
     if (data.estoreSortOrder !== undefined) updates.estore_sort_order = data.estoreSortOrder;
     if (data.image !== undefined) updates.image = data.image;
+    if (data.scheduleType !== undefined) updates.schedule_type = data.scheduleType;
+    if (data.startDate !== undefined) updates.start_date = data.startDate || null;
+    if (data.endDate !== undefined) updates.end_date = data.endDate || null;
+    if (data.repeatDays !== undefined) updates.repeat_days = data.repeatDays || null;
+    if (data.startTime !== undefined) updates.start_time = data.startTime || null;
+    if (data.endTime !== undefined) updates.end_time = data.endTime || null;
 
     // Update local FIRST (offline-first)
     const localUpdates: any = { updatedAt: new Date(now) };
@@ -2680,6 +2734,12 @@ export const bundlesService = {
     if (data.active !== undefined) localUpdates.active = data.active;
     if (data.estoreSortOrder !== undefined) localUpdates.estoreSortOrder = data.estoreSortOrder;
     if (data.image !== undefined) localUpdates.image = data.image;
+    if (data.scheduleType !== undefined) localUpdates.scheduleType = data.scheduleType;
+    if (data.startDate !== undefined) localUpdates.startDate = data.startDate || null;
+    if (data.endDate !== undefined) localUpdates.endDate = data.endDate || null;
+    if (data.repeatDays !== undefined) localUpdates.repeatDays = data.repeatDays || null;
+    if (data.startTime !== undefined) localUpdates.startTime = data.startTime || null;
+    if (data.endTime !== undefined) localUpdates.endTime = data.endTime || null;
 
     await localDb.bundles.where('id').equals(bundleId).modify(localUpdates);
 

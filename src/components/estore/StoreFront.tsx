@@ -1,32 +1,49 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product, AppSettings, Category, CartItem, ProductModifier, Bundle, Sale } from '../../types';
-import { ShoppingCart, ShoppingBag, Search, Plus, Minus, ChevronRight, ChevronLeft, X, User, History, LogOut, Bike, Clock, Flame, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, Search, Plus, Minus, ChevronRight, ChevronLeft, X, User, History, LogOut, Bike, Clock, Flame, CheckCircle2, Timer } from 'lucide-react';
 import { useEstoreAuth } from './useEstoreAuth';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/currencies';
 import { StoreProductModal } from './StoreProductModal';
 import { StoreDealModal } from './StoreDealModal';
+import { useScheduleStatus } from '../../hooks/useScheduleStatus';
 
 // ─── Live ticking order timer for StoreFront order history ───
 const StoreOrderTimer = ({ order, settings, onExpire }: { order: any, settings: any, onExpire: () => void }) => {
   const [timeLeft, setTimeLeft] = useState<number>(-1);
+  const [expired, setExpired] = useState(false);
+
   useEffect(() => {
     if (!settings?.estoreOrderTimerEnabled || !settings?.estoreOrderTimerMinutes) return;
     const createdAt = new Date(order.createdAt).getTime();
     const durationMs = settings.estoreOrderTimerMinutes * 60 * 1000;
     const targetTime = createdAt + durationMs;
     
+    const initialRemaining = targetTime - Date.now();
+    if (initialRemaining <= 0) {
+      setTimeLeft(0);
+      setExpired(true);
+      return;
+    }
+
+    setExpired(false);
+    setTimeLeft(initialRemaining);
+
     const tick = () => {
       const remaining = targetTime - Date.now();
       if (remaining <= 0) {
         setTimeLeft(0);
-        onExpire();
+        setExpired(prev => {
+          if (!prev) {
+            onExpire();
+          }
+          return true;
+        });
       } else {
         setTimeLeft(remaining);
       }
     };
-    tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [order.createdAt, settings?.estoreOrderTimerEnabled, settings?.estoreOrderTimerMinutes]);
@@ -46,6 +63,75 @@ const StoreOrderTimer = ({ order, settings, onExpire }: { order: any, settings: 
       </svg>
       {formatted}
     </span>
+  );
+};
+
+// ─── Live countdown for scheduled deals ───
+const DealCountdown = ({ bundle }: { bundle: Bundle }) => {
+  const [display, setDisplay] = useState('');
+  const [label, setLabel] = useState('Ends in');
+  useEffect(() => {
+    if (!bundle.scheduleType || bundle.scheduleType === 'always') return;
+    const tick = () => {
+      const now = new Date();
+      const nowMs = now.getTime();
+      let target: number | null = null;
+      let isStart = false;
+
+      if (bundle.startTime && bundle.endTime) {
+        const [sh, sm] = bundle.startTime.split(':').map(Number);
+        const [eh, em] = bundle.endTime.split(':').map(Number);
+        const startToday = new Date(now);
+        startToday.setHours(sh, sm, 0, 0);
+        const endToday = new Date(now);
+        endToday.setHours(eh, em, 0, 0);
+        let startDiff = startToday.getTime() - nowMs;
+        let endDiff = endToday.getTime() - nowMs;
+
+        if (endDiff <= 0 && bundle.startTime > bundle.endTime) {
+          endToday.setDate(endToday.getDate() + 1);
+          endDiff = endToday.getTime() - nowMs;
+        }
+        if (startDiff > 0 && bundle.startTime > bundle.endTime) {
+          startToday.setDate(startToday.getDate() - 1);
+          startDiff = startToday.getTime() - nowMs;
+        }
+
+        if (startDiff > 0) {
+          target = startDiff;
+          isStart = true;
+        } else if (endDiff > 0) {
+          target = endDiff;
+        }
+      }
+
+      if (!target && bundle.endDate) {
+        target = new Date(bundle.endDate + 'T23:59:59').getTime() - nowMs;
+      }
+
+      if (target && target > 0) {
+        const h = Math.floor(target / 3600000);
+        const m = Math.floor((target % 3600000) / 60000);
+        const s = Math.floor((target % 60000) / 1000);
+        setDisplay(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        setLabel(isStart ? 'Starts in' : 'Ends in');
+      } else {
+        setDisplay('');
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [bundle]);
+  if (!display) return null;
+  return (
+    <div className="absolute bottom-3 left-3 right-3 z-10">
+      <div className="flex items-center justify-center gap-1.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-lg">
+        <Timer className="h-3 w-3" />
+        <span className="text-[8px] opacity-80 mr-0.5">{label}</span>
+        <span className="tabular-nums">{display}</span>
+      </div>
+    </div>
   );
 };
 
@@ -178,9 +264,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
   };
 
   const handleTimerExpire = (orderId: string) => {
-    supabase.from('sales').update({ estore_status: 'delivered' }).eq('id', orderId).then(() => {
-      setPastOrders(prev => prev.map(o => o.id === orderId ? { ...o, estoreStatus: 'delivered' } : o));
-    });
+    console.log(`Order timer expired: ${orderId}`);
   };
 
 
@@ -255,9 +339,42 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
     });
   }, [products, searchTerm, activeCategory]);
 
+  const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+  function getPrevDayKey(day: string): string {
+    const idx = DAYS.indexOf(day as any);
+    return DAYS[idx <= 0 ? 6 : idx - 1];
+  }
+  function timeWraps(st: string, et: string): boolean {
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = et.split(':').map(Number);
+    return (eh * 60 + em) <= (sh * 60 + sm);
+  }
+  function inTimeW(nowMin: number, st: string, et: string): boolean {
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = et.split(':').map(Number);
+    const s = sh * 60 + sm, e = eh * 60 + em;
+    return e > s ? (nowMin >= s && nowMin < e) : (nowMin >= s || nowMin < e);
+  }
+  function isBundleInSchedule(bundle: Bundle): boolean {
+    if (!bundle.scheduleType || bundle.scheduleType === 'always') return true;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const todayKey = DAYS[now.getDay()];
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    if (bundle.startDate && todayStr < bundle.startDate) return false;
+    if (bundle.endDate && todayStr > bundle.endDate) return false;
+    const wraps = bundle.startTime && bundle.endTime ? timeWraps(bundle.startTime, bundle.endTime) : false;
+    const todayIn = bundle.repeatDays?.length ? bundle.repeatDays.includes(todayKey) : true;
+    const prevIn = bundle.repeatDays?.length ? bundle.repeatDays.includes(getPrevDayKey(todayKey)) : false;
+    let dayOk = todayIn || (wraps && prevIn && bundle.endTime && nowMin < (() => { const [eh, em] = bundle.endTime!.split(':').map(Number); return eh * 60 + em; })());
+    if (!todayIn && !dayOk) return false;
+    if (bundle.startTime && bundle.endTime && !inTimeW(nowMin, bundle.startTime, bundle.endTime)) return false;
+    return true;
+  }
+
   const matchingBundles = useMemo(() => {
     if (!bundles) return [];
-    const activeBundles = bundles.filter(b => b.active !== false);
+    const activeBundles = bundles.filter(b => b.active !== false && isBundleInSchedule(b));
     if (!searchTerm) {
       return activeCategory === 'All' ? activeBundles : [];
     }
@@ -459,9 +576,19 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                           <span className="text-5xl">🎁</span>
                         )}
 
-                        <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow z-10">
-                          {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF
+                        <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start gap-2">
+                          {bundle.scheduleType === 'scheduled' && (
+                            <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-1 rounded-full shadow flex items-center gap-1">
+                              <Flame className="h-3 w-3" /> SCHEDULED
+                            </span>
+                          )}
+                          <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow ml-auto flex items-center gap-1">
+                            {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF
+                          </span>
                         </div>
+                        {bundle.scheduleType === 'scheduled' && (
+                          <DealCountdown bundle={bundle} />
+                        )}
                       </div>
 
                       <div className="p-4 flex flex-col gap-1.5 flex-1 justify-between">
@@ -616,9 +743,9 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
 
       {/* Cart Drawer */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-[100] flex justify-end">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:justify-end md:items-stretch md:p-0">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setIsCartOpen(false)} />
-          <div className="relative w-full max-w-md bg-[var(--color-card-bg)] h-full shadow-2xl flex flex-col animate-slide-left">
+          <div className="relative w-full max-w-md bg-[var(--color-card-bg)] h-fit max-h-[85vh] md:h-full md:max-h-full rounded-[2rem] md:rounded-none shadow-2xl flex flex-col overflow-hidden animate-scale-up md:animate-slide-left">
             <div className="p-6 border-b border-black/10 dark:border-white/10 flex items-center justify-between">
               <h2 className="text-2xl font-black text-[var(--color-text)]">Your Order</h2>
               <button onClick={() => setIsCartOpen(false)} className="w-10 h-10 bg-black/5 dark:bg-white/5 rounded-full flex items-center justify-center text-[var(--color-text)] opacity-50 hover:opacity-100">
@@ -835,10 +962,10 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
 
       {/* Orders Modal */}
       {showOrdersModal && (
-        <div className="fixed inset-0 z-[110] flex flex-col md:items-center md:justify-center">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowOrdersModal(false)} />
-          <div className="relative bg-[var(--color-card-bg)] w-full h-full md:h-auto md:max-h-[85vh] md:max-w-2xl md:rounded-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300">
-            <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between bg-[var(--color-card-bg)] md:rounded-t-3xl sticky top-0 z-10">
+          <div className="relative bg-[var(--color-card-bg)] w-full max-w-2xl h-fit max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-scale-up">
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between bg-[var(--color-card-bg)] sticky top-0 z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                   <History className="w-5 h-5 text-primary" />

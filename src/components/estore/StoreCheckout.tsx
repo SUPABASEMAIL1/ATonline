@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { AppSettings, CartItem, Sale } from '../../types';
 import { toRemoteSale } from '../../lib/services';
 import { formatCurrency } from '../../lib/currencies';
-import { ArrowLeft, CheckCircle, CheckCircle2, MapPin, AlertCircle, LocateFixed, User, Phone, Map as MapIcon, AlignLeft, Navigation } from 'lucide-react';
+import { ArrowLeft, CheckCircle, CheckCircle2, MapPin, AlertCircle, LocateFixed, User, Phone, Map as MapIcon, AlignLeft, Navigation, Clock } from 'lucide-react';
 import { sonner } from '../../lib/sonner';
 import { useEstoreAuth } from './useEstoreAuth';
+import { formatTime12h } from '../../lib/timeFormat';
 
 import { OrderTracker } from './OrderTracker';
 
@@ -44,17 +45,39 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
   const [orderId, setOrderId] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash');
 
+  function isTimeInWindow(st: string | undefined, et: string | undefined): boolean {
+    if (!st || !et) return true;
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = et.split(':').map(Number);
+    const s = sh * 60 + sm, e = eh * 60 + em;
+    return e > s ? (nowMin >= s && nowMin < e) : (nowMin >= s || nowMin < e);
+  }
+
+  const deliveryHoursOk = isTimeInWindow(settings?.deliveryStartTime, settings?.deliveryEndTime);
+  const pickupHoursOk = isTimeInWindow(settings?.pickupStartTime, settings?.pickupEndTime);
+  const shopHoursOk = isTimeInWindow(settings?.shopOpenTime, settings?.shopCloseTime);
+
   const isDeliveryEnabled = settings?.estoreDeliveryEnabled !== false;
   const isPickupEnabled = settings?.estorePickupEnabled === true;
+  const deliverySelectable = isDeliveryEnabled && deliveryHoursOk;
+  const pickupSelectable = isPickupEnabled && pickupHoursOk;
+
   const [fulfillmentMode, setFulfillmentMode] = useState<'delivery' | 'pickup'>('delivery');
 
   useEffect(() => {
-    if (!isDeliveryEnabled && isPickupEnabled) {
+    if (!deliverySelectable && pickupSelectable) {
       setFulfillmentMode('pickup');
-    } else {
+    } else if (!pickupSelectable && deliverySelectable) {
+      setFulfillmentMode('delivery');
+    } else if (!deliverySelectable && !pickupSelectable) {
+      // both unavailable — keep last selection
+    } else if (fulfillmentMode === 'delivery' && !deliverySelectable) {
+      setFulfillmentMode('pickup');
+    } else if (fulfillmentMode === 'pickup' && !pickupSelectable) {
       setFulfillmentMode('delivery');
     }
-  }, [isDeliveryEnabled, isPickupEnabled]);
+  }, [deliverySelectable, pickupSelectable, fulfillmentMode]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -190,10 +213,25 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
 
   const deliveryAllowed = isDeliveryAllowed();
 
+  const modeHoursOk = fulfillmentMode === 'delivery' ? deliveryHoursOk : pickupHoursOk;
+  const currentModeOk = shopHoursOk && modeHoursOk;
+  const canOrder = currentModeOk && !(fulfillmentMode === 'delivery' && !deliveryAllowed) && cart.length > 0;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) {
       sonner.error('Your cart is empty');
+      return;
+    }
+    if (!canOrder) {
+      if (!shopHoursOk && settings?.shopOpenTime && settings?.shopCloseTime) {
+        sonner.error(`Store is currently closed. Opens at ${formatTime12h(settings.shopOpenTime)}.`);
+      } else {
+        const label = fulfillmentMode === 'delivery' ? 'Delivery' : 'Pickup';
+        const st = fulfillmentMode === 'delivery' ? settings?.deliveryStartTime : settings?.pickupStartTime;
+        const et = fulfillmentMode === 'delivery' ? settings?.deliveryEndTime : settings?.pickupEndTime;
+        sonner.error(`${label} is currently unavailable (${formatTime12h(st)} – ${formatTime12h(et)}).`);
+      }
       return;
     }
 
@@ -294,44 +332,78 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         {/* Checkout Form */}
         <div className="flex-1 space-y-6">
           {/* Fulfillment Mode Selector (KFC Style) */}
-          {isDeliveryEnabled && isPickupEnabled && (
-            <div className="grid grid-cols-2 gap-3 p-2 bg-[var(--color-card-bg)] rounded-[2rem] border border-gray-100 shadow-sm">
-              <button
-                type="button"
-                onClick={() => setFulfillmentMode('delivery')}
-                className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-                  fulfillmentMode === 'delivery'
+          <div className="grid grid-cols-2 gap-3 p-2 bg-[var(--color-card-bg)] rounded-[2rem] border border-gray-100 shadow-sm">
+            <button
+              type="button"
+              onClick={() => deliverySelectable && setFulfillmentMode('delivery')}
+              className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${
+                !deliverySelectable
+                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : fulfillmentMode === 'delivery'
                     ? 'bg-primary text-white shadow-lg'
                     : 'text-[var(--color-text)] opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
-                }`}
-              >
+              }`}
+              title={!deliverySelectable && settings?.deliveryStartTime && settings?.deliveryEndTime ? `Delivery available ${formatTime12h(settings.deliveryStartTime)} – ${formatTime12h(settings.deliveryEndTime)}` : ''}
+            >
+              <div className="flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
                 Delivery
-              </button>
-              <button
-                type="button"
-                onClick={() => setFulfillmentMode('pickup')}
-                className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-                  fulfillmentMode === 'pickup'
+              </div>
+              {!deliverySelectable && deliveryHoursOk === false && settings?.deliveryStartTime && (
+                <span className="text-[8px] font-medium opacity-60 flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5" /> {formatTime12h(settings.deliveryStartTime)} – {formatTime12h(settings.deliveryEndTime)}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => pickupSelectable && setFulfillmentMode('pickup')}
+              className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${
+                !pickupSelectable
+                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  : fulfillmentMode === 'pickup'
                     ? 'bg-primary text-white shadow-lg'
                     : 'text-[var(--color-text)] opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
-                }`}
-              >
+              }`}
+              title={!pickupSelectable && settings?.pickupStartTime && settings?.pickupEndTime ? `Pickup available ${formatTime12h(settings.pickupStartTime)} – ${formatTime12h(settings.pickupEndTime)}` : ''}
+            >
+              <div className="flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
                 Self Pickup
-              </button>
-            </div>
-          )}
+              </div>
+              {!pickupSelectable && pickupHoursOk === false && settings?.pickupStartTime && (
+                <span className="text-[8px] font-medium opacity-60 flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5" /> {formatTime12h(settings.pickupStartTime)} – {formatTime12h(settings.pickupEndTime)}
+                </span>
+              )}
+            </button>
+          </div>
 
-          <div className="bg-[var(--color-card-bg)] rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+          <div className="bg-[var(--color-card-bg)] rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 relative">
+            {!canOrder && (
+              <div className="absolute inset-0 z-10 bg-white/80 dark:bg-black/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center p-6 text-center">
+                <Clock className="w-10 h-10 text-amber-500 mb-3" />
+                <p className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight">
+                  Ordering Unavailable
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs">
+                  {!shopHoursOk && settings?.shopOpenTime && settings?.shopCloseTime
+                    ? `Store is currently closed. Reopens at ${formatTime12h(settings.shopOpenTime)}.`
+                    : `${fulfillmentMode === 'delivery' ? 'Delivery' : 'Pickup'} is currently outside operating hours.`}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-2">
+                  Your cart items are saved — you can complete the order once the store reopens.
+                </p>
+              </div>
+            )}
             <h2 className="text-2xl font-black text-[var(--color-text)] mb-6 flex items-center gap-3">
               <MapPin className="w-6 h-6 text-primary" /> {fulfillmentMode === 'pickup' ? 'Pickup Contact Details' : 'Delivery Details'}
             </h2>
-            <form id="checkout-form" onSubmit={handleSubmit} className="space-y-4">
+            <form id="checkout-form" onSubmit={handleSubmit} className={`space-y-4 ${!canOrder ? 'pointer-events-none opacity-40' : ''}`}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80 mb-2">
@@ -634,11 +706,13 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
             <button 
               type="submit"
               form="checkout-form"
-              disabled={loading || cart.length === 0 || (fulfillmentMode === 'delivery' && !deliveryAllowed)}
+              disabled={loading || !canOrder}
               className="w-full py-4 mt-8 bg-primary text-white rounded-2xl font-black text-lg hover:brightness-90 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-lg"
             >
               {loading ? (
                 <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              ) : !canOrder ? (
+                'Currently Unavailable'
               ) : (
                 `Place Order ${selectedPaymentMethod === 'cash' ? '(COD)' : ''}`
               )}
