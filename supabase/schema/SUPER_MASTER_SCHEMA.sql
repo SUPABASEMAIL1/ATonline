@@ -1890,6 +1890,10 @@ ALTER TABLE sales
   ADD COLUMN IF NOT EXISTS customer_notes TEXT;
 
 ALTER TABLE app_settings
+  ADD COLUMN IF NOT EXISTS estore_theme_color TEXT DEFAULT '#10b981',
+  ADD COLUMN IF NOT EXISTS estore_delivery_fee NUMERIC DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS estore_min_order NUMERIC DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS estore_cod_enabled BOOLEAN DEFAULT true,
   ADD COLUMN IF NOT EXISTS estore_primary_color_hover TEXT DEFAULT '#059669',
   ADD COLUMN IF NOT EXISTS estore_bg_color TEXT DEFAULT '#f9fafb',
   ADD COLUMN IF NOT EXISTS estore_text_color TEXT DEFAULT '#111827',
