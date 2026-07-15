@@ -2,6 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function(){
+        var p = window.location.pathname;
+        var m = p.startsWith('/store') ? '/manifest.json' : '/admin-manifest.json';
+        var l = document.createElement('link');
+        l.rel = 'manifest';
+        l.href = m;
+        document.head.appendChild(l);
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/zaynahs-logo.svg" />
     <link rel="apple-touch-icon" href="/zaynahs-logo.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -11,7 +21,6 @@
     <title>Zaynahs POS</title>
     <meta name="description" content="Zaynahs POS - A modern point of sale system" />
     <meta name="robots" content="index, follow" />
-    <link rel="manifest" href="/admin-manifest.json">
     
     <meta property="og:title" content="ZaynahsPos" />
     <meta property="og:description" content="A modern point of sale system for retail and e-commerce." />
