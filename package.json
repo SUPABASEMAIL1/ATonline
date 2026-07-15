@@ -47,20 +47,20 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/logo.ico",
+      "icon": "public/zaynahs-logo.svg",
       "forceCodeSigning": false,
       "verifyUpdateCodeSignature": false
     },
     "mac": {
       "target": "dmg",
-      "icon": "public/logo.png"
+      "icon": "public/zaynahs-logo.svg"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "public/logo.ico",
-      "uninstallerIcon": "public/logo.ico",
-      "installerHeaderIcon": "public/logo.ico"
+      "installerIcon": "public/zaynahs-logo.svg",
+      "uninstallerIcon": "public/zaynahs-logo.svg",
+      "installerHeaderIcon": "public/zaynahs-logo.svg"
     }
   },
   "dependencies": {

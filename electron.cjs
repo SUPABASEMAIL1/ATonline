@@ -25,7 +25,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: "Zaynah's POS",
-    icon: path.join(__dirname, app.isPackaged ? 'dist' : 'public', 'logo.png'),
+    icon: path.join(__dirname, app.isPackaged ? 'dist' : 'public', 'zaynahs-logo.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
