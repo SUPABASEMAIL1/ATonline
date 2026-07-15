@@ -13,7 +13,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="manifest" href="/admin-manifest.json">
     
     <meta property="og:title" content="ZaynahsPos" />
     <meta property="og:description" content="A modern point of sale system for retail and e-commerce." />
@@ -132,7 +132,7 @@
 
         // Link the correct physical manifest file
         var _manifestLink = document.querySelector('link[rel="manifest"]');
-        var _manifestPath = _isStore ? '/store.webmanifest' : '/site.webmanifest';
+        var _manifestPath = _isStore ? '/manifest.json' : '/admin-manifest.json';
         if (_manifestLink) {
           _manifestLink.setAttribute('href', _manifestPath);
         } else {

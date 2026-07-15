@@ -209,7 +209,7 @@ function AppContent() {
     appNameMeta.setAttribute('content', isStore ? bizName : bizName + ' POS');
 
     const manifestLink = document.querySelector('link[rel="manifest"]');
-    const manifestPath = isStore ? '/store.webmanifest' : '/site.webmanifest';
+    const manifestPath = isStore ? '/manifest.json' : '/admin-manifest.json';
     if (manifestLink) {
       manifestLink.setAttribute('href', manifestPath);
     } else {

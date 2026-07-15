@@ -194,7 +194,7 @@ export function EStoreApp() {
     appNameMeta.setAttribute('content', bizName);
 
     const manifestLink = document.querySelector('link[rel="manifest"]');
-    const manifestPath = '/store.webmanifest';
+    const manifestPath = '/manifest.json';
     if (manifestLink) {
       manifestLink.setAttribute('href', manifestPath);
     } else {
