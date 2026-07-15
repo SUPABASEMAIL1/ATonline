@@ -271,21 +271,59 @@ curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCO
 
 ## 9. CUSTOM DOMAIN — ADD / REMOVE
 
-### Add custom domain
+### Via API (Agent automatic)
 
 ```bash
 curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/my-project/domains" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"name": "example.com"}'
+  -d '{"name": "subdomain.yourdomain.com"}'
 ```
 
-### List domains
+### Via Dashboard (Manual)
 
-```bash
-curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-  "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/my-project/domains"
+1. [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → project name
+2. **Custom domains** tab → **Set up a custom domain**
+3. Domain likho → **Continue**
+4. Cloudflare auto-verify karega
+
+### DNS Setup (Both Methods)
+
+| Scenario | DNS Record |
+|----------|-----------|
+| Domain **same Cloudflare account** pe hai | Auto — kuch nahi karna |
+| Domain **doosre Cloudflare account** pe hai | CNAME `subdomain` → `project-name.pages.dev` manually dalo |
+| Domain **kisi aur registrar** pe hai (GoDaddy, Namecheap) | Pehle nameservers Cloudflare ke change karo, phir CNAME auto |
+
+### Important: Agent Action Rule
+
+Jab bhi domain add karo:
+
+1. **API se domain add karo** (upar wala curl)
+2. **User ko batao** exact CNAME record jo dalna hai:
+
 ```
+   🔴 Action Required:
+   Doosre Cloudflare account mein DNS mein CNAME record add karo:
+   Type: CNAME
+   Name: <subdomain>
+   Target: <project-name>.pages.dev
+```
+
+3. **Status check karo:**
+   ```bash
+   curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+     "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/my-project/domains"
+   ```
+   - `active` → ✅ ready
+   - `pending` → ⏳ wait + DNS verify
+   - `initializing` → ⏳ processing
+
+4. **Verify site reachable:**
+   ```bash
+   curl -sI "https://subdomain.yourdomain.com"
+   ```
+   HTTP 200 milna chahiye.
 
 ### Remove domain
 
@@ -449,5 +487,6 @@ Jab bhi Cloudflare Pages operation karna ho:
    - Deploy? → Section 6 (hamesha wrangler use karo, NOT curl multipart)
    - Build check? → Section 7
    - Config change? → Section 8
-   - Domain? → Section 9
+   - Domain? → Section 9 (API add karo + user ko CNAME batao)
+   - Domain status check? → `curl .../domains` — `active` = ready
 5. **Deploy ke baad akhri stage check karo** → Section 10
