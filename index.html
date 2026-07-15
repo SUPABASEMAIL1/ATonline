@@ -121,10 +121,19 @@
         ];
 
         // Store PWA uses custom uploaded logo. POS PWA retains default Zaynahs icons for clear differentiation.
+        function _getLogoMime(url) {
+          if (url.indexOf('.webp') !== -1) return 'image/webp';
+          if (url.indexOf('.png') !== -1) return 'image/png';
+          if (url.indexOf('.jpg') !== -1 || url.indexOf('.jpeg') !== -1) return 'image/jpeg';
+          if (url.indexOf('.svg') !== -1) return 'image/svg+xml';
+          return 'image/png';
+        }
+
         if (_isStore && _storeLogo) {
+          var _mime = _getLogoMime(_storeLogo);
           _icons = [
-            { src: _storeLogo, sizes: '512x512', type: 'image/png', purpose: 'any' },
-            { src: _storeLogo, sizes: '192x192', type: 'image/png', purpose: 'any' }
+            { src: _storeLogo, sizes: '512x512', type: _mime, purpose: 'any' },
+            { src: _storeLogo, sizes: '192x192', type: _mime, purpose: 'any' }
           ];
           
           // Dynamically set Apple Touch Icon for iOS home screen installation
@@ -163,15 +172,29 @@
           document.title = _bizName + ' POS';
         }
 
+        var _appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        var _targetTitle = _isStore ? _bizName : _bizName + ' POS';
+        if (_appleTitleMeta) {
+          _appleTitleMeta.setAttribute('content', _targetTitle);
+        }
+        var _appNameMeta = document.querySelector('meta[name="application-name"]');
+        if (_appNameMeta) {
+          _appNameMeta.setAttribute('content', _targetTitle);
+        } else {
+          var _newAppName = document.createElement('meta');
+          _newAppName.name = 'application-name';
+          _newAppName.content = _targetTitle;
+          document.head.appendChild(_newAppName);
+        }
+
         var _manifestLink = document.querySelector('link[rel="manifest"]');
-        var _blob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });
-        var _url = URL.createObjectURL(_blob);
+        var _manifestStr = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(_manifest));
         if (_manifestLink) {
-          _manifestLink.setAttribute('href', _url);
+          _manifestLink.setAttribute('href', _manifestStr);
         } else {
           var _newLink = document.createElement('link');
           _newLink.rel = 'manifest';
-          _newLink.href = _url;
+          _newLink.href = _manifestStr;
           document.head.appendChild(_newLink);
         }
       })();

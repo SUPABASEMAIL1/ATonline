@@ -8,11 +8,11 @@ import { usersService } from '../../lib/services';
 import { createClient } from '@supabase/supabase-js';
 import { supabase, adminSupabase } from '../../lib/supabase';
 import { sonner } from '../../lib/sonner';
-import { compressImage } from '../../lib/imageCompression';
 import { hashPasswordString } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { MediaLibrary } from '../inventory/MediaLibrary';
 
 if (typeof window !== 'undefined') {
   console.warn(
@@ -51,7 +51,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
     canEditSale: false,
     permissions: [] as string[]
   });
-  const [isCompressing, setIsCompressing] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -272,24 +272,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
     }));
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      try {
-        setIsCompressing(true);
-        const compressedFile = await compressImage(file, 400, 400, 0.6);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setFormData(prev => ({ ...prev, avatar: event.target?.result as string }));
-        };
-        reader.readAsDataURL(compressedFile);
-      } catch (error) {
-        console.error('Avatar compression failed:', error);
-      } finally {
-        setIsCompressing(false);
-      }
-    }
-  };
+
 
   const footer = (
     <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
@@ -332,26 +315,23 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           
           <div className="flex items-center gap-6">
             <div className="relative group">
-              <div className="h-20 w-20 bg-gray-50 dark:bg-black/75 rounded-2xl flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/5 shadow-sm transition-all group-hover:border-primary/30">
+              <div
+                onClick={() => setShowMediaLibrary(true)}
+                className="h-20 w-20 bg-gray-50 dark:bg-black/75 rounded-2xl flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/5 shadow-sm transition-all group-hover:border-primary/30 cursor-pointer"
+              >
                 {formData.avatar ? (
                   <img src={formData.avatar} alt="Avatar" className="h-full w-full object-cover" />
                 ) : (
                   <User className="h-10 w-10 text-gray-600" />
                 )}
-                {isCompressing && (
-                  <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 text-white animate-spin" />
-                  </div>
-                )}
               </div>
               <button
                 type="button"
-                onClick={() => document.getElementById('avatar-upload')?.click()}
+                onClick={() => setShowMediaLibrary(true)}
                 className="absolute -bottom-2 -right-2 bg-white dark:bg-zinc-800 text-primary p-2 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 hover:scale-110 active:scale-90 transition-all"
               >
                 <Camera className="h-4 w-4" />
               </button>
-              <input id="avatar-upload" type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
             </div>
             <div className="flex-1">
               <p className="text-[12px] font-black text-gray-900 dark:text-white uppercase tracking-wider">{t('system_avatar', 'System Avatar')}</p>
@@ -539,6 +519,13 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           </label>
         </div>
       </div>
+      {showMediaLibrary && (
+        <MediaLibrary
+          isOpen={showMediaLibrary}
+          onClose={() => setShowMediaLibrary(false)}
+          onSelect={(url) => setFormData(prev => ({ ...prev, avatar: url }))}
+        />
+      )}
     </Modal>
   );
 }

@@ -23,10 +23,15 @@
   - Customer Store App: `start_url: '/store'`, `scope: '/store'` (dynamically generated using shop's uploaded store logo and business name).
 - [x] Integrated dynamic PWA manifest updates into React (`App.tsx` and `EStoreApp.tsx`) via `useEffect` hooks, mirroring settings into local storage on load so that guest customer installations display the correct shop name and custom logo.
 - [x] Dynamically set browser tab favicon to match the shop's custom logo on `/store` routes.
+- [x] Converted dynamic in-memory PWA manifest `blob:` URLs to fully self-contained base64/data URI format (`data:application/json;charset=utf-8,...`), fixing iOS Safari and Android Chrome background installer retrieval failures.
+- [x] Dynamically update `<meta name="apple-mobile-web-app-title">` and `<meta name="application-name">` tags on client settings sync to prevent iOS Safari Home Screen installations from defaulting to static fallback titles.
 
 # Icon Customization & Mobile Layout Fixes
 - [x] Replaced the `ShoppingCart` icon with the `Bell` icon for the "Orders" navigation item in `Header.tsx` so that it is clearly distinct from the "POS" tab icon.
 - [x] Optimized the POS Orders button on mobile: Hid the text label (`Orders`) and resized it to a perfect circle size (`w-7 h-7`) to match the adjacent keyboard shortcut button height (28px), and adjusted badge offsets to prevent overlap clipping.
+
+# Media Library Integration
+- [x] Deployed the centralized `MediaLibrary` component in `UserModal.tsx` for visual tokens (avatars), completing Rule 14 compliance across all image upload points (products, settings logos, deal banners, and user/operator avatars) with automatic size compression and library cataloging.
 
 # Skeleton Loading Screens
 - [x] Created a shared, reusable, state-of-the-art `<SkeletonLoader />` component (`src/components/common/SkeletonLoader.tsx`) with pre-designed premium shimmer loads for storefronts, card grids, list tables, and detail screens.

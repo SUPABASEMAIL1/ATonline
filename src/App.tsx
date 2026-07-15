@@ -195,15 +195,28 @@ function AppContent() {
       { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
     ];
 
+    const getLogoMimeType = (url: string) => {
+      if (url.includes('.webp')) return 'image/webp';
+      if (url.includes('.png')) return 'image/png';
+      if (url.includes('.jpg') || url.includes('.jpeg')) return 'image/jpeg';
+      if (url.includes('.svg')) return 'image/svg+xml';
+      return 'image/png';
+    };
+
     if (isStore && storeLogo) {
+      const mime = getLogoMimeType(storeLogo);
       iconsList = [
-        { src: storeLogo, sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: storeLogo, sizes: '192x192', type: 'image/png', purpose: 'any' }
+        { src: storeLogo, sizes: '512x512', type: mime, purpose: 'any' },
+        { src: storeLogo, sizes: '192x192', type: mime, purpose: 'any' }
       ];
       const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
       if (appleIcon) {
         appleIcon.setAttribute('href', storeLogo);
       }
+      const favicons = document.querySelectorAll('link[rel*="icon"]');
+      favicons.forEach(favicon => {
+        favicon.setAttribute('href', storeLogo);
+      });
     }
 
     let manifest;
@@ -229,15 +242,23 @@ function AppContent() {
       document.title = bizName + ' POS';
     }
 
+    const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appleTitleMeta) {
+      appleTitleMeta.setAttribute('content', isStore ? bizName : bizName + ' POS');
+    }
+    const appNameMeta = document.querySelector('meta[name="application-name"]');
+    if (appNameMeta) {
+      appNameMeta.setAttribute('content', isStore ? bizName : bizName + ' POS');
+    }
+
     const manifestLink = document.querySelector('link[rel="manifest"]');
-    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const manifestStr = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
     if (manifestLink) {
-      manifestLink.setAttribute('href', url);
+      manifestLink.setAttribute('href', manifestStr);
     } else {
       const newLink = document.createElement('link');
       newLink.rel = 'manifest';
-      newLink.href = url;
+      newLink.href = manifestStr;
       document.head.appendChild(newLink);
     }
   }, [state.settings, location.pathname]);
