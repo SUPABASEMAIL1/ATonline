@@ -4,107 +4,105 @@
       <stop offset="0%" stop-color="#10b981"/>
       <stop offset="100%" stop-color="#047857"/>
     </linearGradient>
-    <filter id="receiptShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="20" stdDeviation="25" flood-color="#000" flood-opacity="0.45"/>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity="0.35"/>
     </filter>
-    <filter id="textShadow">
-      <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity="0.1"/>
+    <filter id="zShadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.15"/>
     </filter>
   </defs>
 
   <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
-  
   <rect width="506" height="506" x="3" y="3" rx="112" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="4"/>
 
-  <path d="M 150 55 
-           H 362 
-           V 425 
-           L 352 440 L 342 425 L 332 440 L 322 425 
-           L 312 440 L 302 425 L 292 440 L 282 425 
-           L 272 440 L 262 425 L 252 440 L 242 425 
-           L 232 440 L 222 425 L 212 440 L 202 425 
-           L 192 440 L 182 425 L 172 440 L 162 425 
-           L 152 440 L 150 430 Z" 
-        fill="#ffffff" 
-        filter="url(#receiptShadow)"/>
+  <!-- White Receipt (wider, bolder for HD rendering) -->
+  <path d="M 80 55 H 432 V 435 L 421 450 L 410 435 L 399 450 L 388 435
+           L 377 450 L 366 435 L 355 450 L 344 435 L 333 450 L 322 435
+           L 311 450 L 300 435 L 289 450 L 278 435 L 267 450 L 256 435
+           L 245 450 L 234 435 L 223 450 L 212 435 L 201 450 L 190 435
+           L 179 450 L 168 435 L 157 450 L 146 435 L 135 450 L 124 435
+           L 113 450 L 102 435 L 91 450 L 80 440 Z" 
+        fill="#ffffff" filter="url(#shadow)"/>
 
-  <g filter="url(#textShadow)">
-    
-    <g transform="translate(232, 70)">
-      <circle cx="16" cy="16" r="12" fill="#F43F5E" opacity="0.9"/>
-      <circle cx="32" cy="16" r="12" fill="#3B82F6" opacity="0.9"/>
-      <circle cx="24" cy="28" r="12" fill="#FBBF24" opacity="0.9"/>
+  <g filter="url(#zShadow)">
+    <!-- BIG COLORFUL LOGO CIRCLES -->
+    <g transform="translate(188, 74)">
+      <circle cx="28" cy="28" r="22" fill="#F43F5E"/>
+      <circle cx="58" cy="28" r="22" fill="#3B82F6"/>
+      <circle cx="43" cy="48" r="22" fill="#FBBF24"/>
     </g>
 
-    <rect x="216" y="112" width="80" height="8" rx="3" fill="#1f2937"/>
-    <rect x="226" y="125" width="60" height="5" rx="2" fill="#9CA3AF"/>
-    
-    <line x1="165" y1="142" x2="347" y2="142" stroke="#D1D5DB" stroke-width="2" stroke-dasharray="4,6" stroke-linecap="round"/>
+    <!-- Store Name (bold) -->
+    <rect x="158" y="134" width="196" height="16" rx="6" fill="#1f2937"/>
+    <rect x="180" y="158" width="152" height="10" rx="4" fill="#9CA3AF"/>
 
-    <rect x="165" y="152" width="55" height="6" rx="2" fill="#6B7280"/>
-    <rect x="282" y="152" width="65" height="6" rx="2" fill="#6B7280"/>
+    <!-- Divider 1 -->
+    <line x1="94" y1="186" x2="418" y2="186" stroke="#D1D5DB" stroke-width="3" stroke-dasharray="8,8" stroke-linecap="round"/>
 
-    <line x1="165" y1="168" x2="347" y2="168" stroke="#D1D5DB" stroke-width="2" stroke-dasharray="4,6" stroke-linecap="round"/>
+    <!-- Date -->
+    <rect x="94" y="202" width="90" height="10" rx="3" fill="#6B7280"/>
+    <rect x="328" y="202" width="90" height="10" rx="3" fill="#6B7280"/>
 
-    <rect x="165" y="182" width="12" height="12" rx="4" fill="#3B82F6" />
-    <rect x="185" y="184" width="85" height="8" rx="3" fill="#374151" />
-    <rect x="310" y="184" width="37" height="8" rx="3" fill="#111827" />
-    
-    <rect x="165" y="202" width="12" height="12" rx="4" fill="#10B981" />
-    <rect x="185" y="204" width="105" height="8" rx="3" fill="#374151" />
-    <rect x="310" y="204" width="37" height="8" rx="3" fill="#111827" />
-    
-    <rect x="165" y="222" width="12" height="12" rx="4" fill="#F59E0B" />
-    <rect x="185" y="224" width="75" height="8" rx="3" fill="#374151" />
-    <rect x="310" y="224" width="37" height="8" rx="3" fill="#111827" />
-    
-    <rect x="165" y="242" width="12" height="12" rx="4" fill="#8B5CF6" />
-    <rect x="185" y="244" width="95" height="8" rx="3" fill="#374151" />
-    <rect x="310" y="244" width="37" height="8" rx="3" fill="#111827" />
+    <!-- Divider 2 -->
+    <line x1="94" y1="228" x2="418" y2="228" stroke="#D1D5DB" stroke-width="3" stroke-dasharray="8,8" stroke-linecap="round"/>
 
-    <line x1="165" y1="268" x2="347" y2="268" stroke="#D1D5DB" stroke-width="2" stroke-dasharray="4,6" stroke-linecap="round"/>
+    <!-- Items -->
+    <rect x="94" y="244" width="24" height="24" rx="6" fill="#3B82F6" />
+    <rect x="130" y="250" width="170" height="14" rx="4" fill="#374151" />
+    <rect x="340" y="250" width="68" height="14" rx="4" fill="#111827" />
 
-    <rect x="165" y="282" width="55" height="8" rx="3" fill="#6B7280" />
-    <rect x="310" y="282" width="37" height="8" rx="3" fill="#6B7280" />
+    <rect x="94" y="280" width="24" height="24" rx="6" fill="#10B981" />
+    <rect x="130" y="286" width="190" height="14" rx="4" fill="#374151" />
+    <rect x="340" y="286" width="68" height="14" rx="4" fill="#111827" />
 
-    <rect x="165" y="297" width="35" height="7" rx="2" fill="#9CA3AF" />
-    <rect x="310" y="297" width="37" height="7" rx="2" fill="#9CA3AF" />
+    <rect x="94" y="316" width="24" height="24" rx="6" fill="#F59E0B" />
+    <rect x="130" y="322" width="140" height="14" rx="4" fill="#374151" />
+    <rect x="340" y="322" width="68" height="14" rx="4" fill="#111827" />
 
-    <rect x="165" y="312" width="60" height="7" rx="2" fill="#EF4444" />
-    <rect x="310" y="312" width="37" height="7" rx="2" fill="#EF4444" />
+    <!-- Divider 3 -->
+    <line x1="94" y1="356" x2="418" y2="356" stroke="#D1D5DB" stroke-width="3" stroke-dasharray="8,8" stroke-linecap="round"/>
 
-    <line x1="165" y1="328" x2="347" y2="328" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/>
-    <line x1="165" y1="334" x2="347" y2="334" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/>
+    <!-- Subtotal -->
+    <rect x="94" y="372" width="80" height="10" rx="3" fill="#6B7280" />
+    <rect x="340" y="372" width="68" height="10" rx="3" fill="#6B7280" />
+    <!-- Tax -->
+    <rect x="94" y="388" width="60" height="10" rx="3" fill="#9CA3AF" />
+    <rect x="340" y="388" width="68" height="10" rx="3" fill="#9CA3AF" />
+    <!-- Discount -->
+    <rect x="94" y="404" width="80" height="10" rx="3" fill="#EF4444" />
+    <rect x="340" y="404" width="68" height="10" rx="3" fill="#EF4444" />
 
-    <rect x="165" y="348" width="55" height="14" rx="4" fill="#10B981" />
-    <rect x="285" y="348" width="62" height="14" rx="4" fill="#10B981" />
+    <!-- Double Divider -->
+    <line x1="94" y1="422" x2="418" y2="422" stroke="#1f2937" stroke-width="4" stroke-linecap="round"/>
+    <line x1="94" y1="430" x2="418" y2="430" stroke="#1f2937" stroke-width="4" stroke-linecap="round"/>
 
-    <line x1="165" y1="375" x2="347" y2="375" stroke="#D1D5DB" stroke-width="2" stroke-dasharray="4,6" stroke-linecap="round"/>
+    <!-- GRAND TOTAL (big green blocks) -->
+    <rect x="94" y="442" width="90" height="16" rx="5" fill="#10B981" />
+    <rect x="320" y="442" width="88" height="16" rx="5" fill="#10B981" />
 
-    <rect x="206" y="387" width="100" height="6" rx="3" fill="#4B5563" />
+    <!-- Dashed Line -->
+    <line x1="94" y1="468" x2="418" y2="468" stroke="#D1D5DB" stroke-width="2" stroke-dasharray="6,8" stroke-linecap="round"/>
 
-    <g transform="translate(181, 402)" fill="#1F2937">
-      <rect x="0" y="0" width="5" height="22" rx="1" />
-      <rect x="8" y="0" width="3" height="22" rx="1" />
-      <rect x="14" y="0" width="7" height="22" rx="1" />
-      <rect x="24" y="0" width="4" height="22" rx="1" />
-      <rect x="31" y="0" width="8" height="22" rx="1" />
-      <rect x="42" y="0" width="3" height="22" rx="1" />
-      <rect x="48" y="0" width="6" height="22" rx="1" />
-      <rect x="57" y="0" width="5" height="22" rx="1" />
-      <rect x="65" y="0" width="3" height="22" rx="1" />
-      <rect x="71" y="0" width="9" height="22" rx="1" />
-      <rect x="83" y="0" width="4" height="22" rx="1" />
-      <rect x="90" y="0" width="7" height="22" rx="1" />
-      <rect x="100" y="0" width="3" height="22" rx="1" />
-      <rect x="106" y="0" width="6" height="22" rx="1" />
-      <rect x="115" y="0" width="8" height="22" rx="1" />
-      <rect x="126" y="0" width="4" height="22" rx="1" />
-      <rect x="133" y="0" width="5" height="22" rx="1" />
-      <rect x="141" y="0" width="9" height="22" rx="1" />
+    <!-- Barcode (simpler, chunkier — HD friendly) -->
+    <g transform="translate(114, 478)" fill="#1F2937">
+      <rect x="0" y="0" width="10" height="28" rx="1" />
+      <rect x="18" y="0" width="6" height="28" rx="1" />
+      <rect x="32" y="0" width="12" height="28" rx="1" />
+      <rect x="52" y="0" width="7" height="28" rx="1" />
+      <rect x="67" y="0" width="14" height="28" rx="1" />
+      <rect x="89" y="0" width="6" height="28" rx="1" />
+      <rect x="103" y="0" width="10" height="28" rx="1" />
+      <rect x="121" y="0" width="7" height="28" rx="1" />
+      <rect x="136" y="0" width="13" height="28" rx="1" />
+      <rect x="157" y="0" width="6" height="28" rx="1" />
+      <rect x="171" y="0" width="11" height="28" rx="1" />
+      <rect x="190" y="0" width="8" height="28" rx="1" />
+      <rect x="206" y="0" width="12" height="28" rx="1" />
+      <rect x="226" y="0" width="6" height="28" rx="1" />
+      <rect x="240" y="0" width="10" height="28" rx="1" />
+      <rect x="258" y="0" width="8" height="28" rx="1" />
+      <rect x="274" y="0" width="14" height="28" rx="1" />
+      <rect x="296" y="0" width="9" height="28" rx="1" />
     </g>
   </g>
-
-  <rect x="150" y="55" width="212" height="370" fill="url(#bgGrad)" opacity="0.03" style="mix-blend-mode: multiply;"/>
-  
 </svg>
