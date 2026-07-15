@@ -11,24 +11,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['zaynahs-logo.svg'],
-        manifest: {
-          name: 'Zaynahs POS System',
-          short_name: 'ZaynahsPOS',
-          description: 'Fast, offline-first point-of-sale system by ZaynahsPOS',
-          theme_color: '#10b981',
-          background_color: '#0a0a0a',
-          display: 'standalone',
-          orientation: 'any',
-          start_url: '/',
-          categories: ['business', 'finance', 'productivity'],
-          icons: [
-            {
-              src: 'zaynahs-logo.svg',
-              sizes: 'any',
-              type: 'image/svg+xml',
-            },
-          ],
-        },
+        manifest: false,
         workbox: {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         },
