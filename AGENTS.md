@@ -65,6 +65,7 @@ Whenever ANY change to database structure:
 
 1. **Create Incremental Migration**: `supabase/migrations/YYYYMMDDHHMMSS_description.sql`
 2. **Update Master Schema**: `supabase/schema/SUPER_MASTER_SCHEMA.sql`
+   > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column.
 3. **Run SQL via Management API**:
    ```bash
    SQL=$(cat supabase/migrations/20260519120000_description.sql)

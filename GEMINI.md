@@ -464,6 +464,13 @@ To implement similar auto-deletion models in the future:
 
 Whenever a database change is made, it MUST be recorded here.
 
+> ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
+
+### [2026-07-15] FIX: Add missing estore columns to ALTER TABLE in SUPER_MASTER_SCHEMA
+**Issue:** `estore_theme_color`, `estore_delivery_fee`, `estore_min_order`, `estore_cod_enabled` were only in `CREATE TABLE` block (lines 275-278) but NOT in any `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Existing DBs never got them.
+**Fix:** Added all 4 columns to the post-launch `ALTER TABLE app_settings` block in `SUPER_MASTER_SCHEMA.sql`.
+**Rule Added:** STRICT RULE in AGENTS.md + GEMINI.md — every new column MUST have `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
+
 ### [2026-07-15] Add Store Type & Shop Location Columns to app_settings
 **Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `SupabaseAppContext.tsx`, `Settings.tsx`, `StoreCheckout.tsx`, `supabase/migrations/20260715120000_add_store_type_location.sql`, `GEMINI.md`
 **Changes:**
