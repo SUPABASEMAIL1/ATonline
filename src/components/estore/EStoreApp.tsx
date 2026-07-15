@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Product, AppSettings, Category, CartItem, Bundle, Sale } from '../../types';
-import { mapProduct, mapSettings, mapBundle, generateNextInvoiceNumber } from '../../lib/services';
+import { mapProduct, mapSettings, mapBundle, generateNextInvoiceNumber, settingsService } from '../../lib/services';
 import { StoreFront } from './StoreFront';
 import { StoreCheckout } from './StoreCheckout';
 import { OrderTracker } from './OrderTracker';
@@ -21,7 +21,14 @@ function TrackPage({ settings }: { settings: AppSettings | null }) {
 }
 
 export function EStoreApp() {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [settings, setSettings] = useState<AppSettings | null>(() => {
+    try {
+      const saved = localStorage.getItem('pos_settings');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -46,16 +53,9 @@ export function EStoreApp() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Fetch Settings
-        const { data: settingsData } = await supabase
-          .from('app_settings')
-          .select('*')
-          .eq('id', '00000000-0000-4000-8000-000000000001')
-          .maybeSingle();
-
-        let activeSettings: AppSettings | null = null;
-        if (settingsData) {
-          activeSettings = mapSettings(settingsData);
+        // Fetch Settings (checking local IndexedDB first, then falling back to remote)
+        const activeSettings = await settingsService.get();
+        if (activeSettings) {
           setSettings(activeSettings);
           localStorage.setItem('pos_settings', JSON.stringify(activeSettings));
         }

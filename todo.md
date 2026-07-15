@@ -1,4 +1,4 @@
-# E-Store PWA Manifest Refactoring Checklist
+# E-Store Instant Activation & PWA Manifest Checklist
 
 - [x] Renamed and created the two physical manifest files in the `public/` directory to match the user's working setup:
   - **`public/manifest.json`** (Storefront manifest): scope `/store`, start_url `/store`, name "Zaynahs Online Store"
@@ -10,4 +10,7 @@
 - [x] Removed `VitePWA` plugin configuration and import from [vite.config.ts](file:///Users/shoaib/Desktop/v12.2%20copy/vite.config.ts) to prevent the build system from injecting static manifests or caching interceptors.
 - [x] Created a clean, passive self-destruct Service Worker file [sw.js](file:///Users/shoaib/Desktop/v12.2%20copy/public/sw.js) to satisfy browser PWA requirements and prevent stale assets.
 - [x] Injected inline service worker unregister and registration logic in `index.html` to force-uninstall old active caching service workers on page load.
+- [x] **Fixed E-Store Instant Activation**:
+  - Modified [EStoreApp.tsx](file:///Users/shoaib/Desktop/v12.2%20copy/src/components/estore/EStoreApp.tsx#L24) to initialize the settings state directly from `pos_settings` in `localStorage` for instant zero-flash render without waiting for async fetch on mount.
+  - Replaced the direct Supabase network query in `EStoreApp.tsx` settings loader (lines 49-61) with `settingsService.get()`, which reads from the local IndexedDB database first to resolve the network sync delay.
 - [x] Verified compilation runs clean with zero TypeScript errors.
