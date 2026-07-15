@@ -13,4 +13,7 @@
 - [x] **Fixed E-Store Instant Activation**:
   - Modified [EStoreApp.tsx](file:///Users/shoaib/Desktop/v12.2%20copy/src/components/estore/EStoreApp.tsx#L24) to initialize the settings state directly from `pos_settings` in `localStorage` for instant zero-flash render without waiting for async fetch on mount.
   - Replaced the direct Supabase network query in `EStoreApp.tsx` settings loader (lines 49-61) with `settingsService.get()`, which reads from the local IndexedDB database first to resolve the network sync delay.
+- [x] **Fixed Settings Race Condition on Toggle**:
+  - Removed the redundant, nested `enableExtraCharges` auto-enable trigger from the `estoreEnabled` input `onChange` handler inside [Settings.tsx](file:///Users/shoaib/Desktop/v12.2%20copy/src/components/settings/Settings.tsx#L1065).
+  - This resolves the state race condition where two asynchronous database writes in parallel caused the second call (`enableExtraCharges`) to overwrite `estoreEnabled` back to `false` and block enabling the feature.
 - [x] Verified compilation runs clean with zero TypeScript errors.

@@ -1065,10 +1065,6 @@ export function Settings() {
                               onChange={(e) => {
                                 setFormData(p => ({ ...p, estoreEnabled: e.target.checked }));
                                 handleInstantUpdate('estoreEnabled', e.target.checked);
-                                if (e.target.checked) {
-                                  setFormData(p => ({ ...p, enableExtraCharges: true }));
-                                  handleInstantUpdate('enableExtraCharges', true);
-                                }
                               }}
                               className="sr-only peer"
                             />
