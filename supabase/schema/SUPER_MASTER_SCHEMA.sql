@@ -1911,3 +1911,15 @@ ALTER TABLE app_settings
   ADD COLUMN IF NOT EXISTS delivery_end_time TIME,
   ADD COLUMN IF NOT EXISTS pickup_start_time TIME,
   ADD COLUMN IF NOT EXISTS pickup_end_time TIME;
+
+ALTER TABLE bundles
+  ADD COLUMN IF NOT EXISTS schedule_type TEXT DEFAULT 'always' CHECK (schedule_type IN ('always', 'scheduled')),
+  ADD COLUMN IF NOT EXISTS start_date DATE,
+  ADD COLUMN IF NOT EXISTS end_date DATE,
+  ADD COLUMN IF NOT EXISTS repeat_days TEXT[],
+  ADD COLUMN IF NOT EXISTS start_time TIME,
+  ADD COLUMN IF NOT EXISTS end_time TIME,
+  ADD COLUMN IF NOT EXISTS estore_sort_order INTEGER DEFAULT 0;
+
+ALTER TABLE categories
+  ADD COLUMN IF NOT EXISTS estore_sort_order INTEGER DEFAULT 0;
