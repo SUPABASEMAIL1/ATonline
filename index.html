@@ -138,18 +138,19 @@
         }
 
         // Generate dynamic manifest JSON (uses store name from settings)
+        var _origin = window.location.origin;
         var _manifest = {
           name: _isStore ? _bizName : _bizName + ' POS',
           short_name: _bizName,
           description: _isStore ? 'Browse and order items online' : 'Fast, offline-first point-of-sale system',
-          start_url: _isStore ? '/store' : '/pos',
-          scope: _isStore ? '/store' : '/pos',
+          start_url: _origin + (_isStore ? '/store' : '/pos'),
+          scope: _origin + (_isStore ? '/store' : '/pos'),
           display: 'standalone',
           orientation: _isStore ? 'portrait' : 'any',
           background_color: _isStore ? '#f9fafb' : '#0a0a0a',
           theme_color: '#10b981',
           categories: _isStore ? ['shopping','food','lifestyle'] : ['business','finance','productivity'],
-          icons: [{ src: _storeLogo || '/zaynahs-logo.svg', sizes: 'any', type: 'image/svg+xml' }]
+          icons: [{ src: _storeLogo ? (_storeLogo.indexOf('//') > -1 ? _storeLogo : _origin + _storeLogo) : _origin + '/zaynahs-logo.svg', sizes: 'any', type: 'image/svg+xml' }]
         };
         var _manifestBlob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });
         var _manifestUrl = URL.createObjectURL(_manifestBlob);

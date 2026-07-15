@@ -3,6 +3,7 @@ export function updateDynamicManifest(opts: {
   storeLogo?: string;
   isStore?: boolean;
 }) {
+  const origin = window.location.origin;
   const name = opts.isStore ? opts.storeName : opts.storeName + ' POS';
   const shortName = opts.storeName;
 
@@ -12,8 +13,8 @@ export function updateDynamicManifest(opts: {
     description: opts.isStore
       ? 'Browse and order items online from our digital storefront'
       : 'Fast, offline-first point-of-sale system',
-    start_url: opts.isStore ? '/store' : '/pos',
-    scope: opts.isStore ? '/store' : '/pos',
+    start_url: origin + (opts.isStore ? '/store' : '/pos'),
+    scope: origin + (opts.isStore ? '/store' : '/pos'),
     display: 'standalone',
     orientation: opts.isStore ? 'portrait' : 'any',
     background_color: opts.isStore ? '#f9fafb' : '#0a0a0a',
@@ -23,7 +24,9 @@ export function updateDynamicManifest(opts: {
       : ['business', 'finance', 'productivity'],
     icons: [
       {
-        src: opts.storeLogo || '/zaynahs-logo.svg',
+        src: opts.storeLogo
+          ? (opts.storeLogo.startsWith('http') ? opts.storeLogo : origin + opts.storeLogo)
+          : origin + '/zaynahs-logo.svg',
         sizes: 'any',
         type: 'image/svg+xml',
       },
