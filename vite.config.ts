@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['zaynahs-logo.svg', 'android-chrome-192x192.png', 'android-chrome-512x512.png'],
+        includeAssets: ['zaynahs-logo.svg'],
         manifest: {
           name: 'Zaynahs POS System',
           short_name: 'ZaynahsPOS',
@@ -23,20 +23,9 @@ export default defineConfig(({ mode }) => {
           categories: ['business', 'finance', 'productivity'],
           icons: [
             {
-              src: 'android-chrome-192x192.png',
-              sizes: '192x192',
-              type: 'image/png',
-            },
-            {
-              src: 'android-chrome-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-            },
-            {
-              src: 'android-chrome-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable',
+              src: 'zaynahs-logo.svg',
+              sizes: 'any',
+              type: 'image/svg+xml',
             },
           ],
         },
