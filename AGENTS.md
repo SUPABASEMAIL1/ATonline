@@ -195,6 +195,7 @@ When user pastes any error:
 | Doc | Purpose |
 |-----|---------|
 | [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) | Supabase Management API — all DB ops via `sbp_` token |
+| [@docs/cloudflare-pages-api-guide.md](docs/cloudflare-pages-api-guide.md) | Cloudflare Pages API — project, deploy, env vars via `cfut_` token |
 | [GEMINI.md](GEMINI.md) | Master rules, financial integrity, migration rules |
 | [docs/setup.md](docs/setup.md) | Complete setup guide (fresh project + existing DB sync) — keep updated with every change |
 | [docs/UI_RULES.md](docs/UI_RULES.md) | UI styling and design rules (must read before UI work) |
