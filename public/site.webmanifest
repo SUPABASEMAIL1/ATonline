@@ -3,7 +3,7 @@
   "short_name": "ZaynahsPOS",
   "description": "Fast, offline-first point-of-sale system by ZaynahsPOS",
   "start_url": "/pos",
-  "scope": "/",
+  "scope": "/pos",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0a",

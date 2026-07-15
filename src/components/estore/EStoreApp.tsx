@@ -177,14 +177,21 @@ export function EStoreApp() {
 
     document.title = bizName + ' - Online Store';
 
-    const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-    if (appleTitleMeta) {
-      appleTitleMeta.setAttribute('content', bizName);
+    let appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (!appleTitleMeta) {
+      appleTitleMeta = document.createElement('meta');
+      appleTitleMeta.setAttribute('name', 'apple-mobile-web-app-title');
+      document.head.appendChild(appleTitleMeta);
     }
-    const appNameMeta = document.querySelector('meta[name="application-name"]');
-    if (appNameMeta) {
-      appNameMeta.setAttribute('content', bizName);
+    appleTitleMeta.setAttribute('content', bizName);
+
+    let appNameMeta = document.querySelector('meta[name="application-name"]');
+    if (!appNameMeta) {
+      appNameMeta = document.createElement('meta');
+      appNameMeta.setAttribute('name', 'application-name');
+      document.head.appendChild(appNameMeta);
     }
+    appNameMeta.setAttribute('content', bizName);
 
     const manifestLink = document.querySelector('link[rel="manifest"]');
     const manifestPath = '/store.webmanifest';
