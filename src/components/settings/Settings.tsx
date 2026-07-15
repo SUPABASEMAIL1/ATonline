@@ -34,6 +34,9 @@ import {
   Languages,
   LayoutGrid,
   HardDrive,
+  MapPin,
+  LocateFixed,
+  Navigation,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatRelativeTime } from '../../lib/timeUtils';
@@ -214,6 +217,28 @@ export function Settings() {
     retailEnabled: state.settings.retailEnabled ?? true,
     wholesaleEnabled: state.settings.wholesaleEnabled ?? false,
     estoreEnabled: state.settings.estoreEnabled ?? false,
+    estoreOrderTimerEnabled: state.settings.estoreOrderTimerEnabled ?? false,
+    estoreOrderTimerMinutes: state.settings.estoreOrderTimerMinutes ?? 30,
+    estoreCodEnabled: state.settings.estoreCodEnabled ?? true,
+    estoreCustomPaymentEnabled: state.settings.estoreCustomPaymentEnabled ?? false,
+    estoreCustomPaymentName: state.settings.estoreCustomPaymentName ?? '',
+    estoreCustomPaymentDetail: state.settings.estoreCustomPaymentDetail ?? '',
+    estoreCustomPaymentNote: state.settings.estoreCustomPaymentNote ?? '',
+    estoreDeliveryFee: state.settings.estoreDeliveryFee ?? 0,
+    estoreMinOrder: state.settings.estoreMinOrder ?? 0,
+    estoreWhatsappEnabled: state.settings.estoreWhatsappEnabled ?? false,
+    estoreWhatsappNumber: state.settings.estoreWhatsappNumber ?? '',
+    estoreLocationLat: state.settings.estoreLocationLat ?? '',
+    estoreLocationLng: state.settings.estoreLocationLng ?? '',
+    estoreDeliveryRadius: state.settings.estoreDeliveryRadius ?? 5,
+    estoreThemeColor: state.settings.estoreThemeColor ?? '#10b981',
+    estorePrimaryColorHover: state.settings.estorePrimaryColorHover ?? '#059669',
+    estoreBgColor: state.settings.estoreBgColor ?? '#f9fafb',
+    estoreTextColor: state.settings.estoreTextColor ?? '#111827',
+    estoreCardBgColor: state.settings.estoreCardBgColor ?? '#ffffff',
+    storeType: state.settings.storeType ?? 'both',
+    storeLatitude: state.settings.storeLatitude ?? '',
+    storeLongitude: state.settings.storeLongitude ?? '',
     touchKeyboardEnabled: state.settings.touchKeyboardEnabled ?? false,
     soundEnabled: state.settings.soundEnabled ?? true,
     enableKotPrinter: state.settings?.enableKotPrinter ?? false,
@@ -296,6 +321,25 @@ export function Settings() {
       retailEnabled: !!state.settings?.retailEnabled,
       wholesaleEnabled: !!state.settings?.wholesaleEnabled,
       estoreEnabled: !!state.settings?.estoreEnabled,
+      estoreOrderTimerEnabled: !!state.settings?.estoreOrderTimerEnabled,
+      estoreOrderTimerMinutes: state.settings?.estoreOrderTimerMinutes ?? 30,
+      estoreCodEnabled: state.settings?.estoreCodEnabled ?? true,
+      estoreCustomPaymentEnabled: !!state.settings?.estoreCustomPaymentEnabled,
+      estoreCustomPaymentName: state.settings?.estoreCustomPaymentName ?? '',
+      estoreCustomPaymentDetail: state.settings?.estoreCustomPaymentDetail ?? '',
+      estoreCustomPaymentNote: state.settings?.estoreCustomPaymentNote ?? '',
+      estoreDeliveryFee: state.settings?.estoreDeliveryFee ?? 0,
+      estoreMinOrder: state.settings?.estoreMinOrder ?? 0,
+      estoreWhatsappEnabled: !!state.settings?.estoreWhatsappEnabled,
+      estoreWhatsappNumber: state.settings?.estoreWhatsappNumber ?? '',
+      estoreLocationLat: state.settings?.estoreLocationLat ?? '',
+      estoreLocationLng: state.settings?.estoreLocationLng ?? '',
+      estoreDeliveryRadius: state.settings?.estoreDeliveryRadius ?? 5,
+      estoreThemeColor: state.settings?.estoreThemeColor ?? '#10b981',
+      estorePrimaryColorHover: state.settings?.estorePrimaryColorHover ?? '#059669',
+      estoreBgColor: state.settings?.estoreBgColor ?? '#f9fafb',
+      estoreTextColor: state.settings?.estoreTextColor ?? '#111827',
+      estoreCardBgColor: state.settings?.estoreCardBgColor ?? '#ffffff',
       touchKeyboardEnabled: !!state.settings?.touchKeyboardEnabled,
       soundEnabled: !!state.settings?.soundEnabled,
       taxId: state.settings?.taxId || '',
@@ -383,7 +427,8 @@ export function Settings() {
       'receiptShowDiscount', 'receiptShowStoreName', 'receiptShowStoreAddress', 
       'receiptShowStorePhone', 'receiptShowStoreEmail', 'receiptShowCustomerName', 
       'receiptShowCustomerPhone', 'receiptShowNotes', 'receiptShowBarcode', 'receiptFontBold', 'receiptFontWeight',
-      'receiptFontScale', 'language'
+      'receiptFontScale', 'language', 'estoreEnabled', 'estoreOrderTimerEnabled', 'estoreCodEnabled', 'estoreWhatsappEnabled',
+      'estoreCustomPaymentEnabled'
     ];
     if (instantFields.includes(name)) {
       const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
@@ -1020,6 +1065,10 @@ export function Settings() {
                               onChange={(e) => {
                                 setFormData(p => ({ ...p, estoreEnabled: e.target.checked }));
                                 handleInstantUpdate('estoreEnabled', e.target.checked);
+                                if (e.target.checked) {
+                                  setFormData(p => ({ ...p, enableExtraCharges: true }));
+                                  handleInstantUpdate('enableExtraCharges', true);
+                                }
                               }}
                               className="sr-only peer"
                             />
@@ -1646,6 +1695,154 @@ export function Settings() {
                     </a>
                   </div>
 
+                  {/* Fulfillment Methods Toggles */}
+                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-white">Fulfillment Methods (KFC Style)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <label className="flex items-center justify-between p-4 bg-gray-50/50 dark:bg-white/[0.02] border border-gray-255/10 dark:border-white/5 rounded-2xl cursor-pointer">
+                        <div>
+                          <h4 className="font-bold text-sm text-gray-900 dark:text-white">Enable Home Delivery</h4>
+                          <p className="text-[10px] text-gray-500 font-medium">Allow customers to choose delivery at checkout</p>
+                        </div>
+                        <div className="relative">
+                          <input type="checkbox" name="estoreDeliveryEnabled" checked={formData.estoreDeliveryEnabled !== false} onChange={(e) => {
+                            handleChange(e);
+                            handleInstantUpdate('estoreDeliveryEnabled', e.target.checked);
+                          }} className="sr-only peer" />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between p-4 bg-gray-50/50 dark:bg-white/[0.02] border border-gray-255/10 dark:border-white/5 rounded-2xl cursor-pointer">
+                        <div>
+                          <h4 className="font-bold text-sm text-gray-900 dark:text-white">Enable Customer Pickup</h4>
+                          <p className="text-[10px] text-gray-500 font-medium">Allow customers to order for self-pickup</p>
+                        </div>
+                        <div className="relative">
+                          <input type="checkbox" name="estorePickupEnabled" checked={formData.estorePickupEnabled !== false} onChange={(e) => {
+                            handleChange(e);
+                            handleInstantUpdate('estorePickupEnabled', e.target.checked);
+                          }} className="sr-only peer" />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Store Type Selector */}
+                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                      <Store className="w-4 h-4 text-emerald-500" /> Store Type
+                    </h4>
+                    <p className="text-[10px] text-gray-500 font-medium">Define how your store operates alongside the fulfillment toggles above</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {[
+                        { id: 'physical', label: 'Physical', desc: 'Walk-in only' },
+                        { id: 'online', label: 'Online', desc: 'Delivery & pickup only' },
+                        { id: 'both', label: 'Both', desc: 'Physical + Online' },
+                      ].map(opt => (
+                        <label key={opt.id} className={`relative flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.storeType === opt.id ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10' : 'border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02] hover:border-emerald-300'}`}>
+                          <input type="radio" name="storeType" value={opt.id} checked={formData.storeType === opt.id} onChange={(e) => {
+                            setFormData(p => ({ ...p, storeType: e.target.value as any }));
+                            handleInstantUpdate('storeType', e.target.value);
+                          }} className="sr-only" />
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${formData.storeType === opt.id ? 'border-emerald-500' : 'border-gray-300'}`}>
+                            {formData.storeType === opt.id && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-gray-800 dark:text-white block">{opt.label}</span>
+                            <span className="text-[9px] text-gray-500 font-medium">{opt.desc}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Shop Location & Delivery Area */}
+                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-emerald-500" /> Shop Location &amp; Delivery Area
+                    </h4>
+                    <p className="text-[10px] text-gray-500 font-medium">Set your physical store location for pickup directions and configure your delivery radius</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Latitude</label>
+                        <input
+                          type="number" step="any"
+                          name="storeLatitude"
+                          value={formData.storeLatitude || ''}
+                          onChange={handleChange}
+                          onBlur={() => handleInstantUpdate('storeLatitude', formData.storeLatitude)}
+                          placeholder="e.g. 31.5204"
+                          className="w-full bg-gray-50 dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Longitude</label>
+                        <input
+                          type="number" step="any"
+                          name="storeLongitude"
+                          value={formData.storeLongitude || ''}
+                          onChange={handleChange}
+                          onBlur={() => handleInstantUpdate('storeLongitude', formData.storeLongitude)}
+                          placeholder="e.g. 74.3587"
+                          className="w-full bg-gray-50 dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
+                          Max Radius (km)
+                          <HelpTooltip content="The maximum distance (in kilometers) from your store where you offer delivery. Customers outside this range will not be able to checkout." />
+                        </label>
+                        <div className="relative">
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">km</span>
+                          <input
+                            type="number"
+                            name="estoreDeliveryRadius"
+                            value={formData.estoreDeliveryRadius || 5}
+                            onChange={handleChange}
+                            onBlur={() => handleInstantUpdate('estoreDeliveryRadius', formData.estoreDeliveryRadius)}
+                            min="1"
+                            className="w-full pr-12 bg-gray-50 dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if ('geolocation' in navigator) {
+                          navigator.geolocation.getCurrentPosition(
+                            (pos) => {
+                              const lat = pos.coords.latitude.toFixed(4);
+                              const lng = pos.coords.longitude.toFixed(4);
+                              setFormData(p => ({ ...p, storeLatitude: lat, storeLongitude: lng }));
+                              handleInstantUpdate('storeLatitude', lat);
+                              handleInstantUpdate('storeLongitude', lng);
+                              sonner.success('Location detected successfully');
+                            },
+                            () => sonner.error('Could not detect location. Please check your browser permissions.'),
+                            { enableHighAccuracy: true }
+                          );
+                        } else {
+                          sonner.error('Geolocation is not supported by your browser');
+                        }
+                      }}
+                      className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-emerald-100 dark:border-emerald-900/30"
+                    >
+                      <LocateFixed className="w-3.5 h-3.5" /> Use Current Location
+                    </button>
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-r-xl text-sm">
+                      <p className="font-bold text-blue-800 dark:text-blue-300">How to get your coordinates?</p>
+                      <p className="text-blue-700 dark:text-blue-400 mt-1">
+                        1. Open <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline font-bold">Google Maps</a><br/>
+                        2. Search for your store location.<br/>
+                        3. Right-click the red pin and click the numbers (e.g. 31.5204, 74.3587) to copy them.<br/>
+                        4. Paste the first number in Latitude and the second in Longitude.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* --- ADVANCED THEME SETTINGS --- */}
                     <div className="col-span-1 md:col-span-2 pt-2 border-t border-gray-100 dark:border-white/5">
@@ -1752,6 +1949,7 @@ export function Settings() {
                               name="estoreOrderTimerMinutes"
                               value={formData.estoreOrderTimerMinutes || 30}
                               onChange={handleChange}
+                              onBlur={() => handleInstantUpdate('estoreOrderTimerMinutes', formData.estoreOrderTimerMinutes)}
                               min="1"
                               disabled={!formData.estoreOrderTimerEnabled}
                               className="w-full pl-12 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all disabled:opacity-50"
@@ -1771,6 +1969,59 @@ export function Settings() {
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
                       </div>
                     </label>
+                    
+                    <div className="pt-6 border-t border-gray-100 dark:border-white/5 space-y-4">
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className="relative">
+                          <input type="checkbox" name="estoreCustomPaymentEnabled" checked={formData.estoreCustomPaymentEnabled || false} onChange={handleChange} className="sr-only peer" />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-bold text-[var(--color-text)]">Enable Custom Payment Method</span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Allow users to pay via Bank Transfer, EasyPaisa, etc.</p>
+                        </div>
+                      </label>
+
+                      {formData.estoreCustomPaymentEnabled && (
+                        <div className="pl-14 space-y-4 animate-in fade-in slide-in-from-top-2">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Method Name</label>
+                            <input
+                              type="text"
+                              name="estoreCustomPaymentName"
+                              value={formData.estoreCustomPaymentName || ''}
+                              onChange={handleChange}
+                              onBlur={() => handleInstantUpdate('estoreCustomPaymentName', formData.estoreCustomPaymentName)}
+                              placeholder="e.g. Bank Transfer / EasyPaisa"
+                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Payment Details</label>
+                            <textarea
+                              name="estoreCustomPaymentDetail"
+                              value={formData.estoreCustomPaymentDetail || ''}
+                              onChange={handleChange}
+                              onBlur={() => handleInstantUpdate('estoreCustomPaymentDetail', formData.estoreCustomPaymentDetail)}
+                              placeholder="e.g. Bank: ABC Bank&#10;Account Title: Zaynah&#10;IBAN: PK32..."
+                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all min-h-[80px]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Customer Instructions (Note)</label>
+                            <input
+                              type="text"
+                              name="estoreCustomPaymentNote"
+                              value={formData.estoreCustomPaymentNote || ''}
+                              onChange={handleChange}
+                              onBlur={() => handleInstantUpdate('estoreCustomPaymentNote', formData.estoreCustomPaymentNote)}
+                              placeholder="e.g. Please share screenshot of payment on our WhatsApp."
+                              className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-3 px-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Delivery Fee</label>
@@ -1781,6 +2032,7 @@ export function Settings() {
                           name="estoreDeliveryFee"
                           value={formData.estoreDeliveryFee || 0}
                           onChange={handleChange}
+                          onBlur={() => handleInstantUpdate('estoreDeliveryFee', formData.estoreDeliveryFee)}
                           min="0"
                           className="w-full pl-12 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
                         />
@@ -1802,69 +2054,7 @@ export function Settings() {
                       </div>
                     </div>
 
-                    {/* Geofencing Settings */}
-                    <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-100 dark:border-white/5">
-                      <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4">Delivery Geofencing</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
-                            Store Latitude
-                            <HelpTooltip content={<span>The central Latitude coordinate of your physical store. You can find this by right-clicking your location on <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">Google Maps</a>. E.g. 31.5204</span>} />
-                          </label>
-                          <input
-                            type="number"
-                            step="any"
-                            name="estoreLocationLat"
-                            value={formData.estoreLocationLat || ''}
-                            onChange={handleChange}
-                            placeholder="e.g. 24.8607"
-                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
-                            Store Longitude
-                            <HelpTooltip content={<span>The central Longitude coordinate of your physical store. You can find this by right-clicking your location on <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">Google Maps</a>. E.g. 74.3587</span>} />
-                          </label>
-                          <input
-                            type="number"
-                            step="any"
-                            name="estoreLocationLng"
-                            value={formData.estoreLocationLng || ''}
-                            onChange={handleChange}
-                            placeholder="e.g. 67.0011"
-                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
-                            Max Radius (km)
-                            <HelpTooltip content="The maximum distance (in kilometers) from your store where you offer delivery. Customers outside this range will not be able to checkout." />
-                          </label>
-                          <div className="relative">
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">km</span>
-                            <input
-                              type="number"
-                              name="estoreDeliveryRadius"
-                              value={formData.estoreDeliveryRadius || 5}
-                              onChange={handleChange}
-                              min="1"
-                              className="w-full pr-12 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-r-xl text-sm">
-                        <p className="font-bold text-blue-800 dark:text-blue-300">How to get your coordinates?</p>
-                        <p className="text-blue-700 dark:text-blue-400 mt-1">
-                          1. Open <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline font-bold">Google Maps</a><br/>
-                          2. Search for your store location.<br/>
-                          3. Right-click the red pin and click the numbers (e.g. 31.5204, 74.3587) to copy them.<br/>
-                          4. Paste the first number in Latitude and the second in Longitude.
-                        </p>
-                      </div>
-                    </div>
+
 
                     {/* WhatsApp Support Settings */}
                     <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-100 dark:border-white/5">
@@ -1893,6 +2083,7 @@ export function Settings() {
                             name="estoreWhatsappNumber"
                             value={formData.estoreWhatsappNumber || ''}
                             onChange={handleChange}
+                            onBlur={() => handleInstantUpdate('estoreWhatsappNumber', formData.estoreWhatsappNumber)}
                             placeholder="e.g. +923001234567"
                             className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-2xl py-3.5 px-5 text-xs font-bold focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
                           />

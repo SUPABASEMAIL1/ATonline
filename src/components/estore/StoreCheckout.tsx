@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { AppSettings, CartItem, Sale } from '../../types';
 import { toRemoteSale } from '../../lib/services';
 import { formatCurrency } from '../../lib/currencies';
-import { ArrowLeft, CheckCircle, CheckCircle2, MapPin, AlertCircle, LocateFixed, User, Phone, Map, AlignLeft } from 'lucide-react';
+import { ArrowLeft, CheckCircle, CheckCircle2, MapPin, AlertCircle, LocateFixed, User, Phone, Map as MapIcon, AlignLeft, Navigation } from 'lucide-react';
 import { sonner } from '../../lib/sonner';
 import { useEstoreAuth } from './useEstoreAuth';
 
@@ -42,6 +42,19 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cash');
+
+  const isDeliveryEnabled = settings?.estoreDeliveryEnabled !== false;
+  const isPickupEnabled = settings?.estorePickupEnabled === true;
+  const [fulfillmentMode, setFulfillmentMode] = useState<'delivery' | 'pickup'>('delivery');
+
+  useEffect(() => {
+    if (!isDeliveryEnabled && isPickupEnabled) {
+      setFulfillmentMode('pickup');
+    } else {
+      setFulfillmentMode('delivery');
+    }
+  }, [isDeliveryEnabled, isPickupEnabled]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -52,6 +65,13 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
   });
   
   const [position, setPosition] = useState<[number, number] | null>(null);
+
+  // Set default payment method if COD is disabled
+  useEffect(() => {
+    if (settings?.estoreCodEnabled === false && settings?.estoreCustomPaymentEnabled) {
+      setSelectedPaymentMethod('custom');
+    }
+  }, [settings?.estoreCodEnabled, settings?.estoreCustomPaymentEnabled]);
 
   useEffect(() => {
     const fetchLastOrder = async () => {
@@ -150,10 +170,11 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
-  const deliveryFee = 0; // Or fetch from settings if you add it later
+  const deliveryFee = fulfillmentMode === 'delivery' ? (settings?.estoreDeliveryFee || 0) : 0;
   const total = cartTotal + deliveryFee;
   
   const isDeliveryAllowed = (): boolean => {
+    if (fulfillmentMode === 'pickup') return true; // self-pickup is always allowed
     if (!settings?.estoreLocationLat || !settings?.estoreLocationLng || !settings?.estoreDeliveryRadius) return true; // No restriction if not set
     if (!position) return false;
     
@@ -176,15 +197,18 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
       return;
     }
 
-    if (!deliveryAllowed) {
+    if (fulfillmentMode === 'delivery' && !deliveryAllowed) {
       sonner.error('Sorry, this location is out of our delivery range.');
       return;
     }
 
     setLoading(true);
     try {
-      if (!formData.name || !formData.phone || !formData.address1 || !formData.address2 || !formData.notes) {
-        throw new Error('Please fill all required fields including Nearest Famous Place and Order Notes.');
+      if (!formData.name || !formData.phone) {
+        throw new Error('Please fill Name and Phone Number.');
+      }
+      if (fulfillmentMode === 'delivery' && (!formData.address1 || !formData.address2)) {
+        throw new Error('Please fill Delivery Address and Nearest Famous Place.');
       }
       
       let customerId = customer?.id;
@@ -204,21 +228,30 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         customerId: customerId,
         customerName: formData.name,
         customerPhone: formData.phone,
-        deliveryAddress: formData.address2.trim() ? `${formData.address1} | Near: ${formData.address2}` : formData.address1,
+        deliveryAddress: fulfillmentMode === 'pickup' 
+          ? 'SELF-PICKUP' 
+          : (formData.address2.trim() ? `${formData.address1} | Near: ${formData.address2}` : formData.address1),
         customerNotes: formData.notes,
-        deliveryLocationLat: position ? position[0] : undefined,
-        deliveryLocationLng: position ? position[1] : undefined,
+        deliveryLocationLat: fulfillmentMode === 'pickup' ? undefined : (position ? position[0] : undefined),
+        deliveryLocationLng: fulfillmentMode === 'pickup' ? undefined : (position ? position[1] : undefined),
         items: cart,
         subtotal: cartTotal,
         discountAmount: 0,
         taxAmount: 0,
+        deliveryFee: deliveryFee,
         total: total,
-        paymentMethod: 'cash',
+        // DB payment_method only allows: cash, card, digital, credit, cheque, split
+        // Map 'custom' (e.g. jazz cash) → 'digital' to pass constraint
+        paymentMethod: (selectedPaymentMethod === 'custom' ? 'digital' : selectedPaymentMethod) as any,
+        // Store the real custom payment name in customerNotes so POS can see it
+        customerNotes: selectedPaymentMethod === 'custom' && settings?.estoreCustomPaymentName
+          ? `[${settings.estoreCustomPaymentName}]${formData.notes ? ' ' + formData.notes : ''}`
+          : formData.notes || '',
         status: 'pending',
         cashier: 'ONLINE_STORE',
         timestamp: new Date(),
         createdAt: new Date(),
-        estoreStatus: 'pending',
+        estoreStatus: 'preparing',
         saleType: 'estore',
       };
 
@@ -228,8 +261,10 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
       if (error) throw error;
 
       setOrderId(generatedInvoice);
+      localStorage.setItem('active_estore_order', generatedInvoice);
       setSuccess(true);
       onClearCart();
+      navigate(`/store/track?id=${generatedInvoice}`);
 
     } catch (err: any) {
       console.error(err);
@@ -240,7 +275,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
   };
 
   if (success) {
-    return <OrderTracker orderId={orderId} settings={settings} />;
+    return null; // Will navigate away
   }
 
   return (
@@ -258,9 +293,43 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         
         {/* Checkout Form */}
         <div className="flex-1 space-y-6">
+          {/* Fulfillment Mode Selector (KFC Style) */}
+          {isDeliveryEnabled && isPickupEnabled && (
+            <div className="grid grid-cols-2 gap-3 p-2 bg-[var(--color-card-bg)] rounded-[2rem] border border-gray-100 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setFulfillmentMode('delivery')}
+                className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+                  fulfillmentMode === 'delivery'
+                    ? 'bg-primary text-white shadow-lg'
+                    : 'text-[var(--color-text)] opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                Delivery
+              </button>
+              <button
+                type="button"
+                onClick={() => setFulfillmentMode('pickup')}
+                className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
+                  fulfillmentMode === 'pickup'
+                    ? 'bg-primary text-white shadow-lg'
+                    : 'text-[var(--color-text)] opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                Self Pickup
+              </button>
+            </div>
+          )}
+
           <div className="bg-[var(--color-card-bg)] rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
             <h2 className="text-2xl font-black text-[var(--color-text)] mb-6 flex items-center gap-3">
-              <MapPin className="w-6 h-6 text-primary" /> Delivery Details
+              <MapPin className="w-6 h-6 text-primary" /> {fulfillmentMode === 'pickup' ? 'Pickup Contact Details' : 'Delivery Details'}
             </h2>
             <form id="checkout-form" onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -292,87 +361,160 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80 mb-2">
-                    <Map className="w-4 h-4 text-primary" /> Detailed Delivery Address *
-                  </label>
-                  <textarea 
-                    required
-                    value={formData.address1}
-                    onChange={e => setFormData({ ...formData, address1: e.target.value })}
-                    className="w-full bg-[var(--color-bg)] border border-gray-200/20 rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium min-h-[80px] resize-none text-[var(--color-text)] placeholder-gray-400"
-                    placeholder="House 123, Street 4, Area, City"
-                  />
-                </div>
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80 mb-2">
-                    <MapPin className="w-4 h-4 text-primary" /> Nearest Famous Place *
-                  </label>
-                  <textarea 
-                    required
-                    value={formData.address2}
-                    onChange={e => setFormData({ ...formData, address2: e.target.value })}
-                    className="w-full bg-[var(--color-bg)] border border-gray-200/20 rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium min-h-[80px] resize-none text-[var(--color-text)] placeholder-gray-400"
-                    placeholder="e.g. Opposite Main Park / Near Grand Mosque"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2 mt-4">
-                  <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80">
-                    <LocateFixed className="w-4 h-4 text-primary" /> Delivery Location *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleGetCurrentLocation}
-                    className="flex items-center gap-1.5 text-sm font-bold text-primary hover:text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <LocateFixed className="w-4 h-4" />
-                    Detect Location
-                  </button>
-                </div>
-                
-                {position ? (
-                  <div className={`p-4 rounded-xl border-2 flex items-center justify-between ${!deliveryAllowed ? 'border-red-500 bg-red-50' : 'border-emerald-500 bg-emerald-50'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${!deliveryAllowed ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                        {deliveryAllowed ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                      </div>
-                      <div>
-                        <p className={`font-bold text-sm ${!deliveryAllowed ? 'text-red-700' : 'text-emerald-700'}`}>
-                          {deliveryAllowed ? 'Location Acquired & Verified' : 'Out of Delivery Range'}
-                        </p>
-                        <p className={`text-xs ${!deliveryAllowed ? 'text-red-600' : 'text-emerald-600'}`}>
-                          {deliveryAllowed 
-                            ? 'Your delivery location has been successfully pinned.' 
-                            : `Sorry, you are outside our ${settings?.estoreDeliveryRadius}km delivery area.`}
-                        </p>
-                      </div>
+              {fulfillmentMode === 'delivery' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80 mb-2">
+                        <MapIcon className="w-4 h-4 text-primary" /> Detailed Delivery Address *
+                      </label>
+                      <textarea 
+                        required
+                        value={formData.address1}
+                        onChange={e => setFormData({ ...formData, address1: e.target.value })}
+                        className="w-full bg-[var(--color-bg)] border border-gray-200/20 rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium min-h-[80px] resize-none text-[var(--color-text)] placeholder-gray-400"
+                        placeholder="House 123, Street 4, Area, City"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80 mb-2">
+                        <MapPin className="w-4 h-4 text-primary" /> Nearest Famous Place *
+                      </label>
+                      <textarea 
+                        required
+                        value={formData.address2}
+                        onChange={e => setFormData({ ...formData, address2: e.target.value })}
+                        className="w-full bg-[var(--color-bg)] border border-gray-200/20 rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium min-h-[80px] resize-none text-[var(--color-text)] placeholder-gray-400"
+                        placeholder="e.g. Opposite Main Park / Near Grand Mosque"
+                      />
                     </div>
                   </div>
-                ) : (
-                  <div className="p-4 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 flex flex-col items-center justify-center text-center gap-2">
-                    <MapPin className="w-6 h-6 text-orange-500 mb-1" />
-                    <p className="text-sm font-bold text-orange-700">Location Required</p>
-                    <p className="text-xs text-orange-600 max-w-xs">Please click "Detect Location" to verify if you are within our delivery area before checking out.</p>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2 mt-4">
+                      <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80">
+                        <LocateFixed className="w-4 h-4 text-primary" /> Delivery Location *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGetCurrentLocation}
+                        className="flex items-center gap-1.5 text-sm font-bold text-primary hover:text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        <LocateFixed className="w-4 h-4" />
+                        Detect Location
+                      </button>
+                    </div>
+                    
+                    {position ? (
+                      <div className={`p-4 rounded-xl border-2 flex items-center justify-between ${!deliveryAllowed ? 'border-red-500 bg-red-50' : 'border-emerald-500 bg-emerald-50'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full ${!deliveryAllowed ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            {deliveryAllowed ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <p className={`font-bold text-sm ${!deliveryAllowed ? 'text-red-700' : 'text-emerald-700'}`}>
+                              {deliveryAllowed ? 'Location Acquired & Verified' : 'Out of Delivery Range'}
+                            </p>
+                            <p className={`text-xs ${!deliveryAllowed ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {deliveryAllowed 
+                                ? 'Your delivery location has been successfully pinned.' 
+                                : `Sorry, you are outside our ${settings?.estoreDeliveryRadius}km delivery area.`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 flex flex-col items-center justify-center text-center gap-2">
+                        <MapPin className="w-6 h-6 text-orange-500 mb-1" />
+                        <p className="text-sm font-bold text-orange-700">Location Required</p>
+                        <p className="text-xs text-orange-600 max-w-xs">Please click "Detect Location" to verify if you are within our delivery area before checking out.</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
               <div>
                 <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80 mb-2 mt-4">
-                  <AlignLeft className="w-4 h-4 text-primary" /> Order Notes *
+                  <AlignLeft className="w-4 h-4 text-primary" /> Order Notes
                 </label>
                 <textarea 
-                  required
                   value={formData.notes}
                   onChange={e => setFormData({ ...formData, notes: e.target.value })}
                   className="w-full bg-[var(--color-bg)] border border-gray-200/20 rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium min-h-[80px] text-[var(--color-text)] placeholder-gray-400"
                   placeholder="E.g. Less spicy, call before arriving..."
                 />
               </div>
+
+              {fulfillmentMode === 'pickup' && settings?.storeLatitude && settings?.storeLongitude && (
+                <div className="p-5 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-200 dark:border-emerald-900/30 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-black text-emerald-800 dark:text-emerald-300">Pickup Location</h3>
+                  </div>
+                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                    {settings?.storeAddress || `${settings?.storeLatitude}, ${settings?.storeLongitude}`}
+                  </p>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${settings.storeLatitude},${settings.storeLongitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                  >
+                    <Navigation className="w-4 h-4" /> Get Directions
+                  </a>
+                </div>
+              )}
+
+              {/* Payment Methods */}
+              {(settings?.estoreCodEnabled !== false || settings?.estoreCustomPaymentEnabled) && (
+                <div className="mt-8">
+                  <h3 className="text-lg font-black text-[var(--color-text)] mb-4">Payment Method</h3>
+                  <div className="grid gap-3">
+                    {settings?.estoreCodEnabled !== false && (
+                      <label className={`relative flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPaymentMethod === 'cash' ? 'border-primary bg-primary/5' : 'border-gray-100 dark:border-white/5 bg-[var(--color-bg)] hover:border-primary/30'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPaymentMethod === 'cash' ? 'border-primary' : 'border-gray-300'}`}>
+                            {selectedPaymentMethod === 'cash' && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                          </div>
+                          <div>
+                            <span className="font-bold text-[var(--color-text)] block">Cash on Delivery</span>
+                            <span className="text-xs text-[var(--color-text)] opacity-60">Pay when you receive the order</span>
+                          </div>
+                        </div>
+                        <input type="radio" name="paymentMethod" value="cash" checked={selectedPaymentMethod === 'cash'} onChange={(e) => setSelectedPaymentMethod(e.target.value)} className="sr-only" />
+                      </label>
+                    )}
+                    
+                    {settings?.estoreCustomPaymentEnabled && (
+                      <label className={`relative flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPaymentMethod === 'custom' ? 'border-primary bg-primary/5' : 'border-gray-100 dark:border-white/5 bg-[var(--color-bg)] hover:border-primary/30'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPaymentMethod === 'custom' ? 'border-primary' : 'border-gray-300'}`}>
+                            {selectedPaymentMethod === 'custom' && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                          </div>
+                          <div>
+                            <span className="font-bold text-[var(--color-text)] block">{settings?.estoreCustomPaymentName || 'Bank Transfer'}</span>
+                            <span className="text-xs text-[var(--color-text)] opacity-60">Pay online in advance</span>
+                          </div>
+                        </div>
+                        <input type="radio" name="paymentMethod" value="custom" checked={selectedPaymentMethod === 'custom'} onChange={(e) => setSelectedPaymentMethod(e.target.value)} className="sr-only" />
+                      </label>
+                    )}
+                  </div>
+                  
+                  {selectedPaymentMethod === 'custom' && settings?.estoreCustomPaymentDetail && (
+                    <div className="mt-4 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 text-sm">
+                      <p className="font-bold text-blue-900 dark:text-blue-200 mb-2">Payment Details:</p>
+                      <pre className="font-sans whitespace-pre-wrap text-blue-800 dark:text-blue-300">{settings.estoreCustomPaymentDetail}</pre>
+                      {settings.estoreCustomPaymentNote && (
+                        <p className="mt-3 text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 p-2 rounded-lg inline-block">
+                          {settings.estoreCustomPaymentNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </form>
           </div>
         </div>
@@ -382,32 +524,96 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
           <div className="bg-[var(--color-card-bg)] rounded-3xl p-6 shadow-sm border border-gray-100 sticky top-24">
             <h2 className="text-xl font-black text-[var(--color-text)] mb-6">Order Summary</h2>
             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 no-scrollbar">
-              {cart.map((item, idx) => (
-                <div key={idx} className="flex gap-4 items-center">
-                  {item.product.image ? (
-                    <img src={item.product.image} alt={item.product.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
-                  ) : (
-                    <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center font-black text-gray-300 shrink-0">
-                      {item.product.name.charAt(0)}
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <span className="font-bold text-[var(--color-text)] block leading-tight">{item.product.name}</span>
-                    {item.selectedVariant && (
-                      <span className="text-xs text-[var(--color-text)] opacity-60 block mt-0.5 font-medium">{item.selectedVariant}</span>
-                    )}
-                    {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                      <span className="text-xs text-[var(--color-text)] opacity-50 block mt-0.5">
-                        + {item.selectedModifiers.map(m => m.name).join(', ')}
-                      </span>
-                    )}
+              {(() => {
+                const bundlesMap = new Map<string, { bundleId: string; bundleName: string; items: typeof cart; totalSubtotal: number }>();
+                const standaloneItems: typeof cart = [];
+
+                cart.forEach(item => {
+                  const bId = item.bundleId || item.bundle_id;
+                  if (bId) {
+                    if (!bundlesMap.has(bId)) {
+                      bundlesMap.set(bId, {
+                        bundleId: bId,
+                        bundleName: item.bundleName || 'Deal',
+                        items: [],
+                        totalSubtotal: 0
+                      });
+                    }
+                    const b = bundlesMap.get(bId)!;
+                    b.items.push(item);
+                    b.totalSubtotal += item.subtotal;
+                  } else {
+                    standaloneItems.push(item);
+                  }
+                });
+
+                return (
+                  <div className="space-y-4 w-full">
+                    {/* Render Deals */}
+                    {Array.from(bundlesMap.values()).map(b => (
+                      <div key={b.bundleId} className="p-4 rounded-2xl border border-dashed border-primary/20 bg-primary/[0.02] space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1">🎁 DEAL</span>
+                            <h4 className="font-bold text-[var(--color-text)] text-sm uppercase leading-tight">{b.bundleName}</h4>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-black text-primary text-sm block">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
+                            <span className="text-[10px] font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {b.items[0]?.quantity || 1}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 border-t border-black/5 dark:border-white/5 pt-2">
+                          {b.items.map((item, idx) => (
+                            <div key={idx} className="flex gap-2 items-center text-xs">
+                              {item.product.image ? (
+                                <img src={item.product.image} alt={item.product.name} className="w-7 h-7 rounded-lg object-cover shrink-0" />
+                              ) : (
+                                <div className="w-7 h-7 bg-black/5 rounded-lg flex items-center justify-center font-bold text-[var(--color-text)] opacity-30 shrink-0">
+                                  {item.product.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-[var(--color-text)] truncate">{item.product.name}</p>
+                                {item.selectedVariant && (
+                                  <p className="text-[10px] text-[var(--color-text)] opacity-50 truncate">{item.selectedVariant}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Render Standalone Items */}
+                    {standaloneItems.map((item, idx) => (
+                      <div key={idx} className="flex gap-4 items-center">
+                        {item.product.image ? (
+                          <img src={item.product.image} alt={item.product.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                        ) : (
+                          <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center font-black text-gray-300 shrink-0">
+                            {item.product.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="font-bold text-[var(--color-text)] block leading-tight truncate">{item.product.name}</span>
+                          {item.selectedVariant && (
+                            <span className="text-xs text-[var(--color-text)] opacity-60 block mt-0.5 font-medium truncate">{item.selectedVariant}</span>
+                          )}
+                          {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                            <span className="text-xs text-[var(--color-text)] opacity-50 block mt-0.5 truncate">
+                              + {item.selectedModifiers.map(m => m.name).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-black text-[var(--color-text)] block">{formatCurrency(item.subtotal, settings?.currency)}</span>
+                          <span className="text-xs font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {item.quantity}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-black text-[var(--color-text)] block">{formatCurrency(item.subtotal, settings?.currency)}</span>
-                    <span className="text-xs font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {item.quantity}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })()}
             </div>
             
             <div className="border-t border-gray-100 mt-6 pt-6 space-y-3">
@@ -428,13 +634,13 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
             <button 
               type="submit"
               form="checkout-form"
-              disabled={loading || cart.length === 0 || !deliveryAllowed}
+              disabled={loading || cart.length === 0 || (fulfillmentMode === 'delivery' && !deliveryAllowed)}
               className="w-full py-4 mt-8 bg-primary text-white rounded-2xl font-black text-lg hover:brightness-90 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-lg"
             >
               {loading ? (
                 <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
               ) : (
-                'Place Order (COD)'
+                `Place Order ${selectedPaymentMethod === 'cash' ? '(COD)' : ''}`
               )}
             </button>
           </div>

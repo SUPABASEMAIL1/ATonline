@@ -354,6 +354,7 @@ After update: run `npm run build`, clear browser IndexedDB.
 5. **File Verification**: Before editing a component, verify its actual usage in `App.tsx`
 6. **DATA SAFETY**: Never make changes that could corrupt financial data without explicit confirmation
 7. **🎨 STRICT UI PROTOCOL (MANDATORY)** — Before writing or editing ANY UI code (React components, Tailwind, CSS), you MUST read **[docs/UI_RULES.md](docs/UI_RULES.md)** first. Never introduce new inline styles, hardcoded colors, or one-off components when an existing pattern in docs/UI_RULES.md covers the case.
+8. **🖼️ CENTRALIZED MEDIA SELECTOR & COMPRESSION (MANDATORY)**: All image uploads or selection workflows (products, deals, settings, logo, etc.) MUST route strictly through the centralized `MediaLibrary` component. Direct file upload triggers are banned outside the library. This enforces automatic image compression (WebP, 20-50KB target) via `compressImage` and permits image reuse across the database.
 
 ---
 
@@ -441,11 +442,47 @@ jab tak kaha na jaye npm run build ma kro
 
 ---
 
+# ⏱️ RETENTION & AUTO-CLEANUP RULES
 
+### RULE R1 — AUTOMATIC 24-HOUR RETENTION FOR CANCELLED ORDERS
+Every cancelled order (`status === 'cancelled'`) must be automatically pruned after 24 hours of inactivity.
+This is implemented in `syncEngine.ts` inside `pruneExpiredCancelledOrders()`, which runs at app startup and every hour.
+It performs a dual-cleanup:
+1. **Local cache deletion**: Queries Dexie IndexedDB `sales` and deletes expired ids to keep local storage light.
+2. **Cloud sync deletion**: Executes a Supabase REST API `DELETE` query targeting matching cancelled rows to keep remote storage clean.
+
+To implement similar auto-deletion models in the future:
+- Ensure the target column is indexed in IndexedDB (`localDb.ts`) for fast queries.
+- Query locally via Dexie `.toArray()`, filter by timestamp, and call `bulkDelete()`.
+- Query remotely via Supabase REST API `.delete().eq('status', ...).lt('updated_at', cutoff)`.
+- Register the cleanup function inside `startSyncEngine()` startup and the background interval timer.
+
+---
 
 # 📜 SCHEMA CHANGE LOG (AUDIT TRAIL)
 
 Whenever a database change is made, it MUST be recorded here.
+
+### [2026-07-15] Add Store Type & Shop Location Columns to app_settings
+**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `SupabaseAppContext.tsx`, `Settings.tsx`, `StoreCheckout.tsx`, `supabase/migrations/20260715120000_add_store_type_location.sql`, `GEMINI.md`
+**Changes:**
+1.  **Schema Migration:** Created `supabase/migrations/20260715120000_add_store_type_location.sql` adding `store_type TEXT DEFAULT 'both'`, `store_latitude NUMERIC`, `store_longitude NUMERIC` to `app_settings` via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
+2.  **Master Schema:** Added columns to both `CREATE TABLE` and backup `ALTER TABLE` blocks in `SUPER_MASTER_SCHEMA.sql`.
+3.  **Types & Services:** Added `storeType`, `storeLatitude`, `storeLongitude` to `AppSettings` interface, `mapSettings`, and `toRemoteSettings`.
+4.  **Defaults:** `storeType: 'both'` in `SupabaseAppContext.tsx` defaults.
+5.  **UI:** Store Type selector (Physical/Online/Both), Shop Location lat/lng inputs with "Use Current Location" button, and Max Radius field consolidated into single "Shop Location & Delivery Area" section in `Settings.tsx`.
+6.  **Store Checkout:** Self Pickup tab shows shop location + "Get Directions" Google Maps link.
+
+### [2026-07-15] 24-Hour Cancelled Orders Auto-Deletion System
+**Files Updated:** `syncEngine.ts`, `AGENTS.md`, `GEMINI.md`
+**Changes:**
+1.  **Automatic Retention Loop (`syncEngine.ts`)**:
+    *   Authored `pruneExpiredCancelledOrders()` query utility using Dexie `localDb.sales` indexing on `status` to isolate cancelled orders.
+    *   Filtered matches older than 24 hours (calculated via local timestamp vs. cutoff Date object) and purged them locally using `.bulkDelete()`.
+    *   Executed corresponding cloud deletion command targeting Supabase server `sales` table to sync the state.
+    *   Hooked execution into app initialization (`startSyncEngine`) and the 1-hour auto-recovery timer interval.
+2.  **Documentation updates (`AGENTS.md`, `GEMINI.md`)**:
+    *   Documented system design and operational rules for future auto-deletion extensions.
 
 ### [2026-05-19] Universal Code 128 Barcode System Implementation
 **Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `schema.prisma`, `localDb.ts`, `services.ts`, `barcode.ts`, `BarcodePreview.tsx`, `ProductModal.tsx`, `ProductDetailHub.tsx`, `InventoryManager.tsx`, `useHardwareScanner.ts`, `POSTerminal.tsx`, `ProductGrid.tsx`, `BarcodeGenerator.tsx`, `ReceiptPrint.tsx`, `DatabaseTools.tsx`, `Settings.tsx`

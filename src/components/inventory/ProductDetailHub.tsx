@@ -19,7 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product, PurchaseRecord, Sale } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
-import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProductBatch } from '../../lib/services';
+import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProductBatch, toRemoteProduct } from '../../lib/services';
 import { localDb, queueOp } from '../../lib/localDb';
 import { calculateFIFOSplit } from '../../lib/inventoryUtils';
 import { compressImage } from '../../lib/imageCompression';
@@ -53,7 +53,6 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   const [filterType, setFilterType] = useState<'ALL' | 'IN' | 'OUT' | 'RETURN'>('ALL');
   const [historyPage, setHistoryPage] = useState(1);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  const [showImageMenu, setShowImageMenu] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [activeScannerField, setActiveScannerField] = useState<'sku' | 'barcode'>('barcode');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -301,17 +300,50 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       const wasInfinity = product.trackInventory === false || (product.stock || 0) >= 990000;
 
       const now = new Date();
+      const newCost = parseFloat(formData.cost) || 0;
+      const newPrice = parseFloat(formData.price) || 0;
+
+      let finalBatches = isInfinity ? [] : [...batches];
+
+      if (!isInfinity) {
+        // If cost or price changed, update them on all active batches
+        const costChanged = newCost !== product.cost;
+        const priceChanged = newPrice !== product.price;
+
+        if (costChanged || priceChanged) {
+          finalBatches = finalBatches.map(b => {
+            if ((b.qtyRemaining || 0) > 0) {
+              const updated = { ...b, updatedAt: now };
+              if (costChanged) updated.costPrice = newCost;
+              if (priceChanged) updated.salePrice = newPrice;
+              return updated;
+            }
+            return b;
+          });
+
+          // Also persist these changes to the separate productBatches table and queue sync
+          const activeBatches = finalBatches.filter(b => (b.qtyRemaining || 0) > 0);
+          for (const batch of activeBatches) {
+            await localDb.productBatches.put(batch);
+            const patch: any = { id: batch.id, updatedAt: now };
+            if (costChanged) patch.costPrice = newCost;
+            if (priceChanged) patch.salePrice = newPrice;
+            await queueOp('product_batches', 'update', batch.id, toRemoteProductBatch(patch));
+          }
+        }
+      }
+
       const updatedProduct = {
         ...product,
         ...formData,
-        price: parseFloat(formData.price) || 0,
-        cost: parseFloat(formData.cost) || 0,
+        price: newPrice,
+        cost: newCost,
         minStock: parseInt(formData.minStock) || 0,
         targetStock: formData.targetStock ? parseInt(formData.targetStock) : null,
         // Fixed: If turning tracking ON, and it was previously infinite (>= 990,000), reset baseline to 0.
         // This prevents the '1,000,009' display bug where the infinity baseline was accidentally kept.
         stock: isInfinity ? 0 : (wasInfinity && (product.stock || 0) >= 990000 ? 0 : (product.stock || 0)),
-        batches: isInfinity ? [] : [...batches],
+        batches: finalBatches,
         trackInventory: formData.trackInventory,
         variants: variants.map((v: any) => ({ name: v.name, options: v.options })),
         modifiers: modifiers,
@@ -326,6 +358,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         const batchId = generateId();
         const initialBatch = {
           id: batchId,
+          productId: product.id,
           batchNumber: `B-${now.getTime().toString().slice(-6)}`,
           quantity: updatedProduct.stock,
           qtyRemaining: updatedProduct.stock,
@@ -333,13 +366,18 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
           salePrice: updatedProduct.price || 0,
           manufacturingDate: now,
           expiryDate: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000),
-          createdAt: now
+          createdAt: now,
+          updatedAt: now
         };
 
         // Ensure we have at least one batch if tracking is on
         if (updatedProduct.batches.length === 0) {
           updatedProduct.batches = [initialBatch];
         }
+
+        // Persist initial batch to product_batches table + queue sync
+        await localDb.productBatches.add(initialBatch as any);
+        await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(initialBatch));
 
         // Register in Audit Log
         const histId = generateId();
@@ -397,8 +435,27 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     for (const batch of activeBatches) {
       const updatedBatch = { ...batch, [field]: newValue, updatedAt: now };
       await localDb.productBatches.put(updatedBatch);
-      await queueOp('product_batches', 'update', batch.id, toRemoteProductBatch({ [field]: newValue, updatedAt: now }));
+      await queueOp('product_batches', 'update', batch.id, toRemoteProductBatch({ id: batch.id, [field]: newValue, updatedAt: now }));
     }
+
+    // Get all updated batches of this product from Dexie
+    const allProductBatches = await localDb.productBatches.where('productId').equals(product.id).toArray();
+    
+    // Update the product record's batches array in Dexie and sync
+    const currentProduct = await localDb.products.get(product.id);
+    if (currentProduct) {
+      const updatedProduct = {
+        ...currentProduct,
+        batches: allProductBatches,
+        updatedAt: now
+      };
+      await localDb.products.put(updatedProduct);
+      await queueOp('products', 'update', product.id, toRemoteProduct(updatedProduct));
+      
+      // Update global context so other parts of UI (like POS Checkout) immediately read updated values
+      dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
+    }
+
     setBatches(prev => prev.map(b =>
       (b.qtyRemaining || 0) > 0 ? { ...b, [field]: newValue } : b
     ));
@@ -436,31 +493,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     setFormData(prev => ({ ...prev, sku }));
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    try {
-      setIsCompressing(true);
-      sonner.loading(t('optimizing_image', 'Optimizing image...'));
-      // Compress and convert to WebP
-      const compressedFile = await compressImage(file, 1024, 1024, 0.8);
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image: reader.result as string }));
-        sonner.close();
-        sonner.success(t('image_optimized_success', 'Image optimized successfully'));
-      };
-      reader.readAsDataURL(compressedFile);
-    } catch (error) {
-      console.error('Image compression failed:', error);
-      sonner.error(t('image_optimized_error', 'Failed to process image'));
-    } finally {
-      setIsCompressing(false);
-      sonner.close();
-    }
-  };
 
   // ─── Unified Audit Logic ───
   const movementHistory = useMemo(() => {
@@ -554,7 +587,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   };
 
   return (
-    <div className="space-y-0 animate-in slide-in-from-right-4 duration-500">
+    <>
+      <div className="space-y-0 animate-in slide-in-from-right-4 duration-500">
       {/* ═══ HEADER ═══ */}
       <div className="bg-white dark:bg-surface border-b border-gray-200 dark:border-white/5 px-3 sm:px-6 py-6 rounded-t-[2.5rem] relative overflow-hidden">
         {/* Decorative Background for Mobile Premium Look */}
@@ -573,35 +607,11 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
 
             <div className="absolute -bottom-1 -right-1">
               <button
-                onClick={() => setShowImageMenu(!showImageMenu)}
-                className={`p-3 rounded-2xl shadow-lg border-2 border-white dark:border-[#171717] transition-all active:scale-90 ${isEditMode ? 'bg-primary text-white scale-110' : 'bg-white dark:bg-[#262626] text-gray-600 scale-90'}`}
+                onClick={() => setShowMediaLibrary(true)}
+                className={`p-3 rounded-2xl shadow-lg border-2 border-white dark:border-[#171717] transition-all active:scale-95 ${isEditMode ? 'bg-primary text-white scale-110' : 'bg-white dark:bg-[#262626] text-gray-600 scale-90'}`}
               >
                 <Camera className="w-5 h-5" />
               </button>
-
-              <Modal
-                isOpen={showImageMenu}
-                onClose={() => setShowImageMenu(false)}
-                title={t('change_image', 'Change Image')}
-                subtitle={t('choose_image_source', 'Choose image source')}
-                maxWidth="sm"
-              >
-                <div className="space-y-3">
-                  <button
-                    onClick={() => { setShowImageMenu(false); setShowMediaLibrary(true); }}
-                    className="w-full px-6 py-4 bg-blue-50 dark:bg-blue-900/10 text-blue-600 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all outline-none ring-1 ring-blue-500/20"
-                  >
-                    <Library className="w-5 h-5" />
-                    {t('pick_from_library', 'Pick from Library')}
-                  </button>
-
-                  <label className="w-full px-6 py-4 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all outline-none ring-1 ring-emerald-500/20 cursor-pointer">
-                    <ImageIcon className="w-5 h-5" />
-                    <span>{t('upload_from_gallery', 'Upload from Gallery')}</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { setShowImageMenu(false); handleFileSelect(e); }} />
-                  </label>
-                </div>
-              </Modal>
             </div>
           </div>
 
@@ -960,40 +970,23 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 {/* --- Product Image Section --- */}
                 <div className="pt-4 border-t border-gray-200 dark:border-white/5">
                   <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-3 ml-1">{t('product_image', 'Product Image')}</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileSelect}
-                          disabled={isCompressing}
-                          className="input flex-1 !py-2 !text-[10px] font-bold"
-                        />
-                        {isCompressing && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
-                      </div>
-                      <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest ml-1">{t('image_compression_notice', 'WebP, JPG, PNG (Auto-compressed to 20-50KB)')}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowMediaLibrary(true)}
+                      className="px-5 py-2.5 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                    >
+                      Choose / Upload Image
+                    </button>
+                    {formData.image && (
                       <button
                         type="button"
-                        onClick={() => setShowMediaLibrary(true)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500/5 text-blue-500 rounded-xl text-[10px] font-black uppercase tracking-tight border border-blue-500/10 hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                        onClick={() => setFormData(prev => ({ ...prev, image: '' }))}
+                        className="px-4 py-2.5 bg-rose-500/10 text-rose-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/20 active:scale-95 transition-all"
                       >
-                        <Library className="w-3.5 h-3.5" />
-                        {t('pick_from_library', 'Pick from Library')}
+                        {t('remove', 'Remove')}
                       </button>
-                      {formData.image && (
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, image: '' }))}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-500/5 text-rose-500 rounded-xl text-[10px] font-black uppercase tracking-tight border border-rose-500/10 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          {t('remove', 'Remove')}
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1639,6 +1632,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
           )}
         </div>
       </div>
+      </div>
       {
         showMediaLibrary && (
           <MediaLibrary
@@ -1670,6 +1664,6 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         saveLabel={t('commit_changes', 'Confirm Changes')}
         unsaved={true}
       />
-    </div>
+    </>
   );
 }

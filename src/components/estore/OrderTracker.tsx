@@ -70,8 +70,18 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
     
     const updateTimer = () => {
       const now = new Date().getTime();
-      const remaining = Math.max(0, targetTime - now);
-      setTimeLeft(remaining);
+      const remaining = targetTime - now;
+      if (remaining <= 0) {
+        setTimeLeft(0);
+        const currentStatus = orderData.estore_status || 'pending';
+        if (['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(currentStatus)) {
+          supabase.from('sales').update({ estore_status: 'delivered' }).eq('id', orderData.id).then(() => {
+            setOrder((prev: any) => prev ? { ...prev, estore_status: 'delivered' } : null);
+          });
+        }
+      } else {
+        setTimeLeft(remaining);
+      }
     };
     
     updateTimer();
@@ -84,7 +94,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
       const cleanup = setupTimer(order);
       return cleanup;
     }
-  }, [order?.created_at, settings?.estoreOrderTimerEnabled]);
+  }, [order?.created_at, settings?.estoreOrderTimerEnabled, order?.estore_status]);
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -100,7 +110,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
       case 'preparing': return <ChefHat className="w-10 h-10 animate-bounce" />;
       case 'ready': return <Package className="w-10 h-10" />;
       case 'out_for_delivery': return <Truck className="w-10 h-10 animate-pulse" />;
-      case 'delivered': return <CheckCircle className="w-10 h-10" />;
+      case 'delivered': return <CheckCircle className="w-10 h-10 text-emerald-500" />;
       case 'cancelled': return <XCircle className="w-10 h-10 text-red-500" />;
       default: return <Clock className="w-10 h-10" />;
     }
@@ -120,7 +130,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
   };
 
   const status = order?.estore_status || 'pending';
-  const showTimer = settings?.estoreOrderTimerEnabled && timeLeft > 0 && ['pending', 'accepted', 'preparing'].includes(status);
+  const showTimer = settings?.estoreOrderTimerEnabled && timeLeft > 0 && ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(status);
   const progressPercent = timeTotal > 0 ? ((timeTotal - timeLeft) / timeTotal) * 100 : 0;
 
   return (
@@ -163,7 +173,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
               <Receipt className="w-5 h-5 text-primary" /> Order Summary
             </h3>
             
-            <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-4">
               {(order.items || []).map((item: any, idx: number) => (
                 <div key={idx} className="flex gap-4 items-center p-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
                   <div className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-white dark:bg-black/50 flex items-center justify-center border border-black/10 dark:border-white/10">

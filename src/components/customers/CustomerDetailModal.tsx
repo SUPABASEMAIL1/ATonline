@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { User, Phone, CreditCard, ShoppingBag, Receipt, MessageCircle, Banknote, RefreshCw, CheckCircle2, Save, AlertTriangle, ArrowDownLeft, ArrowUpRight, Wallet, Smartphone, Building2, FileText } from 'lucide-react';
-import { Customer } from '../../types';
+import { User, Phone, CreditCard, ShoppingBag, Receipt, MessageCircle, Banknote, RefreshCw, CheckCircle2, Save, AlertTriangle, ArrowDownLeft, ArrowUpRight, Wallet, Smartphone, Building2, FileText, ChevronRight } from 'lucide-react';
+import { Customer, Sale } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { formatCurrency, getCurrencySymbol } from '../../lib/currencies';
 import { customersService } from '../../lib/services';
@@ -9,6 +9,7 @@ import { sonner } from '../../lib/sonner';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { TransactionDetailModal } from '../transactions/TransactionDetailModal';
 
 interface CustomerDetailModalProps {
   customer: Customer;
@@ -20,6 +21,7 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'details' | 'transactions' | 'payments'>('details');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [viewingTransaction, setViewingTransaction] = useState<Sale | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital'>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
@@ -310,20 +312,23 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {creditSales.map((tx) => (
-                      <div key={tx.id} className="p-5 bg-rose-500/5 border border-rose-500/20 rounded-[20px] space-y-3">
+                      <div key={tx.id} onClick={() => setViewingTransaction(tx)} className="p-5 bg-rose-500/5 border border-rose-500/20 rounded-[20px] space-y-3 cursor-pointer hover:bg-rose-500/10 transition-all active:scale-[0.98]">
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase">#{tx.receiptNumber || 'N/A'}</p>
+                            <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase">#{tx.invoiceNumber || tx.receiptNumber || 'N/A'}</p>
                             <p className="text-[8px] font-bold text-gray-500 mt-0.5">{formatAppDateTime(tx.timestamp, state.settings.country)}</p>
                           </div>
-                          <p className="text-lg font-black text-rose-600 dark:text-rose-400">{formatCurrency(tx.total, state.settings.currency)}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-lg font-black text-rose-600 dark:text-rose-400">{formatCurrency(tx.total, state.settings.currency)}</p>
+                            <ChevronRight className="h-4 w-4 text-rose-400 shrink-0" />
+                          </div>
                         </div>
                         <div className="flex gap-2 flex-wrap">
                           <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 text-[8px] font-black uppercase rounded-lg border border-rose-200 dark:border-rose-500/20">Udhaar / Credit</span>
                           <span className="px-2 py-0.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 text-[8px] font-black uppercase rounded-lg border border-orange-200/50">Pending</span>
                         </div>
                         <button
-                          onClick={() => { setPaymentAmount(String(tx.total)); setShowPaymentModal(true); }}
+                          onClick={(e) => { e.stopPropagation(); setPaymentAmount(String(tx.total)); setShowPaymentModal(true); }}
                           className="w-full py-2 bg-primary/10 text-emerald-700 dark:text-emerald-400 border border-primary/20 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95"
                         >
                           ✓ Collect {formatCurrency(tx.total, state.settings.currency)}
@@ -344,13 +349,16 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {paidSales.map((tx) => (
-                      <div key={tx.id} className="p-5 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-[20px] space-y-3">
+                      <div key={tx.id} onClick={() => setViewingTransaction(tx)} className="p-5 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-[20px] space-y-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 transition-all active:scale-[0.98]">
                         <div className="flex justify-between items-start">
                           <div>
-                            <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase">#{tx.receiptNumber || 'N/A'}</p>
+                            <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase">#{tx.invoiceNumber || tx.receiptNumber || 'N/A'}</p>
                             <p className="text-[8px] font-bold text-gray-500 mt-0.5">{formatAppDateTime(tx.timestamp, state.settings.country)}</p>
                           </div>
-                          <p className="text-lg font-black text-blue-600">{formatCurrency(tx.total, state.settings.currency)}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-lg font-black text-blue-600">{formatCurrency(tx.total, state.settings.currency)}</p>
+                            <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 text-[8px] font-black uppercase rounded-lg border border-blue-100 dark:border-blue-500/20">{tx.paymentMethod}</span>
@@ -551,6 +559,17 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
           </div>
         </div>
       </Modal>
+
+      {viewingTransaction && (
+        <TransactionDetailModal
+          transaction={viewingTransaction}
+          allTransactions={customerTransactions}
+          onNavigate={setViewingTransaction}
+          onClose={() => setViewingTransaction(null)}
+          onReprint={() => {}}
+          onBack={() => setViewingTransaction(null)}
+        />
+      )}
     </>
   );
 }

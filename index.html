@@ -87,25 +87,76 @@
         }
       }
 
-      // ─── Dynamic Manifest for E-Store ───
-      var _manifestLink = document.querySelector('link[rel="manifest"]');
-      if (window.location.pathname.startsWith('/store')) {
-        if (_manifestLink) {
-          _manifestLink.setAttribute('href', '/manifest-store.json');
+      // ─── Dynamic PWA Manifest per Tenant (reads business name + logo from cached settings) ───
+      (function() {
+        var _settings = {};
+        try { _settings = JSON.parse(localStorage.getItem('pos_settings') || '{}'); } catch(e) {}
+        var _bizName = _settings.store_name || 'Zaynahs';
+        var _storeLogo = _settings.store_logo || '';
+        var _themeColor = _settings.estore_theme_color || '#10b981';
+        var _isStore = window.location.pathname.startsWith('/store');
+
+        function _generateManifest(name, shortName, desc, startUrl, scope, bgColor, icons) {
+          return {
+            name: name,
+            short_name: shortName,
+            description: desc,
+            theme_color: _themeColor,
+            background_color: bgColor,
+            display: 'standalone',
+            orientation: _isStore ? 'portrait' : 'any',
+            start_url: startUrl,
+            scope: scope,
+            categories: _isStore ? ['shopping', 'food', 'lifestyle'] : ['business', 'finance', 'productivity'],
+            icons: icons
+          };
+        }
+
+        var _icons = [
+          { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ];
+        // Prepend store logo as primary icon if available
+        if (_isStore && _storeLogo) {
+          _icons.unshift({ src: _storeLogo, sizes: '512x512', type: 'image/png', purpose: 'any' });
+        }
+
+        var _manifest;
+        if (_isStore) {
+          _manifest = _generateManifest(
+            _bizName,
+            _bizName.length > 12 ? _bizName.substring(0, 12) : _bizName,
+            'Order online from ' + _bizName,
+            '/store', '/store',
+            '#f9fafb',
+            _icons
+          );
+          document.title = _bizName + ' - Online Store';
         } else {
-          var link = document.createElement('link');
-          link.rel = 'manifest';
-          link.href = '/manifest-store.json';
-          document.head.appendChild(link);
+          _manifest = _generateManifest(
+            _bizName + ' POS',
+            (_bizName + ' POS').substring(0, 12),
+            'Point-of-sale system for ' + _bizName,
+            './', './',
+            '#0a0a0a',
+            _icons
+          );
+          document.title = _bizName + ' POS';
         }
-        document.title = "Zaynahs Online Store";
-      } else {
+
+        var _manifestLink = document.querySelector('link[rel="manifest"]');
+        var _blob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });
+        var _url = URL.createObjectURL(_blob);
         if (_manifestLink) {
-          // In production, Vite PWA generates a manifest usually injected automatically,
-          // but we set a fallback here.
-          _manifestLink.setAttribute('href', '/site.webmanifest');
+          _manifestLink.setAttribute('href', _url);
+        } else {
+          var _newLink = document.createElement('link');
+          _newLink.rel = 'manifest';
+          _newLink.href = _url;
+          document.head.appendChild(_newLink);
         }
-      }
+      })();
     </script>
   </head>
   <body>

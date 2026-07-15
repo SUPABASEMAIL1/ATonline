@@ -102,6 +102,8 @@ export const mapProduct = (item: any): Product => ({
   isService: item.is_service ?? item.isService ?? false,
   requireSerial: item.require_serial ?? item.requireSerial ?? false,
   showInEstore: item.show_in_estore ?? item.showInEstore ?? true,
+  estoreSortOrder: item.estore_sort_order ?? item.estoreSortOrder ?? 0,
+  estoreCategorySortOrder: item.estore_category_sort_order ?? item.estoreCategorySortOrder ?? 0,
   createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
 });
@@ -272,11 +274,20 @@ export const mapSettings = (item: any): AppSettings => {
     estoreDeliveryFee: s.estore_delivery_fee ?? s.estoreDeliveryFee ?? 0,
     estoreMinOrder: s.estore_min_order ?? s.estoreMinOrder ?? 0,
     estoreCodEnabled: s.estore_cod_enabled ?? s.estoreCodEnabled ?? true,
+    estoreCustomPaymentEnabled: s.estore_custom_payment_enabled ?? s.estoreCustomPaymentEnabled ?? false,
+    estoreCustomPaymentName: s.estore_custom_payment_name ?? s.estoreCustomPaymentName ?? '',
+    estoreCustomPaymentDetail: s.estore_custom_payment_detail ?? s.estoreCustomPaymentDetail ?? '',
+    estoreCustomPaymentNote: s.estore_custom_payment_note ?? s.estoreCustomPaymentNote ?? '',
     estoreLocationLat: s.estore_location_lat ?? s.estoreLocationLat,
     estoreLocationLng: s.estore_location_lng ?? s.estoreLocationLng,
     estoreDeliveryRadius: s.estore_delivery_radius ?? s.estoreDeliveryRadius ?? 5,
     estoreWhatsappEnabled: s.estore_whatsapp_enabled ?? s.estoreWhatsappEnabled ?? false,
     estoreWhatsappNumber: s.estore_whatsapp_number ?? s.estoreWhatsappNumber,
+    estorePickupEnabled: s.estore_pickup_enabled ?? s.estorePickupEnabled ?? true,
+    estoreDeliveryEnabled: s.estore_delivery_enabled ?? s.estoreDeliveryEnabled ?? true,
+    storeType: s.store_type ?? s.storeType ?? 'both',
+    storeLatitude: s.store_latitude ?? s.storeLatitude,
+    storeLongitude: s.store_longitude ?? s.storeLongitude,
     defaultSaleType: s.default_sale_type ?? s.defaultSaleType ?? 'retail',
     language: s.language ?? s.language ?? 'en',
     touchKeyboardEnabled: s.touch_keyboard_enabled ?? s.touchKeyboardEnabled ?? false,
@@ -392,14 +403,33 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('estoreCardBgColor' in s) { remote.estore_card_bg_color = s.estoreCardBgColor; }
   if ('estoreOrderTimerEnabled' in s) { remote.estore_order_timer_enabled = s.estoreOrderTimerEnabled; }
   if ('estoreOrderTimerMinutes' in s) { remote.estore_order_timer_minutes = s.estoreOrderTimerMinutes; }
-  if ('estoreDeliveryFee' in s) { remote.estore_delivery_fee = s.estoreDeliveryFee; }
-  if ('estoreMinOrder' in s) { remote.estore_min_order = s.estoreMinOrder; }
+  if ('estoreDeliveryFee' in s) { 
+    remote.estore_delivery_fee = s.estoreDeliveryFee === '' || s.estoreDeliveryFee === null || s.estoreDeliveryFee === undefined ? 0 : Number(s.estoreDeliveryFee); 
+  }
+  if ('estoreMinOrder' in s) { 
+    remote.estore_min_order = s.estoreMinOrder === '' || s.estoreMinOrder === null || s.estoreMinOrder === undefined ? 0 : Number(s.estoreMinOrder); 
+  }
   if ('estoreCodEnabled' in s) { remote.estore_cod_enabled = s.estoreCodEnabled; }
-  if ('estoreLocationLat' in s) { remote.estore_location_lat = s.estoreLocationLat; }
-  if ('estoreLocationLng' in s) { remote.estore_location_lng = s.estoreLocationLng; }
-  if ('estoreDeliveryRadius' in s) { remote.estore_delivery_radius = s.estoreDeliveryRadius; }
+  if ('estoreCustomPaymentEnabled' in s) { remote.estore_custom_payment_enabled = s.estoreCustomPaymentEnabled; }
+  if ('estoreCustomPaymentName' in s) { remote.estore_custom_payment_name = s.estoreCustomPaymentName; }
+  if ('estoreCustomPaymentDetail' in s) { remote.estore_custom_payment_detail = s.estoreCustomPaymentDetail; }
+  if ('estoreCustomPaymentNote' in s) { remote.estore_custom_payment_note = s.estoreCustomPaymentNote; }
+  if ('estoreLocationLat' in s) { 
+    remote.estore_location_lat = s.estoreLocationLat === '' || s.estoreLocationLat === null || s.estoreLocationLat === undefined ? null : Number(s.estoreLocationLat); 
+  }
+  if ('estoreLocationLng' in s) { 
+    remote.estore_location_lng = s.estoreLocationLng === '' || s.estoreLocationLng === null || s.estoreLocationLng === undefined ? null : Number(s.estoreLocationLng); 
+  }
+  if ('estoreDeliveryRadius' in s) { 
+    remote.estore_delivery_radius = s.estoreDeliveryRadius === '' || s.estoreDeliveryRadius === null || s.estoreDeliveryRadius === undefined ? null : Number(s.estoreDeliveryRadius); 
+  }
   if ('estoreWhatsappEnabled' in s) { remote.estore_whatsapp_enabled = s.estoreWhatsappEnabled; }
   if ('estoreWhatsappNumber' in s) { remote.estore_whatsapp_number = s.estoreWhatsappNumber; }
+  if ('estorePickupEnabled' in s) { remote.estore_pickup_enabled = s.estorePickupEnabled; }
+  if ('estoreDeliveryEnabled' in s) { remote.estore_delivery_enabled = s.estoreDeliveryEnabled; }
+  if ('storeType' in s) { remote.store_type = s.storeType; }
+  if ('storeLatitude' in s) { remote.store_latitude = s.storeLatitude === '' || s.storeLatitude === null || s.storeLatitude === undefined ? null : Number(s.storeLatitude); }
+  if ('storeLongitude' in s) { remote.store_longitude = s.storeLongitude === '' || s.storeLongitude === null || s.storeLongitude === undefined ? null : Number(s.storeLongitude); }
   if ('defaultSaleType' in s) { remote.default_sale_type = s.defaultSaleType; }
   if ('language' in s) { remote.language = s.language; }
 
@@ -507,6 +537,8 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   if ('isService' in p) { remote.is_service = p.isService; delete remote.isService; }
   if ('requireSerial' in p) { remote.require_serial = p.requireSerial; delete remote.requireSerial; }
   if ('showInEstore' in p) { remote.show_in_estore = p.showInEstore; delete remote.showInEstore; }
+  if ('estoreSortOrder' in p) { remote.estore_sort_order = p.estoreSortOrder; delete remote.estoreSortOrder; }
+  if ('estoreCategorySortOrder' in p) { remote.estore_category_sort_order = p.estoreCategorySortOrder; delete remote.estoreCategorySortOrder; }
   if ('variantData' in p) { remote.variant_data = p.variantData; delete remote.variantData; }
   delete remote.batches;
   delete remote.product_batches;
@@ -1270,8 +1302,10 @@ export const salesService = {
     const affectedProducts: Product[] = [];
 
     // 1. Reverse Stock (Only restore what has not been refunded/returned yet)
-    for (const item of sale.items) {
-      const product = await localDb.products.get(item.product.id);
+    // E-store pending sales never deducted stock initially, so we don't restore it.
+    if (sale.status === 'completed' || sale.status === 'credit') {
+      for (const item of sale.items) {
+        const product = await localDb.products.get(item.product.id);
       if (product && product.trackInventory) {
         const qty = (item.weight || item.quantity) - (item.refundedQuantity || 0);
         if (qty <= 0) continue;
@@ -1344,6 +1378,7 @@ export const salesService = {
       } else if (product) {
         affectedProducts.push(product);
       }
+    }
     }
 
     // 2. Local Delete
@@ -1672,11 +1707,30 @@ export const categoriesService = {
     });
     return cat;
   },
+  async update(id: string, updates: Partial<Category>): Promise<void> {
+    await localDb.categories.where('id').equals(id).modify(updates);
+    const local = await localDb.categories.get(id);
+    const remote: any = {};
+    if (local) {
+      remote.name = local.name;
+      remote.description = local.description || null;
+      remote.active = local.active ?? true;
+      remote.estore_sort_order = local.estoreSortOrder ?? 0;
+    } else {
+      if ('estoreSortOrder' in updates) remote.estore_sort_order = updates.estoreSortOrder;
+      if ('name' in updates) remote.name = updates.name;
+      if ('description' in updates) remote.description = updates.description;
+      if ('active' in updates) remote.active = updates.active;
+    }
+    await queueOp('categories', 'update', id, remote);
+  },
   async fetchRemote(): Promise<Category[]> {
     const { data, error } = await supabase.from('categories').select('*');
     if (error) throw error;
     return (data || []).map(item => ({
       ...item,
+      estoreSortOrder: item.estore_sort_order ?? 0,
+      active: item.active ?? true,
       createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
       updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
     }));
@@ -2258,6 +2312,7 @@ export const mapBundle = (row: any): Bundle => ({
   discountType: row.discount_type || 'percentage',
   active: row.active !== false,
   hideItemPrices: row.hide_item_prices === true,
+  image: row.image,
   items: (row.bundle_items || []).map((bi: any): BundleItem => ({
     id: bi.id,
     bundleId: bi.bundle_id,
@@ -2278,6 +2333,7 @@ export const mapBundle = (row: any): Bundle => ({
       productId: o.product_id,
     })),
   })),
+  estoreSortOrder: row.estore_sort_order ?? row.estoreSortOrder ?? 0,
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
   updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(),
 });
@@ -2334,6 +2390,7 @@ export const bundlesService = {
               discountType: b.discountType || 'percentage',
               active: b.active !== false,
               hideItemPrices: b.hideItemPrices === true,
+              image: b.image,
               isCombo: b.isCombo === true || b.is_combo === true,
               items: localItems.filter((bi: any) => bi.bundleId === b.id).map((bi: any): BundleItem => ({
                 id: bi.id,
@@ -2342,6 +2399,7 @@ export const bundlesService = {
                 quantity: Number(bi.quantity) || 1,
               })),
               slots: bundleSlots,
+              estoreSortOrder: b.estoreSortOrder ?? b.estore_sort_order ?? 0,
               createdAt: b.createdAt ? new Date(b.createdAt) : new Date(),
               updatedAt: b.updatedAt ? new Date(b.updatedAt) : new Date(),
             };
@@ -2379,6 +2437,7 @@ export const bundlesService = {
             active: b.active,
             hideItemPrices: b.hideItemPrices || false,
             isCombo: b.isCombo || false,
+            image: b.image,
             createdAt: b.createdAt,
             updatedAt: b.updatedAt,
           })));
@@ -2595,6 +2654,8 @@ export const bundlesService = {
     items?: { productId: string; quantity: number }[];
     slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string }[] }[];
     isCombo?: boolean;
+    estoreSortOrder?: number;
+    image?: string;
   }): Promise<void> {
     const now = new Date().toISOString();
     const updates: any = { updated_at: now };
@@ -2605,6 +2666,8 @@ export const bundlesService = {
     if (data.hideItemPrices !== undefined) updates.hide_item_prices = data.hideItemPrices;
     if (data.isCombo !== undefined) updates.is_combo = data.isCombo;
     if (data.active !== undefined) updates.active = data.active;
+    if (data.estoreSortOrder !== undefined) updates.estore_sort_order = data.estoreSortOrder;
+    if (data.image !== undefined) updates.image = data.image;
 
     // Update local FIRST (offline-first)
     const localUpdates: any = { updatedAt: new Date(now) };
@@ -2615,6 +2678,8 @@ export const bundlesService = {
     if (data.hideItemPrices !== undefined) localUpdates.hideItemPrices = data.hideItemPrices;
     if (data.isCombo !== undefined) localUpdates.isCombo = data.isCombo;
     if (data.active !== undefined) localUpdates.active = data.active;
+    if (data.estoreSortOrder !== undefined) localUpdates.estoreSortOrder = data.estoreSortOrder;
+    if (data.image !== undefined) localUpdates.image = data.image;
 
     await localDb.bundles.where('id').equals(bundleId).modify(localUpdates);
 

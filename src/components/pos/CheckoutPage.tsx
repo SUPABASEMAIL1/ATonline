@@ -105,6 +105,11 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
       .slice(0, 3);
   }, [finalTotal]);
 
+  const editingSale = useMemo(() => {
+    if (!state.editingSaleId) return null;
+    return state.sales.find(s => s.id === state.editingSaleId) || null;
+  }, [state.editingSaleId, state.sales]);
+
   useEffect(() => {
     // If a sale has been completed, do not reset the state or form fields
     if (completedSale || showReceipt) return;
@@ -117,19 +122,20 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
     // If editing, load notes and extra charges
     if (state.editingSaleId) {
-      const editingSale = state.sales.find(s => s.id === state.editingSaleId);
       if (editingSale) {
-        setSaleNotes(editingSale.notes || '');
+        setSaleNotes(state.notes || editingSale.notes || '');
         setSaleType(editingSale.saleType as any);
         if (editingSale.extraCharges && editingSale.extraCharges.length > 0) {
           setExtraCharges(editingSale.extraCharges.map(c => ({ name: c.name, amount: String(c.amount) })));
+        } else if (editingSale.deliveryFee && editingSale.deliveryFee > 0) {
+          setExtraCharges([{ name: 'DC', amount: String(editingSale.deliveryFee) }]);
         } else {
           setExtraCharges([{ name: 'DC', amount: '' }]);
         }
         if (editingSale.paymentMethod) setPaymentMethod(editingSale.paymentMethod === 'split' ? 'split' : editingSale.paymentMethod);
       }
     } else {
-      setSaleNotes('');
+      setSaleNotes(state.notes || '');
       setExtraCharges([{ name: 'DC', amount: '' }]);
       const preferredMode = state.settings.defaultSaleType || 'retail';
       if (preferredMode === 'retail' && retailEnabled) setSaleType('retail');
@@ -139,7 +145,14 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
       else if (wholesaleEnabled) setSaleType('wholesale');
       else if (estoreEnabled) setSaleType('estore');
     }
-  }, [retailEnabled, wholesaleEnabled, estoreEnabled, state.editingSaleId, state.settings.defaultSaleType, completedSale, showReceipt]);
+  }, [retailEnabled, wholesaleEnabled, estoreEnabled, state.editingSaleId, editingSale, state.settings.defaultSaleType, completedSale, showReceipt]);
+
+  // Auto-populate DC amount from Delivery Fee setting when E-Store selected (new sales only)
+  useEffect(() => {
+    if (saleType === 'estore' && state.settings.estoreDeliveryFee && !state.editingSaleId) {
+      setExtraCharges([{ name: 'DC', amount: String(state.settings.estoreDeliveryFee) }]);
+    }
+  }, [saleType, state.settings.estoreDeliveryFee, state.editingSaleId]);
 
   // canProcessPayment is declared below — usePOSKeyboard is called after it
 
@@ -250,10 +263,16 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
         receivedAmount: paymentMethod === 'cash' ? parseFloat(amountPaid) || undefined : undefined,
         changeAmount: paymentMethod === 'cash' ? change || undefined : undefined,
-        saleType,
+        saleType: (editingSale?.saleType as any) || saleType,
         saleDate: new Date().toLocaleDateString('en-CA'),
         extraCharges: extraCharges.filter(c => parseFloat(c.amount) > 0),
-        splitPayments: paymentMethod === 'split' ? splitPayments : []
+        deliveryFee: saleType === 'estore' ? (parseFloat(extraCharges.find(c => parseFloat(c.amount) > 0)?.amount || '0') || 0) : undefined,
+        splitPayments: paymentMethod === 'split' ? splitPayments : [],
+        estoreStatus: (editingSale?.saleType === 'estore' || editingSale?.estoreStatus) ? 'out_for_delivery' : undefined,
+        deliveryAddress: editingSale?.deliveryAddress || undefined,
+        deliveryLocationLat: editingSale?.deliveryLocationLat || undefined,
+        deliveryLocationLng: editingSale?.deliveryLocationLng || undefined,
+        customerNotes: editingSale?.customerNotes || undefined,
       };
 
       let savedSale;
@@ -647,7 +666,15 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
               </span>
             </div>
             <textarea
-              value={saleNotes} onChange={e => setSaleNotes(e.target.value)}
+              value={saleNotes} 
+              onChange={e => {
+                setSaleNotes(e.target.value);
+                dispatch({ type: 'SET_NOTES', payload: e.target.value });
+                dispatch({
+                  type: 'UPDATE_SALES_TAB',
+                  payload: { id: state.activeSalesTab, updates: { notes: e.target.value } }
+                });
+              }}
               placeholder={t("notes_placeholder", "Add notes or memo...")}
               className="w-full px-3 py-2.5 bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/5 rounded-xl text-[10px] font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-primary outline-none resize-none min-h-[60px] placeholder:text-gray-600 dark:placeholder:text-gray-600 transition-all"
             />

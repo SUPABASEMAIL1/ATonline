@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Search, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, ChevronRight, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift, Globe } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, ChevronRight, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift, Globe, ArrowUpDown } from 'lucide-react';
 import { Product } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { ProductModal } from './ProductModal';
@@ -27,8 +27,9 @@ import { SearchableSelect } from '../common/SearchableSelect';
 import { generateId, localDb, queueOp } from '../../lib/localDb';
 import { toRemoteProduct } from '../../lib/services';
 import { BundleManager } from './BundleManager';
+import { StoreSort } from './StoreSort';
 
-type TabType = 'inventory' | 'purchase_orders' | 'groups' | 'media' | 'purchases' | 'bundles';
+type TabType = 'inventory' | 'purchase_orders' | 'groups' | 'media' | 'purchases' | 'bundles' | 'store_sort';
 
 export function InventoryManager() {
   const navigate = useNavigate();
@@ -59,6 +60,7 @@ export function InventoryManager() {
     bundles: 'bundles',
     groups: 'groups',
     media: 'media',
+    'store-sort': 'store_sort',
   };
   const INTERNAL_TO_SUB_TAB_SEGMENT: Record<string, string> = {
     inventory: 'products',
@@ -67,6 +69,7 @@ export function InventoryManager() {
     bundles: 'bundles',
     groups: 'groups',
     media: 'media',
+    store_sort: 'store-sort',
   };
   const activeTab = (subTab ? SUB_TAB_SEGMENT_TO_INTERNAL[subTab] : 'inventory') as TabType;
 
@@ -171,7 +174,7 @@ export function InventoryManager() {
   const filteredProducts = useMemo(() => {
     return state.products
       .filter(product => {
-        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        const matchesSearch = (product.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
@@ -189,8 +192,8 @@ export function InventoryManager() {
 
         switch (sortBy) {
           case 'name':
-            aValue = a.name.toLowerCase();
-            bValue = b.name.toLowerCase();
+            aValue = (a.name || '').toLowerCase();
+            bValue = (b.name || '').toLowerCase();
             break;
           case 'stock':
             aValue = a.stock;
@@ -201,8 +204,8 @@ export function InventoryManager() {
             bValue = b.price;
             break;
           default:
-            aValue = a.name.toLowerCase();
-            bValue = b.name.toLowerCase();
+            aValue = (a.name || '').toLowerCase();
+            bValue = (b.name || '').toLowerCase();
         }
 
         if (sortOrder === 'asc') {
@@ -415,13 +418,17 @@ export function InventoryManager() {
 
       // Get all existing products in local db to check for duplicates quickly (Rule F1)
       const allLocalProducts = await localDb.products.toArray();
-      const existingNames = new Set(allLocalProducts.map(p => p.name.trim().toLowerCase()));
+      const existingNames = new Set(allLocalProducts.map(p => (p.name || '').trim().toLowerCase()));
 
       const duplicates: string[] = [];
       const productsToCreate: any[] = [];
 
       for (const p of products) {
-        const nameClean = (p.name || '').trim().toLowerCase();
+        if (!p.name || !p.name.trim()) {
+          console.warn('[Import] Skipping product without a name:', p);
+          continue;
+        }
+        const nameClean = p.name.trim().toLowerCase();
         if (existingNames.has(nameClean)) {
           duplicates.push(p.name);
         } else {
@@ -620,6 +627,7 @@ export function InventoryManager() {
               { id: 'bundles', label: t("bundles_and_deals", "BUNDLES & DEALS"), icon: Gift, color: 'bg-violet-600', show: true },
               { id: 'groups', label: t("groups", "GROUPS"), icon: Layers, color: 'bg-indigo-600', show: true },
               { id: 'media', label: t("media", "MEDIA"), icon: Camera, color: 'bg-amber-600', show: true },
+              { id: 'store_sort', label: t("store_sort", "STORE SORT"), icon: ArrowUpDown, color: 'bg-teal-600', show: state.settings.estoreEnabled && isAdmin },
             ].filter(t => t.show).map(tab => {
               const isActive = activeTab === tab.id;
               return (
@@ -1142,6 +1150,8 @@ export function InventoryManager() {
             </div>
           </div>
         </div>
+      ) : activeTab === 'store_sort' ? (
+        <StoreSort />
       ) : activeTab === 'suppliers' ? (
         <SupplierManager />
       ) : (

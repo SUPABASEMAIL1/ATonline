@@ -135,6 +135,16 @@
 --   Impact: SUPER_MASTER_SCHEMA.sql can now be run on ANY existing DB as a true
 --   idempotent full-setup script — no more missing column gaps.
 --
+-- [2026-07-14] EStore custom payment columns + schema sync fix
+--   Files: SUPER_MASTER_SCHEMA.sql, Settings.tsx, services.ts
+--   Changes:
+--   1. app_settings CREATE TABLE: added estore_custom_payment_enabled, _name, _detail, _note
+--   2. app_settings ALTER TABLE: fixed premature semicolon that prevented custom payment
+--      columns from being applied on existing DBs
+--   3. Settings.tsx formData: added ALL estore fields (timer, COD, custom payment,
+--      WhatsApp, delivery, colors) to both useState init and useEffect sync — this was
+--      the root cause of all estore settings resetting to defaults on refresh
+--
 -- [2026-07-10] Refund system fixes — partially_refunded, refunded_amount, process_return RPC
 --   Migration: supabase/migrations/20260710230000_fix_refund_system.sql
 --   Changes:
@@ -277,6 +287,15 @@ CREATE TABLE IF NOT EXISTS app_settings (
     estore_card_bg_color        TEXT DEFAULT '#ffffff',
     estore_order_timer_enabled  BOOLEAN DEFAULT false,
     estore_order_timer_minutes  INTEGER DEFAULT 30,
+    estore_custom_payment_enabled BOOLEAN DEFAULT false,
+    estore_custom_payment_name  TEXT,
+    estore_custom_payment_detail TEXT,
+    estore_custom_payment_note  TEXT,
+    estore_pickup_enabled       BOOLEAN DEFAULT true,
+    estore_delivery_enabled     BOOLEAN DEFAULT true,
+    store_type                  TEXT DEFAULT 'both',
+    store_latitude              NUMERIC,
+    store_longitude             NUMERIC,
     sound_enabled               BOOLEAN DEFAULT true,
     touch_keyboard_enabled      BOOLEAN DEFAULT false,
     enable_kot_printer          BOOLEAN DEFAULT false,
@@ -390,6 +409,8 @@ CREATE TABLE IF NOT EXISTS products (
     is_service          BOOLEAN DEFAULT false,
     require_serial      BOOLEAN DEFAULT false,
     show_in_estore      BOOLEAN DEFAULT true,
+    estore_sort_order   INTEGER DEFAULT 0,
+    estore_category_sort_order INTEGER DEFAULT 0,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
 
@@ -715,6 +736,7 @@ CREATE TABLE IF NOT EXISTS bundles (
     discount_type       TEXT NOT NULL DEFAULT 'percentage' CHECK (discount_type IN ('percentage', 'fixed')),
     hide_item_prices    BOOLEAN NOT NULL DEFAULT FALSE,
     active              BOOLEAN NOT NULL DEFAULT TRUE,
+    image               TEXT,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -1488,7 +1510,9 @@ END $$;
 -- Products: post-launch columns
 ALTER TABLE products
   ADD COLUMN IF NOT EXISTS variant_data  JSONB DEFAULT '[]'::jsonb,
-  ADD COLUMN IF NOT EXISTS modifiers     JSONB DEFAULT '[]'::jsonb;
+  ADD COLUMN IF NOT EXISTS modifiers     JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS estore_sort_order INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS estore_category_sort_order INTEGER DEFAULT 0;
 
 DO $$
 BEGIN
@@ -1859,4 +1883,13 @@ ALTER TABLE app_settings
   ADD COLUMN IF NOT EXISTS estore_text_color TEXT DEFAULT '#111827',
   ADD COLUMN IF NOT EXISTS estore_card_bg_color TEXT DEFAULT '#ffffff',
   ADD COLUMN IF NOT EXISTS estore_order_timer_enabled BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS estore_order_timer_minutes INTEGER DEFAULT 30;
+  ADD COLUMN IF NOT EXISTS estore_order_timer_minutes INTEGER DEFAULT 30,
+  ADD COLUMN IF NOT EXISTS estore_custom_payment_enabled BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS estore_custom_payment_name TEXT,
+  ADD COLUMN IF NOT EXISTS estore_custom_payment_detail TEXT,
+  ADD COLUMN IF NOT EXISTS estore_custom_payment_note TEXT,
+  ADD COLUMN IF NOT EXISTS estore_pickup_enabled BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS estore_delivery_enabled BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS store_type TEXT DEFAULT 'both',
+  ADD COLUMN IF NOT EXISTS store_latitude NUMERIC,
+  ADD COLUMN IF NOT EXISTS store_longitude NUMERIC;

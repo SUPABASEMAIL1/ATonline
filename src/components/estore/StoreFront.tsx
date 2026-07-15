@@ -1,28 +1,139 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Product, AppSettings, Category, CartItem, ProductModifier, Sale } from '../../types';
-import { ShoppingCart, Search, Plus, Minus, ChevronRight, ChevronLeft, X, User, History, LogOut } from 'lucide-react';
+import { Product, AppSettings, Category, CartItem, ProductModifier, Bundle, Sale } from '../../types';
+import { ShoppingCart, ShoppingBag, Search, Plus, Minus, ChevronRight, ChevronLeft, X, User, History, LogOut, Bike, Clock, Flame, CheckCircle2 } from 'lucide-react';
 import { useEstoreAuth } from './useEstoreAuth';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/currencies';
 import { StoreProductModal } from './StoreProductModal';
+import { StoreDealModal } from './StoreDealModal';
+
+// ─── Live ticking order timer for StoreFront order history ───
+const StoreOrderTimer = ({ order, settings, onExpire }: { order: any, settings: any, onExpire: () => void }) => {
+  const [timeLeft, setTimeLeft] = useState<number>(-1);
+  useEffect(() => {
+    if (!settings?.estoreOrderTimerEnabled || !settings?.estoreOrderTimerMinutes) return;
+    const createdAt = new Date(order.createdAt).getTime();
+    const durationMs = settings.estoreOrderTimerMinutes * 60 * 1000;
+    const targetTime = createdAt + durationMs;
+    
+    const tick = () => {
+      const remaining = targetTime - Date.now();
+      if (remaining <= 0) {
+        setTimeLeft(0);
+        onExpire();
+      } else {
+        setTimeLeft(remaining);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [order.createdAt, settings?.estoreOrderTimerEnabled, settings?.estoreOrderTimerMinutes]);
+
+  if (!settings?.estoreOrderTimerEnabled || timeLeft <= 0) return null;
+
+  const isActive = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(order.estoreStatus || 'pending');
+  if (!isActive) return null;
+
+  const s = Math.floor(timeLeft / 1000);
+  const formatted = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  return (
+    <span className="text-[10px] font-black tracking-wider bg-gray-100 dark:bg-white/10 px-2 py-0.5 rounded-md text-gray-600 dark:text-gray-300 flex items-center gap-1">
+      <svg className="w-3.5 h-3.5 text-primary animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      {formatted}
+    </span>
+  );
+};
+
+const EStoreOrderProgress = ({ status }: { status: string }) => {
+  const steps = [
+    { key: 'pending', label: 'Placed', icon: Clock },
+    { key: 'preparing', label: 'Preparing', icon: Flame },
+    { key: 'out_for_delivery', label: 'On Road', icon: Bike },
+    { key: 'delivered', label: 'Delivered', icon: CheckCircle2 },
+  ];
+
+  let activeIndex = 0;
+  if (['pending', 'accepted'].includes(status)) activeIndex = 0;
+  else if (['preparing', 'ready'].includes(status)) activeIndex = 1;
+  else if (status === 'out_for_delivery') activeIndex = 2;
+  else if (status === 'delivered') activeIndex = 3;
+  else if (status === 'cancelled') activeIndex = -1;
+
+  if (activeIndex === -1) {
+    return (
+      <div className="my-3 py-2 px-4 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 text-center">
+        <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest">Order Cancelled</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-4 py-3 px-1.5 border border-black/5 dark:border-white/5 rounded-2xl bg-black/[0.01] dark:bg-white/[0.01]">
+      <div className="relative flex justify-between items-center w-full">
+        {/* Road line */}
+        <div className="absolute left-4 right-4 top-[14px] h-1 bg-black/5 dark:bg-white/5 rounded-full -z-0">
+          <div 
+            className="h-full bg-primary transition-all duration-500 rounded-full" 
+            style={{ width: `${(activeIndex / (steps.length - 1)) * 100}%` }}
+          />
+        </div>
+
+        {/* Steps */}
+        {steps.map((step, idx) => {
+          const StepIcon = step.icon;
+          const isCompleted = idx < activeIndex;
+          const isActive = idx === activeIndex;
+
+          return (
+            <div key={step.key} className="flex flex-col items-center relative z-10 flex-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                isActive 
+                  ? 'bg-primary border-primary text-white scale-110 shadow-md shadow-emerald-500/20' 
+                  : isCompleted 
+                    ? 'bg-primary/10 border-primary text-primary' 
+                    : 'bg-white dark:bg-[#18181b] border-gray-200 dark:border-zinc-800 text-gray-400'
+              }`}>
+                <StepIcon className={`w-4 h-4 ${isActive && step.key === 'out_for_delivery' ? 'animate-bounce' : ''}`} />
+              </div>
+              <span className={`text-[9px] font-black uppercase tracking-wider mt-1.5 ${
+                isActive ? 'text-primary' : 'text-gray-500'
+              }`}>
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 
 interface StoreFrontProps {
   settings: AppSettings | null;
   products: Product[];
   categories: Category[];
+  bundles: Bundle[];
   cart: CartItem[];
   onAddToCart: (product: Product, quantity?: number, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[] }) => void;
+  onAddBundle: (cartItems: CartItem[]) => void;
   onUpdateCart: (index: number, quantity: number) => void;
 }
 
-export function StoreFront({ settings, products, categories, cart, onAddToCart, onUpdateCart }: StoreFrontProps) {
+export function StoreFront({ settings, products, categories, bundles, cart, onAddToCart, onAddBundle, onUpdateCart }: StoreFrontProps) {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
+  const [selectedBundleForModal, setSelectedBundleForModal] = useState<Bundle | null>(null);
   const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const dealsScrollRef = useRef<HTMLDivElement>(null);
 
   const { customer, loginOrRegister, logout, isInitializing } = useEstoreAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -55,7 +166,8 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
         setPastOrders(data.map(d => ({
           ...d,
           saleDate: d.sale_date,
-          createdAt: new Date(d.created_at)
+          createdAt: new Date(d.created_at),
+          estoreStatus: d.estore_status
         } as any)));
       }
     } catch (err) {
@@ -64,6 +176,13 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
       setLoadingOrders(false);
     }
   };
+
+  const handleTimerExpire = (orderId: string) => {
+    supabase.from('sales').update({ estore_status: 'delivered' }).eq('id', orderId).then(() => {
+      setPastOrders(prev => prev.map(o => o.id === orderId ? { ...o, estoreStatus: 'delivered' } : o));
+    });
+  };
+
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,19 +199,19 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
   };
 
   const handleOrderAgain = (sale: Sale) => {
-    // Add all items from the old sale to the current cart
     if (!sale.items) return;
     
-    // Using onAddToCart might be slow for many items, but we can do it one by one or create a new prop onCartUpdate that accepts a whole cart.
-    // For now, let's just use onAddToCart in a loop for items that still exist in products
     let itemsAdded = 0;
-    sale.items.forEach(item => {
-      const productExists = products.find(p => p.id === item.productId);
+    sale.items.forEach((item: any) => {
+      // E-Store saves items as CartItem[] so product is nested inside item.product
+      // POS saves items as SaleItem[] so productId is at top level
+      const pid = item.product?.id || item.productId;
+      const productExists = products.find(p => p.id === pid);
       if (productExists) {
-        // Add to cart N times to match quantity
-        for(let i=0; i<item.quantity; i++) {
-          onAddToCart(productExists);
-        }
+        onAddToCart(productExists, item.quantity, {
+          selectedVariant: item.selectedVariant,
+          selectedModifiers: item.selectedModifiers
+        });
         itemsAdded++;
       }
     });
@@ -108,18 +227,47 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
     }
   };
 
+  const scrollDeals = (direction: 'left' | 'right') => {
+    if (dealsScrollRef.current) {
+      const scrollAmount = 320;
+      dealsScrollRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
+  };
+
   const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    const filtered = products.filter(p => {
       if (p.showInEstore === false) return false;
       if (!p.active) return false;
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
+
+    // Sort by manual estore order — global when 'All', per-category otherwise
+    return filtered.sort((a, b) => {
+      if (activeCategory === 'All') {
+        return (a.estoreSortOrder ?? 0) - (b.estoreSortOrder ?? 0);
+      }
+      return (a.estoreCategorySortOrder ?? 0) - (b.estoreCategorySortOrder ?? 0);
+    });
   }, [products, searchTerm, activeCategory]);
+
+  const matchingBundles = useMemo(() => {
+    if (!bundles) return [];
+    const activeBundles = bundles.filter(b => b.active !== false);
+    if (!searchTerm) {
+      return activeCategory === 'All' ? activeBundles : [];
+    }
+    const term = searchTerm.toLowerCase();
+    return activeBundles.filter(b => 
+      b.name.toLowerCase().includes(term) ||
+      b.description?.toLowerCase().includes(term)
+    );
+  }, [bundles, searchTerm, activeCategory]);
+
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--color-bg)] pb-24" style={{ '--color-primary': settings?.estoreThemeColor || '#10b981' } as React.CSSProperties}>
@@ -200,14 +348,17 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
             <ChevronLeft className="w-5 h-5" />
           </button>
           
-          <div ref={categoryScrollRef} className="flex-1 flex gap-2 overflow-x-auto scrollbar-hide snap-x relative px-6 md:px-0 scroll-smooth">
+          <div ref={categoryScrollRef} className="flex-1 flex gap-2 overflow-x-auto scrollbar-hide snap-x relative px-10 scroll-smooth">
             <button
               onClick={() => setActiveCategory('All')}
               className={`snap-start whitespace-nowrap px-5 py-2.5 rounded-full font-black text-sm transition-all shrink-0 ${activeCategory === 'All' ? 'bg-primary text-white shadow-md' : 'bg-[var(--color-card-bg)] border border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-70 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20'}`}
             >
               All Items
             </button>
-            {categories.map(cat => (
+            {[...categories].filter(cat => {
+              const count = products.filter(p => p.category === cat.name && p.active !== false).length;
+              return cat.active !== false && count > 0;
+            }).sort((a, b) => (a.estoreSortOrder ?? 0) - (b.estoreSortOrder ?? 0)).map(cat => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.name)}
@@ -229,12 +380,151 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
 
       {/* Product Grid */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
-        {filteredProducts.length === 0 ? (
+
+        {/* ─── Deals & Offers Section ─── */}
+        {matchingBundles && matchingBundles.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-black text-[var(--color-text)] tracking-tight font-black text-[var(--color-text)]">
+                  {searchTerm ? '🎁 Deals Matching Search' : '🎁 Deals & Offers'}
+                </h2>
+                <p className="text-xs text-[var(--color-text)] opacity-50 font-medium mt-0.5">
+                  {searchTerm ? `Found ${matchingBundles.length} special combos` : 'Special combos at a great price'}
+                </p>
+              </div>
+            </div>
+            <div className="relative group">
+              <button
+                onClick={() => scrollDeals('left')}
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-[var(--color-card-bg)] shadow border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[var(--color-text)] opacity-0 group-hover:opacity-100 transition-opacity -ml-3"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div ref={dealsScrollRef} className="flex gap-4 overflow-x-auto pb-3 no-scrollbar snap-x scroll-smooth">
+                {matchingBundles.sort((a, b) => (a.estoreSortOrder ?? 0) - (b.estoreSortOrder ?? 0)).map(bundle => {
+                  let bundleTotal = 0;
+                  let previewProductsList: Product[] = [];
+
+                  if (bundle.isCombo && bundle.slots) {
+                    bundleTotal = bundle.slots.reduce((sum, slot) => {
+                      const maxPriceOpt = slot.options?.reduce((max, opt) => {
+                        const p = products.find(pr => pr.id === opt.productId);
+                        return Math.max(max, p ? p.price : 0);
+                      }, 0) || 0;
+                      return sum + (maxPriceOpt * slot.requiredQuantity);
+                    }, 0);
+
+                    const allOptIds = bundle.slots.flatMap(s => s.options?.map(o => o.productId) || []);
+                    const uniqueIds = Array.from(new Set(allOptIds));
+                    previewProductsList = uniqueIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
+                  } else {
+                    bundleTotal = (bundle.items || []).reduce((sum, bi) => {
+                      const p = products.find(pr => pr.id === bi.productId);
+                      return sum + (p ? p.price * bi.quantity : 0);
+                    }, 0);
+
+                    previewProductsList = (bundle.items || []).map(bi => products.find(p => p.id === bi.productId)).filter(Boolean) as Product[];
+                  }
+
+                  const discount = bundle.discountType === 'percentage'
+                    ? bundleTotal * (bundle.discountValue / 100)
+                    : bundle.discountValue;
+                  const dealPrice = Math.max(0, bundleTotal - discount);
+
+                  return (
+                    <div
+                      key={bundle.id}
+                      className="snap-start shrink-0 w-[75vw] sm:w-[300px] max-w-[300px] bg-[var(--color-card-bg)] rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 cursor-pointer active:scale-[0.98]"
+                      onClick={() => setSelectedBundleForModal(bundle)}
+                    >
+                      <div className="relative w-full aspect-[900/650] bg-white flex items-center justify-center shrink-0">
+                        {bundle.image ? (
+                          <img src={bundle.image} alt={bundle.name} className="w-full h-full object-contain" />
+                        ) : previewProductsList.length > 0 ? (
+                          <div className={`grid h-full w-full ${previewProductsList.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            {previewProductsList.slice(0, 4).map((product, pIdx) => (
+                              <div key={product.id || pIdx} className="relative h-full w-full overflow-hidden bg-black/5">
+                                {product.image ? (
+                                  <img src={product.image} alt={product.name} className="w-full h-full object-cover transition-transform duration-500 hover:scale-110" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                    <Package className="h-6 w-6" />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-5xl">🎁</span>
+                        )}
+
+                        <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow z-10">
+                          {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF
+                        </div>
+                      </div>
+
+                      <div className="p-4 flex flex-col gap-1.5 flex-1 justify-between">
+                        <div>
+                          <h3 className="font-black text-[var(--color-text)] text-base leading-tight line-clamp-1">{bundle.name}</h3>
+                          {bundle.description && (
+                            <p className="text-xs text-[var(--color-text)] opacity-50 line-clamp-1 mt-0.5">{bundle.description}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 mt-2">
+                            {bundleTotal > 0 && (
+                              <span className="text-sm text-[var(--color-text)] opacity-40 line-through font-bold">
+                                {formatCurrency(bundleTotal, settings?.currency)}
+                              </span>
+                            )}
+                            <span className="text-lg font-black text-primary">
+                              {formatCurrency(dealPrice, settings?.currency)}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[var(--color-text)] opacity-40 font-semibold truncate mt-1">
+                            {bundle.isCombo ? 'Customizable Combo Deal' : previewProductsList.map(p => p.name).join(' + ')}
+                          </p>
+                          <button
+                            className="w-full py-2.5 bg-primary text-white rounded-full font-black text-xs hover:brightness-95 active:scale-95 transition-all mt-3"
+                            onClick={e => { e.stopPropagation(); setSelectedBundleForModal(bundle); }}
+                          >
+                            {bundle.isCombo ? 'Customize Deal' : 'View Deal details'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => scrollDeals('right')}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-[var(--color-card-bg)] shadow border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[var(--color-text)] opacity-0 group-hover:opacity-100 transition-opacity -mr-3"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </section>
+        )}
+        {/* ─── All Items Heading ─── */}
+        {filteredProducts.length > 0 && (
+          <div className="mb-4">
+            <h2 className="text-xl font-black text-[var(--color-text)] tracking-tight">
+              {searchTerm ? '🔍 Search Results' : 'All Items'}
+            </h2>
+            <p className="text-xs text-[var(--color-text)] opacity-50 font-medium mt-0.5">
+              {searchTerm ? `Found ${filteredProducts.length} products matching "${searchTerm}"` : 'Browse our full menu'}
+            </p>
+          </div>
+        )}
+        {filteredProducts.length === 0 && matchingBundles.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-500 font-medium text-lg">No products found.</p>
+            <p className="text-gray-500 font-medium text-lg">No items found matching "{searchTerm}".</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+          filteredProducts.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {filteredProducts.map(product => {
               const cartIndex = cart.findIndex(c => c.product.id === product.id);
               const inCartQty = cartIndex >= 0 ? cart[cartIndex].quantity : 0;
@@ -301,7 +591,7 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
               );
             })}
           </div>
-        )}
+        ) : null)}
       </main>
 
       {/* Floating Bottom Cart Button */}
@@ -342,34 +632,113 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
                   <ShoppingBag className="w-16 h-16 mx-auto mb-4 opacity-20" />
                   <p className="font-bold">Your cart is empty</p>
                 </div>
-              ) : (
-                cart.map((item, idx) => (
-                  <div key={idx} className="flex gap-4 items-center">
-                    {item.product.image ? (
-                      <img src={item.product.image} alt={item.product.name} className="w-16 h-16 rounded-xl object-cover" />
-                    ) : (
-                      <div className="w-16 h-16 bg-black/5 dark:bg-white/5 rounded-xl flex items-center justify-center font-black text-[var(--color-text)] opacity-30">
-                        {item.product.name.charAt(0)}
+              ) : (() => {
+                const bundlesMap = new Map<string, { bundleId: string; bundleName: string; items: typeof cart; totalSubtotal: number }>();
+                const standaloneItems: typeof cart = [];
+
+                cart.forEach(item => {
+                  const bId = item.bundleId || item.bundle_id;
+                  if (bId) {
+                    if (!bundlesMap.has(bId)) {
+                      bundlesMap.set(bId, {
+                        bundleId: bId,
+                        bundleName: item.bundleName || 'Deal',
+                        items: [],
+                        totalSubtotal: 0
+                      });
+                    }
+                    const b = bundlesMap.get(bId)!;
+                    b.items.push(item);
+                    b.totalSubtotal += item.subtotal;
+                  } else {
+                    standaloneItems.push(item);
+                  }
+                });
+
+                const renderQuantityControls = (bundleItems: typeof cart, isAdd: boolean) => {
+                  bundleItems.forEach(bItem => {
+                    const idx = cart.findIndex(x => x.product.id === bItem.product.id && (x.bundleId === bItem.bundleId || x.bundle_id === bItem.bundleId) && x.selectedVariant === bItem.selectedVariant);
+                    if (idx >= 0) {
+                      const newQty = isAdd ? bItem.quantity + 1 : bItem.quantity - 1;
+                      onUpdateCart(idx, newQty);
+                    }
+                  });
+                };
+
+                return (
+                  <div className="space-y-6">
+                    {/* Render Deals */}
+                    {Array.from(bundlesMap.values()).map(b => (
+                      <div key={b.bundleId} className="p-4 rounded-3xl border border-dashed border-primary/35 bg-primary/[0.03] space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1 shadow-sm">🎁 DEAL</span>
+                            <h4 className="font-black text-[var(--color-text)] text-sm uppercase leading-tight">{b.bundleName}</h4>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-black text-primary text-sm block">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
+                            <div className="flex items-center gap-2 bg-black/5 dark:bg-white/5 rounded-full p-0.5 mt-1 border border-black/5">
+                              <button onClick={() => renderQuantityControls(b.items, false)} className="w-6 h-6 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-xs text-[var(--color-text)] opacity-80">-</button>
+                              <span className="font-bold text-[11px] w-4 text-center text-[var(--color-text)]">{b.items[0]?.quantity || 1}</span>
+                              <button onClick={() => renderQuantityControls(b.items, true)} className="w-6 h-6 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-xs text-[var(--color-text)] opacity-80">+</button>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2 border-t border-black/5 dark:border-white/5 pt-2">
+                          {b.items.map((item, idx) => (
+                            <div key={idx} className="flex gap-2.5 items-center text-xs">
+                              {item.product.image ? (
+                                <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 bg-black/5 rounded-lg flex items-center justify-center font-bold text-[var(--color-text)] opacity-30 shrink-0">
+                                  {item.product.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-[var(--color-text)] truncate">{item.product.name}</p>
+                                {item.selectedVariant && (
+                                  <p className="text-[10px] text-[var(--color-text)] opacity-50 truncate">{item.selectedVariant}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    )}
-                    <div className="flex-1">
-                      <p className="font-bold text-[var(--color-text)] leading-tight">{item.product.name}</p>
-                      <p className="text-xs text-[var(--color-text)] opacity-60 font-medium mt-0.5">{item.selectedVariant}</p>
-                      {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                        <p className="text-xs text-[var(--color-text)] opacity-50 mt-0.5">
-                          + {item.selectedModifiers.map(m => m.name).join(', ')}
-                        </p>
-                      )}
-                      <p className="text-primary font-black mt-1">{formatCurrency(item.subtotal / item.quantity, settings?.currency)}</p>
-                    </div>
-                    <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5">
-                      <button onClick={() => onUpdateCart(idx, item.quantity - 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">-</button>
-                      <span className="font-bold w-6 text-center text-[var(--color-text)]">{item.quantity}</span>
-                      <button onClick={() => onUpdateCart(idx, item.quantity + 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">+</button>
-                    </div>
+                    ))}
+
+                    {/* Render Standalone Items */}
+                    {standaloneItems.map(item => {
+                      const idxInCart = cart.findIndex(x => x === item);
+                      return (
+                        <div key={item.product.id + idxInCart} className="flex gap-4 items-center">
+                          {item.product.image ? (
+                            <img src={item.product.image} alt={item.product.name} className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                          ) : (
+                            <div className="w-16 h-16 bg-black/5 dark:bg-white/5 rounded-xl flex items-center justify-center font-black text-[var(--color-text)] opacity-30 shrink-0">
+                              {item.product.name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-[var(--color-text)] leading-tight truncate">{item.product.name}</p>
+                            <p className="text-xs text-[var(--color-text)] opacity-60 font-medium mt-0.5 truncate">{item.selectedVariant}</p>
+                            {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                              <p className="text-xs text-[var(--color-text)] opacity-50 mt-0.5 truncate">
+                                + {item.selectedModifiers.map(m => m.name).join(', ')}
+                              </p>
+                            )}
+                            <p className="text-primary font-black mt-1">{formatCurrency(item.subtotal / item.quantity, settings?.currency)}</p>
+                          </div>
+                          <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 shrink-0">
+                            <button onClick={() => onUpdateCart(idxInCart, item.quantity - 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">-</button>
+                            <span className="font-bold w-6 text-center text-[var(--color-text)]">{item.quantity}</span>
+                            <button onClick={() => onUpdateCart(idxInCart, item.quantity + 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))
-              )}
+                );
+              })()}
             </div>
 
             {cart.length > 0 && (
@@ -403,6 +772,18 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
         />
       )}
 
+      {/* Deal/Bundle Modal */}
+      {selectedBundleForModal && (
+        <StoreDealModal 
+          bundle={selectedBundleForModal}
+          products={products}
+          currency={settings?.currency}
+          isOpen={!!selectedBundleForModal}
+          onClose={() => setSelectedBundleForModal(null)}
+          onAddBundle={onAddBundle}
+        />
+      )}
+
       {/* Login Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -419,24 +800,24 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
             
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text)] opacity-80 uppercase tracking-wider mb-1.5">Full Name</label>
+                <label className="block text-xs font-bold text-[var(--color-text)] opacity-85 uppercase tracking-wider mb-1.5">Full Name</label>
                 <input
                   type="text"
                   required
                   value={loginName}
                   onChange={e => setLoginName(e.target.value)}
-                  className="w-full bg-black/5 dark:bg-white/5 border-none rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium text-[var(--color-text)]"
+                  className="w-full bg-[var(--color-bg)] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium text-[var(--color-text)] placeholder-gray-400/80 focus:bg-[var(--color-card-bg)] outline-none"
                   placeholder="John Doe"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--color-text)] opacity-80 uppercase tracking-wider mb-1.5">Phone Number</label>
+                <label className="block text-xs font-bold text-[var(--color-text)] opacity-85 uppercase tracking-wider mb-1.5">Phone Number</label>
                 <input
                   type="tel"
                   required
                   value={loginPhone}
                   onChange={e => setLoginPhone(e.target.value)}
-                  className="w-full bg-black/5 dark:bg-white/5 border-none rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium text-[var(--color-text)]"
+                  className="w-full bg-[var(--color-bg)] border border-black/10 dark:border-white/10 rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary font-medium text-[var(--color-text)] placeholder-gray-400/80 focus:bg-[var(--color-card-bg)] outline-none"
                   placeholder="0300 1234567"
                 />
               </div>
@@ -505,14 +886,35 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
                             <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
                               {order.id.split('-')[0].toUpperCase()}
                             </span>
-                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                              order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                              order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                              order.status === 'refunded' ? 'bg-red-100 text-red-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>
-                              {order.status}
-                            </span>
+                            {(() => {
+                              const estoreStatus = order.estoreStatus || order.estore_status || 'pending';
+                              const labels: Record<string, string> = {
+                                pending: 'Pending',
+                                accepted: 'Accepted',
+                                preparing: 'Preparing',
+                                ready: 'Ready',
+                                out_for_delivery: 'Out for Delivery',
+                                delivered: 'Delivered',
+                                cancelled: 'Cancelled'
+                              };
+                              const colors: Record<string, string> = {
+                                pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                                accepted: 'bg-blue-100 text-blue-800 border-blue-200',
+                                preparing: 'bg-purple-100 text-purple-800 border-purple-200',
+                                ready: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                                out_for_delivery: 'bg-orange-100 text-orange-800 border-orange-200',
+                                delivered: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                                cancelled: 'bg-red-100 text-red-800 border-red-200'
+                              };
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${colors[estoreStatus] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+                                    {labels[estoreStatus] || estoreStatus}
+                                  </span>
+                                  <StoreOrderTimer order={order} settings={settings} onExpire={() => handleTimerExpire(order.id)} />
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                         <div className="text-right">
@@ -520,6 +922,8 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
                           <p className="text-xs font-bold text-gray-500">{order.items.length} items</p>
                         </div>
                       </div>
+
+                      <EStoreOrderProgress status={order.estoreStatus || order.estore_status || 'pending'} />
                       
                       <div className="space-y-2 mb-4 bg-[var(--color-bg)] p-3 rounded-xl border border-gray-100">
                         {order.items.map((item: any, idx: number) => (
@@ -561,7 +965,7 @@ export function StoreFront({ settings, products, categories, cart, onAddToCart, 
                         className="w-full py-3 bg-primary text-white font-black rounded-xl hover:brightness-90 active:scale-95 transition-all flex items-center justify-center gap-2"
                       >
                         <ShoppingCart className="w-4 h-4" />
-                        Order Again
+                        Add to Cart Again
                       </button>
                     </div>
                   ))}

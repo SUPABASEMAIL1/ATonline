@@ -40,6 +40,7 @@
 11. **Design Parity**: Maintain "Expert Density" aesthetic and established design patterns.
 12. **Direct Action**: Find the relevant files and implement the fix directly.
 13. **Strict Database Policy (NO PRISMA)**: Direct DB connections, Postgres connection strings (`DATABASE_URL`, `DIRECT_URL`), and Prisma ORM are completely banned. You must strictly use the Supabase Management API via HTTP/curl for all database schema and data control. Refer to [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) for the exact API specifications.
+14. **🖼️ CENTRALIZED MEDIA SELECTOR & COMPRESSION (MANDATORY)**: All image uploads or selection workflows (products, deals, settings, logo, etc.) MUST route strictly through the centralized `MediaLibrary` component. Direct file upload triggers are banned outside the library. This enforces automatic image compression (WebP, 20-50KB target) via `compressImage` and permits image reuse across the database.
 
 ---
 
@@ -120,6 +121,21 @@ After update: run `npm run build`, clear browser IndexedDB.
 - **Instant Persistence**: Every setting syncs immediately on change via `handleInstantUpdate`
 - **Singleton ID**: Always use `00000000-0000-4000-8000-000000000001`
 - **Type Safety**: Font Weight always String. Sliders use correct type.
+
+---
+
+## ⏱️ Retention & Auto-Cleanup Policies
+
+To prevent database bloat and keep local IndexedDB caches fast and lightweight, automatic data retention policies are implemented at startup inside the sync engine:
+
+1. **24-Hour Expiry for Cancelled Orders**:
+   - Helper function `pruneExpiredCancelledOrders()` is triggered inside `startSyncEngine()` on startup and runs every hour in the background.
+   - Cleans both the offline cache (**Dexie IndexedDB**) and the remote server (**Supabase**) by removing orders with `status = 'cancelled'` whose last modified timestamp is older than 24 hours.
+   - Ensures local sync is decoupled and stays clean without database administrator manual tasks.
+
+2. **90-Day Expiry for Stock History**:
+   - Helper function `pruneOldStockHistory()` removes `stock_history` records older than 90 days.
+   - Caps total local stock history records at 5000 items to preserve mobile device performance.
 
 ---
 

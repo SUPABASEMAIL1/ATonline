@@ -34,6 +34,8 @@ import {
   generateNextInvoiceNumber
 } from '../lib/services';
 import { localDb, seedLocalDb, isPendingDelete, SETTINGS_ID } from '../lib/localDb';
+import { playOnlineOrderSound } from '../lib/sounds';
+import { sonner } from '../lib/sonner';
 import { supabase } from '../lib/supabase';
 import { isSyncEngineBusy } from '../lib/syncEngine';
 
@@ -100,6 +102,7 @@ type AppAction =
   | { type: 'SET_SELECTED_CUSTOMER'; payload: Customer | null }
   | { type: 'SET_SALES'; payload: Sale[] }
   | { type: 'ADD_SALE'; payload: Sale }
+  | { type: 'UPDATE_SALE'; payload: Sale }
   | { type: 'DELETE_SALE'; payload: string }
   | { type: 'SET_USERS'; payload: User[] }
   | { type: 'SET_SETTINGS'; payload: Partial<AppSettings> }
@@ -252,6 +255,11 @@ const getCachedSettings = (): AppState['settings'] => {
     posGridColumns: 4,
     enableSplitPayment: false,
     enableExtraCharges: false,
+    estorePickupEnabled: true,
+    estoreDeliveryEnabled: true,
+    storeType: 'both',
+    storeLatitude: undefined,
+    storeLongitude: undefined,
   };
 
   try {
@@ -461,6 +469,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
         sales: [...state.sales, sale],
         customers: updatedCustomers,
         products: updatedProducts,
+      };
+    }
+    case 'UPDATE_SALE': {
+      const updatedSale = action.payload;
+      return {
+        ...state,
+        sales: state.sales.map(s => s.id === updatedSale.id ? { ...s, ...updatedSale } : s)
       };
     }
     case 'DELETE_SALE': {
@@ -972,12 +987,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             console.log(`[Realtime] Blocking ghost sale: ${payload.new.id}`);
             return;
           }
+          const existsLocally = await localDb.sales.get(payload.new.id);
           const mapped = mapSale(payload.new);
           await localDb.sales.put(mapped);
+          
+          // Play loud sound for new online orders (pending OR preparing)
+          // Only trigger if this order was NOT created/edited locally by this device
+          if (!existsLocally && mapped.saleType === 'estore' && ['pending', 'preparing'].includes(mapped.estoreStatus || '')) {
+            playOnlineOrderSound();
+            sonner.success(`🚨 NEW ONLINE ORDER: ${mapped.invoiceNumber} — ${mapped.customerName || 'Guest'} — ${mapped.total}`, { duration: 20000 });
+          }
+
           const exists = state.sales.some(s => s.id === mapped.id);
           if (!exists) {
             dispatch({ type: 'ADD_SALE', payload: mapped });
           }
+        } else if (payload.eventType === 'UPDATE') {
+          const mapped = mapSale(payload.new);
+          await localDb.sales.put(mapped);
+          dispatch({ type: 'UPDATE_SALE', payload: mapped });
         } else if (payload.eventType === 'DELETE') {
           await localDb.sales.delete(payload.old.id);
           dispatch({ type: 'DELETE_SALE', payload: payload.old.id });
@@ -1218,6 +1246,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await Promise.all(keys.filter(k => k.startsWith('supabase-api-cache')).map(k => caches.delete(k)));
       }
     } catch (_) { /* SW cache clear is best-effort */ }
+
+    // ── Clean up invalid local products with empty/missing names (e.g. from corrupt JSON/CSV imports) ──
+    try {
+      const invalidProds = await localDb.products.filter(p => !p.name || !p.name.trim()).toArray();
+      if (invalidProds.length > 0) {
+        const invalidIds = invalidProds.map(p => p.id);
+        console.warn(`[Cleanup] Found ${invalidProds.length} invalid local products with empty names. Purging...`, invalidIds);
+        await localDb.products.bulkDelete(invalidIds);
+        const opsToDelete = await localDb.pendingOps.filter(op => op.entity === 'products' && invalidIds.includes(op.entityId)).toArray();
+        if (opsToDelete.length > 0) {
+          await localDb.pendingOps.bulkDelete(opsToDelete.map(o => o.id!));
+          console.log(`[Cleanup] Deleted ${opsToDelete.length} pending ops for empty-name products.`);
+        }
+      }
+    } catch (err) {
+      console.error('[Cleanup] Failed to clean up empty-name products:', err);
+    }
 
     // ── STEP 1: Load from local IndexedDB first ──
     try {

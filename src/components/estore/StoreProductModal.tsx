@@ -13,28 +13,51 @@ interface StoreProductModalProps {
 
 export function StoreProductModal({ product, currency, isOpen, onClose, onAddToCart }: StoreProductModalProps) {
   const [quantity, setQuantity] = useState(1);
-  const [selectedVariantStr, setSelectedVariantStr] = useState<string>('');
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [selectedModifiers, setSelectedModifiers] = useState<ProductModifier[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       setQuantity(1);
-      setSelectedVariantStr('');
       setSelectedModifiers([]);
 
-      // Auto-select first variant if exists
-      if (product.variantData && product.variantData.length > 0) {
-        const first = product.variantData[0];
-        setSelectedVariantStr([first.option1, first.option2, first.option3].filter(Boolean).join(', '));
+      const initial: Record<string, string> = {};
+      if (product.variants && product.variants.length > 0) {
+        product.variants.forEach(group => {
+          if (group.options && group.options.length > 0) {
+            initial[group.name] = group.options[0];
+          }
+        });
       }
+      setSelectedVariants(initial);
     }
   }, [isOpen, product]);
+
+  useEffect(() => {
+    if (product.modifiers && product.modifiers.length > 0) {
+      const validMods = selectedModifiers.filter(mod => {
+        if (!mod.variantName) return true;
+        const parts = mod.variantName.split(':').map(s => s.trim());
+        if (parts.length === 2) {
+          const [vName, vOpt] = parts;
+          return selectedVariants[vName] === vOpt;
+        }
+        return true;
+      });
+      if (validMods.length !== selectedModifiers.length) {
+        setSelectedModifiers(validMods);
+      }
+    }
+  }, [selectedVariants, product.modifiers]);
 
   if (!isOpen) return null;
 
   const getVariantPrice = () => {
-    if (!selectedVariantStr) return product.price;
-    const parts = selectedVariantStr.split(',').map(s => s.trim());
+    if (Object.keys(selectedVariants).length === 0) return product.price;
+    const variantString = Object.entries(selectedVariants)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(', ');
+    const parts = variantString.split(',').map(s => s.trim());
     const match = product.variantData?.find(vd => {
       let m = true;
       if (vd.option1 && !parts.includes(vd.option1)) m = false;
@@ -50,8 +73,11 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
   const totalPrice = (basePrice + modifiersPrice) * quantity;
 
   const handleAdd = () => {
+    const variantString = Object.entries(selectedVariants)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(', ');
     onAddToCart(product, quantity, {
-      selectedVariant: selectedVariantStr || undefined,
+      selectedVariant: variantString || undefined,
       selectedModifiers: selectedModifiers.length > 0 ? selectedModifiers : undefined
     });
     onClose();
@@ -94,15 +120,12 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
                   <h3 className="font-black text-lg text-[var(--color-text)] mb-3">{vGroup.name}</h3>
                   <div className="flex flex-wrap gap-2">
                     {vGroup.options && vGroup.options.map(opt => {
-                      // Extremely simplified variant selection (assuming 1 group for now for UI sake)
-                      const isSelected = selectedVariantStr.includes(opt);
+                      const isSelected = selectedVariants[vGroup.name] === opt;
                       return (
                         <button
                           key={opt}
                           onClick={() => {
-                            // Note: real implementation needs proper multi-group combinatorial matching.
-                            // This replaces the whole string for simplicity of the prompt.
-                            setSelectedVariantStr(opt);
+                            setSelectedVariants(prev => ({ ...prev, [vGroup.name]: opt }));
                           }}
                           className={`px-4 py-2 rounded-xl font-bold text-sm transition-all border ${isSelected ? 'bg-primary border-primary text-white shadow-md' : 'bg-[var(--color-card-bg)] border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-80 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20'}`}
                         >
@@ -121,24 +144,34 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
             <div>
               <h3 className="font-black text-lg text-[var(--color-text)] mb-3">Add-ons & Modifiers</h3>
               <div className="space-y-3">
-                {product.modifiers.map(mod => {
-                  const isSelected = selectedModifiers.some(m => m.id === mod.id);
+                {product.modifiers
+                  .filter(mod => {
+                    if (!mod.variantName) return true;
+                    const parts = mod.variantName.split(':').map(s => s.trim());
+                    if (parts.length === 2) {
+                      const [vName, vOpt] = parts;
+                      return selectedVariants[vName] === vOpt;
+                    }
+                    return Object.values(selectedVariants).includes(mod.variantName);
+                  })
+                  .map((mod, idx) => {
+                  const isSelected = selectedModifiers.some(m => m.name === mod.name && m.price === mod.price);
                   return (
-                    <label key={mod.id} className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-emerald-50' : 'border-gray-100 bg-[var(--color-card-bg)] hover:border-gray-200'}`}>
+                    <label key={idx} className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-[var(--color-primary)]/5' : 'border-black/5 dark:border-white/5 bg-[var(--color-card-bg)] hover:border-black/10 dark:hover:border-white/10'}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${isSelected ? 'border-primary bg-primary' : 'border-gray-300'}`}>
                           {isSelected && <div className="w-2.5 h-2.5 bg-[var(--color-card-bg)] rounded-full" />}
                         </div>
                         <span className="font-bold text-[var(--color-text)]">{mod.name}</span>
                       </div>
-                      <span className="font-black text-gray-600">+{formatCurrency(mod.price, currency)}</span>
+                      <span className="font-black text-gray-600 dark:text-gray-300">+{formatCurrency(mod.price, currency)}</span>
                       <input 
                         type="checkbox"
                         className="sr-only"
                         checked={isSelected}
                         onChange={(e) => {
                           if (e.target.checked) setSelectedModifiers([...selectedModifiers, mod]);
-                          else setSelectedModifiers(selectedModifiers.filter(m => m.id !== mod.id));
+                          else setSelectedModifiers(selectedModifiers.filter(m => !(m.name === mod.name && m.price === mod.price)));
                         }}
                       />
                     </label>

@@ -247,15 +247,16 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
         receivedAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? parseFloat(amountPaid) || undefined : (paymentMethod === 'split' ? splitTotal : undefined),
         changeAmount: paymentMethod === 'cash' ? change || undefined : (paymentMethod === 'split' ? (splitTotal - total) || undefined : undefined),
-        saleType,
+        // If editing an estore order, preserve saleType='estore' so it stays in active orders panel
+        saleType: (oldSale?.saleType as any) || saleType,
         saleDate: new Date().toLocaleDateString('en-CA'),
         // New fields
         dcNumber: dcNumber || undefined,
         otherAmount: parseFloat(otherAmount) || undefined,
         otherAmountName: otherAmountName || undefined,
         splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
-        // Preserve E-Store specific fields from oldSale if available
-        estoreStatus: oldSale?.estoreStatus ? 'delivered' : undefined,
+        // E-Store order → mark as out_for_delivery (Dispatched) when bill is saved in POS
+        estoreStatus: (oldSale?.saleType === 'estore' || oldSale?.estoreStatus) ? 'out_for_delivery' : undefined,
         deliveryAddress: oldSale?.deliveryAddress,
         deliveryFee: oldSale?.deliveryFee,
         deliveryLocationLat: oldSale?.deliveryLocationLat,

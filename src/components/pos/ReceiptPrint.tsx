@@ -526,6 +526,33 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
     </div>
   );
 
+  const renderDeliveryDetailsSection = () => {
+    if (!sale.deliveryAddress) return null;
+    const isPickup = sale.deliveryAddress === 'SELF-PICKUP';
+    const directionsUrl = (sale.deliveryLocationLat && sale.deliveryLocationLng)
+      ? `https://www.google.com/maps/search/?api=1&query=${sale.deliveryLocationLat},${sale.deliveryLocationLng}`
+      : null;
+
+    return (
+      <div style={{ marginTop: '6px', borderTop: '1px dashed #ccc', paddingTop: '6px', paddingBottom: '6px', borderBottom: '1px dashed #ccc', textTransform: 'uppercase' }}>
+        <div style={{ fontWeight: 'bold', fontSize: `${fs.meta}px` }}>
+          Fulfillment: {isPickup ? 'Self-Pickup' : 'Home Delivery'}
+        </div>
+        {!isPickup && (
+          <div style={{ fontSize: `${fs.body}px`, marginTop: '3px', whiteSpace: 'pre-wrap', textAlign: 'left' }}>
+            Address: {sale.deliveryAddress}
+          </div>
+        )}
+        {directionsUrl && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
+            <QRCodeSVG value={directionsUrl} size={90} level="M" style={{ margin: '0 auto' }} />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderMetaSection = () => (
     <>
       <TwoCol left={`INV#: ${(sale.invoiceNumber || sale.receiptNumber || sale.id.slice(-6).toUpperCase()).replace(settings.invoicePrefix || 'INV', '')}`} right={`DATE: ${formatAppDate(sale.timestamp, settings.country).replace(/,/g, '')}`} />
@@ -534,6 +561,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       {settings.receiptShowCustomerName && sale.customerName && (
         <TwoCol left={`CUST: ${sale.customerName}`} right={settings.receiptShowCustomerPhone && sale.customerPhone ? `PH: ${sale.customerPhone}` : ""} />
       )}
+      {renderDeliveryDetailsSection()}
     </>
   );
 
@@ -614,9 +642,21 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
     <>
       {showDiscount && <TwoCol left="SUBTOTAL" right={formatCurrency(sale.subtotal, currencyCode)} />}
       {showDiscount && renderDiscountBreakdown()}
-      {sale.extraCharges && sale.extraCharges.length > 0 && sale.extraCharges.map((charge: any, idx: number) => (
-        <TwoCol key={idx} left={charge.name || "OTHER"} right={formatCurrency(charge.amount, currencyCode)} />
-      ))}
+      {(() => {
+        const dcExtra = sale.extraCharges?.find((c: any) => Number(c.amount) > 0 && c.name?.toUpperCase() === 'DC');
+        if (dcExtra) {
+          return <TwoCol left="DELIVERY FEE (DC)" right={formatCurrency(dcExtra.amount, currencyCode)} />;
+        }
+        if (sale.deliveryFee != null && sale.deliveryFee > 0) {
+          return <TwoCol left="DELIVERY FEE (DC)" right={formatCurrency(sale.deliveryFee, currencyCode)} />;
+        }
+        if (sale.extraCharges && sale.extraCharges.length > 0) {
+          return sale.extraCharges.map((charge: any, idx: number) => (
+            <TwoCol key={idx} left={charge.name || "OTHER"} right={formatCurrency(charge.amount, currencyCode)} />
+          ));
+        }
+        return null;
+      })()}
       {settings.receiptShowTax && <TwoCol left={`${taxLabel} (${settings.taxRate}%)`} right={formatCurrency(sale.taxAmount, currencyCode)} />}
       <div style={{ textAlign: 'center', fontSize: `${fs.body}px`, fontWeight: clamp(baseWeight + 100), margin: '6px 0', textTransform: 'uppercase', lineHeight: '1.5' }}>
         {bd.dealsCount > 0 && <div>TOTAL DEALS x{bd.dealsCount}</div>}
@@ -1147,6 +1187,8 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             />
           )}
 
+          {renderDeliveryDetailsSection()}
+
           {template !== 'minimal' && <div style={subDividerStyle} />}
 
           {/* Table Header */}
@@ -1355,9 +1397,21 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               );
             }
           })()}
-          {sale.extraCharges && sale.extraCharges.length > 0 && sale.extraCharges.map((charge: any, idx: number) => (
-            <TwoCol key={idx} left={charge.name || "OTHER"} right={formatCurrency(charge.amount, currencyCode)} />
-          ))}
+          {(() => {
+            const dcExtra = sale.extraCharges?.find((c: any) => Number(c.amount) > 0 && c.name?.toUpperCase() === 'DC');
+            if (dcExtra) {
+              return <TwoCol left="DELIVERY FEE (DC)" right={formatCurrency(dcExtra.amount, currencyCode)} />;
+            }
+            if (sale.deliveryFee != null && sale.deliveryFee > 0) {
+              return <TwoCol left="DELIVERY FEE (DC)" right={formatCurrency(sale.deliveryFee, currencyCode)} />;
+            }
+            if (sale.extraCharges && sale.extraCharges.length > 0) {
+              return sale.extraCharges.map((charge: any, idx: number) => (
+                <TwoCol key={idx} left={charge.name || "OTHER"} right={formatCurrency(charge.amount, currencyCode)} />
+              ));
+            }
+            return null;
+          })()}
           {settings.receiptShowTax && (
             <TwoCol left={`${taxLabel} (${settings.taxRate}%)`} right={formatCurrency(sale.taxAmount, currencyCode)} />
           )}

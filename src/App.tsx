@@ -317,7 +317,7 @@ function AppContent() {
             <Suspense fallback={<LoadingView />}>
               <Routes>
                 <Route path="/pos" element={<POSTerminal />} />
-                <Route path="/online-orders" element={<RequireAccess viewId="online-orders"><OnlineOrdersPage /></RequireAccess>} />
+                <Route path="/online-orders" element={state.settings.estoreEnabled ? <RequireAccess viewId="online-orders"><OnlineOrdersPage /></RequireAccess> : <Navigate to="/pos" replace />} />
                 <Route path="/transactions" element={<RequireAccess viewId="transactions"><TransactionsManager /></RequireAccess>} />
                 <Route path="/expenses" element={<RequireAccess viewId="expenses"><ExpenseManager /></RequireAccess>} />
                 <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />

@@ -1,19 +1,44 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Product, AppSettings, Category, CartItem, Sale } from '../../types';
-import { mapProduct, mapSettings, generateNextInvoiceNumber } from '../../lib/services';
+import { Product, AppSettings, Category, CartItem, Bundle, Sale } from '../../types';
+import { mapProduct, mapSettings, mapBundle, generateNextInvoiceNumber } from '../../lib/services';
 import { StoreFront } from './StoreFront';
 import { StoreCheckout } from './StoreCheckout';
+import { OrderTracker } from './OrderTracker';
+import { useSearchParams } from 'react-router-dom';
 import { ShoppingBag, Phone } from 'lucide-react';
 import { sonner } from '../../lib/sonner';
+
+function TrackPage({ settings }: { settings: AppSettings | null }) {
+  const [searchParams] = useSearchParams();
+  const id = searchParams.get('id');
+  if (!id) return <div className="p-8 text-center">Order ID not found</div>;
+  return <OrderTracker orderId={id} settings={settings} />;
+}
 
 export function EStoreApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [bundles, setBundles] = useState<Bundle[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [customerPosition, setCustomerPosition] = useState<[number, number] | null>(null);
+  const [isOutOfRange, setIsOutOfRange] = useState(false);
+
+  const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -25,8 +50,10 @@ export function EStoreApp() {
           .eq('id', '00000000-0000-4000-8000-000000000001')
           .maybeSingle();
 
+        let activeSettings: AppSettings | null = null;
         if (settingsData) {
-          setSettings(mapSettings(settingsData));
+          activeSettings = mapSettings(settingsData);
+          setSettings(activeSettings);
         }
 
         // Fetch Products
@@ -36,8 +63,9 @@ export function EStoreApp() {
           .eq('active', true)
           .eq('show_in_estore', true);
 
+        let loadedProducts: Product[] = [];
         if (productsData) {
-          const loadedProducts = productsData.map(mapProduct);
+          loadedProducts = productsData.map(mapProduct);
           setProducts(loadedProducts);
           
           // Rehydrate Cart
@@ -70,7 +98,49 @@ export function EStoreApp() {
           .select('*');
         
         if (catData) {
-          setCategories(catData.map(c => ({ id: c.id, name: c.name, color: c.color })));
+          setCategories(catData.map(c => ({ id: c.id, name: c.name, estoreSortOrder: c.estore_sort_order ?? 0, color: c.color })));
+        }
+
+        // Fetch Bundles (active deals)
+        const { data: bundlesData } = await supabase
+          .from('bundles')
+          .select('*, bundle_items(*), bundle_slots(*, bundle_slot_options(*))')
+          .eq('active', true)
+          .order('estore_sort_order', { ascending: true });
+        
+        if (bundlesData) {
+          setBundles(bundlesData.map(mapBundle));
+        }
+
+        // Geolocation pre-checking
+        if (activeSettings && activeSettings.estoreDeliveryEnabled !== false && activeSettings.estoreLocationLat && activeSettings.estoreLocationLng && activeSettings.estoreDeliveryRadius) {
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                setCustomerPosition([lat, lng]);
+                
+                const distance = getDistanceFromLatLonInKm(
+                  activeSettings!.estoreLocationLat!,
+                  activeSettings!.estoreLocationLng!,
+                  lat,
+                  lng
+                );
+                
+                if (distance > activeSettings!.estoreDeliveryRadius!) {
+                  setIsOutOfRange(true);
+                  sonner.warning("You are outside our delivery range. Self-Pickup is still available!");
+                } else {
+                  setIsOutOfRange(false);
+                }
+              },
+              (err) => {
+                console.warn("E-store geolocation prompt failed/denied", err);
+              },
+              { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+            );
+          }
         }
 
       } catch (err) {
@@ -81,6 +151,42 @@ export function EStoreApp() {
     }
     loadData();
   }, []);
+
+  // Sync E-Store light/dark mode class and restore admin theme on unmount
+  useEffect(() => {
+    if (!settings) return;
+    const bg = settings.estoreBgColor || '#f9fafb';
+    const isDark = bg.startsWith('#') ? (
+      (() => {
+        const hex = bg.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        return brightness < 128;
+      })()
+    ) : false;
+
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    return () => {
+      // Restore Admin Theme on exit
+      const adminTheme = localStorage.getItem('pos_settings')
+        ? JSON.parse(localStorage.getItem('pos_settings')!).theme || 'dark'
+        : 'dark';
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const isAdminDark = adminTheme === 'dark' || (adminTheme === 'auto' && mediaQuery.matches);
+      if (isAdminDark) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+  }, [settings?.estoreBgColor]);
 
   // Save Cart safely
   useEffect(() => {
@@ -153,9 +259,38 @@ export function EStoreApp() {
     }
     setCart(prev => {
       const newCart = [...prev];
+      const oldQty = newCart[index].quantity || 1;
+      const factor = quantity / oldQty;
       newCart[index].quantity = quantity;
-      newCart[index].subtotal = newCart[index].product.price * quantity;
+      newCart[index].subtotal = newCart[index].subtotal * factor;
+      if (newCart[index].discount) {
+        newCart[index].discount = newCart[index].discount * factor;
+      }
       return newCart;
+    });
+  };
+
+  const addBundleToCart = (bundleCartItems: CartItem[]) => {
+    setCart(prev => {
+      let updatedCart = [...prev];
+      for (const item of bundleCartItems) {
+        const existingIndex = updatedCart.findIndex(
+          x => (x.bundleId === item.bundleId) && x.product.id === item.product.id && x.selectedVariant === item.selectedVariant
+        );
+
+        if (existingIndex >= 0) {
+          const existing = updatedCart[existingIndex];
+          updatedCart[existingIndex] = {
+            ...existing,
+            quantity: existing.quantity + item.quantity,
+            discount: (existing.discount || 0) + (item.discount || 0),
+            subtotal: (existing.subtotal || 0) + (item.subtotal || 0),
+          };
+        } else {
+          updatedCart.push(item);
+        }
+      }
+      return updatedCart;
     });
   };
 
@@ -171,13 +306,79 @@ export function EStoreApp() {
 
   if (settings && !settings.estoreEnabled) {
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <ShoppingBag className="w-24 h-24 text-gray-300 mb-6" />
-        <h1 className="text-3xl font-black text-gray-900 mb-2">Store is closed</h1>
-        <p className="text-gray-500">We are currently not accepting online orders. Please check back later.</p>
+      <div 
+        className="min-h-[100dvh] flex flex-col items-center justify-center p-6 text-center relative overflow-hidden bg-zinc-950 text-white selection:bg-emerald-500/30 select-none"
+        style={{ fontFamily: "'Outfit', 'Inter', sans-serif" }}
+      >
+        {/* Glow Effects */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full bg-emerald-500/10 blur-[80px] sm:blur-[120px] pointer-events-none animate-pulse duration-4000" />
+        <div className="absolute bottom-1/4 left-1/3 w-[250px] h-[250px] rounded-full bg-teal-500/5 blur-[80px] pointer-events-none" />
+
+        {/* Outer Card with Glassmorphism */}
+        <div className="relative z-10 max-w-md w-full bg-white/[0.02] dark:bg-zinc-900/30 backdrop-blur-xl border border-white/[0.05] p-8 sm:p-10 rounded-[2.5rem] shadow-2xl flex flex-col items-center gap-6 animate-in fade-in zoom-in-95 duration-500">
+          
+          {/* Logo / Icon Wrapper */}
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10 relative group">
+            <div className="absolute inset-0 rounded-3xl bg-emerald-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-md" />
+            <ShoppingBag className="w-10 h-10 text-emerald-400 relative z-10" />
+          </div>
+
+          <div className="space-y-3">
+            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-400/80 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/20">
+              Temporarily Offline
+            </span>
+            <h1 className="text-2xl font-black tracking-tight text-white uppercase leading-none mt-2">
+              Store is Closed
+            </h1>
+            <p className="text-[10px] font-bold text-zinc-400 max-w-xs mx-auto leading-relaxed mt-2 uppercase tracking-wide">
+              We are currently not accepting online orders. Please check back later or contact us directly.
+            </p>
+          </div>
+
+          {/* Contact Details Panel */}
+          {(settings.storePhone || settings.storeAddress) && (
+            <div className="w-full border-t border-white/[0.06] pt-6 mt-2 space-y-4">
+              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Store Information</p>
+              
+              {settings.storePhone && (
+                <a 
+                  href={`tel:${settings.storePhone}`}
+                  className="flex items-center justify-center gap-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.04] hover:bg-emerald-500/10 hover:border-emerald-500/20 text-sm font-black transition-all group active:scale-95"
+                >
+                  <Phone className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-zinc-300 group-hover:text-white transition-colors">{settings.storePhone}</span>
+                </a>
+              )}
+
+              {settings.storeAddress && (
+                <div className="p-4 rounded-2xl bg-white/[0.01] border border-white/[0.03] text-[10px] font-bold text-zinc-400 leading-relaxed text-center">
+                  <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Address</p>
+                  {settings.storeAddress}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Decorative Footer */}
+          <div className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.2em] mt-2">
+            Powered by {settings.storeName || 'Zaynahs POS'}
+          </div>
+        </div>
       </div>
     );
   }
+
+  const estoreThemeStyles = `
+    :root, .dark, html {
+      --color-primary: ${settings?.estoreThemeColor || '#10b981'} !important;
+      --color-primary-hover: ${settings?.estorePrimaryColorHover || '#059669'} !important;
+      --color-bg: ${settings?.estoreBgColor || '#f9fafb'} !important;
+      --color-surface: ${settings?.estoreCardBgColor || '#ffffff'} !important;
+      --color-card-bg: ${settings?.estoreCardBgColor || '#ffffff'} !important;
+      --color-text: ${settings?.estoreTextColor || '#111827'} !important;
+      --color-text-muted: ${settings?.estoreTextColor ? settings.estoreTextColor + '80' : '#11182780'} !important;
+    }
+  `;
 
   return (
     <div 
@@ -191,14 +392,27 @@ export function EStoreApp() {
         '--color-card-bg': settings?.estoreCardBgColor || '#ffffff',
       } as React.CSSProperties}
     >
+      <style dangerouslySetInnerHTML={{ __html: estoreThemeStyles }} />
+
+      {isOutOfRange && (
+        <div className="bg-amber-500 text-white font-black px-4 py-3 text-center text-[10px] uppercase tracking-wider sticky top-0 z-[100] flex items-center justify-center gap-2 shadow-lg">
+          <svg className="w-4 h-4 text-white shrink-0 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          Warning: You are outside our delivery range. You can still order for Self Pickup!
+        </div>
+      )}
+
       <Routes>
         <Route path="/store" element={
-          <StoreFront 
+                  <StoreFront 
             settings={settings} 
             products={products} 
             categories={categories}
+            bundles={bundles}
             cart={cart}
             onAddToCart={addToCart}
+            onAddBundle={addBundleToCart}
             onUpdateCart={updateCartItem}
           />
         } />
@@ -210,6 +424,7 @@ export function EStoreApp() {
             onUpdateCart={updateCartItem}
           />
         } />
+        <Route path="/store/track" element={<TrackPage settings={settings} />} />
       </Routes>
       
       {/* WhatsApp Floating Action Button */}

@@ -100,6 +100,8 @@ const initialState: AppState = {
     barcodeBorder: true,
     offlineMode: true,
     autoSync: true,
+    estorePickupEnabled: true,
+    estoreDeliveryEnabled: true,
   },
   salesTabs: [],
   activeSalesTab: '',

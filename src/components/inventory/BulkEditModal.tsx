@@ -23,8 +23,6 @@ export function BulkEditModal({ isOpen, onClose, selectedIds, categories, suppli
   const { t } = useTranslation();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-  const [isCompressing, setIsCompressing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filter out 'All' from categories and suppliers for selection
   const availableCategories = categories.filter(c => c !== 'All');
@@ -77,37 +75,7 @@ export function BulkEditModal({ isOpen, onClose, selectedIds, categories, suppli
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      try {
-        setIsCompressing(true);
-        const compressedFile = await compressImage(file, 800, 800, 0.7);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setUpdates(prev => ({
-            ...prev,
-            image: event.target?.result as string
-          }));
-        };
-        reader.readAsDataURL(compressedFile);
-      } catch (error) {
-        console.error('Image compression failed:', error);
-        // Fallback
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setUpdates(prev => ({
-            ...prev,
-            image: event.target?.result as string
-          }));
-        };
-        reader.readAsDataURL(file);
-      } finally {
-        setIsCompressing(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    }
-  };
+
 
   return (
     <>
@@ -212,32 +180,17 @@ export function BulkEditModal({ isOpen, onClose, selectedIds, categories, suppli
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div
-                className="flex flex-col items-center justify-center p-6 bg-[#f8f9fa] dark:bg-black/75 rounded-[24px] border-2 border-dashed border-gray-200 dark:border-white/5 hover:border-primary/30 transition-all cursor-pointer group gap-3"
+                className="flex flex-col items-center justify-center p-8 bg-[#f8f9fa] dark:bg-black/75 rounded-[24px] border-2 border-dashed border-gray-200 dark:border-white/5 hover:border-primary/30 transition-all cursor-pointer group gap-4"
                 onClick={() => setShowMediaLibrary(true)}
               >
                 <div className="h-16 w-16 rounded-2xl bg-white dark:bg-surface flex items-center justify-center overflow-hidden shadow-sm">
                   {updates.image ? <img src={updates.image} className="h-full w-full object-cover" /> : <ImageIcon className="h-8 w-8 text-gray-600 group-hover:text-primary transition-colors" />}
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase tracking-wide">{t('media_hub')}</p>
-                  <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest mt-1">{t('select_existing')}</p>
-                </div>
-              </div>
-
-              <div
-                className={`flex flex-col items-center justify-center p-6 bg-[#f8f9fa] dark:bg-black/75 rounded-[24px] border-2 border-dashed border-gray-200 dark:border-white/5 transition-all cursor-pointer group gap-3 ${isCompressing ? 'opacity-50 pointer-events-none' : 'hover:border-blue-500/30'}`}
-                onClick={() => !isCompressing && fileInputRef.current?.click()}
-              >
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
-                <div className="h-16 w-16 rounded-2xl bg-white dark:bg-surface flex items-center justify-center overflow-hidden shadow-sm">
-                  {isCompressing ? <Loader2 className="h-8 w-8 text-blue-500 animate-spin" /> :
-                    updates.image ? <img src={updates.image} className="h-full w-full object-cover" /> : <Upload className="h-8 w-8 text-gray-600 group-hover:text-blue-500 transition-colors" />}
-                </div>
-                <div className="text-center">
-                  <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase tracking-wide">{isCompressing ? t('syncing') : t('new_upload')}</p>
-                  <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest mt-1">{isCompressing ? t('processing') : t('deploy_file')}</p>
+                  <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase tracking-wide">Choose / Upload Image</p>
+                  <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest mt-1">Select existing from gallery or upload a new compressed image</p>
                 </div>
               </div>
             </div>

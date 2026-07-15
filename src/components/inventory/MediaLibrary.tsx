@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
-import { X, Image as ImageIcon, MousePointer2, Package, Trash2 } from 'lucide-react';
+import { useMemo, useRef } from 'react';
+import { X, Image as ImageIcon, MousePointer2, Package, Trash2, Plus, Upload } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { productsService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
+import { compressImage } from '../../lib/imageCompression';
 
 interface MediaLibraryProps {
   isOpen: boolean;
@@ -15,6 +16,35 @@ interface MediaLibraryProps {
 
 export function MediaLibrary({ isOpen, onClose, onSelect, standalone }: MediaLibraryProps) {
   const { state, dispatch } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        sonner.loading('Compressing image...');
+        const compressedFile = await compressImage(file, 800, 800, 0.7);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64Data = event.target?.result as string;
+          sonner.dismissAll();
+          sonner.success('Image compressed successfully!');
+          onSelect(base64Data);
+          if (!standalone) onClose();
+        };
+        reader.readAsDataURL(compressedFile);
+      } catch (err) {
+        console.error('Upload fail:', err);
+        sonner.dismissAll();
+        sonner.error('Failed to compress/upload image');
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleDeleteImage = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
@@ -83,8 +113,25 @@ export function MediaLibrary({ isOpen, onClose, onSelect, standalone }: MediaLib
         }
       });
 
+    // Scan bundles (deals) for custom banners to enable image reuse
+    if (state.bundles) {
+      state.bundles
+        .filter((b: any) => !!b.image && typeof b.image === 'string' && (b.image.startsWith('http') || b.image.startsWith('data:image')))
+        .forEach((b: any) => {
+          if (!uniqueImages.has(b.image)) {
+            uniqueImages.set(b.image, {
+              id: b.id,
+              name: b.name,
+              sku: 'DEAL',
+              image: b.image,
+              isSystem: false
+            });
+          }
+        });
+    }
+
     return Array.from(uniqueImages.values());
-  }, [state.products, state.settings?.storeLogo]);
+  }, [state.products, state.settings?.storeLogo, state.bundles]);
 
   if (!isOpen) return null;
 
@@ -98,8 +145,31 @@ export function MediaLibrary({ isOpen, onClose, onSelect, standalone }: MediaLib
       )}
 
       <div className={cn("p-6", !standalone && "min-h-[400px]")}>
-        {productAssets.length > 0 ? (
+        {productAssets.length > 0 || !standalone ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            {/* Upload New Card (only in selection modal mode) */}
+            {!standalone && (
+              <div
+                onClick={handleUploadClick}
+                className="group flex flex-col gap-3 animate-in fade-in duration-300"
+              >
+                <div className="relative aspect-square bg-gray-50 dark:bg-black/40 rounded-[2rem] border-2 border-dashed border-gray-350 dark:border-white/10 hover:border-primary flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-[1.03] shadow-sm hover:shadow-emerald-500/5">
+                  <Plus className="h-8 w-8 text-gray-400 group-hover:text-primary group-hover:scale-110 transition-all mb-2" />
+                  <span className="text-[10px] font-black text-gray-500 group-hover:text-primary uppercase tracking-widest text-center px-4">Upload New</span>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                </div>
+                <div className="px-2 text-center opacity-0 select-none">
+                  <p className="text-[10px] font-black">Upload New</p>
+                </div>
+              </div>
+            )}
+
             {productAssets.map((asset, index) => (
               <div
                 key={`${asset.id}-${index}`}

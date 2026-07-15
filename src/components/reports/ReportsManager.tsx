@@ -439,7 +439,7 @@ export function ReportsManager() {
       salesByDay[date] = { date, sales: 0, transactions: 0 };
     }
 
-    filteredSales.filter(s => s.status !== 'refunded' && s.status !== 'deleted').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
       if (!sale?.timestamp) return;
       const saleDate = new Date(sale.timestamp);
       if (isNaN(saleDate.getTime())) return;
@@ -459,7 +459,7 @@ export function ReportsManager() {
   const topProducts = useMemo(() => {
     const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
 
-    filteredSales.filter(s => s.status !== 'refunded' && s.status !== 'deleted').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
       sale.items.forEach(item => {
         const productId = item.product?.id || 'deleted';
         if (!productSales[productId]) {
@@ -526,7 +526,7 @@ export function ReportsManager() {
   const categoryData = useMemo(() => {
     const categories: Record<string, { name: string; value: number }> = {};
 
-    filteredSales.filter(s => s.status !== 'refunded' && s.status !== 'deleted').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
       sale.items.forEach(item => {
         const category = item.product?.category || 'Uncategorized';
         if (!categories[category]) {
@@ -547,7 +547,7 @@ export function ReportsManager() {
       estore: { name: 'E-Store', value: 0 }
     };
 
-    filteredSales.filter(s => s.status !== 'refunded' && s.status !== 'deleted').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
       if (!sale) return;
       const type = sale.saleType || 'retail';
       if (types[type]) {
@@ -633,7 +633,7 @@ export function ReportsManager() {
 
   // Profit Analytics
   const totalCostOfGoods = useMemo(() => {
-    return filteredSales.filter(s => s.status !== 'refunded' && s.status !== 'deleted').reduce((sum, sale) => {
+    return filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').reduce((sum, sale) => {
       return sum + sale.items.reduce((itemSum, item) => {
         const { cost } = getItemCOGS(item);
         return itemSum + cost;
@@ -734,7 +734,7 @@ export function ReportsManager() {
       lastPurchase: new Date()
     };
 
-    filteredSales.filter(s => s.status !== 'refunded' && s.status !== 'deleted').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
       if (!sale) return;
       const customerId = sale.customerId || 'walk-in';
       if (customerStats[customerId]) {
@@ -789,7 +789,7 @@ export function ReportsManager() {
 
     const inventoryStats = productsToProcess.map(product => {
       const soldQuantity = filteredSales
-        .filter(s => s.status !== 'refunded' && s.status !== 'deleted')
+        .filter(s => s.status === 'completed' || s.status === 'credit')
         .reduce((sum, sale) => {
           return sum + sale.items
             .filter(item => item.product?.id === product.id)
@@ -797,7 +797,7 @@ export function ReportsManager() {
         }, 0);
 
       const revenue = filteredSales
-        .filter(s => s.status !== 'refunded' && s.status !== 'deleted')
+        .filter(s => s.status === 'completed' || s.status === 'credit')
         .reduce((sum, sale) => {
           return sum + sale.items
             .filter(item => item.product?.id === product.id)

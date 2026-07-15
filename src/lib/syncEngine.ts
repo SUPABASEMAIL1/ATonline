@@ -252,6 +252,26 @@ async function executeOp(op: PendingOp): Promise<void> {
             }
         }
 
+        // Hydration for Categories (Required: name)
+        if (op.entity === 'categories' && opType !== 'delete') {
+            if (!payload.name) {
+                const local = await localDb.categories.get(op.entityId);
+                if (local) {
+                    payload = {
+                        ...payload,
+                        name: payload.name || local.name,
+                        description: payload.description || local.description || null,
+                        active: payload.active !== undefined ? payload.active : (local.active ?? true),
+                        estore_sort_order: payload.estore_sort_order !== undefined ? payload.estore_sort_order : (local.estoreSortOrder ?? 0)
+                    };
+                }
+            }
+            if (!payload.name) {
+                payload.name = `Category ${op.entityId.substr(0, 4).toUpperCase()}`;
+                console.warn(`[SyncEngine] Auto-repaired missing name for categories/${op.entityId}: ${payload.name}`);
+            }
+        }
+
         // Hydration for Product Batches (Required: batch_number)
         if (op.entity === 'product_batches' && opType !== 'delete') {
             if (!payload.batch_number || !payload.product_id) {
@@ -360,7 +380,7 @@ async function executeOp(op: PendingOp): Promise<void> {
             // Standard CRUD Fallback
             else if (opType === 'upsert' || opType === 'create') {
                 // Basic conflict resolution: skip if remote has newer updated_at
-                const conflictEntities = ['products', 'customers', 'suppliers', 'app_settings'];
+                const conflictEntities = ['products', 'customers', 'suppliers'];
                 if (conflictEntities.includes(op.entity) && (opType === 'upsert' || opType === 'update')) {
                     const { data: remote } = await supabase
                         .from(table as any)
@@ -380,7 +400,7 @@ async function executeOp(op: PendingOp): Promise<void> {
             } else if (opType === 'update') {
                 // Use upsert even for updates to ensure the record exists (self-healing for lost CREATE ops)
                 // Basic conflict resolution: skip if remote has newer updated_at
-                const conflictEntities = ['products', 'customers', 'suppliers', 'app_settings'];
+                const conflictEntities = ['products', 'customers', 'suppliers'];
                 if (conflictEntities.includes(op.entity)) {
                     const { data: remote } = await supabase
                         .from(table as any)
@@ -633,6 +653,13 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                 const exists = await localDb.pendingOps.get(op.id!);
                 if (!exists) continue;
 
+                if (op.entityId === SETTINGS_ID && op.entity !== 'app_settings') {
+                    console.warn(`[POS SYNC] Deleting corrupt settings op targeting non-settings table: ${op.entity}/${op.entityId}`);
+                    await localDb.pendingOps.delete(op.id!);
+                    window.dispatchEvent(new Event('pendingops-changed'));
+                    continue;
+                }
+
                 console.log(`[POS SYNC] ${op.opType.toUpperCase()}: ${op.entity} (ID: ${op.entityId})`);
 
                 try {
@@ -840,10 +867,57 @@ async function pruneOldStockHistory() {
     }
 }
 
+async function pruneExpiredCancelledOrders() {
+    try {
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        // 1. Delete locally from IndexedDB (Dexie)
+        const localDbSales = localDb.sales;
+        if (localDbSales) {
+            const oldCancelledSales = await localDbSales
+                .where('status')
+                .equals('cancelled')
+                .toArray();
+            
+            const toDelete = oldCancelledSales
+                .filter(s => {
+                    const ts = s.updatedAt || s.createdAt || s.timestamp;
+                    if (!ts) return false;
+                    const date = ts instanceof Date ? ts : new Date(ts);
+                    return date.toISOString() < cutoff;
+                })
+                .map(s => s.id);
+            
+            if (toDelete.length > 0) {
+                await localDbSales.bulkDelete(toDelete);
+                console.log(`[POS MAINT] Pruned ${toDelete.length} expired cancelled orders from local IndexedDB.`);
+            }
+        }
+
+        // 2. Delete remotely from Supabase if online
+        if (navigator.onLine) {
+            const { error } = await supabase
+                .from('sales')
+                .delete()
+                .eq('status', 'cancelled')
+                .lt('updated_at', cutoff);
+            
+            if (error) {
+                console.warn('[POS MAINT] Failed to prune expired cancelled orders from Supabase:', error);
+            } else {
+                console.log('[POS MAINT] Successfully pruned expired cancelled orders from cloud.');
+            }
+        }
+    } catch (err) {
+        console.error('[POS MAINT] Error pruning expired cancelled orders:', err);
+    }
+}
+
 export function startSyncEngine() {
     clearBlacklist();
     pruneStaleOps();
     pruneOldStockHistory();
+    pruneExpiredCancelledOrders();
     syncToCloud().catch(() => { });
 
     window.addEventListener('online', () => {
@@ -864,14 +938,15 @@ export function startSyncEngine() {
         window.dispatchEvent(new Event('pendingops-changed'));
     });
 
-    // 10-minute auto-recovery timer
+    // 1-hour auto-recovery and maintenance timer
     setInterval(() => {
         if (navigator.onLine) {
             autoRecoverErrors();
             pruneStaleOps();
             pruneOldStockHistory();
+            pruneExpiredCancelledOrders();
         }
-    }, 10 * 60 * 1000);
+    }, 60 * 60 * 1000);
 
     setInterval(() => {
         if (navigator.onLine && _offlineBackoff === 0) {

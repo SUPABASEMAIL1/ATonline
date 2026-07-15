@@ -23,7 +23,6 @@ interface ProductModalProps {
 export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
   const [isAddingNewSupplier, setIsAddingNewSupplier] = useState(false);
@@ -366,37 +365,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
     }));
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      try {
-        setIsCompressing(true);
-        // Utility automatically converts to WebP and targets 20-50KB
-        const compressedFile = await compressImage(file, 800, 800, 0.7);
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setFormData(prev => ({
-            ...prev,
-            image: event.target?.result as string
-          }));
-        };
-        reader.readAsDataURL(compressedFile);
-      } catch (error) {
-        console.error('Image compression failed:', error);
-        // Fallback
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setFormData(prev => ({
-            ...prev,
-            image: event.target?.result as string
-          }));
-        };
-        reader.readAsDataURL(file);
-      } finally {
-        setIsCompressing(false);
-      }
-    }
-  };
+
 
   const generateBarcode = () => {
     if (!formData.name.trim()) {
@@ -749,24 +718,28 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                   )}
                </div>
                
-               <div className="flex-1 space-y-3">
+                <div className="flex-1 space-y-3">
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">
-                      {t('upload')}
-                    </button>
-                    <button onClick={() => setShowMediaLibrary(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20">
-                      {t('library')}
+                    <button 
+                      type="button" 
+                      onClick={() => setShowMediaLibrary(true)} 
+                      className="px-5 py-2.5 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                    >
+                      Choose / Upload Image
                     </button>
                     {formData.image && (
-                      <button onClick={() => setFormData(prev => ({ ...prev, image: '' }))} className="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                      <button 
+                        type="button" 
+                        onClick={() => setFormData(prev => ({ ...prev, image: '' }))} 
+                        className="px-4 py-2.5 bg-rose-500/10 text-rose-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/20 active:scale-95 transition-all"
+                      >
                         {t('remove')}
                       </button>
                     )}
                   </div>
-                  <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
                   <p className="text-[8px] font-bold text-gray-600 uppercase tracking-widest">Supports WebP, JPG, PNG · Max 50KB</p>
-               </div>
-            </div>
+                </div> 
+              </div>
            </div>
 
           {/* ADVANCED POS FEATURES */}

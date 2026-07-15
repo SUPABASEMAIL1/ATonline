@@ -53,6 +53,8 @@ export interface Product {
   isService?: boolean;
   requireSerial?: boolean;
   showInEstore?: boolean;
+  estoreSortOrder?: number;
+  estoreCategorySortOrder?: number;
 }
 
 
@@ -171,6 +173,8 @@ export interface Category {
   id: string;
   name: string;
   description?: string;
+  active?: boolean;
+  estoreSortOrder?: number;
   createdAt?: Date;
 }
 
@@ -415,6 +419,10 @@ export interface AppSettings {
   estoreCardBgColor?: string;
   estoreOrderTimerEnabled?: boolean;
   estoreOrderTimerMinutes?: number;
+  estoreCustomPaymentEnabled?: boolean;
+  estoreCustomPaymentName?: string;
+  estoreCustomPaymentDetail?: string;
+  estoreCustomPaymentNote?: string;
   estoreDeliveryFee?: number;
   estoreMinOrder?: number;
   estoreCodEnabled?: boolean;
@@ -423,6 +431,11 @@ export interface AppSettings {
   estoreDeliveryRadius?: number;
   estoreWhatsappEnabled?: boolean;
   estoreWhatsappNumber?: string;
+  estorePickupEnabled?: boolean;
+  estoreDeliveryEnabled?: boolean;
+  storeType?: 'physical' | 'online' | 'both';
+  storeLatitude?: number;
+  storeLongitude?: number;
   defaultSaleType?: 'retail' | 'wholesale' | 'estore';
   language?: string;
   touchKeyboardEnabled: boolean;
@@ -503,10 +516,12 @@ export interface Bundle {
   discountValue: number;
   discountType: 'percentage' | 'fixed';
   active: boolean;
-  hideItemPrices?: boolean;  // When true, per-item original prices are hidden on receipt/POS; only deal final price shown
-  isCombo?: boolean;      // Distinguishes between fixed bundles and flexible choice combo deals
-  items?: BundleItem[];   // Populated on fetch (joined from bundle_items)
-  slots?: BundleSlot[];   // Populated on fetch (joined from bundle_slots)
+  hideItemPrices?: boolean;
+  isCombo?: boolean;
+  items?: BundleItem[];
+  slots?: BundleSlot[];
+  estoreSortOrder?: number;
+  image?: string;
   createdAt: Date;
   updatedAt: Date;
 }
