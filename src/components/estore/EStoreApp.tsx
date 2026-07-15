@@ -11,6 +11,7 @@ import { ShoppingBag, Phone, Clock } from 'lucide-react';
 import { formatTime12h } from '../../lib/timeFormat';
 import { sonner } from '../../lib/sonner';
 import { SkeletonLoader } from '../common/SkeletonLoader';
+import { updateDynamicManifest } from '../../lib/dynamicManifest';
 
 function TrackPage({ settings }: { settings: AppSettings | null }) {
   const [searchParams] = useSearchParams();
@@ -193,16 +194,11 @@ export function EStoreApp() {
     }
     appNameMeta.setAttribute('content', bizName);
 
-    const manifestLink = document.querySelector('link[rel="manifest"]');
-    const manifestPath = '/manifest.json';
-    if (manifestLink) {
-      manifestLink.setAttribute('href', manifestPath);
-    } else {
-      const newLink = document.createElement('link');
-      newLink.rel = 'manifest';
-      newLink.href = manifestPath;
-      document.head.appendChild(newLink);
-    }
+    updateDynamicManifest({
+      storeName: bizName,
+      storeLogo: storeLogo || undefined,
+      isStore: true,
+    });
   }, [settings]);
 
   // Sync E-Store light/dark mode class and restore admin theme on unmount

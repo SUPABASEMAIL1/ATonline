@@ -25,6 +25,7 @@ import { playPageSound } from './lib/sounds';
 import { SkeletonLoader } from './components/common/SkeletonLoader';
 import { TouchKeyboardProvider, useTouchKeyboard } from './providers/TouchKeyboardProvider';
 import { startSyncEngine } from './lib/syncEngine';
+import { updateDynamicManifest } from './lib/dynamicManifest';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { Toaster } from 'sonner';
 import { DialogProvider } from './components/common/DialogProvider';
@@ -208,16 +209,11 @@ function AppContent() {
     }
     appNameMeta.setAttribute('content', isStore ? bizName : bizName + ' POS');
 
-    const manifestLink = document.querySelector('link[rel="manifest"]');
-    const manifestPath = isStore ? '/manifest.json' : '/admin-manifest.json';
-    if (manifestLink) {
-      manifestLink.setAttribute('href', manifestPath);
-    } else {
-      const newLink = document.createElement('link');
-      newLink.rel = 'manifest';
-      newLink.href = manifestPath;
-      document.head.appendChild(newLink);
-    }
+    updateDynamicManifest({
+      storeName: bizName,
+      storeLogo: storeLogo || undefined,
+      isStore,
+    });
   }, [state.settings, location.pathname]);
 
   // Global navigation listener (convert old viewId events to router navigation)

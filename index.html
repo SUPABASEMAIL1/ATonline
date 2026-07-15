@@ -137,15 +137,29 @@
           }
         }
 
-        // Link the correct physical manifest file
+        // Generate dynamic manifest JSON (uses store name from settings)
+        var _manifest = {
+          name: _isStore ? _bizName : _bizName + ' POS',
+          short_name: _bizName,
+          description: _isStore ? 'Browse and order items online' : 'Fast, offline-first point-of-sale system',
+          start_url: _isStore ? '/store' : '/pos',
+          scope: _isStore ? '/store' : '/pos',
+          display: 'standalone',
+          orientation: _isStore ? 'portrait' : 'any',
+          background_color: _isStore ? '#f9fafb' : '#0a0a0a',
+          theme_color: '#10b981',
+          categories: _isStore ? ['shopping','food','lifestyle'] : ['business','finance','productivity'],
+          icons: [{ src: _storeLogo || '/zaynahs-logo.svg', sizes: 'any', type: 'image/svg+xml' }]
+        };
+        var _manifestBlob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });
+        var _manifestUrl = URL.createObjectURL(_manifestBlob);
         var _manifestLink = document.querySelector('link[rel="manifest"]');
-        var _manifestPath = _isStore ? '/manifest.json' : '/admin-manifest.json';
         if (_manifestLink) {
-          _manifestLink.setAttribute('href', _manifestPath);
+          _manifestLink.setAttribute('href', _manifestUrl);
         } else {
           var _newLink = document.createElement('link');
           _newLink.rel = 'manifest';
-          _newLink.href = _manifestPath;
+          _newLink.href = _manifestUrl;
           document.head.appendChild(_newLink);
         }
 
