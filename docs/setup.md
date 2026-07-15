@@ -521,15 +521,82 @@ Ye 1 command sab kuch create karti hai:
 npm run build
 ```
 
-### Step 7: Deploy to Vercel
+### Step 7: Deploy to Cloudflare Pages
+
+#### 7a: Create Project + Deploy (First Time)
 
 ```bash
-# Via Vercel CLI
-vercel --prod
+# 1. Build
+npm run build
 
-# OR connect GitHub repo to Vercel:
-# Settings → vercel.json handles SPA rewrites
+# 2. Deploy via Wrangler (API token .env.local se auto-pick hoga)
+npx wrangler pages deploy dist --project-name atonline --branch main
 ```
+
+> ⚠️ **Direct Upload via curl se 404 bug hai** — hamesha wrangler CLI use karo.
+
+#### 7b: Setup GitHub Auto-Deploy
+
+Workflow file `.github/workflows/deploy-cloudflare.yml` already repo mein hai. Bas GitHub secrets set karo:
+
+| Secret | Value |
+|--------|-------|
+| `CLOUDFLARE_API_TOKEN` | `cfut_...` token |
+| `CLOUDFLARE_ACCOUNT_ID` | Account ID (API se nikal lo) |
+
+**Via Dashboard (Manual):**
+1. GitHub → Repo → Settings → Secrets and variables → Actions
+2. "New repository secret" → Name + Value dalo (donon ke liye)
+
+**Via API (Agent automatic):**
+```bash
+# Pehle public key lo
+KEY_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_PAT" \
+  "https://api.github.com/repos/$GITHUB_REPO_URL/actions/secrets/public-key")
+KEY_ID=$(python3 -c "import json; print(json.loads('$KEY_INFO')['key_id'])")
+PUB_KEY=$(python3 -c "import json; print(json.loads('$KEY_INFO')['key'])")
+
+# Phir encrypt karo aur set karo (Python libsodium required)
+python3 -c "
+import json, base64, urllib.request, ssl, os
+from nacl import bindings as nacl
+
+key_id = os.environ['KEY_ID']
+pub_key = base64.b64decode(os.environ['PUB_KEY'])
+token = os.environ['GITHUB_PAT']
+repo = os.environ['GITHUB_REPO_URL'].replace('https://github.com/', '')
+
+secrets = {
+    'CLOUDFLARE_API_TOKEN': os.environ['CLOUDFLARE_API_TOKEN'],
+    'CLOUDFLARE_ACCOUNT_ID': os.environ['CLOUDFLARE_ACCOUNT_ID']
+}
+
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
+for name, value in secrets.items():
+    encrypted = nacl.crypto_box_seal(value.encode(), pub_key)
+    encrypted_b64 = base64.b64encode(encrypted).decode()
+    data = json.dumps({'encrypted_value': encrypted_b64, 'key_id': key_id}).encode()
+    req = urllib.request.Request(
+        f'https://api.github.com/repos/{repo}/actions/secrets/{name}',
+        data=data, method='PUT',
+        headers={'Authorization': f'Bearer {token}',
+                 'Content-Type': 'application/json',
+                 'Accept': 'application/vnd.github.v3+json'}
+    )
+    resp = urllib.request.urlopen(req, context=ctx)
+    print(f'\u2705 {name} set')
+"
+```
+
+#### 7c: Auto-Deploy Workflow
+
+Har `git push main` pe yeh automatic hoga:
+1. GitHub Action trigger
+2. `npm ci` + `npm run build`
+3. `wrangler pages deploy` → Cloudflare Pages live
 
 ### Step 8: Create Admin User
 
