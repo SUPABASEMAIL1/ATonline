@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
         background_color: '#0a0a0a',
         display: 'standalone',
         orientation: 'any',
-        start_url: './',
+        start_url: '/',
         categories: ['business', 'finance', 'productivity'],
         icons: [
           {
