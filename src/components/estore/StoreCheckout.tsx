@@ -269,7 +269,9 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         deliveryAddress: fulfillmentMode === 'pickup' 
           ? 'SELF-PICKUP' 
           : (formData.address2.trim() ? `${formData.address1} | Near: ${formData.address2}` : formData.address1),
-        customerNotes: formData.notes,
+        customerNotes: selectedPaymentMethod === 'custom' && settings?.estoreCustomPaymentName
+          ? `[${settings.estoreCustomPaymentName}]${formData.notes ? ' ' + formData.notes : ''}`
+          : formData.notes || '',
         deliveryLocationLat: fulfillmentMode === 'pickup' ? undefined : (position ? position[0] : undefined),
         deliveryLocationLng: fulfillmentMode === 'pickup' ? undefined : (position ? position[1] : undefined),
         items: cart,
@@ -278,13 +280,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         taxAmount: 0,
         deliveryFee: deliveryFee,
         total: total,
-        // DB payment_method only allows: cash, card, digital, credit, cheque, split
-        // Map 'custom' (e.g. jazz cash) → 'digital' to pass constraint
         paymentMethod: (selectedPaymentMethod === 'custom' ? 'digital' : selectedPaymentMethod) as any,
-        // Store the real custom payment name in customerNotes so POS can see it
-        customerNotes: selectedPaymentMethod === 'custom' && settings?.estoreCustomPaymentName
-          ? `[${settings.estoreCustomPaymentName}]${formData.notes ? ' ' + formData.notes : ''}`
-          : formData.notes || '',
         status: 'pending',
         cashier: 'ONLINE_STORE',
         timestamp: new Date(),
