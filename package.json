@@ -37,8 +37,8 @@
     ],
     "extraResources": [
       {
-        "from": "public/logo.png",
-        "to": "logo.png"
+        "from": "public/zaynahs-logo.svg",
+        "to": "zaynahs-logo.svg"
       },
       {
         "from": "public/sqlite3.wasm",
