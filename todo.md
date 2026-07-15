@@ -17,14 +17,11 @@
 
 # PWA Installers & Storefront Beep Sound Fixes
 - [x] Fixed storefront `/store` beep sound bug: Disabled route transition sound effects (`playPageSound()`) and incoming online order alerts (`playOnlineOrderSound()`) for users visiting storefront routes.
-- [x] Corrected local storage `pos_settings` property key names (`storeName`, `storeLogo`, `estoreThemeColor`) inside the index.html manifest script, fixing the fallback to generic "Zaynahs" naming and default icons.
-- [x] Configured separate, non-conflicting scopes and entry URLs for PWA installers:
-  - POS App: `start_url: '/pos'`, `scope: '/'` (allows full access to admin views like inventory/reports inside PWA standalone screen).
-  - Customer Store App: `start_url: '/store'`, `scope: '/store'` (dynamically generated using shop's uploaded store logo and business name).
-- [x] Integrated dynamic PWA manifest updates into React (`App.tsx` and `EStoreApp.tsx`) via `useEffect` hooks, mirroring settings into local storage on load so that guest customer installations display the correct shop name and custom logo.
-- [x] Dynamically set browser tab favicon to match the shop's custom logo on `/store` routes.
-- [x] Converted dynamic in-memory PWA manifest `blob:` URLs to fully self-contained base64/data URI format (`data:application/json;charset=utf-8,...`), fixing iOS Safari and Android Chrome background installer retrieval failures.
-- [x] Dynamically update `<meta name="apple-mobile-web-app-title">` and `<meta name="application-name">` tags on client settings sync to prevent iOS Safari Home Screen installations from defaulting to static fallback titles.
+- [x] Created 2 separate, physically distinct PWA web manifest files in the `public/` folder to prevent conflict and allow side-by-side installations:
+  - POS/Staff App manifest: `/site.webmanifest` (scope: `/`, start_url: `/pos`, name: "Zaynahs POS System").
+  - Customer Storefront manifest: `/store.webmanifest` (scope: `/store`, start_url: `/store`, name: "Zaynahs Online Store").
+- [x] Deployed dynamic client-side manifestation routing to point browser `<link rel="manifest">` tags to `/store.webmanifest` or `/site.webmanifest` depending on pathname route.
+- [x] Dynamically set browser tab favicon, Apple Touch Icon (`apple-touch-icon`), and title meta tags (`apple-mobile-web-app-title` / `application-name`) based on settings' saved business name and uploaded logo so that iOS Safari Add to Home Screen prompts generate dynamic customized names and icons without manifest network fetching errors.
 
 # Icon Customization & Mobile Layout Fixes
 - [x] Replaced the `ShoppingCart` icon with the `Bell` icon for the "Orders" navigation item in `Header.tsx` so that it is clearly distinct from the "POS" tab icon.

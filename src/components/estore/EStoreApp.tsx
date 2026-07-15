@@ -164,40 +164,7 @@ export function EStoreApp() {
     const storeLogo = settings.storeLogo || '';
     const themeColor = settings.estoreThemeColor || '#10b981';
 
-    const generateManifest = (name: string, shortName: string, desc: string, startUrl: string, scope: string, bgColor: string, icons: any[]) => ({
-      name,
-      short_name: shortName,
-      description: desc,
-      theme_color: themeColor,
-      background_color: bgColor,
-      display: 'standalone' as const,
-      orientation: 'portrait' as const,
-      start_url: startUrl,
-      scope: scope,
-      categories: ['shopping', 'food', 'lifestyle'],
-      icons: icons
-    });
-
-    let iconsList = [
-      { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
-      { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-    ];
-
-    const getLogoMimeType = (url: string) => {
-      if (url.includes('.webp')) return 'image/webp';
-      if (url.includes('.png')) return 'image/png';
-      if (url.includes('.jpg') || url.includes('.jpeg')) return 'image/jpeg';
-      if (url.includes('.svg')) return 'image/svg+xml';
-      return 'image/png';
-    };
-
     if (storeLogo) {
-      const mime = getLogoMimeType(storeLogo);
-      iconsList = [
-        { src: storeLogo, sizes: '512x512', type: mime, purpose: 'any' },
-        { src: storeLogo, sizes: '192x192', type: mime, purpose: 'any' }
-      ];
       const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
       if (appleIcon) {
         appleIcon.setAttribute('href', storeLogo);
@@ -207,15 +174,6 @@ export function EStoreApp() {
         favicon.setAttribute('href', storeLogo);
       });
     }
-
-    const manifest = generateManifest(
-      bizName,
-      bizName.length > 12 ? bizName.substring(0, 12) : bizName,
-      'Order online from ' + bizName,
-      '/store', '/store',
-      '#f9fafb',
-      iconsList
-    );
 
     document.title = bizName + ' - Online Store';
 
@@ -229,13 +187,13 @@ export function EStoreApp() {
     }
 
     const manifestLink = document.querySelector('link[rel="manifest"]');
-    const manifestStr = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest));
+    const manifestPath = '/store.webmanifest';
     if (manifestLink) {
-      manifestLink.setAttribute('href', manifestStr);
+      manifestLink.setAttribute('href', manifestPath);
     } else {
       const newLink = document.createElement('link');
       newLink.rel = 'manifest';
-      newLink.href = manifestStr;
+      newLink.href = manifestPath;
       document.head.appendChild(newLink);
     }
   }, [settings]);

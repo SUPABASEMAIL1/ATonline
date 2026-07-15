@@ -1,17 +1,17 @@
 {
-  "name": "Zaynahs POS System",
-  "short_name": "ZaynahsPOS",
-  "description": "Fast, offline-first point-of-sale system by ZaynahsPOS",
-  "start_url": "/pos",
-  "scope": "/",
+  "name": "Zaynahs Online Store",
+  "short_name": "EStore",
+  "description": "Browse and order items online from our digital storefront",
+  "start_url": "/store",
+  "scope": "/store",
   "display": "standalone",
-  "orientation": "any",
-  "background_color": "#0a0a0a",
+  "orientation": "portrait",
+  "background_color": "#f9fafb",
   "theme_color": "#10b981",
   "categories": [
-    "business",
-    "finance",
-    "productivity"
+    "shopping",
+    "food",
+    "lifestyle"
   ],
   "icons": [
     {
