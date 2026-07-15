@@ -141,6 +141,20 @@
           _newLink.href = _manifestPath;
           document.head.appendChild(_newLink);
         }
+
+        // Service Worker registration & force unregister of old caching service workers
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var i = 0; i < registrations.length; i++) {
+              registrations[i].unregister();
+            }
+          }).then(function() {
+            // Register our clean self-destruct service worker to satisfy PWA criteria
+            return navigator.serviceWorker.register('/sw.js');
+          }).catch(function(e) {
+            console.error('Service Worker sync failed:', e);
+          });
+        }
       })();
     </script>
   </head>
