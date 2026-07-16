@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Package, Plus, Edit, Trash2, Tag, Search, X, ChevronDown, ChevronUp, Check,
   Percent, DollarSign, ToggleLeft, ToggleRight, Gift, Info, MoreHorizontal,
-  Calendar, Clock, Repeat
+  Calendar, Clock, Repeat, GripVertical
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +19,7 @@ interface BundleFormItem {
 
 interface BundleFormSlotOption {
   productId: string;
+  sortOrder?: number;
 }
 
 interface BundleFormSlot {
@@ -115,7 +116,7 @@ export function BundleManager() {
         id: s.id,
         name: s.name,
         requiredQuantity: s.requiredQuantity,
-        options: (s.options || []).map(o => ({ productId: o.productId }))
+        options: (s.options || []).map(o => ({ productId: o.productId, sortOrder: o.sortOrder ?? 0 }))
       })).sort((a: any, b: any) => a.orderIndex - b.orderIndex)
     });
     setShowForm(true);
@@ -186,7 +187,8 @@ export function BundleManager() {
       slots: prev.slots.map(s => {
         if (s.id === slotId) {
           if (s.options.find(o => o.productId === product.id)) return s;
-          return { ...s, options: [...s.options, { productId: product.id }] };
+          const nextOrder = s.options.length;
+          return { ...s, options: [...s.options, { productId: product.id, sortOrder: nextOrder }] };
         }
         return s;
       })
@@ -200,9 +202,24 @@ export function BundleManager() {
       ...prev,
       slots: prev.slots.map(s => {
         if (s.id === slotId) {
-          return { ...s, options: s.options.filter(o => o.productId !== productId) };
+          const filtered = s.options.filter(o => o.productId !== productId);
+          return { ...s, options: filtered.map((o, i) => ({ ...o, sortOrder: i })) };
         }
         return s;
+      })
+    }));
+  };
+
+  const moveOption = (slotId: string, fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return;
+    setForm(prev => ({
+      ...prev,
+      slots: prev.slots.map(s => {
+        if (s.id !== slotId) return s;
+        const opts = [...s.options];
+        const [moved] = opts.splice(fromIdx, 1);
+        opts.splice(toIdx, 0, moved);
+        return { ...s, options: opts.map((o, i) => ({ ...o, sortOrder: i })) };
       })
     }));
   };
@@ -771,17 +788,42 @@ export function BundleManager() {
                         </div>
                         
                         {slot.options.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {slot.options.map(opt => {
+                          <div className="flex flex-col gap-1">
+                            {slot.options.map((opt, optIdx) => {
                               const product = state.products.find(p => p.id === opt.productId);
                               if (!product) return null;
                               return (
-                                <div key={opt.productId} className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 shadow-sm">
+                                <div
+                                  key={opt.productId}
+                                  draggable
+                                  onDragStart={e => {
+                                    e.dataTransfer.setData('text/plain', JSON.stringify({ slotId: slot.id, fromIdx: optIdx }));
+                                    e.currentTarget.classList.add('opacity-40');
+                                  }}
+                                  onDragEnd={e => {
+                                    e.currentTarget.classList.remove('opacity-40');
+                                  }}
+                                  onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('ring-1', 'ring-primary'); }}
+                                  onDragLeave={e => { e.currentTarget.classList.remove('ring-1', 'ring-primary'); }}
+                                  onDrop={e => {
+                                    e.preventDefault();
+                                    e.currentTarget.classList.remove('ring-1', 'ring-primary');
+                                    try {
+                                      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                                      if (data.slotId === slot.id) {
+                                        moveOption(slot.id, data.fromIdx, optIdx);
+                                      }
+                                    } catch {}
+                                  }}
+                                  className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 shadow-sm cursor-grab active:cursor-grabbing select-none"
+                                >
+                                  <GripVertical className="h-3 w-3 text-gray-400 shrink-0" />
+                                  <span className="text-[9px] font-black text-gray-400 min-w-[16px]">#{optIdx + 1}</span>
                                   {product.image && (
                                     <img src={product.image} alt={product.name} className="w-4 h-4 object-cover rounded shadow-sm" />
                                   )}
                                   <span className="text-[10px] font-black text-gray-800 dark:text-gray-200 truncate max-w-[120px]">{product.name}</span>
-                                  <button type="button" onClick={() => removeOptionFromSlot(slot.id, opt.productId)} className="text-gray-400 hover:text-red-500">
+                                  <button type="button" onClick={() => removeOptionFromSlot(slot.id, opt.productId)} className="text-gray-400 hover:text-red-500 ml-auto">
                                     <X className="h-3 w-3" />
                                   </button>
                                 </div>

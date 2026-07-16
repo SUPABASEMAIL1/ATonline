@@ -502,6 +502,7 @@ export interface BundleSlotOption {
   id: string;
   slotId: string;
   productId: string;
+  sortOrder?: number;
   createdAt?: Date;
 }
 

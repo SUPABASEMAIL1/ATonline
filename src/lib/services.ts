@@ -2345,11 +2345,14 @@ export const mapBundle = (row: any): Bundle => ({
     name: s.name,
     requiredQuantity: s.required_quantity,
     orderIndex: s.order_index,
-    options: (s.bundle_slot_options || []).map((o: any) => ({
-      id: o.id,
-      slotId: o.slot_id,
-      productId: o.product_id,
-    })),
+    options: (s.bundle_slot_options || [])
+      .map((o: any) => ({
+        id: o.id,
+        slotId: o.slot_id,
+        productId: o.product_id,
+        sortOrder: o.sort_order ?? 0,
+      }))
+      .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
   })),
   estoreSortOrder: row.estore_sort_order ?? row.estoreSortOrder ?? 0,
   createdAt: row.created_at ? new Date(row.created_at) : new Date(),
@@ -2393,11 +2396,13 @@ export const bundlesService = {
                 ...s,
                 options: localSlotOptions
                   .filter((opt: any) => opt.slotId === s.id)
-                  .map((opt: any) => ({
+                .map((opt: any) => ({
                     id: opt.id,
                     slotId: opt.slotId,
                     productId: opt.productId,
-                  })),
+                    sortOrder: opt.sortOrder ?? 0,
+                  }))
+                .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
               }));
 
             return {
@@ -2493,6 +2498,7 @@ export const bundlesService = {
                     id: opt.id,
                     slotId: opt.slotId,
                     productId: opt.productId,
+                    sortOrder: opt.sortOrder ?? 0,
                   })));
                 }
               });
@@ -2520,7 +2526,7 @@ export const bundlesService = {
     discountValue: number;
     discountType: 'percentage' | 'fixed';
     items?: { productId: string; quantity: number }[];
-    slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string }[] }[];
+    slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string; sortOrder?: number }[] }[];
     hideItemPrices?: boolean;
     isCombo?: boolean;
     scheduleType?: 'always' | 'scheduled';
@@ -2555,11 +2561,12 @@ export const bundlesService = {
           order_index: slot.orderIndex,
           created_at: now,
         });
-        slot.options.forEach(opt => {
+        slot.options.forEach((opt, optIdx) => {
           optionRows.push({
             id: generateId(),
             slot_id: slotId,
             product_id: opt.productId,
+            sort_order: opt.sortOrder ?? optIdx,
             created_at: now,
           });
         });
@@ -2608,6 +2615,7 @@ export const bundlesService = {
         id: r.id,
         slotId: r.slot_id,
         productId: r.product_id,
+        sortOrder: r.sort_order ?? 0,
       })));
     }
 
@@ -2680,7 +2688,7 @@ export const bundlesService = {
       items: itemRows.map(r => ({ id: r.id, bundleId: id, productId: r.product_id, quantity: r.quantity })),
       slots: slotRows.map(r => ({
         id: r.id, bundleId: id, name: r.name, requiredQuantity: r.required_quantity, orderIndex: r.order_index,
-        options: optionRows.filter(o => o.slot_id === r.id).map(o => ({ id: o.id, slotId: r.id, productId: o.product_id }))
+        options: optionRows.filter(o => o.slot_id === r.id).map(o => ({ id: o.id, slotId: r.id, productId: o.product_id, sortOrder: o.sort_order ?? 0 }))
       })),
     };
   },
@@ -2694,7 +2702,7 @@ export const bundlesService = {
     hideItemPrices?: boolean;
     active?: boolean;
     items?: { productId: string; quantity: number }[];
-    slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string }[] }[];
+    slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string; sortOrder?: number }[] }[];
     isCombo?: boolean;
     estoreSortOrder?: number;
     image?: string;
@@ -2771,11 +2779,12 @@ export const bundlesService = {
           requiredQuantity: slot.requiredQuantity,
           orderIndex: slot.orderIndex,
         });
-        slot.options.forEach(opt => {
+        slot.options.forEach((opt, optIdx) => {
           optionRows!.push({
             id: generateId(),
             slotId: slotId,
             productId: opt.productId,
+            sortOrder: opt.sortOrder ?? optIdx,
           });
         });
       });
@@ -2824,7 +2833,7 @@ export const bundlesService = {
           
           if (optionRows.length > 0) {
             const insertOptRows = optionRows.map(r => ({
-              id: r.id, slot_id: r.slotId, product_id: r.productId, created_at: now
+              id: r.id, slot_id: r.slotId, product_id: r.productId, sort_order: r.sortOrder ?? 0, created_at: now
             }));
             const { error: insOptsErr } = await supabase.from('bundle_slot_options').insert(insertOptRows);
             if (insOptsErr) throw insOptsErr;
@@ -2853,9 +2862,9 @@ export const bundlesService = {
              });
            }
            for (const opt of optionRows) {
-             await queueOp('bundle_slot_options', 'create', opt.id, {
-               id: opt.id, slot_id: opt.slotId, product_id: opt.productId, created_at: now
-             });
+              await queueOp('bundle_slot_options', 'create', opt.id, {
+                id: opt.id, slot_id: opt.slotId, product_id: opt.productId, sort_order: opt.sortOrder ?? 0, created_at: now
+              });
            }
         }
       } else {

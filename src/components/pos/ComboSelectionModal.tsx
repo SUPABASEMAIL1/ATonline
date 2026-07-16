@@ -158,7 +158,10 @@ export function ComboSelectionModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {slot.options.map(opt => {
+                {(slot.options || [])
+                  .slice()
+                  .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+                  .map((opt, optIdx) => {
                   const product = products.find(p => p.id === opt.productId);
                   if (!product) return null;
                   
@@ -173,6 +176,9 @@ export function ComboSelectionModal({
                           : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.02]'
                       }`}
                     >
+                      <span className="flex items-center justify-center h-5 w-5 rounded-full bg-gray-100 dark:bg-white/10 text-[9px] font-black text-gray-500 shrink-0">
+                        {optIdx + 1}
+                      </span>
                       <div className="h-10 w-10 bg-gray-100 dark:bg-white/10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden aspect-square">
                         {product.image ? (
                           <img src={product.image} className="h-full w-full object-cover" alt={product.name} />

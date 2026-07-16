@@ -262,7 +262,7 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
           {bundle.isCombo ? (
             // Combo Deal choices selection
             <div className="space-y-6">
-              <div className="flex justify-between items-center bg-primary/5 p-3 rounded-2xl border border-primary/10">
+              <div className="sticky top-0 z-10 flex justify-between items-center bg-[var(--color-card-bg)] p-3 rounded-2xl border border-primary/10 shadow-sm">
                 <span className="text-[10px] font-black uppercase tracking-widest text-primary">
                   Choose your items:
                 </span>
@@ -296,7 +296,10 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {slot.options?.map(opt => {
+                      {(slot.options || [])
+                        .slice()
+                        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+                        .map((opt, optIdx) => {
                         const product = products.find(p => p.id === opt.productId);
                         if (!product) return null;
                         const qty = slotSelections[opt.productId] || 0;
@@ -310,6 +313,9 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
                                 : 'border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.01]'
                             }`}
                           >
+                            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-gray-100 dark:bg-white/10 text-[9px] font-black text-gray-500 shrink-0">
+                              {optIdx + 1}
+                            </span>
                             <div className="h-10 w-10 bg-gray-100 dark:bg-white/5 rounded-xl overflow-hidden shrink-0">
                               {product.image ? (
                                 <img src={product.image} className="h-full w-full object-cover" alt={product.name} />

@@ -795,6 +795,7 @@ CREATE TABLE IF NOT EXISTS bundle_slot_options (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     slot_id             UUID NOT NULL REFERENCES bundle_slots(id) ON DELETE CASCADE,
     product_id          UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    sort_order          INTEGER NOT NULL DEFAULT 0,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -1927,3 +1928,6 @@ ALTER TABLE bundles
 
 ALTER TABLE categories
   ADD COLUMN IF NOT EXISTS estore_sort_order INTEGER DEFAULT 0;
+
+ALTER TABLE bundle_slot_options
+  ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
