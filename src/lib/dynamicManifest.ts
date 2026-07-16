@@ -45,7 +45,8 @@ export function updateDynamicManifest(opts: {
     categories = ['shopping', 'food', 'lifestyle'];
 
     if (opts.storeLogo) {
-      const cacheBust = opts.updatedAt
+      const isDataUrl = opts.storeLogo.startsWith('data:');
+      const cacheBust = !isDataUrl && opts.updatedAt
         ? '?v=' + (typeof opts.updatedAt === 'object' ? (opts.updatedAt as Date).getTime() : opts.updatedAt)
         : '';
       iconSrc = resolveIconSrc(opts.storeLogo, origin) + cacheBust;

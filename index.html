@@ -107,12 +107,13 @@
           _useTitle = _bizName + ' - Online Store';
 
           if (_storeLogo) {
+            var _isDataUrl = _storeLogo.indexOf('data:') === 0;
             var _cacheBust = '';
-            if (_settings.updatedAt) {
+            if (!_isDataUrl && _settings.updatedAt) {
               var _ts = new Date(_settings.updatedAt).getTime();
               if (!isNaN(_ts)) _cacheBust = '?v=' + _ts;
             }
-            if (_storeLogo.indexOf('//') > -1 || _storeLogo.indexOf('data:') === 0) {
+            if (_isDataUrl || _storeLogo.indexOf('//') > -1) {
               _useIcon = _storeLogo + _cacheBust;
             } else if (_storeLogo.indexOf('/') === 0) {
               _useIcon = window.location.origin + _storeLogo + _cacheBust;
