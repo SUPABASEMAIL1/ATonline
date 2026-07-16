@@ -83,7 +83,9 @@
         }
       }
 
-      // ─── Dynamic PWA Manifest per Tenant (reads business name + logo from cached settings) ───
+      // ─── Dynamic PWA Manifest per Tenant ───
+      // RULE: Only /store route uses saved business name + logo from settings.
+      // POS/admin routes always use hardcoded Zaynahs defaults.
       (function() {
         var _settings = {};
         try { _settings = JSON.parse(localStorage.getItem('pos_settings') || '{}'); } catch(e) {}
@@ -92,75 +94,77 @@
         var _storeLogo = _settings.storeLogo || '';
         var _isStore = window.location.pathname.startsWith('/store');
 
-        // Dynamically update standard title and meta tags
-        var _targetTitle = _isStore ? _bizName : _bizName + ' POS';
+        // ── DEFAULT values (POS/admin) — hardcoded Zaynahs brand ──
+        var _useName = 'Zaynahs POS';
+        var _useShortName = 'Zaynahs';
+        var _useTitle = 'Zaynahs POS';
+        var _useIcon = '/zaynahs-logo.svg';
+
+        // ── STORE overrides — use saved tenant settings ──
         if (_isStore) {
-          document.title = _bizName + ' - Online Store';
-        } else {
-          document.title = _bizName + ' POS';
+          _useName = _bizName;
+          _useShortName = _bizName.length > 12 ? _bizName.substring(0, 10) + '\u2026' : _bizName;
+          _useTitle = _bizName + ' - Online Store';
+
+          if (_storeLogo) {
+            var _cacheBust = '';
+            if (_settings.updatedAt) {
+              var _ts = new Date(_settings.updatedAt).getTime();
+              if (!isNaN(_ts)) _cacheBust = '?v=' + _ts;
+            }
+            if (_storeLogo.indexOf('//') > -1 || _storeLogo.indexOf('data:') === 0) {
+              _useIcon = _storeLogo + _cacheBust;
+            } else if (_storeLogo.indexOf('/') === 0) {
+              _useIcon = window.location.origin + _storeLogo + _cacheBust;
+            } else {
+              _useIcon = window.location.origin + '/' + _storeLogo + _cacheBust;
+            }
+          }
+
+          // Override favicon + apple-touch-icon for store
+          var _appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+          if (_appleIcon) _appleIcon.setAttribute('href', _useIcon);
+          var _favicons = document.querySelectorAll('link[rel*="icon"]');
+          for (var _i = 0; _i < _favicons.length; _i++) {
+            _favicons[_i].setAttribute('href', _useIcon);
+          }
         }
+
+        // Apply title and meta tags
+        document.title = _useTitle;
 
         var _appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
         if (_appleTitleMeta) {
-          _appleTitleMeta.setAttribute('content', _targetTitle);
+          _appleTitleMeta.setAttribute('content', _useShortName);
         } else {
           var _newAppleTitle = document.createElement('meta');
           _newAppleTitle.setAttribute('name', 'apple-mobile-web-app-title');
-          _newAppleTitle.setAttribute('content', _targetTitle);
+          _newAppleTitle.setAttribute('content', _useShortName);
           document.head.appendChild(_newAppleTitle);
         }
         var _appNameMeta = document.querySelector('meta[name="application-name"]');
         if (_appNameMeta) {
-          _appNameMeta.setAttribute('content', _targetTitle);
+          _appNameMeta.setAttribute('content', _useName);
         } else {
           var _newAppName = document.createElement('meta');
           _newAppName.name = 'application-name';
-          _newAppName.content = _targetTitle;
+          _newAppName.content = _useName;
           document.head.appendChild(_newAppName);
         }
 
-        // Store PWA uses custom uploaded logo & favicons
-        if (_isStore && _storeLogo) {
-          var _appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
-          if (_appleIcon) {
-            _appleIcon.setAttribute('href', _storeLogo);
-          }
-
-          var _favicons = document.querySelectorAll('link[rel*="icon"]');
-          for (var _i = 0; _i < _favicons.length; _i++) {
-            _favicons[_i].setAttribute('href', _storeLogo);
-          }
+        // Determine mime type for icon
+        var _iconType = 'image/svg+xml';
+        if (_useIcon.indexOf('data:') === 0) {
+          var _semiIdx = _useIcon.indexOf(';');
+          _iconType = _semiIdx > 5 ? _useIcon.slice(5, _semiIdx) : 'image/png';
+        } else if (_useIcon.indexOf('.svg') === -1) {
+          _iconType = 'image/png';
         }
 
-        // Truncate long business names for short_name (max ~12 chars for iOS home screen)
-        var _truncateShortName = function(_n) {
-          if (!_n || _n.length <= 12) return _n || 'Zaynahs';
-          return _n.substring(0, 10) + '\u2026';
-        };
-        // Generate dynamic manifest JSON (uses store name from settings)
         var _origin = window.location.origin;
-        var _cacheBust = '';
-        if (_settings.updatedAt) {
-          var _ts = new Date(_settings.updatedAt).getTime();
-          if (!isNaN(_ts)) _cacheBust = '?v=' + _ts;
-        }
-        var _resolveIcon = function(_src) {
-          if (_src.indexOf('//') > -1 || _src.indexOf('data:') === 0) return _src + _cacheBust;
-          if (_src.indexOf('/') === 0) return _origin + _src + _cacheBust;
-          return _origin + '/' + _src + _cacheBust;
-        };
-        var _defaultIcon = _origin + '/zaynahs-logo.svg';
-        var _iconSrc = _storeLogo ? _resolveIcon(_storeLogo) : _defaultIcon;
-        var _iconType = 'image/png';
-        if (_storeLogo && _storeLogo.indexOf('data:') === 0) {
-          var _semiIdx = _storeLogo.indexOf(';');
-          _iconType = _semiIdx > 5 ? _storeLogo.slice(5, _semiIdx) : 'image/png';
-        } else if (!_storeLogo || _storeLogo.indexOf('.svg') > -1) {
-          _iconType = 'image/svg+xml';
-        }
         var _manifest = {
-          name: _isStore ? _bizName : _bizName + ' POS',
-          short_name: _truncateShortName(_bizName),
+          name: _useName,
+          short_name: _useShortName,
           description: _isStore ? 'Browse and order items online' : 'Fast, offline-first point-of-sale system',
           start_url: _origin + (_isStore ? '/store' : '/pos'),
           scope: _origin + (_isStore ? '/store' : '/pos'),
@@ -170,8 +174,8 @@
           theme_color: _settings.estoreThemeColor || '#10b981',
           categories: _isStore ? ['shopping','food','lifestyle'] : ['business','finance','productivity'],
           icons: [
-            { src: _iconSrc, sizes: '192x192', type: _iconType, purpose: 'any' },
-            { src: _iconSrc, sizes: '512x512', type: _iconType, purpose: 'maskable' }
+            { src: _useIcon.indexOf('//') > -1 || _useIcon.indexOf('data:') === 0 ? _useIcon : _origin + _useIcon, sizes: '192x192', type: _iconType, purpose: 'any' },
+            { src: _useIcon.indexOf('//') > -1 || _useIcon.indexOf('data:') === 0 ? _useIcon : _origin + _useIcon, sizes: '512x512', type: _iconType, purpose: 'maskable' }
           ]
         };
         var _manifestBlob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });

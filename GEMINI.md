@@ -356,6 +356,7 @@ After update: run `npm run build`, clear browser IndexedDB.
 6. **DATA SAFETY**: Never make changes that could corrupt financial data without explicit confirmation
 7. **🎨 STRICT UI PROTOCOL (MANDATORY)** — Before writing or editing ANY UI code (React components, Tailwind, CSS), you MUST read **[docs/UI_RULES.md](docs/UI_RULES.md)** first. Never introduce new inline styles, hardcoded colors, or one-off components when an existing pattern in docs/UI_RULES.md covers the case.
 8. **🖼️ CENTRALIZED MEDIA SELECTOR & COMPRESSION (MANDATORY)**: All image uploads or selection workflows (products, deals, settings, logo, etc.) MUST route strictly through the centralized `MediaLibrary` component. Direct file upload triggers are banned outside the library. This enforces automatic image compression (WebP, 20-50KB target) via `compressImage` and permits image reuse across the database.
+9. **🎯 BRAND ISOLATION RULE**: Only `/store` route uses saved business name + logo from settings. All other app routes (POS, admin, reports, inventory, etc.) MUST always use hardcoded Zaynahs defaults ("Zaynahs POS" + `/zaynahs-logo.svg`). Files enforcing: `src/lib/dynamicManifest.ts`, `src/App.tsx`, `index.html`. The original gradient-Z SVG at `/zaynahs-logo.svg` is the permanent default and must never be deleted.
 
 ---
 

@@ -59,6 +59,21 @@ See [GEMINI.md](GEMINI.md) sections F1-F8 for complete financial rules:
 
 ---
 
+## 🎯 Brand Isolation Rule
+
+**Only `/store` route uses saved business name + logo from settings.** All other app routes (POS, admin, reports, inventory, etc.) MUST always use hardcoded Zaynahs defaults:
+
+| Route | Name | Logo |
+|-------|------|------|
+| `/store` | Settings `storeName` | Settings `storeLogo` (if uploaded, else `/zaynahs-logo.svg`) |
+| All others (POS, admin, etc.) | `"Zaynahs POS"` | `/zaynahs-logo.svg` (hardcoded) |
+
+- Files enforcing this: `src/lib/dynamicManifest.ts`, `src/App.tsx`, `index.html` inline script
+- `short_name` = first 12 chars of name (with ellipsis if truncated)
+- The original SVG logo at `/zaynahs-logo.svg` (gradient Z) is the permanent default and must never be deleted
+
+---
+
 ## 🗄️ Database Migration Rules
 
 Whenever ANY change to database structure:

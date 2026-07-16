@@ -1,8 +1,3 @@
-function truncateShortName(name: string, max = 12): string {
-  if (!name || name.length <= max) return name || 'Zaynahs';
-  return name.substring(0, max - 1) + '\u2026';
-}
-
 function resolveIconSrc(src: string, origin: string): string {
   if (src.startsWith('http') || src.startsWith('data:')) return src;
   if (src.startsWith('/')) return origin + src;
@@ -29,40 +24,55 @@ export function updateDynamicManifest(opts: {
   updatedAt?: string | number | Date;
 }) {
   const origin = window.location.origin;
-  const name = opts.isStore ? opts.storeName : opts.storeName + ' POS';
-  const shortName = truncateShortName(opts.storeName);
-  const cacheBust = opts.updatedAt
-    ? '?v=' + (typeof opts.updatedAt === 'object' ? (opts.updatedAt as Date).getTime() : opts.updatedAt)
-    : '';
 
-  const defaultIcon = origin + '/zaynahs-logo.svg';
-  const logoUrl = opts.storeLogo ? resolveIconSrc(opts.storeLogo, origin) + cacheBust : defaultIcon;
-  const mimeType = opts.storeLogo ? getMimeType(opts.storeLogo) : 'image/svg+xml';
+  // ── DEFAULT (POS/admin) — hardcoded Zaynahs brand ──
+  let name = 'Zaynahs POS';
+  let shortName = 'Zaynahs';
+  let description = 'Fast, offline-first point-of-sale system';
+  let iconSrc = origin + '/zaynahs-logo.svg';
+  let mimeType = 'image/svg+xml';
+  let bgColor = '#0a0a0a';
+  let orientation: OrientationLockType = 'any';
+  let categories = ['business', 'finance', 'productivity'];
+
+  // ── STORE — use saved tenant settings ──
+  if (opts.isStore) {
+    name = opts.storeName;
+    shortName = opts.storeName;
+    description = 'Browse and order items online from our digital storefront';
+    bgColor = '#f9fafb';
+    orientation = 'portrait';
+    categories = ['shopping', 'food', 'lifestyle'];
+
+    if (opts.storeLogo) {
+      const cacheBust = opts.updatedAt
+        ? '?v=' + (typeof opts.updatedAt === 'object' ? (opts.updatedAt as Date).getTime() : opts.updatedAt)
+        : '';
+      iconSrc = resolveIconSrc(opts.storeLogo, origin) + cacheBust;
+      mimeType = getMimeType(opts.storeLogo);
+    }
+  }
 
   const manifest: Record<string, unknown> = {
     name,
     short_name: shortName,
-    description: opts.isStore
-      ? 'Browse and order items online from our digital storefront'
-      : 'Fast, offline-first point-of-sale system',
+    description,
     start_url: origin + (opts.isStore ? '/store' : '/pos'),
     scope: origin + (opts.isStore ? '/store' : '/pos'),
     display: 'standalone',
-    orientation: opts.isStore ? 'portrait' : 'any',
-    background_color: opts.isStore ? '#f9fafb' : '#0a0a0a',
+    orientation,
+    background_color: bgColor,
     theme_color: opts.themeColor || '#10b981',
-    categories: opts.isStore
-      ? ['shopping', 'food', 'lifestyle']
-      : ['business', 'finance', 'productivity'],
+    categories,
     icons: [
       {
-        src: logoUrl,
+        src: iconSrc,
         sizes: '192x192',
         type: mimeType,
         purpose: 'any',
       },
       {
-        src: logoUrl,
+        src: iconSrc,
         sizes: '512x512',
         type: mimeType,
         purpose: 'maskable',

@@ -169,6 +169,8 @@ function AppContent() {
   }, [location.pathname]);
 
   // Dynamic PWA Manifest Updater
+  // RULE: Only /store route uses saved business name + logo from settings.
+  // POS/admin routes always use hardcoded Zaynahs defaults.
   useEffect(() => {
     if (!state.settings) return;
     const bizName = state.settings.storeName || 'Zaynahs';
@@ -176,22 +178,26 @@ function AppContent() {
     const themeColor = state.settings.estoreThemeColor || '#10b981';
     const isStore = location.pathname.startsWith('/store');
 
-    if (isStore && storeLogo) {
-      const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
-      if (appleIcon) {
-        appleIcon.setAttribute('href', storeLogo);
+    // Default (POS/admin) — hardcoded Zaynahs brand
+    let name = 'Zaynahs POS';
+    let shortName = 'Zaynahs';
+    let title = 'Zaynahs POS';
+
+    // Store — use saved tenant settings
+    if (isStore) {
+      name = bizName;
+      shortName = bizName.length > 12 ? bizName.substring(0, 10) + '\u2026' : bizName;
+      title = bizName + ' - Online Store';
+
+      if (storeLogo) {
+        const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+        if (appleIcon) appleIcon.setAttribute('href', storeLogo);
+        const favicons = document.querySelectorAll('link[rel*="icon"]');
+        favicons.forEach(favicon => favicon.setAttribute('href', storeLogo));
       }
-      const favicons = document.querySelectorAll('link[rel*="icon"]');
-      favicons.forEach(favicon => {
-        favicon.setAttribute('href', storeLogo);
-      });
     }
 
-    if (isStore) {
-      document.title = bizName + ' - Online Store';
-    } else {
-      document.title = bizName + ' POS';
-    }
+    document.title = title;
 
     let appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (!appleTitleMeta) {
@@ -199,7 +205,7 @@ function AppContent() {
       appleTitleMeta.setAttribute('name', 'apple-mobile-web-app-title');
       document.head.appendChild(appleTitleMeta);
     }
-    appleTitleMeta.setAttribute('content', isStore ? bizName : bizName + ' POS');
+    appleTitleMeta.setAttribute('content', shortName);
 
     let appNameMeta = document.querySelector('meta[name="application-name"]');
     if (!appNameMeta) {
@@ -207,7 +213,7 @@ function AppContent() {
       appNameMeta.setAttribute('name', 'application-name');
       document.head.appendChild(appNameMeta);
     }
-    appNameMeta.setAttribute('content', isStore ? bizName : bizName + ' POS');
+    appNameMeta.setAttribute('content', name);
 
     updateDynamicManifest({
       storeName: bizName,
