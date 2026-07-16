@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/currencies';
 import { StoreProductModal } from './StoreProductModal';
 import { StoreDealModal } from './StoreDealModal';
+import { HighlightBadge } from '../common/HighlightBadge';
 import { useScheduleStatus } from '../../hooks/useScheduleStatus';
 
 // ─── Live ticking order timer for StoreFront order history ───
@@ -576,7 +577,10 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                           <span className="text-5xl">🎁</span>
                         )}
 
-                        <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start gap-2">
+                        <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start gap-2 flex-wrap">
+                          {bundle.highlightTag && (
+                            <HighlightBadge tag={bundle.highlightTag} />
+                          )}
                           {bundle.scheduleType === 'scheduled' && (
                             <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-1 rounded-full shadow flex items-center gap-1">
                               <Flame className="h-3 w-3" /> SCHEDULED
@@ -661,6 +665,11 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                   {product.image ? (
                     <div className="w-full pt-[100%] bg-black/5 dark:bg-white/5 relative shrink-0">
                       <img src={product.image} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
+                      {product.highlightTag && (
+                        <div className="absolute top-2 left-2 z-10">
+                          <HighlightBadge tag={product.highlightTag} />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="w-full pt-[100%] bg-gradient-to-br from-gray-100 to-gray-200 relative shrink-0">
@@ -672,7 +681,9 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                   
                   <div className="p-3 sm:p-5 flex-1 flex flex-col">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-1 sm:gap-4">
-                      <h3 className="font-black text-sm sm:text-lg text-[var(--color-text)] leading-tight line-clamp-2">{product.name}</h3>
+                      <h3 className="font-black text-sm sm:text-lg text-[var(--color-text)] leading-tight line-clamp-2">
+                        {product.menuNumber ? <span className="text-primary/60 mr-1">{product.menuNumber}.</span> : ''}{product.name}
+                      </h3>
                       <span className="font-black text-sm sm:text-lg text-primary whitespace-nowrap">
                         {formatCurrency(product.price, settings?.currency)}
                       </span>

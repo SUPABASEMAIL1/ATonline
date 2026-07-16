@@ -41,6 +41,8 @@ export interface Product {
   createdAt: Date;
   updatedAt: Date;
   isFeatured?: boolean;
+  menuNumber?: number;
+  highlightTag?: 'sunday' | 'crown';
   // New fields for advanced features
   isWeightBased?: boolean;
   pricePerUnit?: number; // For weight-based pricing (per kg, per lb, etc.)
@@ -526,15 +528,16 @@ export interface Bundle {
   discountType: 'percentage' | 'fixed';
   active: boolean;
   scheduleType?: ScheduleType;
-  startDate?: string;   // YYYY-MM-DD
-  endDate?: string;     // YYYY-MM-DD
-  repeatDays?: string[]; // ['mon','tue','wed','thu','fri','sat','sun']
-  startTime?: string;   // HH:mm (24h)
-  endTime?: string;     // HH:mm (24h)
+  startDate?: string;
+  endDate?: string;
+  repeatDays?: string[];
+  startTime?: string;
+  endTime?: string;
   hideItemPrices?: boolean;
   isCombo?: boolean;
   items?: BundleItem[];
   slots?: BundleSlot[];
+  highlightTag?: 'sunday' | 'crown';
   estoreSortOrder?: number;
   image?: string;
   createdAt: Date;

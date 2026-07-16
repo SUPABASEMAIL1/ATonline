@@ -417,6 +417,8 @@ CREATE TABLE IF NOT EXISTS products (
     show_in_estore      BOOLEAN DEFAULT true,
     estore_sort_order   INTEGER DEFAULT 0,
     estore_category_sort_order INTEGER DEFAULT 0,
+    menu_number         INTEGER,
+    highlight_tag       TEXT CHECK (highlight_tag IN ('sunday', 'crown')),
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
 
@@ -1931,3 +1933,10 @@ ALTER TABLE categories
 
 ALTER TABLE bundle_slot_options
   ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS menu_number INTEGER,
+  ADD COLUMN IF NOT EXISTS highlight_tag TEXT CHECK (highlight_tag IN ('sunday', 'crown'));
+
+ALTER TABLE bundles
+  ADD COLUMN IF NOT EXISTS highlight_tag TEXT CHECK (highlight_tag IN ('sunday', 'crown'));

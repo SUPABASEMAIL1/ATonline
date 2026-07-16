@@ -104,6 +104,8 @@ export const mapProduct = (item: any): Product => ({
   showInEstore: item.show_in_estore ?? item.showInEstore ?? true,
   estoreSortOrder: item.estore_sort_order ?? item.estoreSortOrder ?? 0,
   estoreCategorySortOrder: item.estore_category_sort_order ?? item.estoreCategorySortOrder ?? 0,
+  menuNumber: item.menu_number ?? item.menuNumber,
+  highlightTag: item.highlight_tag ?? item.highlightTag,
   createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
 });
@@ -552,6 +554,8 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   if ('estoreSortOrder' in p) { remote.estore_sort_order = p.estoreSortOrder; delete remote.estoreSortOrder; }
   if ('estoreCategorySortOrder' in p) { remote.estore_category_sort_order = p.estoreCategorySortOrder; delete remote.estoreCategorySortOrder; }
   if ('variantData' in p) { remote.variant_data = p.variantData; delete remote.variantData; }
+  if ('menuNumber' in p) { remote.menu_number = p.menuNumber; delete remote.menuNumber; }
+  if ('highlightTag' in p) { remote.highlight_tag = p.highlightTag; delete remote.highlightTag; }
   delete remote.batches;
   delete remote.product_batches;
   
@@ -2339,6 +2343,7 @@ export const mapBundle = (row: any): Bundle => ({
     createdAt: bi.created_at ? new Date(bi.created_at) : new Date(),
   })),
   isCombo: row.is_combo === true,
+  highlightTag: row.highlight_tag ?? row.highlightTag,
   slots: (row.bundle_slots || []).map((s: any) => ({
     id: s.id,
     bundleId: s.bundle_id,
@@ -2529,6 +2534,7 @@ export const bundlesService = {
     slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string; sortOrder?: number }[] }[];
     hideItemPrices?: boolean;
     isCombo?: boolean;
+    highlightTag?: 'sunday' | 'crown';
     scheduleType?: 'always' | 'scheduled';
     startDate?: string;
     endDate?: string;
@@ -2706,6 +2712,7 @@ export const bundlesService = {
     isCombo?: boolean;
     estoreSortOrder?: number;
     image?: string;
+    highlightTag?: 'sunday' | 'crown';
     scheduleType?: 'always' | 'scheduled';
     startDate?: string;
     endDate?: string;
@@ -2724,6 +2731,7 @@ export const bundlesService = {
     if (data.active !== undefined) updates.active = data.active;
     if (data.estoreSortOrder !== undefined) updates.estore_sort_order = data.estoreSortOrder;
     if (data.image !== undefined) updates.image = data.image;
+    if (data.highlightTag !== undefined) updates.highlight_tag = data.highlightTag;
     if (data.scheduleType !== undefined) updates.schedule_type = data.scheduleType;
     if (data.startDate !== undefined) updates.start_date = data.startDate || null;
     if (data.endDate !== undefined) updates.end_date = data.endDate || null;
@@ -2742,6 +2750,7 @@ export const bundlesService = {
     if (data.active !== undefined) localUpdates.active = data.active;
     if (data.estoreSortOrder !== undefined) localUpdates.estoreSortOrder = data.estoreSortOrder;
     if (data.image !== undefined) localUpdates.image = data.image;
+    if (data.highlightTag !== undefined) localUpdates.highlightTag = data.highlightTag;
     if (data.scheduleType !== undefined) localUpdates.scheduleType = data.scheduleType;
     if (data.startDate !== undefined) localUpdates.startDate = data.startDate || null;
     if (data.endDate !== undefined) localUpdates.endDate = data.endDate || null;
