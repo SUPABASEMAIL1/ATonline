@@ -164,7 +164,7 @@ const getCachedCurrentUser = (): User | null => {
 
 const getCachedSettings = (): AppState['settings'] => {
   const defaultSettings: AppState['settings'] = {
-    storeName: 'ZaynahsPos',
+    storeName: 'Zaynahs',
     storeAddress: 'Sample Address, City, Country',
     storePhone: '',
     storeEmail: 'zaynahspos@gmail.com',

@@ -59,7 +59,7 @@ const initialState: AppState = {
   currentUser: null,
   selectedCustomer: null,
   settings: {
-    storeName: 'ZaynahsPos',
+    storeName: 'Zaynahs',
     storeAddress: '',
     storePhone: '',
     storeEmail: 'info@zaynahspos.com',

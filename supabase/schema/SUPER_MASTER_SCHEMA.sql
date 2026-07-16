@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
     id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     -- Store Identity
-    store_name                  TEXT DEFAULT 'ZaynahsPos',
+    store_name                  TEXT DEFAULT 'Zaynahs',
     store_address               TEXT,
     store_phone                 TEXT,
     store_email                 TEXT,
@@ -1347,7 +1347,7 @@ INSERT INTO app_settings (
     enable_purchase_orders, po_prefix, po_counter,
     retail_enabled, sound_enabled
 ) VALUES (
-    'ZaynahsPos Store', 'PKR', 0.0000, 'traditional', 'dark',
+    'Zaynahs Store', 'PKR', 0.0000, 'traditional', 'dark',
     'INV', 1000, 'PK', 'general',
     true, false, false,
     '80mm', 'modern', true,
