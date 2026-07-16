@@ -213,6 +213,8 @@ function AppContent() {
       storeName: bizName,
       storeLogo: storeLogo || undefined,
       isStore,
+      themeColor,
+      updatedAt: state.settings.updatedAt,
     });
   }, [state.settings, location.pathname]);
 

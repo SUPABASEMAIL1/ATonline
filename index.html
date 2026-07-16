@@ -2,16 +2,6 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <script>
-      (function(){
-        var p = window.location.pathname;
-        var m = p.startsWith('/store') ? '/manifest.json' : '/admin-manifest.json';
-        var l = document.createElement('link');
-        l.rel = 'manifest';
-        l.href = m;
-        document.head.appendChild(l);
-      })();
-    </script>
     <link rel="icon" type="image/svg+xml" href="/zaynahs-logo.svg" />
     <link rel="apple-touch-icon" href="/zaynahs-logo.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -113,6 +103,11 @@
         var _appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
         if (_appleTitleMeta) {
           _appleTitleMeta.setAttribute('content', _targetTitle);
+        } else {
+          var _newAppleTitle = document.createElement('meta');
+          _newAppleTitle.setAttribute('name', 'apple-mobile-web-app-title');
+          _newAppleTitle.setAttribute('content', _targetTitle);
+          document.head.appendChild(_newAppleTitle);
         }
         var _appNameMeta = document.querySelector('meta[name="application-name"]');
         if (_appNameMeta) {
@@ -137,20 +132,47 @@
           }
         }
 
+        // Truncate long business names for short_name (max ~12 chars for iOS home screen)
+        var _truncateShortName = function(_n) {
+          if (!_n || _n.length <= 12) return _n || 'Zaynahs';
+          return _n.substring(0, 10) + '\u2026';
+        };
         // Generate dynamic manifest JSON (uses store name from settings)
         var _origin = window.location.origin;
+        var _cacheBust = '';
+        if (_settings.updatedAt) {
+          var _ts = new Date(_settings.updatedAt).getTime();
+          if (!isNaN(_ts)) _cacheBust = '?v=' + _ts;
+        }
+        var _resolveIcon = function(_src) {
+          if (_src.indexOf('//') > -1 || _src.indexOf('data:') === 0) return _src + _cacheBust;
+          if (_src.indexOf('/') === 0) return _origin + _src + _cacheBust;
+          return _origin + '/' + _src + _cacheBust;
+        };
+        var _defaultIcon = _origin + '/zaynahs-logo.svg';
+        var _iconSrc = _storeLogo ? _resolveIcon(_storeLogo) : _defaultIcon;
+        var _iconType = 'image/png';
+        if (_storeLogo && _storeLogo.indexOf('data:') === 0) {
+          var _semiIdx = _storeLogo.indexOf(';');
+          _iconType = _semiIdx > 5 ? _storeLogo.slice(5, _semiIdx) : 'image/png';
+        } else if (!_storeLogo || _storeLogo.indexOf('.svg') > -1) {
+          _iconType = 'image/svg+xml';
+        }
         var _manifest = {
           name: _isStore ? _bizName : _bizName + ' POS',
-          short_name: _bizName,
+          short_name: _truncateShortName(_bizName),
           description: _isStore ? 'Browse and order items online' : 'Fast, offline-first point-of-sale system',
           start_url: _origin + (_isStore ? '/store' : '/pos'),
           scope: _origin + (_isStore ? '/store' : '/pos'),
           display: 'standalone',
           orientation: _isStore ? 'portrait' : 'any',
           background_color: _isStore ? '#f9fafb' : '#0a0a0a',
-          theme_color: '#10b981',
+          theme_color: _settings.estoreThemeColor || '#10b981',
           categories: _isStore ? ['shopping','food','lifestyle'] : ['business','finance','productivity'],
-          icons: [{ src: _storeLogo ? (_storeLogo.indexOf('//') > -1 ? _storeLogo : _origin + _storeLogo) : _origin + '/zaynahs-logo.svg', sizes: 'any', type: 'image/svg+xml' }]
+          icons: [
+            { src: _iconSrc, sizes: '192x192', type: _iconType, purpose: 'any' },
+            { src: _iconSrc, sizes: '512x512', type: _iconType, purpose: 'maskable' }
+          ]
         };
         var _manifestBlob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });
         var _manifestUrl = URL.createObjectURL(_manifestBlob);

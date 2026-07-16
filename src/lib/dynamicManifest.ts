@@ -1,11 +1,43 @@
+function truncateShortName(name: string, max = 12): string {
+  if (!name || name.length <= max) return name || 'Zaynahs';
+  return name.substring(0, max - 1) + '\u2026';
+}
+
+function resolveIconSrc(src: string, origin: string): string {
+  if (src.startsWith('http') || src.startsWith('data:')) return src;
+  if (src.startsWith('/')) return origin + src;
+  return origin + '/' + src;
+}
+
+function getMimeType(src: string): string {
+  if (src.startsWith('data:')) {
+    const semiIndex = src.indexOf(';');
+    if (semiIndex > 5) return src.slice(5, semiIndex);
+    return 'image/png';
+  }
+  if (src.endsWith('.svg')) return 'image/svg+xml';
+  if (src.endsWith('.webp')) return 'image/webp';
+  if (src.endsWith('.png')) return 'image/png';
+  return 'image/png';
+}
+
 export function updateDynamicManifest(opts: {
   storeName: string;
   storeLogo?: string;
   isStore?: boolean;
+  themeColor?: string;
+  updatedAt?: string | number | Date;
 }) {
   const origin = window.location.origin;
   const name = opts.isStore ? opts.storeName : opts.storeName + ' POS';
-  const shortName = opts.storeName;
+  const shortName = truncateShortName(opts.storeName);
+  const cacheBust = opts.updatedAt
+    ? '?v=' + (typeof opts.updatedAt === 'object' ? (opts.updatedAt as Date).getTime() : opts.updatedAt)
+    : '';
+
+  const defaultIcon = origin + '/zaynahs-logo.svg';
+  const logoUrl = opts.storeLogo ? resolveIconSrc(opts.storeLogo, origin) + cacheBust : defaultIcon;
+  const mimeType = opts.storeLogo ? getMimeType(opts.storeLogo) : 'image/svg+xml';
 
   const manifest: Record<string, unknown> = {
     name,
@@ -18,17 +50,22 @@ export function updateDynamicManifest(opts: {
     display: 'standalone',
     orientation: opts.isStore ? 'portrait' : 'any',
     background_color: opts.isStore ? '#f9fafb' : '#0a0a0a',
-    theme_color: '#10b981',
+    theme_color: opts.themeColor || '#10b981',
     categories: opts.isStore
       ? ['shopping', 'food', 'lifestyle']
       : ['business', 'finance', 'productivity'],
     icons: [
       {
-        src: opts.storeLogo
-          ? (opts.storeLogo.startsWith('http') ? opts.storeLogo : origin + opts.storeLogo)
-          : origin + '/zaynahs-logo.svg',
-        sizes: 'any',
-        type: 'image/svg+xml',
+        src: logoUrl,
+        sizes: '192x192',
+        type: mimeType,
+        purpose: 'any',
+      },
+      {
+        src: logoUrl,
+        sizes: '512x512',
+        type: mimeType,
+        purpose: 'maskable',
       },
     ],
   };

@@ -198,6 +198,8 @@ export function EStoreApp() {
       storeName: bizName,
       storeLogo: storeLogo || undefined,
       isStore: true,
+      themeColor,
+      updatedAt: settings.updatedAt,
     });
   }, [settings]);
 
