@@ -176,6 +176,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
             <div className="space-y-4">
               {(order.items || []).map((item: any, idx: number) => (
                 <div key={idx} className="flex gap-4 items-center p-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{idx + 1}</span>
                   <div className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-white dark:bg-black/50 flex items-center justify-center border border-black/10 dark:border-white/10">
                     {item.product?.image ? (
                       <img src={item.product.image} alt={item.product?.name || item.name} className="w-full h-full object-cover" />
@@ -196,6 +197,15 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
                         {item.selectedModifiers.map((m: any, mIdx: number) => (
                           <span key={mIdx} className="text-[9px] bg-black/10 dark:bg-white/10 text-[var(--color-text)] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
                             + {m.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {item.toppings && item.toppings.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {item.toppings.map((t: any, tIdx: number) => (
+                          <span key={tIdx} className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                            + {t.name}
                           </span>
                         ))}
                       </div>

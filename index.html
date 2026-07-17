@@ -1,214 +1,218 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/zaynahs-logo.svg" />
-    <link rel="apple-touch-icon" href="/zaynahs-logo.svg">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#10b981" />
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Zaynahs POS</title>
-    <meta name="description" content="Zaynahs POS - A modern point of sale system" />
-    <meta name="robots" content="index, follow" />
-    
-    <meta property="og:title" content="Zaynahs POS" />
-    <meta property="og:description" content="A modern point of sale system for retail and e-commerce." />
-    <meta property="og:image" content="/zaynahs-logo.svg" />
-    <meta property="og:url" content="https://zaynahspos.com" />
-    <meta property="og:type" content="website" />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Zaynahs POS" />
-    <meta name="twitter:description" content="A modern point of sale system for retail and e-commerce." />
-    <meta name="twitter:image" content="/zaynahs-logo.svg" />
-    <meta name="twitter:site" content="@zaynahs_pos" />
-    <meta name="twitter:creator" content="@iamchandira" />
-    <script>
-      // Apply theme immediately to prevent flashing
-      var _theme = localStorage.getItem('theme') || 'dark'; // Always default to dark
-      var _isDark = _theme !== 'light';
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/zaynahs-logo.svg" />
+  <link rel="apple-touch-icon" href="/zaynahs-logo.svg">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#10b981" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Zaynahs POS</title>
+  <meta name="description" content="Zaynahs POS - A modern point of sale system" />
+  <meta name="robots" content="index, follow" />
 
-      // ─── Apply background color IMMEDIATELY (before CSS loads) ───
-      // This is the root cause fix for iOS PWA black screen on launch/refresh.
-      // We must set the background on both html AND body inline so the browser
-      // paints the correct color before any stylesheet or JS executes.
-      var _bgColor = _isDark ? '#0a0a0a' : '#ffffff';
-      var _textColor = _isDark ? '#f3f4f6' : '#111827';
-      document.documentElement.style.backgroundColor = _bgColor;
-      document.documentElement.style.color = _textColor;
-      document.documentElement.style.colorScheme = _isDark ? 'dark' : 'light';
+  <meta property="og:title" content="Zaynahs POS" />
+  <meta property="og:description" content="A modern point of sale system for retail and e-commerce." />
+  <meta property="og:image" content="/zaynahs-logo.svg" />
+  <meta property="og:url" content="https://zaynahspos.com" />
+  <meta property="og:type" content="website" />
 
-      if (_isDark) {
-        document.documentElement.classList.add('dark');
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Zaynahs POS" />
+  <meta name="twitter:description" content="A modern point of sale system for retail and e-commerce." />
+  <meta name="twitter:image" content="/zaynahs-logo.svg" />
+  <meta name="twitter:site" content="@zaynahs_pos" />
+  <meta name="twitter:creator" content="@iamchandira" />
+  <script>
+    // Apply theme immediately to prevent flashing
+    var _theme = localStorage.getItem('theme') || 'dark'; // Always default to dark
+    var _isDark = _theme !== 'light';
+
+    // ─── Apply background color IMMEDIATELY (before CSS loads) ───
+    // This is the root cause fix for iOS PWA black screen on launch/refresh.
+    // We must set the background on both html AND body inline so the browser
+    // paints the correct color before any stylesheet or JS executes.
+    var _bgColor = _isDark ? '#0a0a0a' : '#ffffff';
+    var _textColor = _isDark ? '#f3f4f6' : '#111827';
+    document.documentElement.style.backgroundColor = _bgColor;
+    document.documentElement.style.color = _textColor;
+    document.documentElement.style.colorScheme = _isDark ? 'dark' : 'light';
+
+    if (_isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    // ─── Sync PWA status bar color ───
+    // Must happen synchronously before DOMContentLoaded on iOS.
+    var _metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (_metaThemeColor) {
+      _metaThemeColor.setAttribute('content', _isDark ? '#0a0a0a' : '#ffffff');
+    }
+    var _appleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (_appleStatus) {
+      _appleStatus.setAttribute('content', _isDark ? 'black-translucent' : 'default');
+    }
+
+    // Also apply to body once available (covers PWA splash to first paint gap)
+    document.addEventListener('DOMContentLoaded', function () {
+      document.body.style.backgroundColor = _bgColor;
+      document.body.style.color = _textColor;
+    });
+
+    // Unregister any active service worker in local development mode to prevent cached stale builds
+    if (
+      location.hostname === 'localhost' ||
+      location.hostname === '127.0.0.1' ||
+      location.hostname.startsWith('192.168.') ||
+      location.hostname.startsWith('10.') ||
+      location.port !== ''
+    ) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister().then(function (success) {
+              if (success) {
+                console.log('[DEV] Unregistered stale service worker');
+              }
+            });
+          }
+        });
+      }
+    }
+
+    // ─── Dynamic PWA Manifest per Tenant ───
+    // RULE: Only /store route uses saved business name + logo from settings.
+    // POS/admin routes always use hardcoded Zaynahs defaults.
+    (function () {
+      var _settings = {};
+      try { _settings = JSON.parse(localStorage.getItem('pos_settings') || '{}'); } catch (e) { }
+
+      var _bizName = _settings.storeName || 'Zaynahs';
+      var _storeLogo = _settings.storeLogo || '';
+      var _isStore = window.location.pathname.startsWith('/store');
+
+      // ── DEFAULT values (POS/admin) — hardcoded Zaynahs brand ──
+      var _useName = 'Zaynahs POS';
+      var _useShortName = 'Zaynahs';
+      var _useTitle = 'Zaynahs POS';
+      var _useIcon = '/zaynahs-logo.svg';
+
+      // ── STORE overrides — use saved tenant settings ──
+      if (_isStore) {
+        _useName = _bizName;
+        _useShortName = _bizName.length > 12 ? _bizName.substring(0, 10) + '\u2026' : _bizName;
+        _useTitle = _bizName + ' - Online Store';
+
+        if (_storeLogo) {
+          var _isDataUrl = _storeLogo.indexOf('data:') === 0;
+          var _cacheBust = '';
+          if (!_isDataUrl && _settings.updatedAt) {
+            var _ts = new Date(_settings.updatedAt).getTime();
+            if (!isNaN(_ts)) _cacheBust = '?v=' + _ts;
+          }
+          if (_isDataUrl || _storeLogo.indexOf('//') > -1) {
+            _useIcon = _storeLogo + _cacheBust;
+          } else if (_storeLogo.indexOf('/') === 0) {
+            _useIcon = window.location.origin + _storeLogo + _cacheBust;
+          } else {
+            _useIcon = window.location.origin + '/' + _storeLogo + _cacheBust;
+          }
+        }
+
+        // Override favicon + apple-touch-icon for store
+        var _appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+        if (_appleIcon) _appleIcon.setAttribute('href', _useIcon);
+        var _favicons = document.querySelectorAll('link[rel*="icon"]');
+        for (var _i = 0; _i < _favicons.length; _i++) {
+          _favicons[_i].setAttribute('href', _useIcon);
+        }
+      }
+
+      // Apply title and meta tags
+      document.title = _useTitle;
+
+      var _appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+      if (_appleTitleMeta) {
+        _appleTitleMeta.setAttribute('content', _useShortName);
       } else {
-        document.documentElement.classList.remove('dark');
+        var _newAppleTitle = document.createElement('meta');
+        _newAppleTitle.setAttribute('name', 'apple-mobile-web-app-title');
+        _newAppleTitle.setAttribute('content', _useShortName);
+        document.head.appendChild(_newAppleTitle);
+      }
+      var _appNameMeta = document.querySelector('meta[name="application-name"]');
+      if (_appNameMeta) {
+        _appNameMeta.setAttribute('content', _useName);
+      } else {
+        var _newAppName = document.createElement('meta');
+        _newAppName.name = 'application-name';
+        _newAppName.content = _useName;
+        document.head.appendChild(_newAppName);
       }
 
-      // ─── Sync PWA status bar color ───
-      // Must happen synchronously before DOMContentLoaded on iOS.
-      var _metaThemeColor = document.querySelector('meta[name="theme-color"]');
-      if (_metaThemeColor) {
-        _metaThemeColor.setAttribute('content', _isDark ? '#0a0a0a' : '#ffffff');
-      }
-      var _appleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-      if (_appleStatus) {
-        _appleStatus.setAttribute('content', _isDark ? 'black-translucent' : 'default');
+      // Determine mime type for icon
+      var _iconType = 'image/svg+xml';
+      if (_useIcon.indexOf('data:') === 0) {
+        var _semiIdx = _useIcon.indexOf(';');
+        _iconType = _semiIdx > 5 ? _useIcon.slice(5, _semiIdx) : 'image/png';
+      } else if (_useIcon.indexOf('.svg') === -1) {
+        _iconType = 'image/png';
       }
 
-      // Also apply to body once available (covers PWA splash to first paint gap)
-      document.addEventListener('DOMContentLoaded', function() {
-        document.body.style.backgroundColor = _bgColor;
-        document.body.style.color = _textColor;
-      });
-
-      // Unregister any active service worker in local development mode to prevent cached stale builds
-      if (
-        location.hostname === 'localhost' || 
-        location.hostname === '127.0.0.1' || 
-        location.hostname.startsWith('192.168.') || 
-        location.hostname.startsWith('10.') || 
-        location.port !== ''
-      ) {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            for (var i = 0; i < registrations.length; i++) {
-              registrations[i].unregister().then(function(success) {
-                if (success) {
-                  console.log('[DEV] Unregistered stale service worker');
-                }
-              });
-            }
-          });
-        }
+      var _origin = window.location.origin;
+      var _manifest = {
+        name: _useName,
+        short_name: _useShortName,
+        description: _isStore ? 'Browse and order items online' : 'Fast, offline-first point-of-sale system',
+        start_url: _origin + (_isStore ? '/store' : '/pos'),
+        scope: _origin + (_isStore ? '/store' : '/pos'),
+        display: 'standalone',
+        orientation: _isStore ? 'portrait' : 'any',
+        background_color: _isStore ? '#f9fafb' : '#0a0a0a',
+        theme_color: _settings.estoreThemeColor || '#10b981',
+        categories: _isStore ? ['shopping', 'food', 'lifestyle'] : ['business', 'finance', 'productivity'],
+        icons: [
+          { src: _useIcon.indexOf('//') > -1 || _useIcon.indexOf('data:') === 0 ? _useIcon : _origin + _useIcon, sizes: '192x192', type: _iconType, purpose: 'any' },
+          { src: _useIcon.indexOf('//') > -1 || _useIcon.indexOf('data:') === 0 ? _useIcon : _origin + _useIcon, sizes: '512x512', type: _iconType, purpose: 'maskable' }
+        ]
+      };
+      var _manifestBlob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });
+      var _manifestUrl = URL.createObjectURL(_manifestBlob);
+      var _manifestLink = document.querySelector('link[rel="manifest"]');
+      if (_manifestLink) {
+        _manifestLink.setAttribute('href', _manifestUrl);
+      } else {
+        var _newLink = document.createElement('link');
+        _newLink.rel = 'manifest';
+        _newLink.href = _manifestUrl;
+        document.head.appendChild(_newLink);
       }
 
-      // ─── Dynamic PWA Manifest per Tenant ───
-      // RULE: Only /store route uses saved business name + logo from settings.
-      // POS/admin routes always use hardcoded Zaynahs defaults.
-      (function() {
-        var _settings = {};
-        try { _settings = JSON.parse(localStorage.getItem('pos_settings') || '{}'); } catch(e) {}
-        
-        var _bizName = _settings.storeName || 'Zaynahs';
-        var _storeLogo = _settings.storeLogo || '';
-        var _isStore = window.location.pathname.startsWith('/store');
-
-        // ── DEFAULT values (POS/admin) — hardcoded Zaynahs brand ──
-        var _useName = 'Zaynahs POS';
-        var _useShortName = 'Zaynahs';
-        var _useTitle = 'Zaynahs POS';
-        var _useIcon = '/zaynahs-logo.svg';
-
-        // ── STORE overrides — use saved tenant settings ──
-        if (_isStore) {
-          _useName = _bizName;
-          _useShortName = _bizName.length > 12 ? _bizName.substring(0, 10) + '\u2026' : _bizName;
-          _useTitle = _bizName + ' - Online Store';
-
-          if (_storeLogo) {
-            var _isDataUrl = _storeLogo.indexOf('data:') === 0;
-            var _cacheBust = '';
-            if (!_isDataUrl && _settings.updatedAt) {
-              var _ts = new Date(_settings.updatedAt).getTime();
-              if (!isNaN(_ts)) _cacheBust = '?v=' + _ts;
-            }
-            if (_isDataUrl || _storeLogo.indexOf('//') > -1) {
-              _useIcon = _storeLogo + _cacheBust;
-            } else if (_storeLogo.indexOf('/') === 0) {
-              _useIcon = window.location.origin + _storeLogo + _cacheBust;
-            } else {
-              _useIcon = window.location.origin + '/' + _storeLogo + _cacheBust;
-            }
+      // Service Worker registration & force unregister of old caching service workers
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister();
           }
+        }).then(function () {
+          // Register our clean self-destruct service worker to satisfy PWA criteria
+          return navigator.serviceWorker.register('/sw.js');
+        }).catch(function (e) {
+          console.error('Service Worker sync failed:', e);
+        });
+      }
+    })();
+  </script>
+</head>
 
-          // Override favicon + apple-touch-icon for store
-          var _appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
-          if (_appleIcon) _appleIcon.setAttribute('href', _useIcon);
-          var _favicons = document.querySelectorAll('link[rel*="icon"]');
-          for (var _i = 0; _i < _favicons.length; _i++) {
-            _favicons[_i].setAttribute('href', _useIcon);
-          }
-        }
+<body>
+  <div id="root"></div>
+  <script type="module" src="src/main.tsx"></script>
+</body>
 
-        // Apply title and meta tags
-        document.title = _useTitle;
-
-        var _appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-        if (_appleTitleMeta) {
-          _appleTitleMeta.setAttribute('content', _useShortName);
-        } else {
-          var _newAppleTitle = document.createElement('meta');
-          _newAppleTitle.setAttribute('name', 'apple-mobile-web-app-title');
-          _newAppleTitle.setAttribute('content', _useShortName);
-          document.head.appendChild(_newAppleTitle);
-        }
-        var _appNameMeta = document.querySelector('meta[name="application-name"]');
-        if (_appNameMeta) {
-          _appNameMeta.setAttribute('content', _useName);
-        } else {
-          var _newAppName = document.createElement('meta');
-          _newAppName.name = 'application-name';
-          _newAppName.content = _useName;
-          document.head.appendChild(_newAppName);
-        }
-
-        // Determine mime type for icon
-        var _iconType = 'image/svg+xml';
-        if (_useIcon.indexOf('data:') === 0) {
-          var _semiIdx = _useIcon.indexOf(';');
-          _iconType = _semiIdx > 5 ? _useIcon.slice(5, _semiIdx) : 'image/png';
-        } else if (_useIcon.indexOf('.svg') === -1) {
-          _iconType = 'image/png';
-        }
-
-        var _origin = window.location.origin;
-        var _manifest = {
-          name: _useName,
-          short_name: _useShortName,
-          description: _isStore ? 'Browse and order items online' : 'Fast, offline-first point-of-sale system',
-          start_url: _origin + (_isStore ? '/store' : '/pos'),
-          scope: _origin + (_isStore ? '/store' : '/pos'),
-          display: 'standalone',
-          orientation: _isStore ? 'portrait' : 'any',
-          background_color: _isStore ? '#f9fafb' : '#0a0a0a',
-          theme_color: _settings.estoreThemeColor || '#10b981',
-          categories: _isStore ? ['shopping','food','lifestyle'] : ['business','finance','productivity'],
-          icons: [
-            { src: _useIcon.indexOf('//') > -1 || _useIcon.indexOf('data:') === 0 ? _useIcon : _origin + _useIcon, sizes: '192x192', type: _iconType, purpose: 'any' },
-            { src: _useIcon.indexOf('//') > -1 || _useIcon.indexOf('data:') === 0 ? _useIcon : _origin + _useIcon, sizes: '512x512', type: _iconType, purpose: 'maskable' }
-          ]
-        };
-        var _manifestBlob = new Blob([JSON.stringify(_manifest)], { type: 'application/json' });
-        var _manifestUrl = URL.createObjectURL(_manifestBlob);
-        var _manifestLink = document.querySelector('link[rel="manifest"]');
-        if (_manifestLink) {
-          _manifestLink.setAttribute('href', _manifestUrl);
-        } else {
-          var _newLink = document.createElement('link');
-          _newLink.rel = 'manifest';
-          _newLink.href = _manifestUrl;
-          document.head.appendChild(_newLink);
-        }
-
-        // Service Worker registration & force unregister of old caching service workers
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            for (var i = 0; i < registrations.length; i++) {
-              registrations[i].unregister();
-            }
-          }).then(function() {
-            // Register our clean self-destruct service worker to satisfy PWA criteria
-            return navigator.serviceWorker.register('/sw.js');
-          }).catch(function(e) {
-            console.error('Service Worker sync failed:', e);
-          });
-        }
-      })();
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="src/main.tsx"></script>
-  </body>
 </html>

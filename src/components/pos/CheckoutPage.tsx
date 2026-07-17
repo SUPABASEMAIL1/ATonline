@@ -694,6 +694,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 const bundlesMap = new Map<string, {
                   bundleId: string;
                   bundleName: string;
+                  bundleImage?: string;
                   items: CartItem[];
                   totalOriginal: number;
                   totalDiscount: number;
@@ -726,6 +727,11 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                   }
                 });
 
+                bundlesMap.forEach((b) => {
+                  const bundleDef = state.bundles?.find((x: any) => x.id === b.bundleId);
+                  if (bundleDef?.image) b.bundleImage = bundleDef.image;
+                });
+
                 return {
                   bundles: Array.from(bundlesMap.values()),
                   standaloneItems
@@ -734,14 +740,16 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
               const { bundles, standaloneItems } = groupCartItems(checkoutCartItems);
 
-              const renderItemCard = (item: CartItem, iIdx: number, isNested = false) => {
-                const hidePrices = isNested && item.bundleHideItemPrices === true;
-                return (
-                  <div key={iIdx} className={cn(
-                    "flex items-start gap-2.5 p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/5",
-                    isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
-                  )}>
-                    <div className="h-9 w-9 rounded-lg bg-white dark:bg-surface border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 mt-0.5 aspect-square">
+                      let itemNumber = 0;
+                      const renderItemCard = (item: CartItem, iIdx: number, isNested = false) => {
+                        const hidePrices = isNested && item.bundleHideItemPrices === true;
+                        return (
+                          <div key={iIdx} className={cn(
+                            "flex items-start gap-2.5 p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/5",
+                            isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
+                          )}>
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0 mt-0.5">{iIdx}</span>
+                            <div className="h-9 w-9 rounded-lg bg-white dark:bg-surface border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 mt-0.5 aspect-square">
                       {item.product.image ? (
                         <img src={item.product.image} className="h-full w-full object-cover" />
                       ) : (
@@ -750,25 +758,34 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-black uppercase text-gray-900 dark:text-white truncate leading-none">{item.product.name}</p>
-                      {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
-                        <div className="flex flex-col gap-0.5 my-1">
-                          {item.selectedVariant && (
-                            <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
-                              {item.selectedVariant}
-                            </span>
+                          {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
+                            <div className="flex flex-col gap-0.5 my-1">
+                              {item.selectedVariant && (
+                                <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
+                                  {item.selectedVariant}
+                                </span>
+                              )}
+                              {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                <span className="text-[8px] font-bold text-primary dark:text-primary leading-tight truncate">
+                                  + {item.selectedModifiers.map(m => m.name).join(', ')}
+                                </span>
+                              )}
+                            </div>
                           )}
-                          {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                            <span className="text-[8px] font-bold text-primary dark:text-primary leading-tight truncate">
-                              + {item.selectedModifiers.map(m => m.name).join(', ')}
-                            </span>
+                          {item.toppings && item.toppings.length > 0 && (
+                            <div className="my-1">
+                              <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                                + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                              </span>
+                            </div>
                           )}
                           {item.serialNumber && (
-                            <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
-                              SN: {item.serialNumber}
-                            </span>
+                            <div className="my-1">
+                              <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
+                                SN: {item.serialNumber}
+                              </span>
+                            </div>
                           )}
-                        </div>
-                      )}
                       {!hidePrices && (
                         <div className="flex items-center justify-between mt-0.5">
                           <p className="text-[8px] text-gray-600 font-bold">
@@ -814,7 +831,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 </div>
               ) : null;
 
-              const bundleThumb = (b: typeof bundles[number]) => b.items[0]?.product?.image || null;
+              const bundleThumb = (b: typeof bundles[number]) => b.bundleImage || b.items[0]?.product?.image || null;
 
               const renderedBundles = bundles.map((b) => {
                 const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
@@ -827,10 +844,19 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                       discount={discountStr}
                     />
                     <div className="mt-2 pl-8 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
-                      {b.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
-                          <span>{Math.abs(item.quantity)} × {item.product.name}</span>
-                          {item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
+                      {b.items.map((item) => (
+                        <div key={++itemNumber} className="flex flex-col text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
+                          <div className="flex justify-between items-center">
+                            <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{itemNumber}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
+                            <div className="flex items-center gap-1 shrink-0 ml-2">
+                              {item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
+                            </div>
+                          </div>
+                          {item.toppings && item.toppings.length > 0 && (
+                            <div className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight mt-0.5 normal-case">
+                              + {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -838,7 +864,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 );
               });
 
-              const renderedStandalones = standaloneItems.map((item, iIdx) => renderItemCard(item, iIdx));
+              const renderedStandalones = standaloneItems.map((item) => renderItemCard(item, ++itemNumber));
 
               return (
                 <>

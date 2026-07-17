@@ -19,7 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product, PurchaseRecord, Sale } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
-import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProductBatch, toRemoteProduct } from '../../lib/services';
+import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProductBatch, toRemoteProduct, productToppingsService } from '../../lib/services';
 import { localDb, queueOp } from '../../lib/localDb';
 import { calculateFIFOSplit } from '../../lib/inventoryUtils';
 import { compressImage } from '../../lib/imageCompression';
@@ -28,6 +28,7 @@ import { BatchStockInSystem } from './BatchStockInSystem';
 import { generateBarcodeValue } from '../../utils/barcode';
 import { BarcodePreview } from '../common/BarcodePreview';
 import { MediaLibrary } from './MediaLibrary';
+import ToppingAssignmentPanel from '../common/ToppingAssignmentPanel';
 
 interface ProductDetailHubProps {
   product: Product;
@@ -82,6 +83,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   const [batches, setBatches] = useState(product.batches || []);
   const [variants, setVariants] = useState<any[]>((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
   const [modifiers, setModifiers] = useState<any[]>(product.modifiers || []);
+  const [toppingIds, setToppingIds] = useState<string[]>([]);
+  const [toppingLoading, setToppingLoading] = useState(false);
 
   // Sync state if product prop changes
   useEffect(() => {
@@ -108,6 +111,15 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     setVariants((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
     setModifiers(product.modifiers || []);
   }, [product]);
+
+  // Load topping assignments
+  useEffect(() => {
+    setToppingLoading(true);
+    productToppingsService.getByProduct(product.id)
+      .then(setToppingIds)
+      .catch(() => setToppingIds([]))
+      .finally(() => setToppingLoading(false));
+  }, [product.id]);
 
   const categories = useMemo(() => {
     const cats = state.products.map(p => p.category).filter(Boolean);
@@ -397,6 +409,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       }
 
       const saved = await productsService.update(product.id, updatedProduct);
+      await productToppingsService.setByProduct(product.id, toppingIds);
       dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
       sonner.success(t('product_updated_success', 'Product updated successfully'));
       setIsEditMode(false);
@@ -1337,6 +1350,20 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 </div>
               </div>
             </div>
+
+            {/* Card 5: Toppings (Col span 8) */}
+            {isEditMode && (
+            <div className="lg:col-span-8 bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-primary/10 text-primary rounded-[1.5rem]"><Plus className="w-6 h-6" /></div>
+                <div>
+                  <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">Extra Toppings</h3>
+                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Enable extra toppings available for this product</p>
+                </div>
+              </div>
+              <ToppingAssignmentPanel selectedIds={toppingIds} onChange={setToppingIds} loading={toppingLoading} />
+            </div>
+            )}
 
             {/* Card 4: Batches (Col span 4) */}
             <div className="lg:col-span-4 bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col h-fit">

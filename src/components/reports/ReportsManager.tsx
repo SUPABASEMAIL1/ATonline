@@ -357,7 +357,7 @@ export function ReportsManager() {
     if (reportType === 'sales') {
       const soldCategories = new Set<string>();
       reportSales.forEach(sale => {
-        sale.items.forEach(item => {
+        sale.items?.forEach(item => {
           if (item.product?.category) soldCategories.add(item.product.category);
         });
       });
@@ -379,7 +379,7 @@ export function ReportsManager() {
   const filteredSales = useMemo(() => {
     const allSales = [...reportSales, ...reportRefunds];
     return allSales.filter(sale => {
-      if (!sale || isDraftSale(sale)) return false;
+      if (!sale || !sale.items || isDraftSale(sale)) return false;
 
       if (selectedSupplier !== 'All') {
         const hasSupplier = sale.items.some(item => item.product?.supplier === selectedSupplier);

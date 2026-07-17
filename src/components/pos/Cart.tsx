@@ -45,11 +45,13 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
   const updateQuantity = (index: number, newQuantity: number) => {
     const item = state.cart[index];
     const price = item.product.price;
+    const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
+    const effectivePrice = price + toppingsTotal;
     
     let updatedDiscount = item.discount || 0;
     if (item.discountValue && item.discountValue > 0) {
       if (item.discountType === 'percentage') {
-        updatedDiscount = (price * newQuantity * item.discountValue) / 100;
+        updatedDiscount = (effectivePrice * newQuantity * item.discountValue) / 100;
       } else {
         updatedDiscount = Math.sign(newQuantity) * item.discountValue;
       }
@@ -66,7 +68,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
           ...item,
           quantity: newQuantity,
           discount: updatedDiscount,
-          subtotal: price * newQuantity - updatedDiscount,
+          subtotal: effectivePrice * newQuantity - updatedDiscount,
         },
       },
     });
@@ -115,11 +117,12 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
         if (baseItem) {
           const qty = baseItem.quantity * newBundleQty;
           const discount = (baseItem.discount || 0) * newBundleQty;
+          const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
           return {
             ...item,
             quantity: qty,
             discount: discount,
-            subtotal: item.product.price * qty - discount
+            subtotal: (item.product.price + toppingsTotal) * qty - discount
           };
         }
       }
@@ -134,9 +137,11 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
   const applyDiscount = (index: number, discount: number, discountType: 'percentage' | 'fixed') => {
     const item = state.cart[index];
     const price = item.product.price;
+    const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
+    const effectivePrice = price + toppingsTotal;
     const discountAmount =
       discountType === 'percentage'
-        ? (price * item.quantity * discount) / 100
+        ? (effectivePrice * item.quantity * discount) / 100
         : Math.sign(item.quantity) * discount;
     dispatch({
       type: 'UPDATE_CART_ITEM',
@@ -147,7 +152,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
           discount: discountAmount,
           discountValue: discount,
           discountType,
-          subtotal: price * item.quantity - discountAmount,
+          subtotal: effectivePrice * item.quantity - discountAmount,
         },
       },
     });
@@ -482,6 +487,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 const bundlesMap = new Map<string, {
                   bundleId: string;
                   bundleName: string;
+                  bundleImage?: string;
                   items: { item: CartItem; originalIndex: number }[];
                   totalOriginal: number;
                   totalDiscount: number;
@@ -518,6 +524,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
 
                 bundlesMap.forEach((b) => {
                   const bundleDef = state.bundles?.find(x => x.id === b.bundleId);
+                  if (bundleDef?.image) b.bundleImage = bundleDef.image;
                   let bundleQty = 1;
                   if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
                     const firstBi = bundleDef.items[0];
@@ -554,11 +561,12 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
               ) : null;
 
               const bundleImage = (b: typeof bundles[number]) => {
-                const firstProductImage = b.items[0]?.item.product.image;
-                return firstProductImage || null;
+                return b.bundleImage || b.items[0]?.item.product.image || null;
               };
 
-              const renderedBundleSummaries = bundles.map((b, bIdx) => (
+              let itemNumber = 0;
+
+              const renderedBundleSummaries = bundles.map((b) => (
                 <div key={`cart-bundle-${b.bundleId}`} className="px-2 py-1.5 mx-2 mb-1 rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[0.01] animate-in fade-in duration-200">
                   <div className="flex items-center gap-1.5">
                     {/* Thumbnail */}
@@ -624,11 +632,11 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   </div>
                   {/* Nested item list */}
                   <div className="mt-2 pl-10 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
-                    {b.items.map(({ item, originalIndex }) => (
+                    {b.items.map(({ item }) => (
                       <CartItemCard
-                        key={`${item.product.id}-${originalIndex}`}
+                        key={`${item.product.id}-${++itemNumber}`}
                         item={item}
-                        index={originalIndex}
+                        index={itemNumber - 1}
                         onUpdateQuantity={updateQuantity}
                         onRemove={removeFromCart}
                         onApplyDiscount={applyDiscount}
@@ -643,11 +651,11 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 </div>
               ));
 
-              const renderedStandalones = standaloneItems.map(({ item, originalIndex }) => (
+              const renderedStandalones = standaloneItems.map(({ item }) => (
                 <CartItemCard
-                  key={`${item.product.id}-${originalIndex}`}
+                  key={`${item.product.id}-${++itemNumber}`}
                   item={item}
-                  index={originalIndex}
+                  index={itemNumber - 1}
                   onUpdateQuantity={updateQuantity}
                   onRemove={removeFromCart}
                   onApplyDiscount={applyDiscount}
@@ -972,8 +980,9 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
   const handlePriceSubmit = () => {
     const newPrice = parseFloat(tempPrice);
     if (!isNaN(newPrice) && newPrice >= 0) {
+      const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
       const updatedProduct = { ...item.product, price: newPrice };
-      const quantityTotal = newPrice * item.quantity;
+      const quantityTotal = (newPrice + toppingsTotal) * item.quantity;
       const calculatedDiscount =
         item.discountValue && item.discountValue > 0
           ? item.discountType === 'percentage'
@@ -989,6 +998,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
   };
 
   const clearItemDiscount = () => {
+    const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
     dispatch({
       type: 'UPDATE_CART_ITEM',
       payload: {
@@ -997,7 +1007,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
           ...item,
           discount: 0,
           discountValue: 0,
-          subtotal: item.product.price * item.quantity,
+          subtotal: (item.product.price + toppingsTotal) * item.quantity,
         },
       },
     });
@@ -1009,6 +1019,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
     <div className={`group hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors overflow-hidden ${isNested ? 'pl-0 pr-1 py-0.5 hover:bg-transparent dark:hover:bg-transparent' : isFromBundle ? 'pl-3 pr-4 py-1' : 'pl-3 pr-4 py-1.5'}`}>
       {/* Main row */}
       <div className="flex items-center gap-1.5">
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{index + 1}</span>
         {/* Thumbnail (not for nested items) */}
         {!isNested && (
           <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center self-start mt-0.5 aspect-square">
@@ -1032,7 +1043,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               </span>
             )}
           </div>
-          {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
+          {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0 mt-0.5">
               {item.selectedVariant && (
                 <span className="text-[7px] font-bold text-gray-500 dark:text-gray-400 leading-tight">{item.selectedVariant}</span>
@@ -1040,9 +1051,18 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                 <span className="text-[7px] font-bold text-primary leading-tight">+{item.selectedModifiers.map(m => m.name).join(', ')}</span>
               )}
-              {item.serialNumber && (
-                <span className="text-[7px] font-black text-amber-600 bg-amber-500/10 px-1 rounded leading-none">SN: {item.serialNumber}</span>
-              )}
+            </div>
+          )}
+          {item.toppings && item.toppings.length > 0 && (
+            <div className="mt-0.5">
+              <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+              </span>
+            </div>
+          )}
+          {item.serialNumber && (
+            <div className="mt-0.5">
+              <span className="text-[7px] font-black text-amber-600 bg-amber-500/10 px-1 rounded leading-none">SN: {item.serialNumber}</span>
             </div>
           )}
           {!hidePrices && (

@@ -576,6 +576,8 @@ export function OnlineOrdersPage() {
                       }
                     });
 
+                    let itemNumber = 0;
+
                     return (
                       <div className="space-y-4 w-full">
                         {/* Render Deals */}
@@ -592,8 +594,9 @@ export function OnlineOrdersPage() {
                               </div>
                             </div>
                             <div className="space-y-2 border-t border-gray-100 dark:border-white/5 pt-2.5">
-                              {b.items.map((item, idx) => (
-                                <div key={idx} className="flex gap-3 items-center text-xs">
+                              {b.items.map((item) => (
+                                <div key={++itemNumber} className="flex gap-3 items-center text-xs">
+                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
                                   {item.product?.image ? (
                                     <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                                   ) : (
@@ -606,6 +609,12 @@ export function OnlineOrdersPage() {
                                     {item.selectedVariant && (
                                       <p className="text-[10px] text-gray-500 truncate">{item.selectedVariant}</p>
                                     )}
+                                    {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                      <p className="text-[10px] text-primary truncate font-medium">+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</p>
+                                    )}
+                                    {item.toppings && item.toppings.length > 0 && (
+                                      <p className="text-[10px] text-primary/70 truncate font-medium">+ Toppings: {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings?.currency)})`).join(', ')}</p>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -614,9 +623,10 @@ export function OnlineOrdersPage() {
                         ))}
 
                         {/* Render Standalone Items */}
-                        {standaloneItems.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-white/5 last:border-0">
+                        {standaloneItems.map((item) => (
+                          <div key={++itemNumber} className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-white/5 last:border-0">
                             <div className="flex items-center gap-4">
+                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
                               <div className="relative shrink-0">
                                 {item.product?.image ? (
                                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm border border-gray-200/50 dark:border-white/10">
@@ -633,11 +643,13 @@ export function OnlineOrdersPage() {
                               </div>
                               <div>
                                 <p className="font-bold text-gray-900 dark:text-white text-base leading-tight">{item.product?.name}</p>
-                                {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
+                                {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || (item.toppings && item.toppings.length > 0)) && (
                                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">
                                     {item.selectedVariant && <span>{item.selectedVariant}</span>}
                                     {item.selectedVariant && item.selectedModifiers && item.selectedModifiers.length > 0 && <span> | </span>}
                                     {item.selectedModifiers && item.selectedModifiers.map(m => m.name).join(', ')}
+                                    {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && item.toppings && item.toppings.length > 0 && <span> | </span>}
+                                    {item.toppings && item.toppings.length > 0 && <span>+ {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings?.currency)})`).join(', ')}</span>}
                                   </p>
                                 )}
                               </div>

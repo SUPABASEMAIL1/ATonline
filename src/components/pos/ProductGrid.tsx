@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Minus, Package, X, ChevronLeft, ChevronRight, FileText, Star, Infinity, Camera, LayoutGrid, Gift, ChevronDown, ChevronUp, Flame } from 'lucide-react';
 import { CameraScanner } from '../common/CameraScanner';
-import { Product } from '../../types';
+import { Product, CartItemTopping } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { getCurrencySymbol } from '../../lib/currencies';
 import { settingsService, bundlesService } from '../../lib/services';
@@ -651,7 +651,9 @@ const BundleCard = memo(
       >
         {/* Image Zone */}
         <div className={`relative overflow-hidden bg-gray-50 dark:bg-[#262626] ${isTouchMode ? 'aspect-square' : 'aspect-[4/3]'}`}>
-          {visibleProducts.length > 0 ? (
+          {item.image ? (
+            <img src={item.image} className="w-full h-full object-cover" loading="lazy" />
+          ) : visibleProducts.length > 0 ? (
             <div className={`grid h-full ${visibleProducts.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {visibleProducts.map((product: any, idx: number) => {
                 const total = visibleProducts.length;
@@ -666,7 +668,11 @@ const BundleCard = memo(
                   <div key={product.id || idx} className={cellClasses}>
                     {product.image ? (
                       <img src={product.image} className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
+            ) : item.bundleMinPrice !== null && item.bundleMaxPrice !== null && item.bundleMinPrice < item.bundleMaxPrice ? (
+              <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">
+                {currency}{item.bundleMinPrice.toLocaleString()} – {currency}{item.bundleMaxPrice.toLocaleString()}
+              </span>
+            ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Package className="h-6 w-6 text-gray-300 dark:text-gray-600" />
                       </div>
@@ -840,9 +846,27 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
   const groupedBundles = useMemo(() => {
     const processed = rawBundles.map(bundle => {
       let totalPrice = 0;
+      let finalPrice = 0;
+      let bundleMinPrice: number | null = null;
+      let bundleMaxPrice: number | null = null;
       let bundleProducts: any[] = [];
 
-      if (bundle.isCombo && bundle.slots) {
+      const calcVariantRange = (p: any) => {
+        if (p.variantData && p.variantData.length > 0) {
+          const prices = p.variantData.map((vd: any) => vd.priceOverride ?? p.price).filter((pr: number) => pr > 0);
+          return { min: Math.min(...prices), max: Math.max(...prices) };
+        }
+        return { min: p.price, max: p.price };
+      };
+
+      if (bundle.overridePrice !== undefined && bundle.overridePrice !== null) {
+        finalPrice = bundle.overridePrice;
+        const allOptIds = (bundle.slots || []).flatMap((s: any) => s.options?.map((o: any) => o.productId) || [])
+          ?? (bundle.items || []).map((bi: any) => bi.productId) ?? [];
+        const uniqueIds = Array.from(new Set(allOptIds));
+        bundleProducts = uniqueIds.map((id: any) => state.products.find((p: any) => p.id === id)).filter(Boolean);
+        totalPrice = finalPrice;
+      } else if (bundle.isCombo && bundle.slots) {
         totalPrice = bundle.slots.reduce((sum: number, slot: any) => {
           const maxPriceOpt = slot.options.reduce((max: number, opt: any) => {
             const p = state.products.find(pr => pr.id === opt.productId);
@@ -858,6 +882,43 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           }).filter(Boolean);
           return [...acc, ...opts];
         }, []);
+
+        finalPrice = totalPrice - bundle.discountValue;
+
+        // Per-slot range: each slot you pick N items from its options
+        let minSum = 0, maxSum = 0;
+        (bundle.slots || []).forEach((slot: any) => {
+          const slotProducts = (slot.options || [])
+            .map((opt: any) => state.products.find((pr: any) => pr.id === opt.productId))
+            .filter(Boolean);
+          const slotRanges = slotProducts.map(calcVariantRange);
+          const minSorted = [...slotRanges].sort((a: any, b: any) => a.min - b.min);
+          const maxSorted = [...slotRanges].sort((a: any, b: any) => a.max - b.max);
+          const req = Math.min(slot.requiredQuantity, slotRanges.length);
+          minSum += minSorted.slice(0, req).reduce((s: number, r: any) => s + r.min, 0);
+          maxSum += maxSorted.slice(-req).reduce((s: number, r: any) => s + r.max, 0);
+        });
+        if (minSum > 0) { bundleMinPrice = minSum; bundleMaxPrice = maxSum; }
+        
+        // Collapse range to single price when name specifies the size
+        const lowerName = bundle.name.toLowerCase();
+        if (lowerName.includes(' - medium') || lowerName.includes(' - small') || lowerName.includes(' - large')) {
+          const nameTier = lowerName.includes(' - large') ? 1 : 0;
+          const slotProducts = (bundle.slots[0]?.options || [])
+            .map((opt: any) => state.products.find((p: any) => p.id === opt.productId))
+            .filter(Boolean);
+          if (slotProducts.length > 0) {
+            const singlePrices = slotProducts.map((p: any) => {
+              if (p.variantData && p.variantData.length > nameTier) {
+                return p.variantData[nameTier].priceOverride ?? p.price;
+              }
+              return p.price;
+            });
+            bundleMinPrice = Math.min(...singlePrices);
+            bundleMaxPrice = bundleMinPrice;
+            finalPrice = bundleMinPrice;
+          }
+        }
       } else {
         totalPrice = (bundle.items || []).reduce((sum: number, bi: any) => {
           const p = state.products.find(pr => pr.id === bi.productId);
@@ -868,18 +929,27 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           const p = state.products.find(pr => pr.id === bi.productId);
           return p ? { ...p, qty: bi.quantity } : null;
         }).filter(Boolean);
-      }
 
-      const discountAmount = bundle.discountType === 'percentage'
-        ? (totalPrice * bundle.discountValue) / 100
-        : Math.min(bundle.discountValue, totalPrice);
-      
-      const finalPrice = totalPrice - discountAmount;
+        const discountAmount = bundle.discountType === 'percentage'
+          ? (totalPrice * bundle.discountValue) / 100
+          : Math.min(bundle.discountValue, totalPrice);
+        finalPrice = totalPrice - discountAmount;
+
+        const ranges = bundleProducts.map(calcVariantRange);
+        const itemMin = ranges.reduce((sum: number, r: any, i: number) => sum + r.min * ((bundle.items?.[i]?.quantity) || 1), 0);
+        const itemMax = ranges.reduce((sum: number, r: any, i: number) => sum + r.max * ((bundle.items?.[i]?.quantity) || 1), 0);
+        const discPct = bundle.discountType === 'percentage' ? bundle.discountValue / 100 : 0;
+        const discFixed = bundle.discountType === 'fixed' ? bundle.discountValue : 0;
+        bundleMinPrice = Math.max(0, bundle.discountType === 'percentage' ? itemMin * (1 - discPct) : itemMin - discFixed);
+        bundleMaxPrice = Math.max(0, bundle.discountType === 'percentage' ? itemMax * (1 - discPct) : itemMax - discFixed);
+      }
       
       return {
          ...bundle,
          totalPrice,
          finalPrice,
+         bundleMinPrice,
+         bundleMaxPrice,
          bundleProducts
       };
     });
@@ -898,7 +968,12 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
       }
     });
 
-    return Array.from(map.values());
+    const catOrder: Record<string, number> = { pizza: 0, burger: 1, beverage: 2, single_item: 3 };
+    return Array.from(map.values()).sort((a, b) => {
+      const aCat = a.dealCategory || 'pizza';
+      const bCat = b.dealCategory || 'pizza';
+      return (catOrder[aCat] ?? 99) - (catOrder[bCat] ?? 99);
+    });
   }, [rawBundles, state.products]);
 
   const handleBundleQuantity = useCallback((item: any, d: number) => {
@@ -958,7 +1033,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
     dispatch({ type: 'SET_CART', payload: newCart });
   }, [state.cart, state.products, isReturnMode, dispatch]);
 
-  const processBundleAdd = (bundle: any, selectedItems?: { productId: string; quantity: number }[]) => {
+  const processBundleAdd = (bundle: any, selectedItems?: { productId: string; quantity: number }[], toppingsMap?: Record<string, CartItemTopping[]>) => {
     try {
       if (!bundle) {
         sonner.error('Bundle data is missing');
@@ -976,11 +1051,21 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         variantToSet = '13 Inch';
       }
 
-      const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map(item => {
+      const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map((item, idx) => {
         if (variantToSet) {
           return {
             ...item,
             selectedVariant: variantToSet
+          };
+        }
+        if (toppingsMap && Object.keys(toppingsMap).length > 0 && toppingsMap[item.product.id] && toppingsMap[item.product.id].length > 0) {
+          const toppingsArr = toppingsMap[item.product.id];
+          // Deal-level toppings: show on all items but only add price once (on first item)
+          const toppingsPrice = idx === 0 ? toppingsArr.reduce((sum, t) => sum + t.price, 0) : 0;
+          return {
+            ...item,
+            toppings: toppingsArr,
+            subtotal: item.subtotal + toppingsPrice * item.quantity,
           };
         }
         return item;
@@ -1159,7 +1244,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           currency={currency}
           isOpen={true}
           onClose={() => setActiveCombo(null)}
-          onConfirm={(selectedItems) => processBundleAdd(activeCombo, selectedItems)}
+          onConfirm={(selectedItems, toppingsMap) => processBundleAdd(activeCombo, selectedItems, toppingsMap)}
         />
       )}
       

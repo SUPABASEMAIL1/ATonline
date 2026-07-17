@@ -195,6 +195,12 @@ function AppContent() {
         const favicons = document.querySelectorAll('link[rel*="icon"]');
         favicons.forEach(favicon => favicon.setAttribute('href', storeLogo));
       }
+    } else {
+      // Default (POS/admin) — reset PWA & favicon back to hardcoded Zaynahs default brand
+      const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+      if (appleIcon) appleIcon.setAttribute('href', '/zaynahs-logo.svg');
+      const favicons = document.querySelectorAll('link[rel*="icon"]');
+      favicons.forEach(favicon => favicon.setAttribute('href', '/zaynahs-logo.svg'));
     }
 
     document.title = title;

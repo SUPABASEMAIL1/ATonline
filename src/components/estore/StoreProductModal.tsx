@@ -1,25 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Product, ProductModifier } from '../../types';
+import { Product, CartItemTopping, ProductModifier } from '../../types';
 import { X, Plus, Minus } from 'lucide-react';
 import { formatCurrency } from '../../lib/currencies';
+import { productToppingsService } from '../../lib/services';
+import ExtraToppingSelector from '../common/ExtraToppingSelector';
 
 interface StoreProductModalProps {
   product: Product;
   currency?: string;
   isOpen: boolean;
   onClose: () => void;
-  onAddToCart: (product: Product, quantity: number, options: { selectedVariant?: string; selectedModifiers?: ProductModifier[] }) => void;
+  onAddToCart: (product: Product, quantity: number, options: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; toppings?: CartItemTopping[] }) => void;
 }
 
 export function StoreProductModal({ product, currency, isOpen, onClose, onAddToCart }: StoreProductModalProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
-  const [selectedModifiers, setSelectedModifiers] = useState<ProductModifier[]>([]);
+  const [selectedToppings, setSelectedToppings] = useState<CartItemTopping[]>([]);
+  const [allowedToppingIds, setAllowedToppingIds] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
     if (isOpen) {
       setQuantity(1);
-      setSelectedModifiers([]);
+      setSelectedToppings([]);
+      setAllowedToppingIds(undefined);
+      productToppingsService.getByProduct(product.id)
+        .then(setAllowedToppingIds)
+        .catch(() => setAllowedToppingIds(undefined));
 
       const initial: Record<string, string> = {};
       if (product.variants && product.variants.length > 0) {
@@ -32,23 +39,6 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
       setSelectedVariants(initial);
     }
   }, [isOpen, product]);
-
-  useEffect(() => {
-    if (product.modifiers && product.modifiers.length > 0) {
-      const validMods = selectedModifiers.filter(mod => {
-        if (!mod.variantName) return true;
-        const parts = mod.variantName.split(':').map(s => s.trim());
-        if (parts.length === 2) {
-          const [vName, vOpt] = parts;
-          return selectedVariants[vName] === vOpt;
-        }
-        return true;
-      });
-      if (validMods.length !== selectedModifiers.length) {
-        setSelectedModifiers(validMods);
-      }
-    }
-  }, [selectedVariants, product.modifiers]);
 
   if (!isOpen) return null;
 
@@ -69,8 +59,8 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
   };
 
   const basePrice = getVariantPrice();
-  const modifiersPrice = selectedModifiers.reduce((sum, m) => sum + m.price, 0);
-  const totalPrice = (basePrice + modifiersPrice) * quantity;
+  const toppingsPrice = selectedToppings.reduce((sum, t) => sum + t.price, 0);
+  const totalPrice = (basePrice + toppingsPrice) * quantity;
 
   const handleAdd = () => {
     const variantString = Object.entries(selectedVariants)
@@ -78,7 +68,8 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
       .join(', ');
     onAddToCart(product, quantity, {
       selectedVariant: variantString || undefined,
-      selectedModifiers: selectedModifiers.length > 0 ? selectedModifiers : undefined
+      selectedModifiers: undefined,
+      toppings: selectedToppings.length > 0 ? selectedToppings : undefined
     });
     onClose();
   };
@@ -139,47 +130,19 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
             </div>
           )}
 
-          {/* Modifiers */}
-          {product.modifiers && product.modifiers.length > 0 && (
-            <div>
-              <h3 className="font-black text-lg text-[var(--color-text)] mb-3">Add-ons & Modifiers</h3>
-              <div className="space-y-3">
-                {product.modifiers
-                  .filter(mod => {
-                    if (!mod.variantName) return true;
-                    const parts = mod.variantName.split(':').map(s => s.trim());
-                    if (parts.length === 2) {
-                      const [vName, vOpt] = parts;
-                      return selectedVariants[vName] === vOpt;
-                    }
-                    return Object.values(selectedVariants).includes(mod.variantName);
-                  })
-                  .map((mod, idx) => {
-                  const isSelected = selectedModifiers.some(m => m.name === mod.name && m.price === mod.price);
-                  return (
-                    <label key={idx} className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-[var(--color-primary)]/5' : 'border-black/5 dark:border-white/5 bg-[var(--color-card-bg)] hover:border-black/10 dark:hover:border-white/10'}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${isSelected ? 'border-primary bg-primary' : 'border-gray-300'}`}>
-                          {isSelected && <div className="w-2.5 h-2.5 bg-[var(--color-card-bg)] rounded-full" />}
-                        </div>
-                        <span className="font-bold text-[var(--color-text)]">{mod.name}</span>
-                      </div>
-                      <span className="font-black text-gray-600 dark:text-gray-300">+{formatCurrency(mod.price, currency)}</span>
-                      <input 
-                        type="checkbox"
-                        className="sr-only"
-                        checked={isSelected}
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedModifiers([...selectedModifiers, mod]);
-                          else setSelectedModifiers(selectedModifiers.filter(m => !(m.name === mod.name && m.price === mod.price)));
-                        }}
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Extra Toppings */}
+          <ExtraToppingSelector
+            selectedToppings={selectedToppings}
+            onChange={setSelectedToppings}
+            allowedToppingIds={allowedToppingIds}
+            size={(() => {
+              const sizeOpt = Object.values(selectedVariants).find(v => /inch/i.test(v));
+              if (!sizeOpt) return undefined;
+              if (/6/i.test(sizeOpt)) return 'small' as const;
+              if (/13/i.test(sizeOpt)) return 'large' as const;
+              return 'medium' as const;
+            })()}
+          />
         </div>
 
         {/* Footer Actions */}

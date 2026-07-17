@@ -353,7 +353,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
     if (!sale.customerPhone) return;
     const cleanPhone = sale.customerPhone.replace(/\D/g, '');
     const itemsList = sale.items
-      .map(item => `- ${item.product.name} (x${item.quantity}): ${formatCurrency(item.product.price, currencyCode)}`)
+      .map((item, idx) => `${idx + 1}. ${item.product.name} (x${item.quantity}): ${formatCurrency(item.product.price, currencyCode)}`)
       .join('\n');
 
     let message = `*${settings.storeName} - Digital Receipt*\n\n` +
@@ -529,21 +529,29 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
   const renderDeliveryDetailsSection = () => {
     if (!sale.deliveryAddress) return null;
     const isPickup = sale.deliveryAddress === 'SELF-PICKUP';
+    const showAddress = settings.receiptShowDeliveryAddress !== false;
+    const showQr = settings.receiptShowQrCode !== false;
     const directionsUrl = (sale.deliveryLocationLat && sale.deliveryLocationLng)
       ? `https://www.google.com/maps/search/?api=1&query=${sale.deliveryLocationLat},${sale.deliveryLocationLng}`
       : null;
 
+    if (!showAddress && !showQr) return null;
+
     return (
       <div style={{ marginTop: '6px', borderTop: '1px dashed #ccc', paddingTop: '6px', paddingBottom: '6px', borderBottom: '1px dashed #ccc', textTransform: 'uppercase' }}>
-        <div style={{ fontWeight: 'bold', fontSize: `${fs.meta}px` }}>
-          Fulfillment: {isPickup ? 'Self-Pickup' : 'Home Delivery'}
-        </div>
-        {!isPickup && (
-          <div style={{ fontSize: `${fs.body}px`, marginTop: '3px', whiteSpace: 'pre-wrap', textAlign: 'left' }}>
-            Address: {sale.deliveryAddress}
-          </div>
+        {showAddress && (
+          <>
+            <div style={{ fontWeight: 'bold', fontSize: `${fs.meta}px` }}>
+              Fulfillment: {isPickup ? 'Self-Pickup' : 'Home Delivery'}
+            </div>
+            {!isPickup && (
+              <div style={{ fontSize: `${fs.body}px`, marginTop: '3px', whiteSpace: 'pre-wrap', textAlign: 'left' }}>
+                Address: {sale.deliveryAddress}
+              </div>
+            )}
+          </>
         )}
-        {directionsUrl && (
+        {showQr && directionsUrl && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '8px', textAlign: 'center' }}>
             <span style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
             <QRCodeSVG value={directionsUrl} size={90} level="M" style={{ margin: '0 auto' }} />
@@ -579,9 +587,10 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
                 {b.items.map((item: any, idx: number) => (
                   <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
-                    - {item.quantity}x {item.product?.name || 'Item'}
+                    {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
                     {item.selectedVariant ? ` (${item.selectedVariant})` : ''}
                     {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
+                    {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}` : ''}
                   </div>
                 ))}
               </div>
@@ -603,11 +612,12 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.body}px`, marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase', color: '#6b7280' }}>
             OTHER / STANDALONE ITEMS ({shStandalone.length})
           </div>
-          {shStandalone.map((item: any, index: number) => (
+            {shStandalone.map((item: any, index: number) => (
             <div key={`sa-${index}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
-              <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{item.product?.name || 'Item'}</div>
+              <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{index + 1}. {item.product?.name || 'Item'}</div>
               {item.selectedVariant && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariant}</div>}
               {item.selectedModifiers && item.selectedModifiers.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</div>}
+              {item.toppings && item.toppings.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}</div>}
               {item.serialNumber && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>SN: {item.serialNumber}</div>}
               <TwoCol left={`${item.quantity} PCS x ${formatCurrency(item.subtotal / item.quantity, currencyCode)}`} right={formatCurrency(item.subtotal, currencyCode)} />
               {showDiscount && item.discount > 0 && (
@@ -800,7 +810,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             ))}
             {shStandalone.map((item: any, i: number) => (
               <tr key={`sa-${i}`}>
-                <td style={{ padding: '4px 0', textAlign: 'left' }}>{item.product?.name || 'Item'}</td>
+                <td style={{ padding: '4px 0', textAlign: 'left' }}>{i + 1}. {item.product?.name || 'Item'}</td>
                 <td style={{ padding: '4px 0', textAlign: 'center' }}>{item.quantity}</td>
                 <td style={{ padding: '4px 0', textAlign: 'right' }}>{formatCurrency(item.subtotal, currencyCode)}</td>
               </tr>
@@ -1250,9 +1260,10 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                       <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
                         {b.items.map((item: any, idx: number) => (
                           <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
-                            - {item.quantity}x {item.product?.name || 'Item'}
+                            {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
                             {item.selectedVariant ? ` (${item.selectedVariant})` : ''}
-                            {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
+                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
+                    {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}` : ''}
                           </div>
                         ))}
                       </div>
@@ -1297,12 +1308,15 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                   </div>
                   {standaloneItems.map((item, index) => (
                     <div key={`standalone-${index}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
-                      <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{item.product?.name || 'Item'}</div>
+                      <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{index + 1}. {item.product?.name || 'Item'}</div>
                       {item.selectedVariant && (
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariant}</div>
                       )}
                       {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</div>
+                      )}
+                      {item.toppings && item.toppings.length > 0 && (
+                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}</div>
                       )}
                       {item.serialNumber && (
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>SN: {item.serialNumber}</div>

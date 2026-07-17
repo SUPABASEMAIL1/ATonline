@@ -103,9 +103,10 @@ export function KOTPrint({ sale }: KOTPrintProps) {
     <div class="table-row">
       <div class="table-row-qty">${Math.abs(item.quantity)}x</div>
       <div class="table-row-detail">
-        <div class="table-row-name">${item.product.name}</div>
+        <div class="table-row-name">${idx + 1}. ${item.product.name}</div>
         ${item.selectedVariant ? `<div class="table-row-meta">- ${item.selectedVariant}</div>` : ''}
         ${item.selectedModifiers?.length ? `<div class="table-row-meta">+ ${item.selectedModifiers.map(m => m.name).join(', ')}</div>` : ''}
+        ${item.toppings?.length ? `<div class="table-row-meta">+ ${item.toppings.map(t => `${t.name} (Rs ${t.price})`).join(', ')}</div>` : ''}
       </div>
     </div>`;
     }).join('')}

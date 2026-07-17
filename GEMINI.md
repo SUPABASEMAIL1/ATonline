@@ -467,6 +467,17 @@ Whenever a database change is made, it MUST be recorded here.
 
 > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
 
+### [2026-07-17] Add Custom Badge System to Bundles (Color, Text, Icon, Enable/Disable)
+**Files:** `supabase/migrations/20260717170000_add_badge_columns.sql`, `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `BundleManager.tsx`, `HighlightBadge.tsx`, `StoreFront.tsx`, `GEMINI.md`
+**Changes:**
+1. **Schema Migration:** Adds `badge_enabled BOOLEAN`, `badge_text TEXT`, `badge_icon TEXT`, `badge_bg_color TEXT`, `badge_text_color TEXT` to `bundles` table. Backfills Crown Crust deals with enabled=true, text='CROWN', icon='crown', bg='#1A1A1A', text='#D4AF37'.
+2. **Master Schema:** Added to both `CREATE TABLE IF NOT EXISTS bundles` and post-launch `ALTER TABLE` blocks.
+3. **Types:** Added `badgeEnabled`, `badgeText`, `badgeIcon`, `badgeBgColor`, `badgeTextColor` to `Bundle` interface.
+4. **Services:** `mapBundle` maps badge fields; `create`/`update` persist badge fields to Supabase + localDb.
+5. **BundleManager.tsx:** Added "Badge" section in edit form after Pricing Mode with enable toggle, text input, 8-icon picker, 6 bg-color swatches + color picker, 4 text-color swatches + color picker, and live preview.
+6. **HighlightBadge.tsx:** Rewritten to support new dynamic badge system (badgeEnabled, badgeText, badgeIcon, badgeBgColor, badgeTextColor) while keeping legacy `highlightTag` backward compat.
+7. **StoreFront.tsx:** Bundle cards now render badge via new dynamic system when `badgeEnabled=true`, falling back to legacy `highlightTag`.
+
 ### [2026-07-15] FIX: Add missing estore columns to ALTER TABLE in SUPER_MASTER_SCHEMA
 **Issue:** `estore_theme_color`, `estore_delivery_fee`, `estore_min_order`, `estore_cod_enabled` were only in `CREATE TABLE` block (lines 275-278) but NOT in any `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Existing DBs never got them.
 **Fix:** Added all 4 columns to the post-launch `ALTER TABLE app_settings` block in `SUPER_MASTER_SCHEMA.sql`.
@@ -506,6 +517,42 @@ Whenever a database change is made, it MUST be recorded here.
 8. **StoreDealModal.tsx:** Modal shows "Hot Deal" badge + countdown timer for scheduled bundles.
 9. **ProductGrid.tsx (POS):** Bundles filtered by schedule. BundleCard shows flame icon on discount badge for scheduled deals.
 10. **StoreSort.tsx:** Deals tab shows schedule summary (date/time) next to deal type.
+
+### [2026-07-17] Add override_price to Bundles for Fixed-Price Slot Deals
+**Files:** `supabase/migrations/20260717120000_add_override_price.sql`, `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `BundleManager.tsx`, `StoreFront.tsx`, `ProductGrid.tsx`, `GEMINI.md`
+**Changes:**
+1. **Schema Migration:** Adds `override_price NUMERIC(10,2)` to `bundles` table. Backfills Sunday Offer Small/Medium/Large with 550/750/1050.
+2. **Master Schema:** Added to both CREATE TABLE and ALTER TABLE blocks.
+3. **Types:** Added `overridePrice?: number` to `Bundle` interface.
+4. **Services:** Wired `override_price` in mapBundle, create, and update.
+5. **BundleManager UI:** Added "Pricing Mode" toggle — "Discount from Base" (existing %/fixed) or "Set Fixed Price" (direct override_price input) — works generically for any business type.
+6. **StoreFront.tsx + ProductGrid.tsx:** If `overridePrice` is set, uses it directly as the final price (no base/discount math). If not, falls back to existing `bundleTotal - discount` logic.
+7. **StoreFront deal card:** overridePrice deals show exact price (no "From" prefix), hide discount badge.
+
+### [2026-07-17] Add deal_category Column to Bundles + Category Grouping UI
+**Files:** `supabase/migrations/20260717110000_add_deal_category.sql`, `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `BundleManager.tsx`, `ProductGrid.tsx`, `GEMINI.md`
+**Changes:**
+1. **Schema Migration:** `supabase/migrations/20260717110000_add_deal_category.sql` adds `deal_category TEXT NOT NULL DEFAULT 'pizza'` to `bundles` table with CHECK constraint in `('pizza','burger','beverage','single_item')`. Backfills existing Crown Crust Deal + 3 Sunday Offers to `'pizza'`.
+2. **Master Schema:** Added `deal_category` to both `CREATE TABLE IF NOT EXISTS bundles` and post-launch `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` block.
+3. **Types:** Added `dealCategory?: 'pizza' | 'burger' | 'beverage' | 'single_item'` to `Bundle` interface in `types/index.ts`.
+4. **Services:** `mapBundle` maps `row.deal_category → dealCategory`; `create` sends `deal_category`; `update` maps `data.dealCategory → updates.deal_category` and `localUpdates.dealCategory`.
+5. **BundleManager.tsx:** Added `activeCategory` filter state. Bundle list now shows category filter tab bar (All/Pizza/Burger/Beverage/Single Item with counts). Bundles grouped under category section headers with colored accent bar, icon, and count badge.
+6. **ProductGrid.tsx (POS):** `groupedBundles` now sorted by `dealCategory` order (pizza → burger → beverage → single_item) instead of insertion order.
+
+### [2026-07-17] Delete 3 Pizza Deals + Fix Descriptions
+**Files:** `supabase/migrations/20260717100000_delete_3pizza_deals_fix_desc.sql`
+**Changes:**
+1. **Deleted 3 Pizza Deals (Small/Medium/Large):** Removed all bundle_slot_toppings, bundle_slot_options, bundle_slots, bundle_items, and bundles for all 3 deals (not on Pizza Milano menu).
+2. **Fixed Description:** Bar.B.Q Chicken Pizza: "Chicken Bar.B.Q" → "Chicken BBQ" (per menu).
+
+### [2026-07-17] Reconcile DB vs Real Pizza Milano Menu
+**Files:** `supabase/migrations/20260717080000_reconcile_pizza_milano_menu.sql`
+**Changes:**
+1. **Deleted Burger Products:** Removed Beef Burger + Chicken Burger (not on Pizza Milano menu).
+2. **Deleted Burger Meal Deal:** Removed entire bundle + slots + slot options (no burger products exist).
+3. **Fixed Naming:** "Chicken Malai Boti pizza" → "Chicken Malai Boti Pizza" (capitalization).
+4. **Converted Crown Crust Deal:** Fixed Bundle → Slot-Based (`is_combo=true`) with 1 slot "Choose Your Premium Pizza (Pick 1)" offering Crown Crust Pizza and Seekh Kabab Pizza as options. Discount set to 0 (user pays product variant price).
+5. **Verified All Products:** All 21 pizza names, descriptions, variant prices (6"/10"/13"), toppings pricing (Cheese 70/100/150, Chicken 50/80/100, Veggie 30/50/70), and beverages match the Pizza Milano menu exactly.
 
 ### [2026-07-15] 24-Hour Cancelled Orders Auto-Deletion System
 **Files Updated:** `syncEngine.ts`, `AGENTS.md`, `GEMINI.md`
@@ -677,6 +724,28 @@ Whenever a database change is made, it MUST be recorded here.
     *   Code correctly handles this (FIFO logic skips if no batches, falls back to product.cost).
     *   No code fix needed — data-level backfill can be done manually if COGS precision is required.
 
+### [2026-07-17] Full Deal System Audit — Burger Meal Deal Fix, Burger Products Created, Duplicate Deleted
+**Files:** `supabase/migrations/20260717070000_fix_burger_deal_and_deals.sql`, `AGENTS.md`
+**Changes:**
+1. **Burger Products Created:** Inserted `Beef Burger` (SKU: BEEF-BURGER, Rs450) and `Chicken Burger` (SKU: CHICKEN-BURGER, Rs450) in new "Burgers" category with uploaded images.
+2. **Burger Meal Deal Slot Fix:** Swapped mismatched categories — Main Course slot now shows burgers (was beverages), Beverage slot now shows drinks (was pizzas). Fixed for both original and duplicate records.
+3. **Duplicate Removed:** Deleted "Burger Meal Deal (2)" record + its slots + slot options.
+4. **Drink Price Verified:** 1 Liter Drink confirmed at Rs160 (correct) — no Rs180 found anywhere in DB.
+5. **Crown Crust Deal:** Already Fixed Bundle (`is_combo=false`) with correct items (Crown Crust + Seekh Kabab pizzas). No change needed.
+6. **Sunday Deals:** Kept as Slot-Based (`is_combo=true`) — mandatory for "pick your flavor" functionality. Discount values (50/200/300) produce correct final prices (Rs550/750/1050) when variant pricing is used.
+7. **3 Pizza Deals:** Verified all slots pull from 21 real pizza products with correct discount tiers (10%/15%/20%).
+8. **Deal Images:** All 8 bundles have real product photos set.
+
+### [2026-07-17] Crown Crust Deal: Fixed Bundle → Slot-Based → Split Into 4 Size-Specific Deals
+**Files:** `supabase/migrations/20260717130000_crown_crust_slot_based.sql`, `supabase/migrations/20260717140000_split_crown_seekh_into_sizes.sql`, `src/components/estore/StoreDealModal.tsx`, `src/components/estore/StoreFront.tsx`, `src/components/pos/ProductGrid.tsx`, `GEMINI.md`
+**Changes:**
+1. **DB (Migration 17130000):** Crown Crust Deal converted from fixed bundle (2 forced items) to slot-based (1 slot, 2 options: Crown Crust OR Seekh Kabab).
+2. **StoreDealModal:** Added size toggle + variant pricing + toppings sync for slot-based deals. Pricing useMemo uses selected option's variant price. `showSizeToggle`/`tierLabels` extracted as shared hooks for both slot and fixed paths.
+3. **StoreFront + ProductGrid price range fix:** Per-slot `bundleMinPrice`/`bundleMaxPrice` calculation (was summing all options' ranges together, giving 2650–3800 instead of 1300–1950).
+4. **Migration 17140000 (this change):** Customer feedback — no mixed "choose one" deals. Reverted Crown Crust Deal to single-item fixed bundle (Crown Crust Pizza qty:1). Created 3 new fixed bundles: `Crown Crust Deal - Large` (1850), `Seekh Kabab Deal - Medium` (1350), `Seekh Kabab Deal - Large` (1950). All 4 deals use `override_price` for fixed pricing + `highlight_tag='crown'`.
+5. **nameBasedTier:** Added `nameBasedTier` useMemo that auto-derives variant tier from bundle name (`- Medium`→0, `- Large`→1) for override_price deals. `showSizeToggle` returns false when override_price set. `getItemPrice`/`itemPrice` use `nameBasedTier` when available, else `selectedSizeTier`.
+6. **handleAdd variant pricing:** Uses `effectiveTier` (name-based or toggle-based) to recalculate cart subtotals with correct variant `priceOverride`.
+
 # 📝 TASK MANAGEMENT RULE (MANDATORY)
 
 For every large or multi-step task, you MUST create a `todo.md` file in the project root to plan and track your progress.
@@ -819,3 +888,90 @@ Supabase ka free plan 1 hafte baad database pause kar deta hai. Isey 24/7 active
 3.  **Idempotent Schema:** Added `ALTER TABLE ADD COLUMN IF NOT EXISTS` block in `SUPER_MASTER_SCHEMA.sql` for post-launch updates.
 
 ✅ **All Done!**
+
+---
+
+## 📸 Vision Model Prompt Template (Ysha)
+
+Whenever a vision model (e.g. GPT-4o, Claude Sonnet) sends a prompt based on an image/screenshot, it MUST follow this exact structured format. Also embedded in AGENTS.md. Copy-paste this when generating prompts:
+
+```
+# [Specific Task Title]
+
+## Business Scope
+- **Applies to:** All business types (clothing, shoes, general store, tech accessories, mobiles, laptops, grocery, pharmacy, bakery, services/salon, wholesale, rental, and any other) — no logic, wording, or layout may be dedicated to one business type only
+- **Generic terms enforced:** item / product / unit / category / listing / record / variant
+
+## Related Pages Map
+| # | Route | Source (Image/Screenshot) | What It Shows |
+|---|-------|---------------------------|----------------|
+| 1 | `[exact route]` | Image N | [short description] |
+
+- **Cropped/close-up images:** [list which images are crops, and which parent route/page they belong to]
+- **Additional pages sharing this logic (no screenshot given):** [list any other project pages that must also be checked/updated, with exact route]
+
+## Exact Location
+- **Route:** `[full exact route path]`
+- **File:** `[full exact file path]`
+- **Component:** `[exact component name]`
+- **Section/Zone:** `[exact named UI zone]`
+- **Element:** `[exact element visible in screenshot]`
+
+## Connected Pages & Flow
+- **Entry Points:** [every page/link that navigates into this page]
+- **Exit Points:** [every page/link this page navigates out to]
+- **Shared Component/Data Usage:** [other pages reusing same component/table/state]
+
+## Visual Context
+### Visible in screenshot:
+- **Layout:** [grid/flex structure — exact column count, card sizes, alignment]
+- **Elements:** [every visible UI piece — buttons, inputs, badges, icons, labels — with position]
+- **Colors:** [bg, text, border, accent — hex if legible]
+- **Spacing:** [gaps, padding, overflow, clipping]
+- **State:** [loading, empty, error, filled, hover, active]
+
+### Issues Found:
+- **P1 — [Critical]:** [what is broken, exact element, exact location]
+- **P2 — [Secondary]:** [what else is wrong, exact element, exact location]
+- **P3 — [Cosmetic]:** [minor polish needed, exact element]
+
+## Current Broken Layout (ASCII)
+```
++------------------------------------------------------+
+|  ASCII wireframe matching screenshot proportions       |
++------------------------------------------------------+
+```
+
+## Target Fixed Layout (ASCII)
+```
++------------------------------------------------------+
+|  ASCII wireframe of exact desired final state          |
++------------------------------------------------------+
+```
+
+## Instructions
+### P1 — [Critical Fix]
+- [Exact element, exact change, exact expected result]
+- [If layout: reference Tailwind utility; if data: describe generically — never name real tables/columns/business types]
+- [List every affected page from Related Pages Map, exact route]
+
+### P2 — [Secondary Fix]
+- [Exact element, exact change]
+
+### P3 — [Cosmetic Fix]
+- [Exact element, exact change]
+
+## Responsive Expectations
+| Viewport | Layout Behavior |
+|----------|----------------|
+| Mobile < 768px | [exact stacking/order] |
+| Tablet 768–1024px | [exact behavior] |
+| Desktop > 1024px | [exact behavior] |
+
+## Final Visual Goal
+- [Exact end-state visible on screen, element by element]
+- [Interaction behavior: hover, click, filter, scroll]
+- [Data accuracy: what loads, syncs, updates — generic terms only]
+- [Confirmation ALL routes in Related Pages Map updated consistently]
+- [Confirmation fix holds true across all business types in Business Scope]
+```

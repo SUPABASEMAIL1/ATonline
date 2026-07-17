@@ -203,6 +203,8 @@ export function Settings() {
     receiptShowCustomerPhone: state.settings.receiptShowCustomerPhone ?? true,
     receiptShowNotes: state.settings.receiptShowNotes ?? true,
     receiptShowBarcode: state.settings?.receiptShowBarcode ?? true,
+    receiptShowDeliveryAddress: state.settings?.receiptShowDeliveryAddress ?? true,
+    receiptShowQrCode: state.settings?.receiptShowQrCode ?? true,
     receiptPaddingTop: state.settings.receiptPaddingTop ?? 0,
     receiptPaddingBottom: state.settings.receiptPaddingBottom ?? 0,
     receiptPaddingLeft: state.settings.receiptPaddingLeft ?? 0,
@@ -309,6 +311,8 @@ export function Settings() {
       receiptShowCustomerPhone: state.settings?.receiptShowCustomerPhone ?? true,
       receiptShowNotes: state.settings?.receiptShowNotes ?? true,
       receiptShowBarcode: state.settings?.receiptShowBarcode ?? true,
+      receiptShowDeliveryAddress: state.settings?.receiptShowDeliveryAddress ?? true,
+      receiptShowQrCode: state.settings?.receiptShowQrCode ?? true,
       receiptPaddingTop: state.settings?.receiptPaddingTop ?? 0,
       receiptPaddingBottom: state.settings?.receiptPaddingBottom ?? 0,
       receiptPaddingLeft: state.settings?.receiptPaddingLeft ?? 0,
@@ -426,7 +430,7 @@ export function Settings() {
       'interfaceMode', 'theme', 'receiptShowLogo', 'receiptShowFooter', 'receiptShowTax', 
       'receiptShowDiscount', 'receiptShowStoreName', 'receiptShowStoreAddress', 
       'receiptShowStorePhone', 'receiptShowStoreEmail', 'receiptShowCustomerName', 
-      'receiptShowCustomerPhone', 'receiptShowNotes', 'receiptShowBarcode', 'receiptFontBold', 'receiptFontWeight',
+      'receiptShowCustomerPhone', 'receiptShowNotes', 'receiptShowBarcode', 'receiptShowDeliveryAddress', 'receiptShowQrCode', 'receiptFontBold', 'receiptFontWeight',
       'receiptFontScale', 'language', 'estoreEnabled', 'estoreOrderTimerEnabled', 'estoreCodEnabled', 'estoreWhatsappEnabled',
       'estoreCustomPaymentEnabled'
     ];
@@ -1502,6 +1506,8 @@ export function Settings() {
                           { name: 'receiptShowCustomerPhone', label: 'Customer Phone' },
                           { name: 'receiptShowNotes', label: 'Show Notes' },
                           { name: 'receiptShowBarcode', label: 'Show Barcode' },
+                          { name: 'receiptShowDeliveryAddress', label: 'Delivery Address' },
+                          { name: 'receiptShowQrCode', label: 'QR Code' },
                           { name: 'receiptShowFooter', label: 'Show Footer' },
                         ].map((item) => (
                           <label key={item.name} className="flex items-center gap-2 p-2 bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5">

@@ -319,6 +319,94 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
     }
   };
 
+  const renderProductCard = (product: Product) => {
+    const cartIndex = cart.findIndex(c => c.product.id === product.id);
+    const inCartQty = cartIndex >= 0 ? cart[cartIndex].quantity : 0;
+    const hasVariants = product.variantData?.length > 0;
+    const showDualPrice = !product.menuNumber && hasVariants && product.variantData!.length >= 2;
+    const priceRange = showDualPrice
+      ? `${formatCurrency(product.variantData![0].priceOverride ?? product.price, settings?.currency)} / ${formatCurrency(product.variantData![1].priceOverride ?? product.price, settings?.currency)}`
+      : null;
+
+    return (
+      <div key={product.id} className="bg-[var(--color-card-bg)] rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+        {product.image ? (
+          <div className="w-full pt-[100%] bg-black/5 dark:bg-white/5 relative shrink-0">
+            <img src={product.image} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
+            {product.highlightTag && (
+              <div className="absolute top-2 left-2 z-10">
+                <HighlightBadge tag={product.highlightTag} />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="w-full pt-[100%] bg-gradient-to-br from-gray-100 to-gray-200 relative shrink-0">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-black text-3xl text-gray-300">{product.name.charAt(0)}</span>
+            </div>
+          </div>
+        )}
+        
+        <div className="p-3 sm:p-5 flex-1 flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-1 sm:gap-4">
+            <h3 className="font-black text-sm sm:text-lg text-[var(--color-text)] leading-tight line-clamp-2">
+              {product.menuNumber ? (
+                <span className="text-primary/60 mr-1">{product.menuNumber}.</span>
+              ) : null}
+              {product.name}
+            </h3>
+            {priceRange ? (
+              <span className="font-black text-xs sm:text-sm text-primary whitespace-nowrap leading-tight text-right">
+                Med {priceRange.split(' / ')[0]}<br />
+                Lrg {priceRange.split(' / ')[1]}
+              </span>
+            ) : (
+              <span className="font-black text-sm sm:text-lg text-primary whitespace-nowrap">
+                {formatCurrency(product.price, settings?.currency)}
+              </span>
+            )}
+          </div>
+          {product.description && (
+            <p className="text-sm text-[var(--color-text)]/60 font-medium mb-4 line-clamp-2">{product.description}</p>
+          )}
+          
+          <div className="mt-auto pt-4">
+            {inCartQty > 0 ? (
+              <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-full p-1">
+                <button 
+                  onClick={() => onUpdateCart(cartIndex, inCartQty - 1)}
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[var(--color-card-bg)] text-[var(--color-text)] opacity-80 shadow-sm flex items-center justify-center hover:opacity-100 active:scale-95 transition-all shrink-0"
+                >
+                  <Minus className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+                <span className="font-black text-[var(--color-text)] text-sm sm:text-lg w-8 sm:w-12 text-center">{inCartQty}</span>
+                <button 
+                  onClick={() => onUpdateCart(cartIndex, inCartQty + 1)}
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:brightness-90 active:scale-95 transition-all shrink-0"
+                >
+                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => {
+                  if ((product.variants && product.variants.length > 0) || (product.modifiers && product.modifiers.length > 0)) {
+                    setSelectedProductForModal(product);
+                  } else {
+                    onAddToCart(product);
+                  }
+                }}
+                className="w-full py-3.5 bg-primary text-white rounded-full font-black text-sm hover:brightness-90 active:scale-95 transition-all"
+              >
+                Add to Cart
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -331,12 +419,16 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
       return matchesSearch && matchesCategory;
     });
 
-    // Sort by manual estore order — global when 'All', per-category otherwise
     return filtered.sort((a, b) => {
       if (activeCategory === 'All') {
-        return (a.estoreSortOrder ?? 0) - (b.estoreSortOrder ?? 0);
+        const aPizza = a.category === 'Pizzas';
+        const bPizza = b.category === 'Pizzas';
+        if (aPizza && !bPizza) return -1;
+        if (!aPizza && bPizza) return 1;
+        if (aPizza && bPizza) return (a.menuNumber ?? 999) - (b.menuNumber ?? 999);
+        return (a.menuNumber ?? 999) - (b.menuNumber ?? 999);
       }
-      return (a.estoreCategorySortOrder ?? 0) - (b.estoreCategorySortOrder ?? 0);
+      return (a.menuNumber ?? 999) - (b.menuNumber ?? 999);
     });
   }, [products, searchTerm, activeCategory]);
 
@@ -522,9 +614,26 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
               <div ref={dealsScrollRef} className="flex gap-4 overflow-x-auto pb-3 no-scrollbar snap-x scroll-smooth">
                 {matchingBundles.sort((a, b) => (a.estoreSortOrder ?? 0) - (b.estoreSortOrder ?? 0)).map(bundle => {
                   let bundleTotal = 0;
+                  let dealPrice = 0;
+                  let bundleMinPrice: number | null = null;
+                  let bundleMaxPrice: number | null = null;
                   let previewProductsList: Product[] = [];
 
-                  if (bundle.isCombo && bundle.slots) {
+                  const calcVariantRange = (p: Product) => {
+                    if (p.variantData && p.variantData.length > 0) {
+                      const prices = p.variantData.map((vd: any) => vd.priceOverride ?? p.price).filter((pr: number) => pr > 0);
+                      return { min: Math.min(...prices), max: Math.max(...prices) };
+                    }
+                    return { min: p.price, max: p.price };
+                  };
+
+                  if (bundle.overridePrice !== undefined && bundle.overridePrice !== null) {
+                    dealPrice = bundle.overridePrice;
+                    const allOptIds = bundle.slots?.flatMap(s => s.options?.map(o => o.productId) || [])
+                      ?? bundle.items?.map(bi => bi.productId) ?? [];
+                    const uniqueIds = Array.from(new Set(allOptIds));
+                    previewProductsList = uniqueIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
+                  } else if (bundle.isCombo && bundle.slots) {
                     bundleTotal = bundle.slots.reduce((sum, slot) => {
                       const maxPriceOpt = slot.options?.reduce((max, opt) => {
                         const p = products.find(pr => pr.id === opt.productId);
@@ -536,6 +645,44 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                     const allOptIds = bundle.slots.flatMap(s => s.options?.map(o => o.productId) || []);
                     const uniqueIds = Array.from(new Set(allOptIds));
                     previewProductsList = uniqueIds.map(id => products.find(p => p.id === id)).filter(Boolean) as Product[];
+
+                    dealPrice = bundleTotal - bundle.discountValue;
+
+                    // Per-slot range: each slot you pick N items from its options
+                    let minSum = 0, maxSum = 0;
+                    bundle.slots.forEach(slot => {
+                      const slotProducts = (slot.options || [])
+                        .map(opt => products.find(p => p.id === opt.productId))
+                        .filter(Boolean) as Product[];
+                      const slotRanges = slotProducts.map(calcVariantRange);
+                      const minSorted = [...slotRanges].sort((a, b) => a.min - b.min);
+                      const maxSorted = [...slotRanges].sort((a, b) => a.max - b.max);
+                      const req = Math.min(slot.requiredQuantity, slotRanges.length);
+                      minSum += minSorted.slice(0, req).reduce((s, r) => s + r.min, 0);
+                      maxSum += maxSorted.slice(-req).reduce((s, r) => s + r.max, 0);
+                    });
+                    if (minSum > 0) { bundleMinPrice = minSum; bundleMaxPrice = maxSum; }
+                    
+                    // Collapse range to single price when name specifies the size
+                    const lowerName = bundle.name.toLowerCase();
+                    if (lowerName.includes(' - medium') || lowerName.includes(' - small') || lowerName.includes(' - large')) {
+                      const nameTier = lowerName.includes(' - large') ? 1 : 0;
+                      const slotProducts = (bundle.slots[0]?.options || [])
+                        .map((opt: any) => products.find((p: Product) => p.id === opt.productId))
+                        .filter(Boolean) as Product[];
+                      if (slotProducts.length > 0) {
+                        const singlePrices = slotProducts.map((p: Product) => {
+                          if (p.variantData && p.variantData.length > nameTier) {
+                            return p.variantData[nameTier].priceOverride ?? p.price;
+                          }
+                          return p.price;
+                        });
+                        const singleMin = Math.min(...singlePrices);
+                        bundleMinPrice = singleMin;
+                        bundleMaxPrice = singleMin;
+                        dealPrice = singleMin;
+                      }
+                    }
                   } else {
                     bundleTotal = (bundle.items || []).reduce((sum, bi) => {
                       const p = products.find(pr => pr.id === bi.productId);
@@ -543,12 +690,20 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                     }, 0);
 
                     previewProductsList = (bundle.items || []).map(bi => products.find(p => p.id === bi.productId)).filter(Boolean) as Product[];
-                  }
 
-                  const discount = bundle.discountType === 'percentage'
-                    ? bundleTotal * (bundle.discountValue / 100)
-                    : bundle.discountValue;
-                  const dealPrice = Math.max(0, bundleTotal - discount);
+                    const discount = bundle.discountType === 'percentage'
+                      ? bundleTotal * (bundle.discountValue / 100)
+                      : bundle.discountValue;
+                    dealPrice = Math.max(0, bundleTotal - discount);
+
+                    const ranges = previewProductsList.map(calcVariantRange);
+                    const itemMin = ranges.reduce((sum, r, i) => sum + r.min * ((bundle.items?.[i]?.quantity) || 1), 0);
+                    const itemMax = ranges.reduce((sum, r, i) => sum + r.max * ((bundle.items?.[i]?.quantity) || 1), 0);
+                    const discPct = bundle.discountType === 'percentage' ? bundle.discountValue / 100 : 0;
+                    const discFixed = bundle.discountType === 'fixed' ? bundle.discountValue : 0;
+                    bundleMinPrice = Math.max(0, bundle.discountType === 'percentage' ? itemMin * (1 - discPct) : itemMin - discFixed);
+                    bundleMaxPrice = Math.max(0, bundle.discountType === 'percentage' ? itemMax * (1 - discPct) : itemMax - discFixed);
+                  }
 
                   return (
                     <div
@@ -578,7 +733,15 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                         )}
 
                         <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start gap-2 flex-wrap">
-                          {bundle.highlightTag && (
+                          {(bundle as any).badgeEnabled ? (
+                            <HighlightBadge
+                              badgeEnabled={(bundle as any).badgeEnabled}
+                              badgeText={(bundle as any).badgeText}
+                              badgeIcon={(bundle as any).badgeIcon}
+                              badgeBgColor={(bundle as any).badgeBgColor}
+                              badgeTextColor={(bundle as any).badgeTextColor}
+                            />
+                          ) : bundle.highlightTag && (
                             <HighlightBadge tag={bundle.highlightTag} />
                           )}
                           {bundle.scheduleType === 'scheduled' && (
@@ -586,9 +749,11 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                               <Flame className="h-3 w-3" /> SCHEDULED
                             </span>
                           )}
-                          <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow ml-auto flex items-center gap-1">
-                            {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF
-                          </span>
+                          {bundle.overridePrice !== undefined && bundle.overridePrice !== null ? null : bundle.discountValue > 0 && (!bundle.isCombo || !bundle.slots) ? (
+                            <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow ml-auto flex items-center gap-1">
+                              {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF
+                            </span>
+                          ) : null}
                         </div>
                         {bundle.scheduleType === 'scheduled' && (
                           <DealCountdown bundle={bundle} />
@@ -605,14 +770,30 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
 
                         <div>
                           <div className="flex items-center gap-2 mt-2">
-                            {bundleTotal > 0 && (
-                              <span className="text-sm text-[var(--color-text)] opacity-40 line-through font-bold">
-                                {formatCurrency(bundleTotal, settings?.currency)}
+                            {bundle.overridePrice !== undefined && bundle.overridePrice !== null ? (
+                              <span className="text-lg font-black text-primary">
+                                {formatCurrency(dealPrice, settings?.currency)}
                               </span>
+                            ) : bundleMinPrice !== null && bundleMaxPrice !== null && bundleMinPrice < bundleMaxPrice ? (
+                              <span className="text-lg font-black text-primary">
+                                {formatCurrency(bundleMinPrice, settings?.currency)} – {formatCurrency(bundleMaxPrice, settings?.currency)}
+                              </span>
+                            ) : bundle.isCombo && bundle.slots ? (
+                              <span className="text-lg font-black text-primary">
+                                From {formatCurrency(dealPrice, settings?.currency)}
+                              </span>
+                            ) : (
+                              <>
+                                {bundleTotal > 0 && dealPrice < bundleTotal && (
+                                  <span className="text-sm text-[var(--color-text)] opacity-40 line-through font-bold">
+                                    {formatCurrency(bundleTotal, settings?.currency)}
+                                  </span>
+                                )}
+                                <span className="text-lg font-black text-primary">
+                                  {formatCurrency(dealPrice, settings?.currency)}
+                                </span>
+                              </>
                             )}
-                            <span className="text-lg font-black text-primary">
-                              {formatCurrency(dealPrice, settings?.currency)}
-                            </span>
                           </div>
                           <p className="text-[10px] text-[var(--color-text)] opacity-40 font-semibold truncate mt-1">
                             {bundle.isCombo ? 'Customizable Combo Deal' : previewProductsList.map(p => p.name).join(' + ')}
@@ -655,80 +836,45 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
           </div>
         ) : (
           filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-            {filteredProducts.map(product => {
-              const cartIndex = cart.findIndex(c => c.product.id === product.id);
-              const inCartQty = cartIndex >= 0 ? cart[cartIndex].quantity : 0;
-
-              return (
-                <div key={product.id} className="bg-[var(--color-card-bg)] rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-                  {product.image ? (
-                    <div className="w-full pt-[100%] bg-black/5 dark:bg-white/5 relative shrink-0">
-                      <img src={product.image} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
-                      {product.highlightTag && (
-                        <div className="absolute top-2 left-2 z-10">
-                          <HighlightBadge tag={product.highlightTag} />
-                        </div>
+            activeCategory === 'All' && !searchTerm ? (
+              <>
+                {/* ─── Pizzas Section ─── */}
+                {(() => {
+                  const pizzas = filteredProducts.filter(p => p.category === 'Pizzas');
+                  const beverages = filteredProducts.filter(p => p.category === 'Beverages');
+                  return (
+                    <>
+                      {pizzas.length > 0 && (
+                        <section className="mb-8">
+                          <div className="flex items-center gap-2 mb-4">
+                            <h3 className="text-lg font-black text-[var(--color-text)]">Pizzas</h3>
+                            <span className="text-xs text-gray-400 font-medium">({pizzas.length})</span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+                            {pizzas.map(product => renderProductCard(product))}
+                          </div>
+                        </section>
                       )}
-                    </div>
-                  ) : (
-                    <div className="w-full pt-[100%] bg-gradient-to-br from-gray-100 to-gray-200 relative shrink-0">
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="font-black text-3xl text-gray-300">{product.name.charAt(0)}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="p-3 sm:p-5 flex-1 flex flex-col">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-1 sm:gap-4">
-                      <h3 className="font-black text-sm sm:text-lg text-[var(--color-text)] leading-tight line-clamp-2">
-                        {product.menuNumber ? <span className="text-primary/60 mr-1">{product.menuNumber}.</span> : ''}{product.name}
-                      </h3>
-                      <span className="font-black text-sm sm:text-lg text-primary whitespace-nowrap">
-                        {formatCurrency(product.price, settings?.currency)}
-                      </span>
-                    </div>
-                    {product.description && (
-                      <p className="text-sm text-[var(--color-text)]/60 font-medium mb-4 line-clamp-2">{product.description}</p>
-                    )}
-                    
-                    <div className="mt-auto pt-4">
-                      {inCartQty > 0 ? (
-                        <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-full p-1">
-                          <button 
-                            onClick={() => onUpdateCart(cartIndex, inCartQty - 1)}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[var(--color-card-bg)] text-[var(--color-text)] opacity-80 shadow-sm flex items-center justify-center hover:opacity-100 active:scale-95 transition-all shrink-0"
-                          >
-                            <Minus className="w-4 h-4 sm:w-5 sm:h-5" />
-                          </button>
-                          <span className="font-black text-[var(--color-text)] text-sm sm:text-lg w-8 sm:w-12 text-center">{inCartQty}</span>
-                          <button 
-                            onClick={() => onUpdateCart(cartIndex, inCartQty + 1)}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:brightness-90 active:scale-95 transition-all shrink-0"
-                          >
-                            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button 
-                          onClick={() => {
-                            if ((product.variants && product.variants.length > 0) || (product.modifiers && product.modifiers.length > 0)) {
-                              setSelectedProductForModal(product);
-                            } else {
-                              onAddToCart(product);
-                            }
-                          }}
-                          className="w-full py-3.5 bg-primary text-white rounded-full font-black text-sm hover:brightness-90 active:scale-95 transition-all"
-                        >
-                          Add to Cart
-                        </button>
+                      {beverages.length > 0 && (
+                        <section className="mb-8">
+                          <div className="flex items-center gap-2 mb-4">
+                            <h3 className="text-lg font-black text-[var(--color-text)]">Beverages</h3>
+                            <span className="text-xs text-gray-400 font-medium">({beverages.length})</span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+                            {beverages.map(product => renderProductCard(product))}
+                          </div>
+                        </section>
                       )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                    </>
+                  );
+                })()}
+              </>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+                {filteredProducts.map(product => renderProductCard(product))}
+              </div>
+            )
         ) : null)}
       </main>
 
@@ -803,28 +949,30 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                   });
                 };
 
+                let itemNumber = 0;
                 return (
                   <div className="space-y-6">
                     {/* Render Deals */}
                     {Array.from(bundlesMap.values()).map(b => (
-                      <div key={b.bundleId} className="p-4 rounded-3xl border border-dashed border-primary/35 bg-primary/[0.03] space-y-3">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1 shadow-sm">🎁 DEAL</span>
-                            <h4 className="font-black text-[var(--color-text)] text-sm uppercase leading-tight">{b.bundleName}</h4>
+                      <div key={b.bundleId} className="bg-[var(--color-card-bg)] rounded-3xl p-5 border border-black/5 dark:border-white/5 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">🎁 DEAL</span>
+                            <h4 className="font-bold text-sm text-[var(--color-text)] uppercase leading-tight">{b.bundleName}</h4>
                           </div>
-                          <div className="text-right shrink-0">
-                            <span className="font-black text-primary text-sm block">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
-                            <div className="flex items-center gap-2 bg-black/5 dark:bg-white/5 rounded-full p-0.5 mt-1 border border-black/5">
-                              <button onClick={() => renderQuantityControls(b.items, false)} className="w-6 h-6 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-xs text-[var(--color-text)] opacity-80">-</button>
-                              <span className="font-bold text-[11px] w-4 text-center text-[var(--color-text)]">{b.items[0]?.quantity || 1}</span>
-                              <button onClick={() => renderQuantityControls(b.items, true)} className="w-6 h-6 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-xs text-[var(--color-text)] opacity-80">+</button>
-                            </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-primary">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
                           </div>
                         </div>
+                        {(b.items[0]?.toppings && b.items[0].toppings.length > 0) && (
+                          <div className="mb-2">
+                            <p className="text-[10px] text-primary/70 font-medium">+ {b.items[0].toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
+                          </div>
+                        )}
                         <div className="space-y-2 border-t border-black/5 dark:border-white/5 pt-2">
-                          {b.items.map((item, idx) => (
-                            <div key={idx} className="flex gap-2.5 items-center text-xs">
+                          {b.items.map((item) => (
+                            <div key={++itemNumber} className="flex gap-2.5 items-center text-xs">
+                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
                               {item.product.image ? (
                                 <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                               ) : (
@@ -837,6 +985,9 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                                 {item.selectedVariant && (
                                   <p className="text-[10px] text-[var(--color-text)] opacity-50 truncate">{item.selectedVariant}</p>
                                 )}
+                                {item.toppings && item.toppings.length > 0 && (
+                                  <p className="text-[10px] text-primary/70 mt-0.5 truncate font-medium">+ {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -845,10 +996,11 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                     ))}
 
                     {/* Render Standalone Items */}
-                    {standaloneItems.map(item => {
+                    {standaloneItems.map((item) => {
                       const idxInCart = cart.findIndex(x => x === item);
                       return (
-                        <div key={item.product.id + idxInCart} className="flex gap-4 items-center">
+                        <div key={++itemNumber} className="flex gap-4 items-center">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
                           {item.product.image ? (
                             <img src={item.product.image} alt={item.product.name} className="w-16 h-16 rounded-xl object-cover shrink-0" />
                           ) : (
@@ -862,6 +1014,11 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                             {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                               <p className="text-xs text-[var(--color-text)] opacity-50 mt-0.5 truncate">
                                 + {item.selectedModifiers.map(m => m.name).join(', ')}
+                              </p>
+                            )}
+                            {item.toppings && item.toppings.length > 0 && (
+                              <p className="text-[10px] text-primary/70 mt-0.5 truncate font-medium">
+                                + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}
                               </p>
                             )}
                             <p className="text-primary font-black mt-1">{formatCurrency(item.subtotal / item.quantity, settings?.currency)}</p>
@@ -1067,6 +1224,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                         {order.items.map((item: any, idx: number) => (
                           <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-gray-100 last:border-0 last:pb-0">
                             <div className="flex items-center gap-3">
+                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{idx + 1}</span>
                               <div className="w-12 h-12 rounded-xl overflow-hidden bg-[var(--color-bg)] border border-black/5 dark:border-white/5 shrink-0 flex items-center justify-center">
                                 {item.product?.image ? (
                                   <img src={item.product.image} alt={item.product?.name} className="w-full h-full object-cover" />
@@ -1087,6 +1245,15 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                                     {item.selectedModifiers.map((m: any, mIdx: number) => (
                                       <span key={mIdx} className="text-[9px] bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
                                         + {m.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {item.toppings && item.toppings.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {item.toppings.map((t: any, tIdx: number) => (
+                                      <span key={tIdx} className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                                        + {t.name}
                                       </span>
                                     ))}
                                   </div>

@@ -474,6 +474,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         const bundlesMap = new Map<string, {
                           bundleId: string;
                           bundleName: string;
+                          bundleImage?: string;
                           items: CartItem[];
                           totalOriginal: number;
                           totalDiscount: number;
@@ -506,6 +507,11 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                           }
                         });
 
+                        bundlesMap.forEach((b) => {
+                          const bundleDef = (state as any).bundles?.find((x: any) => x.id === b.bundleId);
+                          if (bundleDef?.image) b.bundleImage = bundleDef.image;
+                        });
+
                         return {
                           bundles: Array.from(bundlesMap.values()),
                           standaloneItems
@@ -521,6 +527,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                             "flex items-center gap-3 bg-white dark:bg-white/5 p-2 rounded-2xl border border-gray-50 dark:border-white/5 shadow-sm",
                             isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
                           )}>
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{iIdx}</span>
                             <div className="h-10 w-10 bg-gray-100 dark:bg-black/20 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/10 aspect-square">
                               {item.product.image ? (
                                 <img src={item.product.image} className="h-full w-full object-cover" />
@@ -530,7 +537,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-[11px] font-black uppercase text-gray-900 dark:text-white truncate">{item.product.name}</p>
-                              {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
+                              {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
                                 <div className="flex flex-col gap-0.5 my-1">
                                   {item.selectedVariant && (
                                     <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
@@ -542,11 +549,20 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                                       + {item.selectedModifiers.map(m => m.name).join(', ')}
                                     </span>
                                   )}
-                                  {item.serialNumber && (
-                                    <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
-                                      SN: {item.serialNumber}
-                                    </span>
-                                  )}
+                                </div>
+                              )}
+                              {item.toppings && item.toppings.length > 0 && (
+                                <div className="my-1">
+                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                                    + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                                  </span>
+                                </div>
+                              )}
+                              {item.serialNumber && (
+                                <div className="my-1">
+                                  <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
+                                    SN: {item.serialNumber}
+                                  </span>
                                 </div>
                               )}
                               {!hidePrices && (
@@ -587,9 +603,10 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         </div>
                       ) : null;
 
-                      const bundleThumb = (b: typeof bundles[number]) => b.items[0]?.product?.image || null;
+                      const bundleThumb = (b: typeof bundles[number]) => b.bundleImage || b.items[0]?.product?.image || null;
 
-                      const renderedBundles = bundles.map((b, bIdx) => {
+                      let itemNumber = 0;
+                      const renderedBundles = bundles.map((b) => {
                         const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
                         return (
                           <div key={`checkout-bundle-${b.bundleId}`} className="p-3 my-1.5 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/[0.01]">
@@ -600,10 +617,19 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                               discount={discountStr}
                             />
                             <div className="mt-2 pl-8 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
-                              {b.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
-                                  <span>{Math.abs(item.quantity)} × {item.product.name}</span>
-                                  {item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
+                              {b.items.map((item) => (
+                                <div key={++itemNumber} className="flex flex-col text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
+                                  <div className="flex justify-between items-center">
+                                    <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{itemNumber}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
+                                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                                      {item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
+                                    </div>
+                                  </div>
+                                  {item.toppings && item.toppings.length > 0 && (
+                                    <div className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight mt-0.5 normal-case">
+                                      + {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -611,7 +637,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         );
                       });
 
-                      const renderedStandalones = standaloneItems.map((item, iIdx) => renderItemCard(item, iIdx));
+                      const renderedStandalones = standaloneItems.map((item) => renderItemCard(item, ++itemNumber));
 
                       return (
                         <>

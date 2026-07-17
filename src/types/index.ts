@@ -206,6 +206,8 @@ export interface CartItem {
   bundleName?: string; // Display name of the bundle deal
   bundleHideItemPrices?: boolean; // When true, this item's original price is hidden; only deal total shown
   refundedQuantity?: number; // Quantity of this item that was refunded
+  toppings?: CartItemTopping[]; // Extra toppings added to this item
+  dealSize?: string; // Selected deal size (e.g. 'large', 'medium')
 }
 
 export interface Discount {
@@ -376,6 +378,8 @@ export interface AppSettings {
   receiptShowCustomerPhone: boolean;
   receiptShowNotes: boolean;
   receiptShowBarcode?: boolean;
+  receiptShowDeliveryAddress: boolean;
+  receiptShowQrCode: boolean;
   receiptTemplate: 'modern' | 'minimal' | 'classic' | 'professional' | 'compact' | 'ultra_compact'
     | 'horizontal_header' | 'centered_flow' | 'left_grid' | 'split_columns' | 'floating_totals'
     | 'offset_logo' | 'boxed_sections' | 'tear_off' | 'vertical_line' | 'emphasized_total';
@@ -535,11 +539,19 @@ export interface Bundle {
   endTime?: string;
   hideItemPrices?: boolean;
   isCombo?: boolean;
+  dealCategory?: 'pizza' | 'burger' | 'beverage' | 'single_item';
+  overridePrice?: number;
   items?: BundleItem[];
   slots?: BundleSlot[];
   highlightTag?: 'sunday' | 'crown';
+  badgeEnabled?: boolean;
+  badgeText?: string;
+  badgeIcon?: string;
+  badgeBgColor?: string;
+  badgeTextColor?: string;
   estoreSortOrder?: number;
   image?: string;
+  extraToppings?: ExtraTopping[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -559,4 +571,40 @@ export interface PurchaseRecord {
   date: Date;
   addedBy: string;
   notes?: string;
+}
+
+export interface Topping {
+  id: string;
+  name: string;
+  priceSmall: number;
+  priceMedium: number;
+  priceLarge: number;
+  createdAt: Date;
+}
+
+export interface CartItemTopping {
+  toppingId: string;
+  name: string;
+  price: number;
+}
+
+export interface ProductTopping {
+  id: string;
+  productId: string;
+  toppingId: string;
+}
+
+export interface BundleSlotTopping {
+  id: string;
+  slotId: string;
+  toppingId: string;
+}
+
+export interface ExtraTopping {
+  id: string;
+  name: string;
+  priceSmall: number;
+  priceMedium: number;
+  priceLarge: number;
+  active: boolean;
 }

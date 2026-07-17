@@ -615,6 +615,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                   }
                 });
 
+                let itemNumber = 0;
                 return (
                   <div className="space-y-4 w-full">
                     {/* Render Deals */}
@@ -630,9 +631,15 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                             <span className="text-[10px] font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {b.items[0]?.quantity || 1}</span>
                           </div>
                         </div>
+                        {b.items[0]?.toppings && b.items[0].toppings.length > 0 && (
+                          <div className="border-t border-black/5 dark:border-white/5 pt-1.5 mt-1">
+                            <p className="text-[10px] text-gray-500">+ {b.items[0].toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
+                          </div>
+                        )}
                         <div className="space-y-1.5 border-t border-black/5 dark:border-white/5 pt-2">
-                          {b.items.map((item, idx) => (
-                            <div key={idx} className="flex gap-2 items-center text-xs">
+                          {b.items.map((item) => (
+                            <div key={++itemNumber} className="flex gap-2 items-center text-xs">
+                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
                               {item.product.image ? (
                                 <img src={item.product.image} alt={item.product.name} className="w-7 h-7 rounded-lg object-cover shrink-0" />
                               ) : (
@@ -645,6 +652,16 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                                 {item.selectedVariant && (
                                   <p className="text-[10px] text-[var(--color-text)] opacity-50 truncate">{item.selectedVariant}</p>
                                 )}
+                                {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                  <p className="text-[10px] text-gray-500 truncate">
+                                    + {item.selectedModifiers.map(m => m.name).join(', ')}
+                                  </p>
+                                )}
+                                {item.toppings && item.toppings.length > 0 && (
+                                  <p className="text-[10px] text-gray-500 truncate">
+                                    + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -653,8 +670,9 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                     ))}
 
                     {/* Render Standalone Items */}
-                    {standaloneItems.map((item, idx) => (
-                      <div key={idx} className="flex gap-4 items-center">
+                    {standaloneItems.map((item) => (
+                      <div key={++itemNumber} className="flex gap-4 items-center">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
                         {item.product.image ? (
                           <img src={item.product.image} alt={item.product.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
                         ) : (
@@ -668,8 +686,13 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                             <span className="text-xs text-[var(--color-text)] opacity-60 block mt-0.5 font-medium truncate">{item.selectedVariant}</span>
                           )}
                           {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                            <span className="text-xs text-[var(--color-text)] opacity-50 block mt-0.5 truncate">
+                            <span className="text-[10px] text-gray-500 block mt-0.5 truncate">
                               + {item.selectedModifiers.map(m => m.name).join(', ')}
+                            </span>
+                          )}
+                          {item.toppings && item.toppings.length > 0 && (
+                            <span className="text-[10px] text-gray-500 block mt-0.5 truncate">
+                              + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}
                             </span>
                           )}
                         </div>

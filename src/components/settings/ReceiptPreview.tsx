@@ -153,6 +153,30 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
     </>
   );
 
+  const renderDeliveryContent = () => {
+    const showAddress = settings.receiptShowDeliveryAddress !== false;
+    const showQr = settings.receiptShowQrCode !== false;
+    if (!showAddress && !showQr) return null;
+    return (
+      <div style={{ marginTop: '6px', borderTop: '1px dashed #ccc', paddingTop: '6px', paddingBottom: '6px', borderBottom: '1px dashed #ccc', textTransform: 'uppercase' }}>
+        {showAddress && (
+          <div style={{ fontWeight: 'bold', fontSize: `${fs.meta}px` }}>
+            Fulfillment: Home Delivery
+            <div style={{ fontSize: `${fs.body}px`, marginTop: '3px', whiteSpace: 'pre-wrap', textAlign: 'left', fontWeight: 'normal' }}>
+              Address: S | Near: S
+            </div>
+          </div>
+        )}
+        {showQr && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
+            <QRCodeSVG value="https://www.google.com/maps/search/?api=1&query=24.8607,67.0011" size={90} level="M" style={{ margin: '0 auto' }} />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderItemsContent = () => (
     <div style={{ marginTop: '4px', marginBottom: '4px', color: 'black' }}>
       <TwoCol left="ITEM" right="TOTAL" bold />
@@ -231,11 +255,36 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
     </>
   );
 
+  const deliveryBlock = (() => {
+    const showAddress = settings.receiptShowDeliveryAddress !== false;
+    const showQr = settings.receiptShowQrCode !== false;
+    if (!showAddress && !showQr) return null;
+    return (
+      <div style={{ marginTop: '6px', borderTop: '1px dashed #ccc', paddingTop: '6px', paddingBottom: '6px', borderBottom: '1px dashed #ccc', textTransform: 'uppercase' }}>
+        {showAddress && (
+          <div style={{ fontWeight: 'bold', fontSize: '10px' }}>
+            Fulfillment: Home Delivery
+            <div style={{ fontSize: '10px', marginTop: '3px', whiteSpace: 'pre-wrap', textAlign: 'left', fontWeight: 'normal' }}>
+              Address: S | Near: S
+            </div>
+          </div>
+        )}
+        {showQr && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '8px', textAlign: 'center' }}>
+            <span style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
+            <QRCodeSVG value="https://www.google.com/maps/search/?api=1&query=24.8607,67.0011" size={90} level="M" style={{ margin: '0 auto' }} />
+          </div>
+        )}
+      </div>
+    );
+  })();
+
   const metaBlock = (
     <>
       <TwoCol left={`INV#: ${settings.invoicePrefix || 'INV'}-001234`} right={`DATE: ${formatAppDate(new Date().toISOString(), settings.country).replace(/,/g, '')}`} />
       <TwoCol left={`TIME: ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`} right={`OP: ADMIN`} />
       {settings.receiptShowCustomerName && <TwoCol left="CUST: WALKIN CUSTOMER" right={settings.receiptShowCustomerPhone ? "PH: +92 300 0000000" : ""} />}
+      {deliveryBlock}
     </>
   );
 
@@ -580,6 +629,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
         <div style={bodyStyle}>
           {template !== 'minimal' && <div style={dividerStyle} />}
           {renderMetaContent()}
+          {renderDeliveryContent()}
           {template !== 'minimal' && <div style={subDividerStyle} />}
           {renderItemsContent()}
           {template !== 'minimal' && <div style={dividerStyle} />}

@@ -13,7 +13,8 @@ import {
   Supplier,
   ProductBatch,
   StockHistory,
-  Payment
+  Payment,
+  Topping,
 } from '../types';
 
 export const SETTINGS_ID = '00000000-0000-4000-8000-000000000001';
@@ -39,7 +40,8 @@ export type PendingOpEntity =
   | 'bundles'
   | 'bundle_items'
   | 'bundle_slots'
-  | 'bundle_slot_options';
+  | 'bundle_slot_options'
+  | 'toppings';
 
 export type PendingOpType = 'create' | 'update' | 'delete' | 'upsert';
 
@@ -88,6 +90,7 @@ export class ZaynahsPosDB extends Dexie {
   bundleItems!: Table<any>;
   bundleSlots!: Table<any>;
   bundleSlotOptions!: Table<any>;
+  toppings!: Table<Topping>;
 
   constructor() {
     // Make the IndexedDB name unique per Supabase Project so different clones on localhost don't share data
@@ -120,6 +123,7 @@ export class ZaynahsPosDB extends Dexie {
       bundleItems: 'id, bundleId, productId',
       bundleSlots: 'id, bundleId',
       bundleSlotOptions: 'id, slotId, productId',
+      toppings: 'id, name',
       // Legacy compatibility:
       app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
       purchase_records: 'id, productId, supplierId, date'

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Package, Plus, Edit, Trash2, Tag, Search, X, ChevronDown, ChevronUp, Check,
   Percent, DollarSign, ToggleLeft, ToggleRight, Gift, Info, MoreHorizontal,
@@ -11,6 +11,7 @@ import { bundlesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
 import { useTranslation } from '../../hooks/useTranslation';
+import { MediaLibrary } from './MediaLibrary';
 
 interface BundleFormItem {
   productId: string;
@@ -27,15 +28,32 @@ interface BundleFormSlot {
   name: string;
   requiredQuantity: number;
   options: BundleFormSlotOption[];
+  toppingIds: string[];
+}
+
+interface ExtraToppingForm {
+  id: string;
+  name: string;
+  priceSmall: number;
+  priceMedium: number;
+  priceLarge: number;
+  active: boolean;
 }
 
 interface BundleForm {
   name: string;
   description: string;
+  image: string;
   discountValue: number;
   discountType: 'percentage' | 'fixed';
   hideItemPrices: boolean;
   isCombo: boolean;
+  overridePrice: number;
+  badgeEnabled: boolean;
+  badgeText: string;
+  badgeIcon: string;
+  badgeBgColor: string;
+  badgeTextColor: string;
   scheduleType: 'always' | 'scheduled';
   startDate: string;
   endDate: string;
@@ -44,15 +62,23 @@ interface BundleForm {
   endTime: string;
   items: BundleFormItem[];
   slots: BundleFormSlot[];
+  extraToppings: ExtraToppingForm[];
 }
 
 const emptyForm: BundleForm = {
   name: '',
   description: '',
+  image: '',
   discountValue: 0,
   discountType: 'percentage',
+  overridePrice: 0,
   hideItemPrices: false,
   isCombo: false,
+  badgeEnabled: false,
+  badgeText: '',
+  badgeIcon: 'crown',
+  badgeBgColor: '#1A1A1A',
+  badgeTextColor: '#D4AF37',
   scheduleType: 'always',
   startDate: '',
   endDate: '',
@@ -61,6 +87,7 @@ const emptyForm: BundleForm = {
   endTime: '',
   items: [],
   slots: [],
+  extraToppings: [],
 };
 
 export function BundleManager() {
@@ -80,14 +107,18 @@ export function BundleManager() {
   const [expandedBundle, setExpandedBundle] = useState<string | null>(null);
   const [actionMenuBundleId, setActionMenuBundleId] = useState<string | null>(null);
   const [menuUpward, setMenuUpward] = useState(false);
+  const [showToppingEditor, setShowToppingEditor] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const currency = formatCurrency(0, state.settings.currency).replace('0', '').trim();
 
   const filteredSearchProducts = state.products.filter(p =>
     p.active !== false &&
-    p.name.toLowerCase().includes(productSearch.toLowerCase())
+    p.name?.toLowerCase().includes(productSearch.toLowerCase())
   );
 
+  // Load slot topping assignments when editing a bundle
   const openCreate = () => {
     setEditingBundle(null);
     setForm(emptyForm);
@@ -101,9 +132,16 @@ export function BundleManager() {
     setForm({
       name: bundle.name || '',
       description: bundle.description || '',
+      image: bundle.image || '',
       discountValue: bundle.discountValue || 0,
       discountType: bundle.discountType || 'percentage',
+      overridePrice: bundle.overridePrice || 0,
       hideItemPrices: bundle.hideItemPrices || false,
+      badgeEnabled: (bundle as any).badgeEnabled || false,
+      badgeText: (bundle as any).badgeText || '',
+      badgeIcon: (bundle as any).badgeIcon || 'crown',
+      badgeBgColor: (bundle as any).badgeBgColor || '#1A1A1A',
+      badgeTextColor: (bundle as any).badgeTextColor || '#D4AF37',
       isCombo: isCombo,
       scheduleType: bundle.scheduleType || 'always',
       startDate: bundle.startDate || '',
@@ -116,8 +154,17 @@ export function BundleManager() {
         id: s.id,
         name: s.name,
         requiredQuantity: s.requiredQuantity,
-        options: (s.options || []).map(o => ({ productId: o.productId, sortOrder: o.sortOrder ?? 0 }))
-      })).sort((a: any, b: any) => a.orderIndex - b.orderIndex)
+        options: (s.options || []).map(o => ({ productId: o.productId, sortOrder: o.sortOrder ?? 0 })),
+        toppingIds: []
+      })).sort((a: any, b: any) => a.orderIndex - b.orderIndex),
+      extraToppings: (bundle.extraToppings || []).map(et => ({
+        id: et.id,
+        name: et.name,
+        priceSmall: et.priceSmall,
+        priceMedium: et.priceMedium,
+        priceLarge: et.priceLarge,
+        active: et.active,
+      })),
     });
     setShowForm(true);
     setProductSearch('');
@@ -128,6 +175,7 @@ export function BundleManager() {
     setEditingBundle(null);
     setForm(emptyForm);
     setShowProductPicker(false);
+    setShowToppingEditor(false);
   };
 
   const addProduct = (product: Product) => {
@@ -163,7 +211,7 @@ export function BundleManager() {
   const addSlot = () => {
     setForm(prev => ({
       ...prev,
-      slots: [...prev.slots, { id: Date.now().toString(36) + Math.random().toString(36).substring(2), name: `Slot ${prev.slots.length + 1}`, requiredQuantity: 1, options: [] }]
+      slots: [...prev.slots, { id: Date.now().toString(36) + Math.random().toString(36).substring(2), name: `Slot ${prev.slots.length + 1}`, requiredQuantity: 1, options: [], toppingIds: [] }]
     }));
   };
 
@@ -261,9 +309,15 @@ export function BundleManager() {
         await bundlesService.update(editingBundle.id, {
           name: form.name,
           description: form.description,
+          image: form.image || null,
           discountValue: form.discountValue,
           discountType: form.discountType,
           hideItemPrices: form.hideItemPrices,
+          badgeEnabled: form.badgeEnabled,
+          badgeText: form.badgeText || undefined,
+          badgeIcon: form.badgeIcon || undefined,
+          badgeBgColor: form.badgeBgColor || undefined,
+          badgeTextColor: form.badgeTextColor || undefined,
           items: itemsPayload,
           slots: slotsPayload,
           isCombo: form.isCombo,
@@ -273,6 +327,7 @@ export function BundleManager() {
           repeatDays: form.repeatDays.length > 0 ? form.repeatDays : null,
           startTime: form.startTime || null,
           endTime: form.endTime || null,
+          extraToppings: form.extraToppings.filter(t => t.active),
         });
         dispatch({
           type: 'UPDATE_BUNDLE',
@@ -280,9 +335,16 @@ export function BundleManager() {
             ...editingBundle,
             name: form.name,
             description: form.description,
-            discountValue: form.discountValue,
-            discountType: form.discountType,
+            image: form.image || undefined,
+          discountValue: form.discountValue,
+          discountType: form.discountType,
+          overridePrice: form.overridePrice || undefined,
             hideItemPrices: form.hideItemPrices,
+            badgeEnabled: form.badgeEnabled,
+            badgeText: form.badgeText || undefined,
+            badgeIcon: form.badgeIcon || undefined,
+            badgeBgColor: form.badgeBgColor || undefined,
+            badgeTextColor: form.badgeTextColor || undefined,
             isCombo: form.isCombo,
             scheduleType: form.scheduleType,
             startDate: form.startDate || undefined,
@@ -290,6 +352,7 @@ export function BundleManager() {
             repeatDays: form.repeatDays.length > 0 ? form.repeatDays : undefined,
             startTime: form.startTime || undefined,
             endTime: form.endTime || undefined,
+            extraToppings: form.extraToppings.filter(t => t.active),
             items: (itemsPayload || []).map((i, idx) => ({
               id: `${editingBundle.id}-${idx}`,
               bundleId: editingBundle.id,
@@ -318,9 +381,16 @@ export function BundleManager() {
         const created = await bundlesService.create({
           name: form.name,
           description: form.description,
+          image: form.image || null,
           discountValue: form.discountValue,
           discountType: form.discountType,
+          overridePrice: form.overridePrice || undefined,
           hideItemPrices: form.hideItemPrices,
+          badgeEnabled: form.badgeEnabled,
+          badgeText: form.badgeText || undefined,
+          badgeIcon: form.badgeIcon || undefined,
+          badgeBgColor: form.badgeBgColor || undefined,
+          badgeTextColor: form.badgeTextColor || undefined,
           items: itemsPayload,
           slots: slotsPayload,
           isCombo: form.isCombo,
@@ -330,6 +400,7 @@ export function BundleManager() {
           repeatDays: form.repeatDays.length > 0 ? form.repeatDays : null,
           startTime: form.startTime || null,
           endTime: form.endTime || null,
+          extraToppings: form.extraToppings.filter(t => t.active),
         });
         dispatch({ type: 'ADD_BUNDLE', payload: created });
         sonner.success(wasOffline
@@ -373,11 +444,31 @@ export function BundleManager() {
 
   const bundles = state.bundles || [];
 
+  // Auto-detect deal categories from bundles
+  const dealCategories = ['all', ...Array.from(new Set(bundles.map(b => (b as any).dealCategory).filter(Boolean)))] as string[];
+
+  const formatCatLabel = (cat: string) => {
+    if (cat === 'all') return 'All';
+    return cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const formatSectionLabel = (cat: string) => {
+    return `${formatCatLabel(cat)} Deals`;
+  };
+
+  // Reset activeCategory if its count drops to zero (e.g. after delete)
+  useEffect(() => {
+    if (activeCategory !== 'all') {
+      const count = bundles.filter(b => (b as any).dealCategory === activeCategory).length;
+      if (count === 0) setActiveCategory('all');
+    }
+  }, [bundles, activeCategory]);
+
   return (
     <>
       {/* ─── FORM MODE (kept mounted so sync doesn't reset fields) ─── */}
       {showForm && (
-        <div className="animate-in fade-in duration-300 space-y-4 max-w-2xl mx-auto">
+        <div className="animate-in fade-in duration-300 space-y-4 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={closeForm} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all">
@@ -414,7 +505,7 @@ export function BundleManager() {
             </button>
           </div>
 
-          {/* Name + Description */}
+          {/* Name + Image + Description */}
           <div className="space-y-3">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">{t('bundle_name', 'Bundle Name *')}</label>
@@ -425,6 +516,37 @@ export function BundleManager() {
                 placeholder={t('bundle_name_placeholder', 'e.g. Summer Deal, Family Pack, Combo Offer')}
                 className="input w-full text-sm"
               />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">Deal Image</label>
+              <div className="flex items-center gap-3">
+                <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center shrink-0">
+                  {form.image ? (
+                    <img src={form.image} alt="Deal" className="w-full h-full object-cover" />
+                  ) : (
+                    <Package className="h-6 w-6 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaLibrary(true)}
+                    className="btn btn-md btn-primary !py-1.5 !px-3 !text-[9px] font-bold uppercase tracking-wider"
+                  >
+                    {form.image ? 'Change Image' : 'Upload / Choose Image'}
+                  </button>
+                  {form.image && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, image: '' }))}
+                      className="text-[10px] font-medium text-red-500 hover:text-red-600 transition-colors text-left"
+                    >
+                      Remove Image
+                    </button>
+                  )}
+                  <span className="text-[9px] text-gray-400">Recommended: 900×650px</span>
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">{t('description', 'Description')} ({t('optional', 'Optional')})</label>
@@ -438,37 +560,239 @@ export function BundleManager() {
             </div>
           </div>
 
-          {/* Discount Setup */}
+          {/* Override Price (Fixed Price Mode) */}
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">{t('discount_setup', 'Discount Setup *')}</label>
-            <div className="flex items-center gap-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">{t('pricing_mode', 'Pricing Mode *')}</label>
+            <div className="flex items-center gap-2 mb-3">
               <div className="flex bg-gray-100 dark:bg-white/5 rounded-xl p-1 gap-1">
                 <button
                   type="button"
-                  onClick={() => setForm(p => ({ ...p, discountType: 'percentage' }))}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.discountType === 'percentage' ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                  onClick={() => setForm(p => ({ ...p, overridePrice: 0 }))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${!form.overridePrice ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
                 >
-                  <Percent className="h-3 w-3" /> {t('percentage', 'Percentage')}
+                  <Tag className="h-3 w-3" /> {t('discount_from_base', 'Discount from Base')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setForm(p => ({ ...p, discountType: 'fixed' }))}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.discountType === 'fixed' ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                  onClick={() => setForm(p => ({ ...p, overridePrice: 1 }))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.overridePrice > 0 ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
                 >
-                  <DollarSign className="h-3 w-3" /> {t('fixed', 'Fixed')}
+                  <DollarSign className="h-3 w-3" /> {t('fixed_price', 'Set Fixed Price')}
                 </button>
               </div>
-              <input
-                type="number"
-                min={0}
-                max={form.discountType === 'percentage' ? 100 : bundleTotal}
-                value={form.discountValue}
-                onChange={e => setForm(p => ({ ...p, discountValue: Math.max(0, Math.min(Number(e.target.value), form.discountType === 'percentage' ? 100 : bundleTotal)) }))}
-                placeholder={form.discountType === 'percentage' ? '0-100' : t('amount', 'Amount')}
-                className="input flex-1 text-sm text-center font-black"
-              />
-              <span className="text-[11px] font-black text-gray-500">{form.discountType === 'percentage' ? '%' : currency}</span>
             </div>
+            {form.overridePrice > 0 ? (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black text-gray-500">{currency}</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.overridePrice}
+                  onChange={e => setForm(p => ({ ...p, overridePrice: Math.max(0, Number(e.target.value)) }))}
+                  placeholder={t('final_price', 'Final Price')}
+                  className="input flex-1 text-sm text-center font-black"
+                />
+              </div>
+            ) : (
+              <>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">{t('discount_setup', 'Discount Amount *')}</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex bg-gray-100 dark:bg-white/5 rounded-xl p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, discountType: 'percentage' }))}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.discountType === 'percentage' ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                    >
+                      <Percent className="h-3 w-3" /> {t('percentage', 'Percentage')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, discountType: 'fixed' }))}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.discountType === 'fixed' ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                    >
+                      <DollarSign className="h-3 w-3" /> {t('fixed', 'Fixed')}
+                    </button>
+                  </div>
+                  <input
+                    type="number"
+                    min={0}
+                    max={form.discountType === 'percentage' ? 100 : bundleTotal}
+                    value={form.discountValue}
+                    onChange={e => setForm(p => ({ ...p, discountValue: Math.max(0, Math.min(Number(e.target.value), form.discountType === 'percentage' ? 100 : bundleTotal)) }))}
+                    placeholder={form.discountType === 'percentage' ? '0-100' : t('amount', 'Amount')}
+                    className="input flex-1 text-sm text-center font-black"
+                  />
+                  <span className="text-[11px] font-black text-gray-500">{form.discountType === 'percentage' ? '%' : currency}</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ─── Badge Section ─── */}
+          <div className="bg-gray-50 dark:bg-white/[0.02] rounded-2xl border border-gray-100 dark:border-white/5 p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-gray-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">{t('badge', 'Badge')}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, badgeEnabled: !p.badgeEnabled }))}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-all duration-300 focus:outline-none ${
+                  form.badgeEnabled
+                    ? 'bg-violet-500 shadow-lg shadow-violet-500/30'
+                    : 'bg-gray-300 dark:bg-white/10'
+                }`}
+                aria-checked={form.badgeEnabled}
+                role="switch"
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                    form.badgeEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {form.badgeEnabled && (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                {/* Badge Text */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Badge Text</label>
+                  <input
+                    type="text"
+                    value={form.badgeText}
+                    onChange={e => setForm(p => ({ ...p, badgeText: e.target.value }))}
+                    placeholder="e.g. CROWN, HOT DEAL, LIMITED"
+                    maxLength={20}
+                    className="input w-full text-xs py-2"
+                  />
+                </div>
+
+                {/* Icon Picker */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5">Icon</label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[
+                      { id: 'crown', icon: '👑' },
+                      { id: 'sun', icon: '☀️' },
+                      { id: 'fire', icon: '🔥' },
+                      { id: 'star', icon: '⭐' },
+                      { id: 'tag', icon: '🏷️' },
+                      { id: 'percent', icon: '%' },
+                      { id: 'party', icon: '🎉' },
+                      { id: 'zap', icon: '⚡' },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, badgeIcon: opt.id }))}
+                        className={`h-8 w-8 rounded-lg text-sm flex items-center justify-center transition-all ${
+                          form.badgeIcon === opt.id
+                            ? 'bg-primary text-white shadow-md ring-2 ring-primary/30'
+                            : 'bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-600 hover:border-primary/50'
+                        }`}
+                        title={opt.id}
+                      >
+                        {opt.icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Background Color Presets */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5">Background Color</label>
+                  <div className="flex gap-2 items-center">
+                    {[
+                      { id: '#D4AF37', label: 'Gold' },
+                      { id: '#EF4444', label: 'Red' },
+                      { id: '#F97316', label: 'Orange' },
+                      { id: '#1A1A1A', label: 'Dark' },
+                      { id: '#3B82F6', label: 'Blue' },
+                      { id: '#10B981', label: 'Green' },
+                    ].map(preset => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, badgeBgColor: preset.id }))}
+                        className={`h-7 w-7 rounded-full shrink-0 transition-all ${
+                          form.badgeBgColor === preset.id ? 'ring-2 ring-offset-1 ring-primary' : ''
+                        }`}
+                        style={{ backgroundColor: preset.id }}
+                        title={preset.label}
+                      />
+                    ))}
+                    <div className="relative">
+                      <input
+                        type="color"
+                        value={form.badgeBgColor}
+                        onChange={e => setForm(p => ({ ...p, badgeBgColor: e.target.value }))}
+                        className="h-7 w-7 rounded-full cursor-pointer border-0 p-0"
+                        title="Custom color"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Text Color */}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5">Text Color</label>
+                  <div className="flex gap-2 items-center">
+                    {[
+                      { id: '#FFFFFF', label: 'White' },
+                      { id: '#1A1A1A', label: 'Black' },
+                      { id: '#D4AF37', label: 'Gold' },
+                      { id: '#FEF3C7', label: 'Light' },
+                    ].map(preset => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, badgeTextColor: preset.id }))}
+                        className={`h-7 w-7 rounded-full shrink-0 border border-gray-300 transition-all ${
+                          form.badgeTextColor === preset.id ? 'ring-2 ring-offset-1 ring-primary' : ''
+                        }`}
+                        style={{ backgroundColor: preset.id }}
+                        title={preset.label}
+                      />
+                    ))}
+                    <div className="relative">
+                      <input
+                        type="color"
+                        value={form.badgeTextColor}
+                        onChange={e => setForm(p => ({ ...p, badgeTextColor: e.target.value }))}
+                        className="h-7 w-7 rounded-full cursor-pointer border-0 p-0"
+                        title="Custom color"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Preview */}
+                <div className="bg-white dark:bg-black/20 rounded-xl border border-gray-200 dark:border-white/10 p-3 flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-gray-400">Preview</span>
+                    <span
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider"
+                      style={{
+                        backgroundColor: form.badgeBgColor || '#1A1A1A',
+                        color: form.badgeTextColor || '#D4AF37',
+                      }}
+                    >
+                      {form.badgeIcon === 'crown' && '👑'}
+                      {form.badgeIcon === 'sun' && '☀️'}
+                      {form.badgeIcon === 'fire' && '🔥'}
+                      {form.badgeIcon === 'star' && '⭐'}
+                      {form.badgeIcon === 'tag' && '🏷️'}
+                      {form.badgeIcon === 'percent' && '%'}
+                      {form.badgeIcon === 'party' && '🎉'}
+                      {form.badgeIcon === 'zap' && '⚡'}
+                      {' '}{form.badgeText || 'BADGE'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Receipt Display Option */}
@@ -822,7 +1146,7 @@ export function BundleManager() {
                                   {product.image && (
                                     <img src={product.image} alt={product.name} className="w-4 h-4 object-cover rounded shadow-sm" />
                                   )}
-                                  <span className="text-[10px] font-black text-gray-800 dark:text-gray-200 truncate max-w-[120px]">{product.name}</span>
+                                  <span className="text-[10px] font-black text-gray-800 dark:text-gray-200 truncate">{product.name}</span>
                                   <button type="button" onClick={() => removeOptionFromSlot(slot.id, opt.productId)} className="text-gray-400 hover:text-red-500 ml-auto">
                                     <X className="h-3 w-3" />
                                   </button>
@@ -858,6 +1182,115 @@ export function BundleManager() {
                 <span className="font-black text-gray-900 dark:text-white uppercase">{t('bundle_price', 'Bundle Price')}</span>
                 <span className="font-black text-primary dark:text-emerald-400 text-base">{formatCurrency(finalPrice, state.settings.currency)}</span>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* ─── Deal-level Extra Toppings Editor ─── */}
+        <div className="border-t border-gray-200 dark:border-white/5 pt-4 mt-4">
+          <button
+            type="button"
+            onClick={() => setShowToppingEditor(!showToppingEditor)}
+            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-primary transition-colors"
+          >
+            {showToppingEditor ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            Extra Toppings — {form.extraToppings.filter(t => t.active).length} active
+          </button>
+          {showToppingEditor && (
+            <div className="mt-3 space-y-2">
+              {form.extraToppings.length === 0 && (
+                <p className="text-[10px] text-gray-500 italic">No extra toppings for this deal. Add one below.</p>
+              )}
+              {form.extraToppings.map((t, idx) => (
+                <div key={t.id} className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setForm(prev => {
+                      const updated = [...prev.extraToppings];
+                      updated[idx] = { ...updated[idx], active: !updated[idx].active };
+                      return { ...prev, extraToppings: updated };
+                    })}
+                    className={`p-1.5 rounded-lg transition-all text-[10px] font-black ${t.active ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-500'}`}
+                  >
+                    {t.active ? 'ON' : 'OFF'}
+                  </button>
+                  <input
+                    type="text"
+                    value={t.name}
+                    onChange={e => setForm(prev => {
+                      const updated = [...prev.extraToppings];
+                      updated[idx] = { ...updated[idx], name: e.target.value };
+                      return { ...prev, extraToppings: updated };
+                    })}
+                    className="flex-1 min-w-[100px] bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold"
+                    placeholder="Name"
+                  />
+                  <input
+                    type="number" min="0"
+                    value={t.priceSmall}
+                    onChange={e => setForm(prev => {
+                      const updated = [...prev.extraToppings];
+                      updated[idx] = { ...updated[idx], priceSmall: Number(e.target.value) };
+                      return { ...prev, extraToppings: updated };
+                    })}
+                    className="w-16 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
+                    placeholder="S"
+                  />
+                  <input
+                    type="number" min="0"
+                    value={t.priceMedium}
+                    onChange={e => setForm(prev => {
+                      const updated = [...prev.extraToppings];
+                      updated[idx] = { ...updated[idx], priceMedium: Number(e.target.value) };
+                      return { ...prev, extraToppings: updated };
+                    })}
+                    className="w-16 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
+                    placeholder="M"
+                  />
+                  <input
+                    type="number" min="0"
+                    value={t.priceLarge}
+                    onChange={e => setForm(prev => {
+                      const updated = [...prev.extraToppings];
+                      updated[idx] = { ...updated[idx], priceLarge: Number(e.target.value) };
+                      return { ...prev, extraToppings: updated };
+                    })}
+                    className="w-16 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
+                    placeholder="L"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const result = sonner.deleteConfirm(`topping "${t.name}"`);
+                      result.then(r => {
+                        if (r.isConfirmed) {
+                          setForm(prev => ({ ...prev, extraToppings: prev.extraToppings.filter(x => x.id !== t.id) }));
+                        }
+                      });
+                    }}
+                    className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({
+                  ...prev,
+                  extraToppings: [...prev.extraToppings, {
+                    id: Date.now().toString() + Math.random().toString(36).slice(2),
+                    name: '',
+                    priceSmall: 0,
+                    priceMedium: 0,
+                    priceLarge: 0,
+                    active: true,
+                  }]
+                }))}
+                className="flex items-center gap-1 text-[10px] font-black text-primary hover:text-emerald-600 transition-colors mt-1"
+              >
+                <Plus className="h-3 w-3" /> Add Topping
+              </button>
             </div>
           )}
         </div>
@@ -928,8 +1361,44 @@ export function BundleManager() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {bundles.map(bundle => {
+        <div className="space-y-6">
+          {/* Category filter tabs — auto-detected from bundle dealCategory values */}
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-nowrap md:flex-wrap pb-1">
+            {dealCategories.map(cat => {
+              const count = cat === 'all' ? bundles.length : bundles.filter(b => (b as any).dealCategory === cat).length;
+              if (cat !== 'all' && count === 0) return null;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                    activeCategory === cat
+                      ? 'bg-primary text-white shadow-md'
+                      : 'bg-gray-100 dark:bg-white/5 text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  {formatCatLabel(cat)} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Grouped bundles */}
+          {dealCategories.filter(c => c !== 'all').map(cat => {
+            const catBundles = bundles.filter(b => (b as any).dealCategory === cat);
+            if (catBundles.length === 0) return null;
+            if (activeCategory !== 'all' && activeCategory !== cat) return null;
+            return (
+              <div key={cat}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-5 w-1 rounded-full bg-primary" />
+                  <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-500">
+                    {formatSectionLabel(cat)}
+                  </h3>
+                  <span className="text-[9px] text-gray-400 font-medium">({catBundles.length})</span>
+                </div>
+                <div className="space-y-3">
+                  {catBundles.map(bundle => {
             const isExpanded = expandedBundle === bundle.id;
             let totalPrice = 0;
             let itemCount = 0;
@@ -991,7 +1460,7 @@ export function BundleManager() {
                         {t('products_count', '{count} products').replace('{count}', String(itemCount))}
                       </span>
                       <span className="text-[10px] font-black text-red-500">
-                        {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${formatCurrency(discAmt, state.settings.currency)}`}
+                        {bundle.discountType === 'percentage' && discAmt > 0 ? `-${bundle.discountValue}%` : discAmt > 0 ? `-${formatCurrency(discAmt, state.settings.currency)}` : ''}
                       </span>
                       <span className="text-[10px] font-black text-primary">{formatCurrency(finalAmt, state.settings.currency)}</span>
                       {bundle.scheduleType === 'scheduled' && (
@@ -1132,7 +1601,7 @@ export function BundleManager() {
                           {t('products_count', '{count} products').replace('{count}', String(itemCount))}
                         </span>
                         <span className="text-[10px] font-black text-red-500 whitespace-nowrap">
-                          {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${formatCurrency(discAmt, state.settings.currency)}`}
+                      {bundle.discountType === 'percentage' && discAmt > 0 ? `-${bundle.discountValue}%` : discAmt > 0 ? `-${formatCurrency(discAmt, state.settings.currency)}` : ''}
                         </span>
                         <span className="text-[10px] font-black text-primary whitespace-nowrap">{formatCurrency(finalAmt, state.settings.currency)}</span>
                         {bundle.scheduleType === 'scheduled' && (
@@ -1218,16 +1687,30 @@ export function BundleManager() {
                         )}
                       </>
                     )}
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-white/5">
-                      <span className="text-[10px] text-gray-500">{t('before_discount', 'Before Discount')}</span>
-                      <span className="text-[11px] font-black text-gray-900 dark:text-white line-through">{formatCurrency(totalPrice, state.settings.currency)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-primary dark:text-emerald-400 font-black">{t('bundle_price', 'Bundle Price')}</span>
-                      <span className="text-sm font-black text-primary dark:text-emerald-400">{formatCurrency(finalAmt, state.settings.currency)}</span>
-                    </div>
+                    {finalAmt < totalPrice && (
+                      <>
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-white/5">
+                          <span className="text-[10px] text-gray-500">{t('before_discount', 'Before Discount')}</span>
+                          <span className="text-[11px] font-black text-gray-900 dark:text-white line-through">{formatCurrency(totalPrice, state.settings.currency)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-primary dark:text-emerald-400 font-black">{t('bundle_price', 'Bundle Price')}</span>
+                          <span className="text-sm font-black text-primary dark:text-emerald-400">{formatCurrency(finalAmt, state.settings.currency)}</span>
+                        </div>
+                      </>
+                    )}
+                    {finalAmt >= totalPrice && (
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] text-gray-500">{t('price', 'Price')}</span>
+                        <span className="text-sm font-black text-primary dark:text-emerald-400">{formatCurrency(finalAmt, state.settings.currency)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
+              </div>
+            );
+          })}
+        </div>
               </div>
             );
           })}
@@ -1235,6 +1718,14 @@ export function BundleManager() {
       )} {/* end ternary */}
       </div>
       )} {/* end !showForm */}
+
+      {showMediaLibrary && (
+        <MediaLibrary
+          isOpen={showMediaLibrary}
+          onClose={() => setShowMediaLibrary(false)}
+          onSelect={(url) => setForm(prev => ({ ...prev, image: url }))}
+        />
+      )}
     </>
   );
 }

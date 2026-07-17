@@ -120,13 +120,16 @@ export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund
 
                 return (
                   <div key={index} className="p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {item.product.name}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {formatCurrency((item.total || item.subtotal || 0) / item.quantity, settings?.currency || 'Rs')} each
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{index + 1}</span>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {item.product.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {formatCurrency((item.total || item.subtotal || 0) / item.quantity, settings?.currency || 'Rs')} each
+                        </p>
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-3">

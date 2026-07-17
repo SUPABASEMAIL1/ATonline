@@ -11,7 +11,7 @@
 --   3. Click Run
 --   4. Copy the Supabase Project URL + anon key into your .env.local
 --
--- TABLES (19) — Order matters (FK dependency):
+-- TABLES (20) — Order matters (FK dependency):
 --   1.  app_settings           Singleton config (no FK deps)
 --   2.  categories             Product taxonomy
 --   3.  customers              CRM / Loyalty
@@ -29,8 +29,9 @@
 --   15. supplier_transactions  Khata / Master Ledger → FK: suppliers
 --   16. payments               Supplier payments → FK: suppliers
 --   17. stock_history          Inventory audit trail → FK: products
---
--- VIEWS (2): sale_items_unrolled, daily_summary
+--   18. toppings               Pizza topping add-ons (Cheese/Chicken/Veggie)
+--   19. product_toppings        Per-product topping availability
+--   20. bundle_slot_toppings    Per-slot topping availability
 -- FUNCTIONS (9): update_updated_at_column, generate_invoice_number,
 --                 auto_generate_invoice_number, update_customer_stats,
 --                 handle_new_user, is_admin, get_my_workspace_id,
@@ -214,6 +215,8 @@ CREATE TABLE IF NOT EXISTS app_settings (
     receipt_show_customer_name  BOOLEAN DEFAULT true,
     receipt_show_customer_phone BOOLEAN DEFAULT true,
     receipt_show_notes          BOOLEAN DEFAULT true,
+    receipt_show_delivery_address BOOLEAN DEFAULT true,
+    receipt_show_qr_code        BOOLEAN DEFAULT true,
     receipt_template            TEXT DEFAULT 'modern',
     receipt_font_scale          DECIMAL(3,2) DEFAULT 1.00,
     receipt_font_bold           BOOLEAN DEFAULT false,
@@ -745,6 +748,8 @@ CREATE TABLE IF NOT EXISTS bundles (
     hide_item_prices    BOOLEAN NOT NULL DEFAULT FALSE,
     active              BOOLEAN NOT NULL DEFAULT TRUE,
     image               TEXT,
+    override_price       NUMERIC(10,2),
+    deal_category       TEXT NOT NULL DEFAULT 'pizza' CHECK (deal_category IN ('pizza','burger','beverage','single_item')),
     schedule_type       TEXT DEFAULT 'always' CHECK (schedule_type IN ('always', 'scheduled')),
     start_date          DATE,
     end_date            DATE,
@@ -752,7 +757,12 @@ CREATE TABLE IF NOT EXISTS bundles (
     start_time          TIME,
     end_time            TIME,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+    updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    badge_enabled       BOOLEAN DEFAULT false,
+    badge_text          TEXT,
+    badge_icon          TEXT DEFAULT 'crown',
+    badge_bg_color      TEXT DEFAULT '#1A1A1A',
+    badge_text_color    TEXT DEFAULT '#D4AF37'
 );
 
 -- Prevent duplicate bundle names
@@ -1473,6 +1483,8 @@ ALTER TABLE app_settings
   ADD COLUMN IF NOT EXISTS receipt_show_customer_name   BOOLEAN DEFAULT true,
   ADD COLUMN IF NOT EXISTS receipt_show_customer_phone  BOOLEAN DEFAULT true,
   ADD COLUMN IF NOT EXISTS receipt_show_notes           BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS receipt_show_delivery_address BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS receipt_show_qr_code         BOOLEAN DEFAULT true,
   ADD COLUMN IF NOT EXISTS receipt_template             TEXT DEFAULT 'modern',
   ADD COLUMN IF NOT EXISTS receipt_font_weight          TEXT DEFAULT 'normal',
   ADD COLUMN IF NOT EXISTS receipt_density              NUMERIC DEFAULT 1.0,
@@ -1940,3 +1952,72 @@ ALTER TABLE products
 
 ALTER TABLE bundles
   ADD COLUMN IF NOT EXISTS highlight_tag TEXT CHECK (highlight_tag IN ('sunday', 'crown'));
+
+ALTER TABLE bundles
+  ADD COLUMN IF NOT EXISTS deal_category TEXT NOT NULL DEFAULT 'pizza' CHECK (deal_category IN ('pizza','burger','beverage','single_item'));
+
+ALTER TABLE bundles
+  ADD COLUMN IF NOT EXISTS override_price NUMERIC(10,2);
+
+ALTER TABLE bundles
+  ADD COLUMN IF NOT EXISTS badge_enabled BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS badge_text TEXT,
+  ADD COLUMN IF NOT EXISTS badge_icon TEXT DEFAULT 'crown',
+  ADD COLUMN IF NOT EXISTS badge_bg_color TEXT DEFAULT '#1A1A1A',
+  ADD COLUMN IF NOT EXISTS badge_text_color TEXT DEFAULT '#D4AF37';
+
+-- ════════════════════════════════════════════════════════════════
+-- 24. TOPPINGS (Pizza topping add-ons)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS toppings (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name            TEXT NOT NULL UNIQUE,
+    price_small     NUMERIC(10,2) NOT NULL DEFAULT 0,
+    price_medium    NUMERIC(10,2) NOT NULL DEFAULT 0,
+    price_large     NUMERIC(10,2) NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+INSERT INTO toppings (name, price_small, price_medium, price_large) VALUES
+    ('Cheese', 70, 100, 150),
+    ('Chicken', 50, 80, 100),
+    ('Veggie', 30, 50, 70)
+ON CONFLICT (name) DO NOTHING;
+
+GRANT SELECT ON TABLE toppings TO anon, authenticated, service_role;
+GRANT ALL ON TABLE toppings TO service_role;
+
+-- ════════════════════════════════════════════════════════════════
+-- 25. PRODUCT TOPPINGS (which toppings are available per product)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS product_toppings (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id  UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    topping_id  UUID NOT NULL REFERENCES toppings(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(product_id, topping_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_toppings_product ON product_toppings(product_id);
+
+GRANT SELECT, INSERT, DELETE ON TABLE product_toppings TO anon, authenticated, service_role;
+GRANT ALL ON TABLE product_toppings TO service_role;
+
+-- ════════════════════════════════════════════════════════════════
+-- 26. BUNDLE SLOT TOPPINGS (which toppings are available per slot)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS bundle_slot_toppings (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    slot_id     UUID NOT NULL REFERENCES bundle_slots(id) ON DELETE CASCADE,
+    topping_id  UUID NOT NULL REFERENCES toppings(id) ON DELETE CASCADE,
+    created_at  TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(slot_id, topping_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bundle_slot_toppings_slot ON bundle_slot_toppings(slot_id);
+
+GRANT SELECT, INSERT, DELETE ON TABLE bundle_slot_toppings TO anon, authenticated, service_role;
+GRANT ALL ON TABLE bundle_slot_toppings TO service_role;

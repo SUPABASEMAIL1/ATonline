@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Product, AppSettings, Category, CartItem, Bundle, Sale } from '../../types';
+import { Product, AppSettings, Category, CartItem, Bundle, Sale, ProductModifier, CartItemTopping } from '../../types';
 import { mapProduct, mapSettings, mapBundle, generateNextInvoiceNumber, settingsService } from '../../lib/services';
 import { StoreFront } from './StoreFront';
 import { StoreCheckout } from './StoreCheckout';
@@ -255,20 +255,17 @@ export function EStoreApp() {
     }
   }, [cart, loading]);
 
-  const addToCart = (product: Product, quantity = 1, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[] }) => {
+  const addToCart = (product: Product, quantity = 1, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; toppings?: CartItemTopping[] }) => {
     setCart(prev => {
-      // Find exact match including options
       const existing = prev.findIndex(item => 
         item.product.id === product.id && 
         item.selectedVariant === options?.selectedVariant &&
-        JSON.stringify(item.selectedModifiers) === JSON.stringify(options?.selectedModifiers)
+        JSON.stringify(item.selectedModifiers) === JSON.stringify(options?.selectedModifiers) &&
+        JSON.stringify(item.toppings) === JSON.stringify(options?.toppings)
       );
 
-      const basePrice = product.price; // For simplicity in this example, normally you calculate variant/modifier price here if they affect it.
-      // But we will calculate it based on options.
-      let finalPrice = basePrice;
+      let finalPrice = product.price;
       if (options?.selectedVariant) {
-        // If variant matched, check priceOverride
         const parts = options.selectedVariant.split(',').map(s => s.trim());
         const match = product.variantData?.find(vd => {
           let m = true;
@@ -284,6 +281,8 @@ export function EStoreApp() {
       if (options?.selectedModifiers) {
         finalPrice += options.selectedModifiers.reduce((sum, mod) => sum + mod.price, 0);
       }
+      const toppingsPrice = options?.toppings ? options.toppings.reduce((sum, t) => sum + t.price, 0) : 0;
+      finalPrice += toppingsPrice;
       if (existing >= 0) {
         const newCart = [...prev];
         newCart[existing].quantity += quantity;
@@ -297,7 +296,8 @@ export function EStoreApp() {
         discount: 0,
         discountType: 'percentage',
         selectedVariant: options?.selectedVariant,
-        selectedModifiers: options?.selectedModifiers
+        selectedModifiers: options?.selectedModifiers,
+        toppings: options?.toppings
       }];
     });
     sonner.success(`Added ${product.name} to cart`);

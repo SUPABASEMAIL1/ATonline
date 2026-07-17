@@ -31,17 +31,17 @@ window.addEventListener('unhandledrejection', (e) => {
 if (!import.meta.env.DEV) {
   registerSW({ immediate: true });
 } else {
-  // Active cleanup of leftover service workers in development to prevent white screen issues on normal refresh
-  if ('serviceWorker' in navigator) {
+  // Active cleanup of leftover service workers in development
+  // Only reload once to prevent infinite loop
+  if ('serviceWorker' in navigator && !sessionStorage.getItem('sw_cleaned')) {
+    sessionStorage.setItem('sw_cleaned', '1');
     navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister().then((success) => {
-          if (success) {
-            console.log('Unregistered active service worker for local development:', registration.scope);
-            window.location.reload();
-          }
-        });
-      }
+      const unregisterPromises = Array.from(registrations).map((r) => r.unregister());
+      Promise.all(unregisterPromises).then((results) => {
+        if (results.some(Boolean)) {
+          window.location.reload();
+        }
+      });
     });
   }
 }

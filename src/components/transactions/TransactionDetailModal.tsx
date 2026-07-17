@@ -398,6 +398,7 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
                           <td className={`pl-10 pr-4 py-1.5 text-[9px] text-gray-600 dark:text-gray-400 uppercase ${item.product?.id ? 'group-hover:text-primary' : ''}`}>
                             <span className="font-bold">- {item.product?.name || 'Item'}</span>
                             {item.selectedVariant && <span className="text-[8px] text-gray-400"> ({item.selectedVariant})</span>}
+                            {item.toppings && item.toppings.length > 0 && <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 ml-1">+ {item.toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}</span>}
                           </td>
                           <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] font-bold text-gray-500">
                             <div>{item.quantity}</div>
@@ -453,10 +454,11 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
                             </div>
                             <div className="min-w-0">
                               <span className="truncate block">{item.product?.name || t("item", "Item")}</span>
-                              {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber) && (
+                              {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber || (item.toppings && item.toppings.length > 0)) && (
                                 <div className="flex flex-col gap-0.5 mt-0.5 normal-case tracking-normal">
                                   {item.selectedVariant && <span className="text-[8px] font-bold text-gray-500">{item.selectedVariant}</span>}
                                   {item.selectedModifiers && item.selectedModifiers.length > 0 && <span className="text-[8px] font-bold text-primary">+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</span>}
+                                  {item.toppings && item.toppings.length > 0 && <span className="text-[10px] font-medium text-gray-500">+ {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}</span>}
                                   {item.serialNumber && <span className="text-[8px] font-bold text-amber-500">SN: {item.serialNumber}</span>}
                                 </div>
                               )}

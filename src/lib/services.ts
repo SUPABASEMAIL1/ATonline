@@ -19,7 +19,9 @@ import {
   Bundle,
   BundleItem,
   CartItem,
-  RefundRequest
+  RefundRequest,
+  Topping,
+  ExtraTopping,
 } from '../types';
 import { localDb, queueOp, generateId, SETTINGS_ID } from './localDb';
 import { generateBarcodeValue } from '../utils/barcode';
@@ -226,6 +228,8 @@ export const mapSettings = (item: any): AppSettings => {
     receiptShowCustomerName: s.receipt_show_customer_name ?? s.receiptShowCustomerName ?? true,
     receiptShowCustomerPhone: s.receipt_show_customer_phone ?? s.receiptShowCustomerPhone ?? true,
     receiptShowNotes: s.receipt_show_notes ?? s.receiptShowNotes ?? true,
+    receiptShowDeliveryAddress: s.receipt_show_delivery_address ?? s.receiptShowDeliveryAddress ?? true,
+    receiptShowQrCode: s.receipt_show_qr_code ?? s.receiptShowQrCode ?? true,
     receiptTemplate: s.receipt_template ?? s.receiptTemplate ?? 'modern',
     receiptFontScale: s.receipt_font_scale ?? s.receiptFontScale ?? 1.0,
     receiptFontBold: s.receipt_font_bold ?? s.receiptFontBold ?? false,
@@ -368,6 +372,8 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('receiptShowCustomerName' in s) { remote.receipt_show_customer_name = s.receiptShowCustomerName; }
   if ('receiptShowCustomerPhone' in s) { remote.receipt_show_customer_phone = s.receiptShowCustomerPhone; }
   if ('receiptShowNotes' in s) { remote.receipt_show_notes = s.receiptShowNotes; }
+  if ('receiptShowDeliveryAddress' in s) { remote.receipt_show_delivery_address = s.receiptShowDeliveryAddress; }
+  if ('receiptShowQrCode' in s) { remote.receipt_show_qr_code = s.receiptShowQrCode; }
 
   if ('receiptFontScale' in s) { remote.receipt_font_scale = s.receiptFontScale; }
   if ('receiptFontBold' in s) { remote.receipt_font_bold = s.receiptFontBold; }
@@ -2343,7 +2349,14 @@ export const mapBundle = (row: any): Bundle => ({
     createdAt: bi.created_at ? new Date(bi.created_at) : new Date(),
   })),
   isCombo: row.is_combo === true,
+  dealCategory: row.deal_category || 'pizza',
+  overridePrice: row.override_price ? Number(row.override_price) : undefined,
   highlightTag: row.highlight_tag ?? row.highlightTag,
+  badgeEnabled: row.badge_enabled === true,
+  badgeText: row.badge_text || undefined,
+  badgeIcon: row.badge_icon || undefined,
+  badgeBgColor: row.badge_bg_color || undefined,
+  badgeTextColor: row.badge_text_color || undefined,
   slots: (row.bundle_slots || []).map((s: any) => ({
     id: s.id,
     bundleId: s.bundle_id,
@@ -2534,13 +2547,21 @@ export const bundlesService = {
     slots?: { name: string; requiredQuantity: number; orderIndex: number; options: { productId: string; sortOrder?: number }[] }[];
     hideItemPrices?: boolean;
     isCombo?: boolean;
+    dealCategory?: 'pizza' | 'burger' | 'beverage' | 'single_item';
+    overridePrice?: number;
     highlightTag?: 'sunday' | 'crown';
+    badgeEnabled?: boolean;
+    badgeText?: string;
+    badgeIcon?: string;
+    badgeBgColor?: string;
+    badgeTextColor?: string;
     scheduleType?: 'always' | 'scheduled';
     startDate?: string;
     endDate?: string;
     repeatDays?: string[];
     startTime?: string;
     endTime?: string;
+    extraToppings?: ExtraTopping[];
   }): Promise<Bundle> {
     const id = generateId();
     const now = new Date().toISOString();
@@ -2594,6 +2615,12 @@ export const bundlesService = {
       endTime: data.endTime || null,
       hideItemPrices: data.hideItemPrices || false,
       isCombo: data.isCombo || false,
+      extraToppings: data.extraToppings || [],
+      badgeEnabled: data.badgeEnabled || false,
+      badgeText: data.badgeText || undefined,
+      badgeIcon: data.badgeIcon || undefined,
+      badgeBgColor: data.badgeBgColor || undefined,
+      badgeTextColor: data.badgeTextColor || undefined,
       active: true,
       createdAt: new Date(now),
       updatedAt: new Date(now),
@@ -2641,6 +2668,13 @@ export const bundlesService = {
         end_time: data.endTime || null,
         hide_item_prices: data.hideItemPrices || false,
         is_combo: data.isCombo || false,
+        deal_category: data.dealCategory || 'pizza',
+        override_price: data.overridePrice || null,
+        badge_enabled: data.badgeEnabled || false,
+        badge_text: data.badgeText || null,
+        badge_icon: data.badgeIcon || null,
+        badge_bg_color: data.badgeBgColor || null,
+        badge_text_color: data.badgeTextColor || null,
         active: true,
         created_at: now,
         updated_at: now,
@@ -2677,6 +2711,13 @@ export const bundlesService = {
           end_time: data.endTime || null,
           hide_item_prices: data.hideItemPrices || false,
           is_combo: data.isCombo || false,
+          deal_category: data.dealCategory || 'pizza',
+          override_price: data.overridePrice || null,
+          badge_enabled: data.badgeEnabled || false,
+          badge_text: data.badgeText || null,
+          badge_icon: data.badgeIcon || null,
+          badge_bg_color: data.badgeBgColor || null,
+          badge_text_color: data.badgeTextColor || null,
           active: true,
           created_at: now,
           updated_at: now,
@@ -2713,12 +2754,18 @@ export const bundlesService = {
     estoreSortOrder?: number;
     image?: string;
     highlightTag?: 'sunday' | 'crown';
+    badgeEnabled?: boolean;
+    badgeText?: string;
+    badgeIcon?: string;
+    badgeBgColor?: string;
+    badgeTextColor?: string;
     scheduleType?: 'always' | 'scheduled';
     startDate?: string;
     endDate?: string;
     repeatDays?: string[];
     startTime?: string;
     endTime?: string;
+    extraToppings?: ExtraTopping[];
   }): Promise<void> {
     const now = new Date().toISOString();
     const updates: any = { updated_at: now };
@@ -2732,6 +2779,13 @@ export const bundlesService = {
     if (data.estoreSortOrder !== undefined) updates.estore_sort_order = data.estoreSortOrder;
     if (data.image !== undefined) updates.image = data.image;
     if (data.highlightTag !== undefined) updates.highlight_tag = data.highlightTag;
+    if (data.badgeEnabled !== undefined) updates.badge_enabled = data.badgeEnabled;
+    if (data.badgeText !== undefined) updates.badge_text = data.badgeText;
+    if (data.badgeIcon !== undefined) updates.badge_icon = data.badgeIcon;
+    if (data.badgeBgColor !== undefined) updates.badge_bg_color = data.badgeBgColor;
+    if (data.badgeTextColor !== undefined) updates.badge_text_color = data.badgeTextColor;
+    if (data.dealCategory !== undefined) updates.deal_category = data.dealCategory;
+    if (data.overridePrice !== undefined) updates.override_price = data.overridePrice;
     if (data.scheduleType !== undefined) updates.schedule_type = data.scheduleType;
     if (data.startDate !== undefined) updates.start_date = data.startDate || null;
     if (data.endDate !== undefined) updates.end_date = data.endDate || null;
@@ -2751,12 +2805,20 @@ export const bundlesService = {
     if (data.estoreSortOrder !== undefined) localUpdates.estoreSortOrder = data.estoreSortOrder;
     if (data.image !== undefined) localUpdates.image = data.image;
     if (data.highlightTag !== undefined) localUpdates.highlightTag = data.highlightTag;
+    if (data.badgeEnabled !== undefined) localUpdates.badgeEnabled = data.badgeEnabled;
+    if (data.badgeText !== undefined) localUpdates.badgeText = data.badgeText;
+    if (data.badgeIcon !== undefined) localUpdates.badgeIcon = data.badgeIcon;
+    if (data.badgeBgColor !== undefined) localUpdates.badgeBgColor = data.badgeBgColor;
+    if (data.badgeTextColor !== undefined) localUpdates.badgeTextColor = data.badgeTextColor;
+    if (data.dealCategory !== undefined) localUpdates.dealCategory = data.dealCategory;
+    if (data.overridePrice !== undefined) localUpdates.overridePrice = data.overridePrice;
     if (data.scheduleType !== undefined) localUpdates.scheduleType = data.scheduleType;
     if (data.startDate !== undefined) localUpdates.startDate = data.startDate || null;
     if (data.endDate !== undefined) localUpdates.endDate = data.endDate || null;
     if (data.repeatDays !== undefined) localUpdates.repeatDays = data.repeatDays || null;
     if (data.startTime !== undefined) localUpdates.startTime = data.startTime || null;
     if (data.endTime !== undefined) localUpdates.endTime = data.endTime || null;
+    if (data.extraToppings !== undefined) localUpdates.extraToppings = data.extraToppings;
 
     await localDb.bundles.where('id').equals(bundleId).modify(localUpdates);
 
@@ -2957,4 +3019,96 @@ export const bundlesService = {
     });
   },
 };
+
+// ────────────────────────────────────────────────────────────────
+// TOPPINGS SERVICE
+// ────────────────────────────────────────────────────────────────
+
+export const mapTopping = (row: any): Topping => ({
+  id: row.id,
+  name: row.name,
+  priceSmall: parseFloat(row.price_small) || 0,
+  priceMedium: parseFloat(row.price_medium) || 0,
+  priceLarge: parseFloat(row.price_large) || 0,
+  createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+});
+
+export const toRemoteTopping = (topping: Partial<Topping>): any => ({
+  id: topping.id,
+  name: topping.name,
+  price_small: topping.priceSmall,
+  price_medium: topping.priceMedium,
+  price_large: topping.priceLarge,
+});
+
+export const toppingsService = {
+  async fetchAll(): Promise<Topping[]> {
+    const { data, error } = await supabase
+      .from('toppings')
+      .select('*')
+      .order('name');
+    if (error) throw error;
+    return (data || []).map(mapTopping);
+  },
+
+  async create(topping: Partial<Topping>): Promise<Topping> {
+    const { data, error } = await supabase
+      .from('toppings')
+      .insert(toRemoteTopping(topping))
+      .select()
+      .single();
+    if (error) throw error;
+    return mapTopping(data);
+  },
+
+  async update(id: string, topping: Partial<Topping>): Promise<Topping> {
+    const { data, error } = await supabase
+      .from('toppings')
+      .update(toRemoteTopping(topping))
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return mapTopping(data);
+  },
+
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('toppings')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  },
+};
+
+// ────────────────────────────────────────────────────────────────
+// PRODUCT / SLOT TOPPINGS JOIN SERVICES
+// ────────────────────────────────────────────────────────────────
+
+export const productToppingsService = {
+  async getByProduct(productId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('product_toppings')
+      .select('topping_id')
+      .eq('product_id', productId);
+    if (error) throw error;
+    return (data || []).map(r => r.topping_id);
+  },
+
+  async setByProduct(productId: string, toppingIds: string[]): Promise<void> {
+    const { error: delErr } = await supabase
+      .from('product_toppings')
+      .delete()
+      .eq('product_id', productId);
+    if (delErr) throw delErr;
+    if (toppingIds.length === 0) return;
+    const rows = toppingIds.map(toppingId => ({ product_id: productId, topping_id: toppingId }));
+    const { error: insErr } = await supabase
+      .from('product_toppings')
+      .insert(rows);
+    if (insErr) throw insErr;
+  },
+};
+
+
 

@@ -9,7 +9,7 @@ import { DraftsModal } from './DraftsModal';
 
 import { ProductOptionsModal } from './ProductOptionsModal';
 import { ShortcutsModal } from './ShortcutsModal';
-import { Product, Sale, ProductModifier } from '../../types';
+import { Product, Sale, ProductModifier, CartItemTopping } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { salesService } from '../../lib/services';
@@ -135,7 +135,7 @@ export function POSTerminal() {
     };
   }, [isMobileCartOpen, showCheckout, isDraftsModalOpen, isShortcutsModalOpen, optionsProduct]);
 
-  const addToCart = (product: Product, weight?: number, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; serialNumber?: string }) => {
+  const addToCart = (product: Product, weight?: number, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; serialNumber?: string; toppings?: CartItemTopping[] }) => {
     // Intercept if product requires options but options aren't provided yet
     if (!options && (
       (product.variants && product.variants.length > 0) ||
@@ -181,10 +181,12 @@ export function POSTerminal() {
       const existingItem = state.cart[existingItemIndex];
       // Use the existing cart item's price (may have been manually edited by user)
       const effectivePrice = existingItem.product.price;
+      const toppingsTotal = (existingItem.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
+      const priceWithToppings = effectivePrice + toppingsTotal;
       let updatedDiscount = existingItem.discount || 0;
       if (existingItem.discountValue && existingItem.discountValue > 0) {
         if (existingItem.discountType === 'percentage') {
-          updatedDiscount = (effectivePrice * newQuantity * existingItem.discountValue) / 100;
+          updatedDiscount = (priceWithToppings * newQuantity * existingItem.discountValue) / 100;
         } else {
           updatedDiscount = Math.sign(newQuantity) * existingItem.discountValue;
         }
@@ -196,7 +198,7 @@ export function POSTerminal() {
         ...existingItem,
         quantity: newQuantity,
         discount: updatedDiscount,
-        subtotal: effectivePrice * newQuantity - updatedDiscount
+        subtotal: priceWithToppings * newQuantity - updatedDiscount
       };
       dispatch({ type: 'UPDATE_CART_ITEM', payload: { index: existingItemIndex, item: updatedItem } });
     } else {
@@ -224,7 +226,9 @@ export function POSTerminal() {
         options.selectedModifiers.forEach(m => basePrice += m.price);
       }
 
-      const price = product.isWeightBased ? (product.pricePerUnit || 0) * (weight || 1) : basePrice;
+      const toppingsPrice = options?.toppings ? options.toppings.reduce((sum, t) => sum + t.price, 0) : 0;
+
+      const price = product.isWeightBased ? (product.pricePerUnit || 0) * (weight || 1) : basePrice + toppingsPrice;
 
       const newItem = {
         product: basePrice !== product.price ? { ...product, price: basePrice } : product,
@@ -236,7 +240,8 @@ export function POSTerminal() {
         originalPrice: basePrice,
         selectedVariant: options?.selectedVariant,
         selectedModifiers: options?.selectedModifiers,
-        serialNumber: options?.serialNumber
+        serialNumber: options?.serialNumber,
+        toppings: options?.toppings
       };
 
       dispatch({ type: 'ADD_TO_CART', payload: newItem });

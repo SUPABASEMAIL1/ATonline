@@ -91,6 +91,8 @@ CREATE TABLE IF NOT EXISTS app_settings (
     receipt_show_customer_name  BOOLEAN DEFAULT true,
     receipt_show_customer_phone BOOLEAN DEFAULT true,
     receipt_show_notes          BOOLEAN DEFAULT true,
+    receipt_show_delivery_address BOOLEAN DEFAULT true,
+    receipt_show_qr_code        BOOLEAN DEFAULT true,
     receipt_template            TEXT DEFAULT 'modern',
     receipt_font_scale          DECIMAL(3,2) DEFAULT 1.00,
     receipt_font_bold           BOOLEAN DEFAULT false,
