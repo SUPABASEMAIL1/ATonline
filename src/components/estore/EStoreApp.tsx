@@ -255,7 +255,7 @@ export function EStoreApp() {
     }
   }, [cart, loading]);
 
-  const addToCart = (product: Product, quantity = 1, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; toppings?: CartItemTopping[] }) => {
+  const addToCart = (product: Product, quantity = 1, options?: { selectedVariant?: string; selectedVariantId?: string; selectedModifiers?: ProductModifier[]; toppings?: CartItemTopping[] }) => {
     setCart(prev => {
       const existing = prev.findIndex(item => 
         item.product.id === product.id && 
@@ -265,6 +265,8 @@ export function EStoreApp() {
       );
 
       let finalPrice = product.price;
+      let resolvedVariantId = options?.selectedVariantId;
+
       if (options?.selectedVariant) {
         const parts = options.selectedVariant.split(',').map(s => s.trim());
         const match = product.variantData?.find(vd => {
@@ -276,6 +278,10 @@ export function EStoreApp() {
         });
         if (match?.priceOverride !== undefined) {
           finalPrice = match.priceOverride;
+        }
+        // Resolve variantId if not passed explicitly
+        if (!resolvedVariantId && match) {
+          resolvedVariantId = match.id;
         }
       }
       if (options?.selectedModifiers) {
@@ -296,6 +302,7 @@ export function EStoreApp() {
         discount: 0,
         discountType: 'percentage',
         selectedVariant: options?.selectedVariant,
+        selectedVariantId: resolvedVariantId,
         selectedModifiers: options?.selectedModifiers,
         toppings: options?.toppings
       }];

@@ -11,7 +11,7 @@
 --   3. Click Run
 --   4. Copy the Supabase Project URL + anon key into your .env.local
 --
--- TABLES (20) — Order matters (FK dependency):
+-- TABLES (22) — Order matters (FK dependency):
 --   1.  app_settings           Singleton config (no FK deps)
 --   2.  categories             Product taxonomy
 --   3.  customers              CRM / Loyalty
@@ -156,6 +156,19 @@
 --   4. syncEngine.ts: fixed 'returned' → 'refunded'/'partially_refunded' check
 --   5. services.ts getReportRefunds*: now queries both 'refunded' AND 'partially_refunded'
 --   6. Both process_return RPC definitions updated (lines 1101 and 1530)
+--
+-- [2026-07-18] Variation Inventory — Per-variant stock + Add-on products
+--   Migration: supabase/migrations/20260718010000_variation_inventory.sql
+--   Changes:
+--   1. NEW TABLE variant_stock_history — per-variant stock change audit trail
+--   2. NEW TABLE product_addons — inventory-tracked products assignable as add-ons
+--   3. types/index.ts: VariantData gets cardTitle, cardSubtitle; new VariantStockHistory,
+--      ProductAddon, CartAddonItem types; CartItem gets selectedVariantId,
+--      selectedVariantLabel, addonItems
+--   4. localDb.ts: version 18 adds variantStockHistory, productAddons tables
+--   5. services.ts: new variantStockHistoryService, productAddonsService;
+--      salesService.create now deducts variant stock + addon stock
+--   6. syncEngine.ts: registers variant_stock_history, product_addons
 -- ════════════════════════════════════════════════════════════════
 
 
@@ -415,6 +428,8 @@ CREATE TABLE IF NOT EXISTS products (
     variants            JSONB DEFAULT '[]'::jsonb,
     variant_data        JSONB DEFAULT '[]'::jsonb,
     modifiers           JSONB DEFAULT '[]'::jsonb,
+    product_type        TEXT DEFAULT 'simple' CHECK (product_type IN ('simple', 'variable', 'variation')),
+    parent_id           UUID REFERENCES products(id) ON DELETE CASCADE,
     is_service          BOOLEAN DEFAULT false,
     require_serial      BOOLEAN DEFAULT false,
     show_in_estore      BOOLEAN DEFAULT true,
@@ -819,6 +834,51 @@ GRANT SELECT ON TABLE bundles TO anon, authenticated, service_role;
 GRANT SELECT ON TABLE bundle_items TO anon, authenticated, service_role;
 GRANT SELECT ON TABLE bundle_slots TO anon, authenticated, service_role;
 GRANT SELECT ON TABLE bundle_slot_options TO anon, authenticated, service_role;
+
+-- ════════════════════════════════════════════════════════════════
+-- 27. VARIANT STOCK HISTORY (Per-variant inventory audit trail)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS variant_stock_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  variant_id TEXT NOT NULL,
+  variant_label TEXT,
+  change_qty INTEGER NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('sale', 'return', 'adjustment', 'initial', 'purchase')),
+  reference_id UUID,
+  note TEXT,
+  balance_after INTEGER,
+  cashier_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_variant_stock_history_product ON variant_stock_history(product_id);
+CREATE INDEX IF NOT EXISTS idx_variant_stock_history_variant ON variant_stock_history(product_id, variant_id);
+CREATE INDEX IF NOT EXISTS idx_variant_stock_history_date ON variant_stock_history(created_at DESC);
+
+GRANT ALL ON variant_stock_history TO anon, authenticated, service_role;
+
+-- ════════════════════════════════════════════════════════════════
+-- 28. PRODUCT ADDONS (Inventory-tracked add-on products)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS product_addons (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  addon_product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  price DECIMAL(10,2) NOT NULL DEFAULT 0,
+  max_qty INTEGER NOT NULL DEFAULT 1,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(product_id, addon_product_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_addons_product ON product_addons(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_addons_addon ON product_addons(addon_product_id);
+
+GRANT ALL ON product_addons TO anon, authenticated, service_role;
 
 -- ════════════════════════════════════════════════════════════════
 -- PERFORMANCE INDEXES
@@ -1760,6 +1820,7 @@ BEGIN
       discounts,
       expenses,
       payments,
+      product_addons,
       product_batches,
       products,
       purchase_order_items,
@@ -1770,7 +1831,8 @@ BEGIN
       stock_history,
       supplier_transactions,
       suppliers,
-      users;
+      users,
+      variant_stock_history;
   END IF;
 END $$;
 
@@ -1965,6 +2027,47 @@ ALTER TABLE bundles
   ADD COLUMN IF NOT EXISTS badge_icon TEXT DEFAULT 'crown',
   ADD COLUMN IF NOT EXISTS badge_bg_color TEXT DEFAULT '#1A1A1A',
   ADD COLUMN IF NOT EXISTS badge_text_color TEXT DEFAULT '#D4AF37';
+
+-- ════════════════════════════════════════════════════════════════
+-- IDEMPOTENT: Create new tables for existing DBs
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS variant_stock_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  variant_id TEXT NOT NULL,
+  variant_label TEXT,
+  change_qty INTEGER NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('sale', 'return', 'adjustment', 'initial', 'purchase')),
+  reference_id UUID,
+  note TEXT,
+  balance_after INTEGER,
+  cashier_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_variant_stock_history_product ON variant_stock_history(product_id);
+CREATE INDEX IF NOT EXISTS idx_variant_stock_history_variant ON variant_stock_history(product_id, variant_id);
+CREATE INDEX IF NOT EXISTS idx_variant_stock_history_date ON variant_stock_history(created_at DESC);
+
+GRANT ALL ON variant_stock_history TO anon, authenticated, service_role;
+
+CREATE TABLE IF NOT EXISTS product_addons (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  addon_product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  price DECIMAL(10,2) NOT NULL DEFAULT 0,
+  max_qty INTEGER NOT NULL DEFAULT 1,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(product_id, addon_product_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_addons_product ON product_addons(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_addons_addon ON product_addons(addon_product_id);
+
+GRANT ALL ON product_addons TO anon, authenticated, service_role;
 
 -- ════════════════════════════════════════════════════════════════
 -- 24. TOPPINGS (Pizza topping add-ons)

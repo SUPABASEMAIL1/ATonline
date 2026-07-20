@@ -377,7 +377,54 @@ export function ReportsManager() {
   }, [reportSales, reportExpenses]);
 
   const filteredSales = useMemo(() => {
-    const allSales = [...reportSales, ...reportRefunds];
+    const allSalesRaw = [...reportSales, ...reportRefunds];
+    
+    // Unroll addonItems into separate line items for accurate reporting
+    const allSales = allSalesRaw.map(sale => {
+      if (!sale || !sale.items) return sale;
+      let hasAddons = false;
+      
+      const unrolledItems = sale.items.flatMap(item => {
+        if (!item.addonItems || item.addonItems.length === 0) return [item];
+        hasAddons = true;
+        
+        let addonSubtotalSum = 0;
+        let addonCostSum = 0;
+        
+        const addonsAsItems = item.addonItems.map(addon => {
+          const addonSubtotal = (addon.price || 0) * (addon.quantity || 1) * (item.quantity || 1);
+          addonSubtotalSum += addonSubtotal;
+          
+          const actualAddonProd = state.products.find(p => p.id === addon.addon.addonProductId);
+          const addonCost = (actualAddonProd?.cost || 0) * (addon.quantity || 1) * (item.quantity || 1);
+          addonCostSum += addonCost;
+          
+          return {
+            id: `${item.id}-addon-${addon.addon.id}`,
+            product: actualAddonProd || { id: addon.addon.addonProductId, name: addon.name, category: 'Add-ons' },
+            quantity: (addon.quantity || 1) * (item.quantity || 1),
+            subtotal: addonSubtotal,
+            purchaseCost: addonCost, // Approximate fallback cost
+            isAddon: true
+          };
+        });
+        
+        return [
+          {
+            ...item,
+            subtotal: Math.max(0, (item.subtotal || 0) - addonSubtotalSum),
+            purchaseCost: Math.max(0, (item.purchaseCost || 0) - addonCostSum)
+          },
+          ...addonsAsItems
+        ];
+      });
+      
+      if (hasAddons) {
+        return { ...sale, items: unrolledItems };
+      }
+      return sale;
+    });
+
     return allSales.filter(sale => {
       if (!sale || !sale.items || isDraftSale(sale)) return false;
 
@@ -406,7 +453,7 @@ export function ReportsManager() {
 
       return true;
     });
-  }, [reportSales, reportRefunds, selectedSupplier, selectedCategory, selectedCashier, selectedSaleType, selectedPayment]);
+  }, [reportSales, reportRefunds, selectedSupplier, selectedCategory, selectedCashier, selectedSaleType, selectedPayment, state.products]);
 
   const filteredExpenses = useMemo(() => {
     return reportExpenses.filter(expense => {

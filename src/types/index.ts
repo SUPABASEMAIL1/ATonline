@@ -8,11 +8,16 @@ export interface VariantData {
   id: string;
   option1: string; // e.g. "Size: 10 Inch"
   option2?: string; // e.g. "Color: Red"
+  option3?: string; // e.g. "Material: Cotton"
   priceOverride?: number; // Sets exact price (Restaurant)
   priceDifference?: number; // Adjusts base price (+450)
   stock?: number; // Specific variant stock (Garments)
+  trackInventory?: boolean; // Whether to independently track stock for this variant
   barcode?: string; // Variant barcode
   sku?: string;
+  cardTitle?: string; // Display label for variant in UI (e.g. "10 Inch")
+  cardSubtitle?: string; // Secondary display label (e.g. "Red")
+  cost?: number; // Cost price of the specific variant
 }
 
 export interface ProductModifier {
@@ -52,11 +57,14 @@ export interface Product {
   variants?: ProductVariant[];
   variantData?: VariantData[]; // Advanced variant pricing, stock, barcodes
   modifiers?: ProductModifier[];
+  productType?: 'simple' | 'variable' | 'variation';
+  parentId?: string;
   isService?: boolean;
   requireSerial?: boolean;
   showInEstore?: boolean;
   estoreSortOrder?: number;
   estoreCategorySortOrder?: number;
+  productAddons?: ProductAddon[]; // Inventory-tracked linked add-ons
 }
 
 
@@ -180,6 +188,37 @@ export interface Category {
   createdAt?: Date;
 }
 
+export interface VariantStockHistory {
+  id: string;
+  productId: string;
+  variantId: string;
+  variantLabel?: string;
+  changeQty: number;
+  type: 'sale' | 'return' | 'adjustment' | 'initial' | 'purchase';
+  referenceId?: string;
+  note?: string;
+  balanceAfter?: number;
+  cashierName?: string;
+  createdAt: Date;
+}
+
+export interface ProductAddon {
+  id: string;
+  productId: string;
+  addonProductId: string;
+  name: string;
+  price: number;
+  maxQty: number;
+  active: boolean;
+  createdAt: Date;
+}
+
+export interface CartAddonItem {
+  addon: ProductAddon;
+  quantity: number;
+  subtotal: number;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;
@@ -198,8 +237,11 @@ export interface CartItem {
     cost: number;
     salePrice: number;
   }[];
-  selectedVariant?: string; // e.g., "Size: M, Color: Red"
+  selectedVariant?: string; // e.g., "Size: M, Color: Red" (legacy — kept for backward compat)
+  selectedVariantId?: string; // The VariantData.id for per-variant stock tracking
+  selectedVariantLabel?: string; // Human-readable label for display (e.g., "10 Inch, Red")
   selectedModifiers?: ProductModifier[];
+  addonItems?: CartAddonItem[]; // Inventory-tracked addon products selected by customer
   serialNumber?: string;
   // Bundle Deal fields
   bundleId?: string;   // Which bundle this item came from (for grouping in cart/receipt)

@@ -185,7 +185,8 @@ export function InventoryManager() {
           (selectedType === 'serialized' && product.requireSerial) ||
           (selectedType === 'standard' && !product.isService && !product.requireSerial);
         const matchesEstore = showEstoreOnly ? product.showInEstore : true;
-        return matchesSearch && matchesCategory && matchesSupplier && matchesType && matchesEstore;
+        const matchesVariation = product.productType !== 'variation';
+        return matchesSearch && matchesCategory && matchesSupplier && matchesType && matchesEstore && matchesVariation;
       })
       .sort((a, b) => {
         let aValue: string | number;

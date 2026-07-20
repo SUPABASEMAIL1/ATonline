@@ -135,11 +135,18 @@ export function POSTerminal() {
     };
   }, [isMobileCartOpen, showCheckout, isDraftsModalOpen, isShortcutsModalOpen, optionsProduct]);
 
-  const addToCart = (product: Product, weight?: number, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; serialNumber?: string; toppings?: CartItemTopping[] }) => {
+  const addToCart = (product: Product, weight?: number, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; addonItems?: CartAddonItem[]; serialNumber?: string; toppings?: CartItemTopping[]; overrideProduct?: Product }) => {
+    
+    // If an overrideProduct is provided (e.g. a variation child selected in modal), use it instead of the parent
+    if (options?.overrideProduct) {
+      product = options.overrideProduct;
+    }
+
     // Intercept if product requires options but options aren't provided yet
     if (!options && (
+      product.productType === 'variable' ||
       (product.variants && product.variants.length > 0) ||
-      (product.modifiers && product.modifiers.length > 0) ||
+      (product.productAddons && product.productAddons.length > 0) ||
       product.requireSerial
     )) {
       setPendingWeight(weight);
@@ -157,7 +164,7 @@ export function POSTerminal() {
       // Actually, if it has modifiers, we should probably add as new line or deeply compare. For now, let's always add new line if it has modifiers or serial.
     );
 
-    const shouldAddNewLine = product.isWeightBased || product.requireSerial || (options?.selectedModifiers && options.selectedModifiers.length > 0);
+    const shouldAddNewLine = product.isWeightBased || product.requireSerial || (options?.addonItems && options.addonItems.length > 0) || (options?.selectedModifiers && options.selectedModifiers.length > 0);
 
     let quantityModifier = isReturnMode ? -1 : 1;
     let newQuantity = quantityModifier;
@@ -208,6 +215,8 @@ export function POSTerminal() {
       // Calculate base price including modifiers and variant overrides
       let basePrice = product.price;
       
+      let baseCost = product.cost;
+      
       if (options?.selectedVariant && product.variantData && product.variantData.length > 0) {
         const selectedParts = options.selectedVariant.split(',').map(s => s.trim());
         const matchingVariant = product.variantData.find(vd => {
@@ -220,10 +229,23 @@ export function POSTerminal() {
         if (matchingVariant && matchingVariant.priceOverride !== undefined) {
           basePrice = matchingVariant.priceOverride;
         }
+        if (matchingVariant && matchingVariant.cost !== undefined) {
+          baseCost = matchingVariant.cost;
+        }
       }
 
       if (options?.selectedModifiers) {
         options.selectedModifiers.forEach(m => basePrice += m.price);
+      }
+      
+      if (options?.addonItems) {
+        options.addonItems.forEach(item => {
+          basePrice += item.subtotal;
+          const addonProd = state.products.find(p => p.id === item.addon.addonProductId);
+          if (addonProd) {
+            baseCost += (addonProd.cost || 0) * item.quantity;
+          }
+        });
       }
 
       const toppingsPrice = options?.toppings ? options.toppings.reduce((sum, t) => sum + t.price, 0) : 0;
@@ -231,7 +253,9 @@ export function POSTerminal() {
       const price = product.isWeightBased ? (product.pricePerUnit || 0) * (weight || 1) : basePrice + toppingsPrice;
 
       const newItem = {
-        product: basePrice !== product.price ? { ...product, price: basePrice } : product,
+        product: (basePrice !== product.price || baseCost !== product.cost) 
+                 ? { ...product, price: basePrice, cost: baseCost } 
+                 : product,
         quantity: newQuantity,
         weight: itemWeight,
         discount: 0,
@@ -240,6 +264,7 @@ export function POSTerminal() {
         originalPrice: basePrice,
         selectedVariant: options?.selectedVariant,
         selectedModifiers: options?.selectedModifiers,
+        addonItems: options?.addonItems,
         serialNumber: options?.serialNumber,
         toppings: options?.toppings
       };

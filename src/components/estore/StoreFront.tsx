@@ -207,7 +207,7 @@ interface StoreFrontProps {
   categories: Category[];
   bundles: Bundle[];
   cart: CartItem[];
-  onAddToCart: (product: Product, quantity?: number, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[] }) => void;
+  onAddToCart: (product: Product, quantity?: number, options?: { selectedVariant?: string; selectedVariantId?: string; selectedModifiers?: ProductModifier[] }) => void;
   onAddBundle: (cartItems: CartItem[]) => void;
   onUpdateCart: (index: number, quantity: number) => void;
 }
@@ -414,6 +414,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
     const filtered = products.filter(p => {
       if (p.showInEstore === false) return false;
       if (!p.active) return false;
+      if (p.productType === 'variation') return false;
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
       return matchesSearch && matchesCategory;

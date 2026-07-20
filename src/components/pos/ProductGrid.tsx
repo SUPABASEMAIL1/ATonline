@@ -186,7 +186,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
       ? true
       : (selectedCategory === 'All' || (selectedCategory === 'Featured' ? product.isFeatured : (selectedCategory === 'Pizzas' ? (product.category === 'Pizzas' || product.category === 'Special Pizzas') : product.category === selectedCategory)));
 
-    return matchesSearch && matchesCategory && product.active !== false;
+    return matchesSearch && matchesCategory && product.active !== false && product.productType !== 'variation';
   }).sort((a, b) => {
     if (a.isFeatured && !b.isFeatured) return -1;
     if (!a.isFeatured && b.isFeatured) return 1;

@@ -1227,36 +1227,15 @@ export function BundleManager() {
                   />
                   <input
                     type="number" min="0"
-                    value={t.priceSmall}
+                    value={t.priceSmall || ''}
                     onChange={e => setForm(prev => {
+                      const val = Number(e.target.value);
                       const updated = [...prev.extraToppings];
-                      updated[idx] = { ...updated[idx], priceSmall: Number(e.target.value) };
+                      updated[idx] = { ...updated[idx], priceSmall: val, priceMedium: val, priceLarge: val };
                       return { ...prev, extraToppings: updated };
                     })}
-                    className="w-16 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
-                    placeholder="S"
-                  />
-                  <input
-                    type="number" min="0"
-                    value={t.priceMedium}
-                    onChange={e => setForm(prev => {
-                      const updated = [...prev.extraToppings];
-                      updated[idx] = { ...updated[idx], priceMedium: Number(e.target.value) };
-                      return { ...prev, extraToppings: updated };
-                    })}
-                    className="w-16 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
-                    placeholder="M"
-                  />
-                  <input
-                    type="number" min="0"
-                    value={t.priceLarge}
-                    onChange={e => setForm(prev => {
-                      const updated = [...prev.extraToppings];
-                      updated[idx] = { ...updated[idx], priceLarge: Number(e.target.value) };
-                      return { ...prev, extraToppings: updated };
-                    })}
-                    className="w-16 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
-                    placeholder="L"
+                    className="w-24 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
+                    placeholder="Price"
                   />
                   <button
                     type="button"

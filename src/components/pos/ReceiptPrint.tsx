@@ -588,8 +588,9 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                 {b.items.map((item: any, idx: number) => (
                   <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
                     {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
-                    {item.selectedVariant ? ` (${item.selectedVariant})` : ''}
+                    {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
                     {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
+                    {item.addonItems?.length > 0 ? ` +Add-ons: ${item.addonItems.map((a:any) => `${a.name} (${a.quantity}x)`).join(', ')}` : ''}
                     {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}` : ''}
                   </div>
                 ))}
@@ -615,8 +616,10 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             {shStandalone.map((item: any, index: number) => (
             <div key={`sa-${index}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
               <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{index + 1}. {item.product?.name || 'Item'}</div>
-              {item.selectedVariant && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariant}</div>}
+              {item.selectedVariantLabel && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariantLabel}</div>}
+              {!item.selectedVariantLabel && item.selectedVariant && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariant}</div>}
               {item.selectedModifiers && item.selectedModifiers.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</div>}
+              {item.addonItems && item.addonItems.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ Add-ons: {item.addonItems.map((a: any) => `${a.name} (${a.quantity}x)`).join(', ')}</div>}
               {item.toppings && item.toppings.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}</div>}
               {item.serialNumber && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>SN: {item.serialNumber}</div>}
               <TwoCol left={`${item.quantity} PCS x ${formatCurrency(item.subtotal / item.quantity, currencyCode)}`} right={formatCurrency(item.subtotal, currencyCode)} />
@@ -1261,8 +1264,9 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                         {b.items.map((item: any, idx: number) => (
                           <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
                             {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
-                            {item.selectedVariant ? ` (${item.selectedVariant})` : ''}
+                            {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
                     {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
+                    {item.addonItems?.length > 0 ? ` + Add-ons: ${item.addonItems.map((a:any) => `${a.name} (${a.quantity}x)`).join(', ')}` : ''}
                     {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}` : ''}
                           </div>
                         ))}
@@ -1309,11 +1313,17 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                   {standaloneItems.map((item, index) => (
                     <div key={`standalone-${index}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
                       <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{index + 1}. {item.product?.name || 'Item'}</div>
-                      {item.selectedVariant && (
+                      {item.selectedVariantLabel && (
+                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariantLabel}</div>
+                      )}
+                      {!item.selectedVariantLabel && item.selectedVariant && (
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariant}</div>
                       )}
                       {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</div>
+                      )}
+                      {item.addonItems && item.addonItems.length > 0 && (
+                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ Add-ons: {item.addonItems.map((a: any) => `${a.name} (${a.quantity}x)`).join(', ')}</div>
                       )}
                       {item.toppings && item.toppings.length > 0 && (
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}</div>

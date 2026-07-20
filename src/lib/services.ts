@@ -22,6 +22,8 @@ import {
   RefundRequest,
   Topping,
   ExtraTopping,
+  VariantStockHistory,
+  ProductAddon,
 } from '../types';
 import { localDb, queueOp, generateId, SETTINGS_ID } from './localDb';
 import { generateBarcodeValue } from '../utils/barcode';
@@ -101,6 +103,8 @@ export const mapProduct = (item: any): Product => ({
   variants: item.variants ?? [],
   variantData: item.variant_data ?? item.variantData ?? [],
   modifiers: item.modifiers ?? [],
+  productType: item.product_type ?? item.productType ?? 'simple',
+  parentId: item.parent_id ?? item.parentId,
   isService: item.is_service ?? item.isService ?? false,
   requireSerial: item.require_serial ?? item.requireSerial ?? false,
   showInEstore: item.show_in_estore ?? item.showInEstore ?? true,
@@ -500,6 +504,48 @@ export const mapStockHistory = (item: any): StockHistory => ({
 
 
 
+export const mapVariantStockHistory = (item: any): VariantStockHistory => ({
+  ...item,
+  productId: item.product_id ?? item.productId,
+  variantId: item.variant_id ?? item.variantId,
+  variantLabel: item.variant_label ?? item.variantLabel,
+  changeQty: item.change_qty ?? item.changeQty,
+  referenceId: item.reference_id ?? item.referenceId,
+  balanceAfter: item.balance_after ?? item.balanceAfter,
+  cashierName: item.cashier_name ?? item.cashierName,
+  createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
+});
+
+export const toRemoteVariantStockHistory = (h: any) => {
+  const remote: any = { ...h };
+  if ('productId' in h) { remote.product_id = h.productId; delete remote.productId; }
+  if ('variantId' in h) { remote.variant_id = h.variantId; delete remote.variantId; }
+  if ('variantLabel' in h) { remote.variant_label = h.variantLabel; delete remote.variantLabel; }
+  if ('changeQty' in h) { remote.change_qty = h.changeQty; delete remote.changeQty; }
+  if ('referenceId' in h) { remote.reference_id = h.referenceId; delete remote.referenceId; }
+  if ('balanceAfter' in h) { remote.balance_after = h.balanceAfter; delete remote.balanceAfter; }
+  if ('cashierName' in h) { remote.cashier_name = h.cashierName; delete remote.cashierName; }
+  if ('createdAt' in h) { remote.created_at = h.createdAt instanceof Date ? h.createdAt.toISOString() : h.createdAt; delete remote.createdAt; }
+  return remote;
+};
+
+export const mapProductAddon = (item: any): ProductAddon => ({
+  ...item,
+  productId: item.product_id ?? item.productId,
+  addonProductId: item.addon_product_id ?? item.addonProductId,
+  maxQty: item.max_qty ?? item.maxQty,
+  createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
+});
+
+export const toRemoteProductAddon = (a: any) => {
+  const remote: any = { ...a };
+  if ('productId' in a) { remote.product_id = a.productId; delete remote.productId; }
+  if ('addonProductId' in a) { remote.addon_product_id = a.addonProductId; delete remote.addonProductId; }
+  if ('maxQty' in a) { remote.max_qty = a.maxQty; delete remote.maxQty; }
+  if ('createdAt' in a) { remote.created_at = a.createdAt instanceof Date ? a.createdAt.toISOString() : a.createdAt; delete remote.createdAt; }
+  return remote;
+};
+
 export const mapDiscount = (item: any): Discount => ({
   ...item,
   validFrom: item.valid_from ? new Date(item.valid_from) : new Date(item.validFrom),
@@ -552,6 +598,7 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   if ('minStock' in p) { remote.min_stock = p.minStock; delete remote.minStock; }
   if ('targetStock' in p) { remote.target_stock = p.targetStock; delete remote.targetStock; }
   if ('parentCategoryId' in p) { remote.parent_category_id = p.parentCategoryId; delete remote.parentCategoryId; }
+  if ('productAddons' in p) { delete remote.productAddons; }
   if ('createdAt' in p) { remote.created_at = p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt; delete remote.createdAt; }
   if ('updatedAt' in p) { remote.updated_at = p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt; delete remote.updatedAt; }
   if ('isService' in p) { remote.is_service = p.isService; delete remote.isService; }
@@ -561,6 +608,8 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   if ('estoreCategorySortOrder' in p) { remote.estore_category_sort_order = p.estoreCategorySortOrder; delete remote.estoreCategorySortOrder; }
   if ('variantData' in p) { remote.variant_data = p.variantData; delete remote.variantData; }
   if ('menuNumber' in p) { remote.menu_number = p.menuNumber; delete remote.menuNumber; }
+  if ('productType' in p) { remote.product_type = p.productType; delete remote.productType; }
+  if ('parentId' in p) { remote.parent_id = p.parentId; delete remote.parentId; }
   if ('highlightTag' in p) { remote.highlight_tag = p.highlightTag; delete remote.highlightTag; }
   delete remote.batches;
   delete remote.product_batches;
@@ -884,6 +933,41 @@ export const productsService = {
       await localDb.products.update(id, { batches: [initialBatch] });
     }
 
+    // 4. Create child variations if productType is 'variable'
+    if (newProduct.productType === 'variable' && newProduct.variantData && newProduct.variantData.length > 0) {
+      for (const vd of newProduct.variantData) {
+        const childId = (vd.id && vd.id.length > 10) ? vd.id : generateId();
+        const childName = `${newProduct.name} - ${vd.option1}${vd.option2 ? ` / ${vd.option2}` : ''}`;
+        
+        // Prevent duplicate child creation error
+        const existingChild = await localDb.products.where('name').equalsIgnoreCase(childName.trim()).first();
+        
+        if (!existingChild) {
+          const childProduct: Product = {
+            ...newProduct,
+            id: childId,
+            name: childName,
+            sku: vd.barcode || `${newProduct.sku}-${childId.substring(0, 4)}`,
+            barcode: vd.barcode || undefined,
+            barcodeValue: vd.barcode || undefined,
+            productType: 'variation',
+            parentId: id,
+            price: vd.priceOverride ?? newProduct.price,
+            cost: vd.cost ?? newProduct.cost,
+            stock: vd.stock ?? 0,
+            variants: [],
+            variantData: [],
+            modifiers: [],
+            productAddons: [],
+            batches: [],
+            trackInventory: true
+          };
+          
+          await productsService.create(childProduct);
+        }
+      }
+    }
+
     return newProduct;
   },
 
@@ -899,6 +983,64 @@ export const productsService = {
 
     // 2. Queue for Sync
     await queueOp('products', 'update', id, toRemoteProduct({ ...updates, updatedAt: now }));
+
+    // 3. Update/Create child variations if productType is 'variable'
+    if (updated.productType === 'variable' && updated.variantData) {
+      const existingChildren = await localDb.products.where('parentId').equals(id).toArray();
+      const childNamesKeep = new Set();
+
+      for (const vd of updated.variantData) {
+        const childName = `${updated.name} - ${vd.option1}${vd.option2 ? ` / ${vd.option2}` : ''}`;
+        childNamesKeep.add(childName);
+        
+        // Find existing child by ID or Name
+        const existingChild = existingChildren.find(c => c.id === vd.id || c.name === childName);
+        
+        if (existingChild) {
+          // Update child (don't override stock directly here, stock is managed by stock history)
+          await productsService.update(existingChild.id, {
+            name: childName,
+            sku: vd.barcode || existingChild.sku,
+            barcode: vd.barcode || existingChild.barcode,
+            barcodeValue: vd.barcode || existingChild.barcodeValue,
+            price: vd.priceOverride ?? updated.price,
+            cost: vd.cost ?? updated.cost,
+            trackInventory: true
+          });
+        } else {
+          // Create new child
+          const childId = (vd.id && vd.id.length > 10) ? vd.id : generateId();
+          const childProduct: Product = {
+            ...updated,
+            id: childId,
+            name: childName,
+            sku: vd.barcode || `${updated.sku}-${childId.substring(0, 4)}`,
+            barcode: vd.barcode || undefined,
+            barcodeValue: vd.barcode || undefined,
+            productType: 'variation',
+            parentId: id,
+            price: vd.priceOverride ?? updated.price,
+            cost: vd.cost ?? updated.cost,
+            stock: vd.stock ?? 0,
+            variants: [],
+            variantData: [],
+            modifiers: [],
+            productAddons: [],
+            batches: [],
+            trackInventory: true
+          };
+          
+          await productsService.create(childProduct);
+        }
+      }
+      
+      // Delete removed variations
+      for (const child of existingChildren) {
+        if (!childNamesKeep.has(child.name)) {
+          await productsService.delete(child.id);
+        }
+      }
+    }
 
     return updated;
   },
@@ -1211,18 +1353,39 @@ export const salesService = {
           }
         }
 
+        // Find variant cost fallback if applicable
+        let baseCostFallback = Number(product.cost) || 0;
+        if (item.selectedVariantId && product.variantData) {
+          const variant = product.variantData.find(v => v.id === item.selectedVariantId);
+          if (variant && variant.cost !== undefined && variant.cost > 0) {
+            baseCostFallback = Number(variant.cost);
+          }
+        }
+
         // If batches were exhausted but qty still needed — deficit sale (negative stock)
-        // Add fallback cost for remaining deficit units using product.cost
+        // Add fallback cost for remaining deficit units using baseCostFallback
         if (remainingToDeduct > 0) {
-          const fallbackCost = Number(product.cost) || 0;
-          totalPurchaseCost += remainingToDeduct * fallbackCost;
+          totalPurchaseCost += remainingToDeduct * baseCostFallback;
+        }
+
+        // Calculate total Add-on costs
+        let addonCostTotal = 0;
+        if (item.addonItems && item.addonItems.length > 0) {
+          for (const addonItem of item.addonItems) {
+            const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
+            if (addonProduct) {
+               addonCostTotal += (Number(addonProduct.cost) || 0) * addonItem.quantity * Math.abs(qty);
+            }
+          }
         }
 
         // Inject FIFO cost back into the line item for accurate profit reporting
-        // Always use product.cost as fallback if no FIFO data available
-        const effectivePurchaseCost = totalPurchaseCost > 0
+        // Always use baseCostFallback as fallback if no FIFO data available
+        const baseEffectiveCost = totalPurchaseCost > 0
           ? totalPurchaseCost
-          : (Number(product.cost) || 0) * qty;
+          : baseCostFallback * qty;
+          
+        const effectivePurchaseCost = baseEffectiveCost + addonCostTotal;
 
         newSale.items[i] = {
           ...item,
@@ -1261,11 +1424,98 @@ export const salesService = {
         };
         await localDb.stockHistory.add(histEntry);
         await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry), { batchId: id });
+
+        // --- VARIANT-LEVEL STOCK DEDUCTION ---
+        if (item.selectedVariantId && product.variantData) {
+          const variant = product.variantData.find(v => v.id === item.selectedVariantId);
+          if (variant && variant.stock !== undefined) {
+            const newVariantStock = variant.stock - qty;
+            const updatedVariantData = product.variantData.map(v =>
+              v.id === item.selectedVariantId ? { ...v, stock: newVariantStock } : v
+            );
+            await localDb.products.update(product.id, { variantData: updatedVariantData });
+            await queueOp('products', 'update', product.id, toRemoteProduct({
+              ...product,
+              variant_data: updatedVariantData,
+              updatedAt: now
+            }));
+
+            // Log variant stock history
+            const vHistId = generateId();
+            const vHistEntry: VariantStockHistory = {
+              id: vHistId,
+              productId: product.id,
+              variantId: item.selectedVariantId,
+              variantLabel: item.selectedVariantLabel || variant.cardTitle || variant.option1,
+              changeQty: -qty,
+              type: 'sale',
+              referenceId: id,
+              note: `Sale ${sale.invoiceNumber}`,
+              balanceAfter: newVariantStock,
+              cashierName: sale.cashier || 'System',
+              createdAt: now,
+            };
+            await localDb.variantStockHistory.add(vHistEntry);
+            await queueOp('variant_stock_history', 'create', vHistId, toRemoteVariantStockHistory(vHistEntry), { batchId: id });
+          }
+        }
+
+        // --- ADD-ON STOCK DEDUCTION ---
+        if (item.addonItems && item.addonItems.length > 0) {
+          for (const addonItem of item.addonItems) {
+            const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
+            if (addonProduct && addonProduct.trackInventory) {
+              const addonQty = addonItem.quantity * Math.abs(item.quantity);
+              const newAddonStock = (addonProduct.stock || 0) - addonQty;
+              await localDb.products.update(addonProduct.id, { stock: newAddonStock, updatedAt: now });
+              await queueOp('products', 'update', addonProduct.id, toRemoteProduct({
+                ...addonProduct,
+                stock: newAddonStock,
+                updatedAt: now
+              }), { batchId: id });
+
+              const aHistId = generateId();
+              const aHistEntry: StockHistory = {
+                id: aHistId,
+                productId: addonProduct.id,
+                changeQty: -addonQty,
+                type: 'sale',
+                referenceId: id,
+                note: `Add-on for Sale ${sale.invoiceNumber} (${addonItem.addon.name})`,
+                balanceAfter: newAddonStock,
+                cashierName: sale.cashier || 'System',
+                createdAt: now,
+              };
+              await localDb.stockHistory.add(aHistEntry);
+              await queueOp('stock_history', 'create', aHistId, toRemoteStockHistory(aHistEntry), { batchId: id });
+            }
+          }
+        }
       } else if (product && !product.trackInventory) {
-        // Non-tracked product: still inject purchaseCost from product.cost for accurate reporting
+        // Find variant cost fallback if applicable
+        let baseCostFallback = Number(product.cost) || 0;
+        if (item.selectedVariantId && product.variantData) {
+          const variant = product.variantData.find(v => v.id === item.selectedVariantId);
+          if (variant && variant.cost !== undefined && variant.cost > 0) {
+            baseCostFallback = Number(variant.cost);
+          }
+        }
+
+        // Calculate total Add-on costs
+        let addonCostTotal = 0;
+        if (item.addonItems && item.addonItems.length > 0) {
+          for (const addonItem of item.addonItems) {
+            const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
+            if (addonProduct) {
+               addonCostTotal += (Number(addonProduct.cost) || 0) * addonItem.quantity * Math.abs(item.weight || item.quantity);
+            }
+          }
+        }
+
+        // Non-tracked product: still inject purchaseCost from product.cost (or variant cost) + addons for accurate reporting
         newSale.items[i] = {
           ...item,
-          purchaseCost: (Number(product.cost) || 0) * (item.weight || item.quantity),
+          purchaseCost: (baseCostFallback * (item.weight || item.quantity)) + addonCostTotal,
           fifoDetails: []
         };
       }
@@ -1399,6 +1649,42 @@ export const salesService = {
         await queueOp('stock_history', 'create', histId, toRemoteStockHistory(historyEntry));
       } else if (product) {
         affectedProducts.push(product);
+      }
+      
+      // --- ADD-ON STOCK RESTORATION ---
+      if (item.addonItems && item.addonItems.length > 0) {
+        for (const addonItem of item.addonItems) {
+          const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
+          if (addonProduct && addonProduct.trackInventory) {
+            const addonQty = (addonItem.quantity * item.quantity) - (item.refundedQuantity ? addonItem.quantity * item.refundedQuantity : 0);
+            if (addonQty <= 0) continue;
+            
+            const newAddonStock = (addonProduct.stock || 0) + addonQty;
+            
+            await localDb.products.update(addonProduct.id, {
+              stock: newAddonStock,
+              updatedAt: now
+            });
+            const updatedAddonProduct = { ...addonProduct, stock: newAddonStock, updatedAt: now };
+            affectedProducts.push(updatedAddonProduct);
+            await queueOp('products', 'update', addonProduct.id, toRemoteProduct(updatedAddonProduct));
+            
+            const aHistId = generateId();
+            const aHistoryEntry = {
+              id: aHistId,
+              productId: addonProduct.id,
+              changeQty: addonQty,
+              type: 'return' as const,
+              referenceId: id,
+              note: `Sale #${sale.invoiceNumber} Deleted (Add-on)`,
+              balanceAfter: newAddonStock,
+              cashierName: currentCashierName || sale.cashier || 'System',
+              createdAt: now
+            };
+            await localDb.stockHistory.add(aHistoryEntry);
+            await queueOp('stock_history', 'create', aHistId, toRemoteStockHistory(aHistoryEntry));
+          }
+        }
       }
     }
     }
@@ -1605,6 +1891,44 @@ export const salesService = {
         };
         await localDb.stockHistory.add(retHistEntry);
         await queueOp('stock_history', 'create', retHistId, toRemoteStockHistory(retHistEntry), { batchId: id });
+      }
+      
+      // --- ADD-ON STOCK RESTORATION ---
+      if (item.addonItems && item.addonItems.length > 0) {
+        for (const addonItem of item.addonItems) {
+          const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
+          if (addonProduct && addonProduct.trackInventory) {
+            const addonQtyToRestore = reqItem.qty * addonItem.quantity;
+            if (addonQtyToRestore <= 0) continue;
+            
+            const newAddonStock = (addonProduct.stock || 0) + addonQtyToRestore;
+            
+            await localDb.products.update(addonProduct.id, {
+              stock: newAddonStock,
+              updatedAt: now
+            });
+            await queueOp('products', 'update', addonProduct.id, toRemoteProduct({
+              ...addonProduct,
+              stock: newAddonStock,
+              updatedAt: now
+            }), { batchId: id });
+            
+            const aHistId = generateId();
+            const aHistoryEntry = {
+              id: aHistId,
+              productId: addonProduct.id,
+              changeQty: addonQtyToRestore,
+              type: 'return' as const,
+              referenceId: id,
+              note: `Sale #${sale.invoiceNumber} Refunded (Add-on)`,
+              balanceAfter: newAddonStock,
+              cashierName: currentCashierName || sale.cashier || 'System',
+              createdAt: now
+            };
+            await localDb.stockHistory.add(aHistoryEntry);
+            await queueOp('stock_history', 'create', aHistId, toRemoteStockHistory(aHistoryEntry), { batchId: id });
+          }
+        }
       }
     }
     
@@ -2251,6 +2575,79 @@ export const stockHistoryService = {
     const { data, error } = await supabase.from('stock_history').select('*');
     if (error) throw error;
     return (data || []).map(mapStockHistory);
+  }
+};
+
+/**
+ * Variant Stock History Service
+ */
+export const variantStockHistoryService = {
+  async getByProduct(productId: string): Promise<VariantStockHistory[]> {
+    const items = await localDb.variantStockHistory
+      .where('productId').equals(productId)
+      .toArray();
+    return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async getByVariant(productId: string, variantId: string): Promise<VariantStockHistory[]> {
+    const items = await localDb.variantStockHistory
+      .where('productId').equals(productId)
+      .toArray();
+    return items
+      .filter(h => h.variantId === variantId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async create(entry: Omit<VariantStockHistory, 'id' | 'createdAt'>): Promise<VariantStockHistory> {
+    const id = generateId();
+    const now = new Date();
+    const newEntry = { ...entry, id, createdAt: now } as VariantStockHistory;
+    await localDb.variantStockHistory.add(newEntry);
+    await queueOp('variant_stock_history', 'create', id, toRemoteVariantStockHistory(newEntry));
+    return newEntry;
+  },
+
+  async fetchRemote(): Promise<VariantStockHistory[]> {
+    const { data, error } = await supabase.from('variant_stock_history').select('*');
+    if (error) throw error;
+    return (data || []).map(mapVariantStockHistory);
+  }
+};
+
+/**
+ * Product Addons Service
+ */
+export const productAddonsService = {
+  async getByProduct(productId: string): Promise<ProductAddon[]> {
+    const items = await localDb.productAddons
+      .where('productId').equals(productId)
+      .toArray();
+    return items.filter(a => a.active);
+  },
+
+  async create(addon: Omit<ProductAddon, 'id' | 'createdAt'>): Promise<ProductAddon> {
+    const id = generateId();
+    const now = new Date();
+    const newAddon = { ...addon, id, createdAt: now } as ProductAddon;
+    await localDb.productAddons.add(newAddon);
+    await queueOp('product_addons', 'create', id, toRemoteProductAddon(newAddon));
+    return newAddon;
+  },
+
+  async update(id: string, updates: Partial<ProductAddon>): Promise<void> {
+    await localDb.productAddons.update(id, updates);
+    await queueOp('product_addons', 'update', id, toRemoteProductAddon({ ...updates, id }));
+  },
+
+  async delete(id: string): Promise<void> {
+    await localDb.productAddons.delete(id);
+    await queueOp('product_addons', 'delete', id, {});
+  },
+
+  async fetchRemote(): Promise<ProductAddon[]> {
+    const { data, error } = await supabase.from('product_addons').select('*');
+    if (error) throw error;
+    return (data || []).map(mapProductAddon);
   }
 };
 

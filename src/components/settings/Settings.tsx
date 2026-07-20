@@ -625,13 +625,13 @@ export function Settings() {
                 <button
                   key={tab.id}
                   onClick={() => navigate('/settings/' + tab.id)}
-                  className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 active:scale-95 ${
+                  className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap active:scale-95 ${
                     isActive 
                       ? `${activeColor} text-white shadow-lg shadow-emerald-500/20 translate-x-1` 
                       : 'text-gray-600 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-600'}`} />
                   {t(tabKeys[tab.id], tab.label)}
                 </button>
               );

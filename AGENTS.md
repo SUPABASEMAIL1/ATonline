@@ -24,6 +24,13 @@
 
 ---
 
+## 🏢 Business Scope & Safety Rules
+- **Applies to:** Universal Business System (Clothing, Pharmacy, Restaurant, Retail, Electronics, Mobile, Tech, Shoes, Grocery). NO logic or layout may be hardcoded to a specific niche.
+- **Enforced Terminology:** `item` / `product` / `unit` / `category` / `listing` / `variant` / `modifier` / `addon`.
+- **Electronics / Tech Tracking:** The system fully supports Serial Number and IMEI tracking via `requireSerial` and `serialNumber` fields. Never assume the POS is only for food or basic retail.
+
+---
+
 ## 🧠 Agent Rules
 0. **Architecture**: 1 Clone = 1 Shop. Never use workspace_id or shift_id.
 
@@ -220,85 +227,6 @@ When user pastes any error:
 
 ## 📸 Vision Model Prompt Template (Ysha)
 
-Whenever a vision model (e.g. GPT-4o, Claude Sonnet) sends a prompt based on an image/screenshot, it MUST follow this exact structured format. This template is also embedded in GEMINI.md. Copy-paste this when generating prompts:
+Whenever a vision model (e.g. GPT-4o, Claude Sonnet) sends a prompt based on an image/screenshot, it MUST follow the master template. 
 
-```
-# [Specific Task Title]
-
-## Business Scope
-- **Applies to:** All business types (clothing, shoes, general store, tech accessories, mobiles, laptops, grocery, pharmacy, bakery, services/salon, wholesale, rental, and any other) — no logic, wording, or layout may be dedicated to one business type only
-- **Generic terms enforced:** item / product / unit / category / listing / record / variant
-
-## Related Pages Map
-| # | Route | Source (Image/Screenshot) | What It Shows |
-|---|-------|---------------------------|----------------|
-| 1 | `[exact route]` | Image N | [short description] |
-
-- **Cropped/close-up images:** [list which images are crops, and which parent route/page they belong to]
-- **Additional pages sharing this logic (no screenshot given):** [list any other project pages that must also be checked/updated, with exact route]
-
-## Exact Location
-- **Route:** `[full exact route path]`
-- **File:** `[full exact file path]`
-- **Component:** `[exact component name]`
-- **Section/Zone:** `[exact named UI zone]`
-- **Element:** `[exact element visible in screenshot]`
-
-## Connected Pages & Flow
-- **Entry Points:** [every page/link that navigates into this page]
-- **Exit Points:** [every page/link this page navigates out to]
-- **Shared Component/Data Usage:** [other pages reusing same component/table/state]
-
-## Visual Context
-### Visible in screenshot:
-- **Layout:** [grid/flex structure — exact column count, card sizes, alignment]
-- **Elements:** [every visible UI piece — buttons, inputs, badges, icons, labels — with position]
-- **Colors:** [bg, text, border, accent — hex if legible]
-- **Spacing:** [gaps, padding, overflow, clipping]
-- **State:** [loading, empty, error, filled, hover, active]
-
-### Issues Found:
-- **P1 — [Critical]:** [what is broken, exact element, exact location]
-- **P2 — [Secondary]:** [what else is wrong, exact element, exact location]
-- **P3 — [Cosmetic]:** [minor polish needed, exact element]
-
-## Current Broken Layout (ASCII)
-```
-+------------------------------------------------------+
-|  ASCII wireframe matching screenshot proportions       |
-+------------------------------------------------------+
-```
-
-## Target Fixed Layout (ASCII)
-```
-+------------------------------------------------------+
-|  ASCII wireframe of exact desired final state          |
-+------------------------------------------------------+
-```
-
-## Instructions
-### P1 — [Critical Fix]
-- [Exact element, exact change, exact expected result]
-- [If layout: reference Tailwind utility; if data: describe generically — never name real tables/columns/business types]
-- [List every affected page from Related Pages Map, exact route]
-
-### P2 — [Secondary Fix]
-- [Exact element, exact change]
-
-### P3 — [Cosmetic Fix]
-- [Exact element, exact change]
-
-## Responsive Expectations
-| Viewport | Layout Behavior |
-|----------|----------------|
-| Mobile < 768px | [exact stacking/order] |
-| Tablet 768–1024px | [exact behavior] |
-| Desktop > 1024px | [exact behavior] |
-
-## Final Visual Goal
-- [Exact end-state visible on screen, element by element]
-- [Interaction behavior: hover, click, filter, scroll]
-- [Data accuracy: what loads, syncs, updates — generic terms only]
-- [Confirmation ALL routes in Related Pages Map updated consistently]
-- [Confirmation fix holds true across all business types in Business Scope]
-```
+> 👉 **START HERE:** Open and copy the complete prompt from [@docs/prompts/CLI_PROMPT_WRITER.md](docs/prompts/CLI_PROMPT_WRITER.md) when initializing a CLI Prompt Writer agent.

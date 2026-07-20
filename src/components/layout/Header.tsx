@@ -163,36 +163,47 @@ export function Header({
     const perms = state.currentUser?.permissions || [];
     const items = [];
 
+    // Dashboard: admin + manager (matches RequireAccess)
     if (role === 'admin' || role === 'manager')
       items.push({ id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: AppIcons.dashboard, color: 'text-primary' });
 
+    // POS: everyone
     items.push({ id: 'pos', label: t('pos', 'POS'), icon: AppIcons.pos, color: 'text-blue-500' });
     
+    // Online Orders: everyone (when estore enabled)
     if (state.settings.estoreEnabled) {
       items.push({ id: 'online-orders', label: 'Orders', icon: Bell, color: 'text-emerald-500' });
     }
 
+    // Transactions: admin + manager + cashier (matches RequireAccess)
     if (role === 'admin' || role === 'manager' || role === 'cashier')
       items.push({ id: 'transactions', label: t('sales', 'Sales'), icon: AppIcons.sales, color: 'text-orange-500' });
 
-    if (role === 'admin' || perms.includes('access_expenses'))
+    // Expenses: admin + manager + access_expenses perm (matches RequireAccess)
+    if (role === 'admin' || role === 'manager' || perms.includes('access_expenses'))
       items.push({ id: 'expenses', label: t('expenses', 'Expenses'), icon: AppIcons.expenses, color: 'text-rose-500' });
 
-    if (role === 'admin' || role === 'manager' || state.currentUser?.canManagePO || state.currentUser?.canViewRecords)
+    // Inventory: admin + manager + access_inventory perm + canManageStock + canManagePO + canViewRecords (matches RequireAccess)
+    if (role === 'admin' || role === 'manager' || perms.includes('access_inventory') || state.currentUser?.canManageStock || state.currentUser?.canManagePO || state.currentUser?.canViewRecords)
       items.push({ id: 'inventory', label: t('inventory', 'Inventory'), icon: AppIcons.inventory, color: 'text-purple-500' });
 
-    if (role === 'admin' || perms.includes('access_customers'))
+    // Customers: admin + manager + access_customers perm (matches RequireAccess)
+    if (role === 'admin' || role === 'manager' || perms.includes('access_customers'))
       items.push({ id: 'customers', label: t('customers', 'Customers'), icon: AppIcons.customers, color: 'text-sky-500' });
 
-    if (role === 'admin' || state.currentUser?.canGiveDiscount)
+    // Discounts: admin + manager + canGiveDiscount (matches RequireAccess)
+    if (role === 'admin' || role === 'manager' || state.currentUser?.canGiveDiscount)
       items.push({ id: 'discounts', label: t('discounts', 'Discounts'), icon: AppIcons.discounts, color: 'text-pink-500' });
 
-    if (role === 'admin' || perms.includes('access_reports'))
+    // Reports: admin + manager + access_reports perm + canViewProfit (matches RequireAccess)
+    if (role === 'admin' || role === 'manager' || perms.includes('access_reports') || state.currentUser?.canViewProfit)
       items.push({ id: 'reports', label: t('reports', 'Reports'), icon: AppIcons.reports, color: 'text-red-500' });
 
+    // Suppliers: admin + manager (matches RequireAccess)
     if (role === 'admin' || role === 'manager')
       items.push({ id: 'suppliers', label: t('suppliers', 'Suppliers'), icon: AppIcons.suppliers, color: 'text-amber-500' });
 
+    // Users: admin only (matches RequireAccess)
     if (role === 'admin')
       items.push({ id: 'users', label: t('users', 'Users'), icon: AppIcons.users, color: 'text-teal-500' });
 

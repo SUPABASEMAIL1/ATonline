@@ -150,7 +150,9 @@ async function executeOp(op: PendingOp): Promise<void> {
         bundles: 'bundles',
         bundle_items: 'bundle_items',
         bundle_slots: 'bundle_slots',
-        bundle_slot_options: 'bundle_slot_options'
+        bundle_slot_options: 'bundle_slot_options',
+        variant_stock_history: 'variant_stock_history',
+        product_addons: 'product_addons'
     };
 
     const table = tableMap[op.entity];
@@ -874,10 +876,8 @@ async function pruneExpiredCancelledOrders() {
         // 1. Delete locally from IndexedDB (Dexie)
         const localDbSales = localDb.sales;
         if (localDbSales) {
-            const oldCancelledSales = await localDbSales
-                .where('status')
-                .equals('cancelled')
-                .toArray();
+            const allSales = await localDbSales.toArray();
+            const oldCancelledSales = allSales.filter(s => s.status === 'cancelled' || s.estoreStatus === 'cancelled');
             
             const toDelete = oldCancelledSales
                 .filter(s => {
@@ -899,7 +899,7 @@ async function pruneExpiredCancelledOrders() {
             const { error } = await supabase
                 .from('sales')
                 .delete()
-                .eq('status', 'cancelled')
+                .or('status.eq.cancelled,estore_status.eq.cancelled')
                 .lt('updated_at', cutoff);
             
             if (error) {

@@ -290,10 +290,14 @@ export function OnlineOrdersPage() {
   }, [state.sales]);
 
   const updateStatus = async (sale: Sale, newStatus: string) => {
-    const updated = { ...sale, estoreStatus: newStatus as any };
+    const updates: Partial<Sale> = { estoreStatus: newStatus as any };
+    if (newStatus === 'cancelled') {
+      updates.status = 'cancelled';
+    }
+    const updated = { ...sale, ...updates };
     dispatch({ type: 'UPDATE_SALE', payload: updated });
     try {
-      await salesService.update(sale.id, { estoreStatus: newStatus as any });
+      await salesService.update(sale.id, updates);
       sonner.success(`Order #${sale.invoiceNumber} status updated to ${STATUS_LABELS[newStatus]}`);
     } catch (error: any) {
       dispatch({ type: 'UPDATE_SALE', payload: sale });

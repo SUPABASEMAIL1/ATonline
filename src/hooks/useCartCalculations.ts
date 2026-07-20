@@ -145,11 +145,33 @@ export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?
 
     // 5. Profitability check (Using FIFO Cost)
     const totalCost = roundTo2(cart.reduce((sum, item) => {
+      let itemCost = 0;
       if (item.product.trackInventory) {
         const split = calculateFIFOSplit(item.product, item.quantity);
-        return sum + split.totalCost;
+        itemCost += split.totalCost;
+        
+        // Add addon costs only if tracking inventory because calculateFIFOSplit ignores the patched product.cost
+        // and only looks at the base product's batches.
+        if (item.addonItems && item.addonItems.length > 0) {
+          item.addonItems.forEach(addonItem => {
+            const addonProd = products.find(p => p.id === addonItem.addon.addonProductId);
+            if (addonProd) {
+              if (addonProd.trackInventory) {
+                 const split = calculateFIFOSplit(addonProd, addonItem.quantity * item.quantity);
+                 itemCost += split.totalCost;
+              } else {
+                 itemCost += (addonProd.cost || 0) * addonItem.quantity * item.quantity;
+              }
+            }
+          });
+        }
+      } else {
+        // POSTerminal overrides `item.product.cost` to ALREADY include addon costs.
+        // So we just use it directly without adding addon costs again.
+        itemCost += (item.product.cost * item.quantity);
       }
-      return sum + (item.product.cost * item.quantity);
+
+      return sum + itemCost;
     }, 0));
     const isBelowCost = total < totalCost;
 

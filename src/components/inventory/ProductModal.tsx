@@ -1,6 +1,6 @@
 import { X, Plus, Loader2, Wand2, Star, Camera, Save, Tag, User, Upload, Package, Database } from 'lucide-react';
 import { compressImage } from '../../lib/imageCompression';
-import { Product, ProductBatch, ProductVariant, ProductModifier, VariantData } from '../../types';
+import { Product, ProductBatch, ProductVariant, ProductModifier, VariantData, ProductAddon } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { MediaLibrary } from './MediaLibrary';
 import { CameraScanner } from '../common/CameraScanner';
@@ -50,12 +50,14 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
     image: '',
     isService: false,
     requireSerial: false,
+    productType: 'simple' as 'simple' | 'variable',
   });
 
   const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [variantData, setVariantData] = useState<VariantData[]>([]);
   const [modifiers, setModifiers] = useState<ProductModifier[]>([]);
+  const [productAddons, setProductAddons] = useState<ProductAddon[]>([]);
 
   // Calculate total quantity from batches (use remaining quantity if trackInventory is on)
   const batchTotalStock = useMemo(() => {
@@ -94,11 +96,13 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         image: product.image || '',
         isService: product.isService ?? false,
         requireSerial: product.requireSerial ?? false,
+        productType: (product.productType === 'variable') ? 'variable' : 'simple',
       });
       setBatches(product.batches || []);
       setVariants((product.variants || []).map(v => ({ ...v, optionsRaw: '' })));
       setVariantData(product.variantData || []);
       setModifiers(product.modifiers || []);
+      setProductAddons(product.productAddons || []);
     } else {
       setFormData({
         name: '',
@@ -120,11 +124,13 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         image: '',
         isService: false,
         requireSerial: false,
+        productType: 'simple',
       });
       setBatches([]);
       setVariants([]);
       setVariantData([]);
       setModifiers([]);
+      setProductAddons([]);
     }
   }, [product]);
 
@@ -243,6 +249,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       pricePerUnit: undefined,
       unit: undefined,
       image: formData.image || undefined,
+      productType: formData.productType || 'simple',
       trackInventory: formData.trackInventory,
       isFeatured: formData.isFeatured,
       showInEstore: formData.showInEstore,
@@ -252,6 +259,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       variants: variants.map(({ name, options }) => ({ name, options })),
       variantData,
       modifiers,
+      productAddons,
       createdAt: product?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -456,6 +464,32 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
               {t('identity_origin')}
             </h3>
             
+            {/* Product Type Toggle */}
+            <div className="flex bg-[#f8f9fa] dark:bg-black/75 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, productType: 'simple' }))}
+                className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                  formData.productType !== 'variable'
+                    ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Simple Product
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, productType: 'variable' }))}
+                className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                  formData.productType === 'variable'
+                    ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                Variable Product
+              </button>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Product Name */}
               <div className="space-y-2 md:col-span-2">
@@ -652,24 +686,31 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
             </div>
 
             <div className="space-y-4">
-              <label className="flex items-start gap-3 cursor-pointer group p-3 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/5 transition-all hover:bg-gray-100 dark:hover:bg-white/10">
+              <label className={`flex items-start gap-3 cursor-pointer group p-3 rounded-xl border transition-all ${
+                formData.productType === 'variable' 
+                ? 'bg-gray-100/50 dark:bg-white/5 border-gray-200 dark:border-white/5 opacity-60 cursor-not-allowed' 
+                : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/10'
+              }`}>
                 <input
                   type="checkbox"
                   name="trackInventory"
-                  checked={formData.trackInventory}
+                  checked={formData.productType === 'variable' ? true : formData.trackInventory}
                   onChange={handleChange}
-                  className="w-5 h-5 mt-0.5 rounded border-gray-300 text-primary"
+                  disabled={formData.productType === 'variable'}
+                  className="w-5 h-5 mt-0.5 rounded border-gray-300 text-primary disabled:opacity-50"
                 />
                 <div>
                   <div className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-wide flex items-center">
                     {t('enable_active_tracking')}
                     <HelpTooltip content="Maintains real-time stock balances across sales and returns. Disabling this treats the item as having infinite supply." />
                   </div>
-                  <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest mt-0.5">{t('track_stock_alert')}</div>
+                  <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest mt-0.5">
+                    {formData.productType === 'variable' ? 'MANAGED BY VARIATIONS' : t('track_stock_alert')}
+                  </div>
                 </div>
               </label>
 
-              {formData.trackInventory && (
+              {formData.trackInventory && formData.productType === 'simple' && (
                 <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
@@ -786,10 +827,11 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
             </div>
 
             {/* VARIANTS BUILDER */}
-            <div className="space-y-3 p-4 bg-gray-50 dark:bg-surface rounded-2xl border border-gray-200 dark:border-white/5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('product_variants')}</h4>
+            {formData.productType === 'variable' && (
+              <div className="space-y-3 p-4 bg-gray-50 dark:bg-surface rounded-2xl border border-gray-200 dark:border-white/5 animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('product_variants')}</h4>
                   <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Size, Color, Material (e.g. Garments, Shoes)</p>
                 </div>
                 <button 
@@ -950,6 +992,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                     <thead className="bg-gray-100 dark:bg-black/60 border-b border-gray-200 dark:border-white/10">
                       <tr>
                         <th className="px-3 py-2">Variant</th>
+                        <th className="px-3 py-2 w-24">Cost</th>
                         <th className="px-3 py-2 w-24">Exact Price</th>
                         <th className="px-3 py-2 w-20">Stock</th>
                         <th className="px-3 py-2 w-28">Barcode</th>
@@ -960,6 +1003,19 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                         <tr key={vd.id}>
                           <td className="px-3 py-2 whitespace-nowrap text-gray-900 dark:text-white">
                             {vd.option1} {vd.option2 ? ` / ${vd.option2}` : ''}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              value={vd.cost || ''}
+                              onChange={(e) => {
+                                const newData = [...variantData];
+                                newData[idx].cost = e.target.value ? parseFloat(e.target.value) : undefined;
+                                setVariantData(newData);
+                              }}
+                              placeholder={formData.cost}
+                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                            />
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -1007,76 +1063,80 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                 </div>
               )}
             </div>
+            )}
 
-            {/* MODIFIERS BUILDER */}
+            {/* LINKED ADD-ONS BUILDER */}
             <div className="space-y-3 p-4 bg-gray-50 dark:bg-surface rounded-2xl border border-gray-200 dark:border-white/5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('product_modifiers')}</h4>
-                  <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Add-ons & Extras (e.g. Cafe, Restaurant)</p>
+                  <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">Linked Add-ons</h4>
+                  <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Attach inventory-tracked products as extras</p>
                 </div>
                 <button 
                   type="button" 
-                  onClick={() => setModifiers([...modifiers, { name: '', price: 0 }])}
+                  onClick={() => setProductAddons([...productAddons, { id: '', productId: product?.id || '', addonProductId: '', name: '', price: 0, maxQty: 1, active: true, createdAt: new Date() }])}
                   className="px-3 py-1.5 bg-white dark:bg-black text-blue-600 dark:text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-200 dark:border-white/10 hover:border-blue-500 shadow-sm"
                 >
-                  {t('add_modifier')}
+                  <Plus className="w-3.5 h-3.5 inline mr-1" />
+                  Add Link
                 </button>
               </div>
               
-              {modifiers.map((mod, index) => (
-                <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
-                  <div className="flex-1 min-w-0 space-y-1.5 w-full">
-                    <input
-                      type="text"
-                      placeholder="Add-on Name (e.g. Extra Cheese)"
-                      value={mod.name}
-                      onChange={(e) => {
-                        const newMods = [...modifiers];
-                        newMods[index].name = e.target.value;
-                        setModifiers(newMods);
+              {productAddons.map((addon, index) => (
+                <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5 items-center">
+                  <div className="w-full sm:flex-1 min-w-0">
+                    <SearchableSelect
+                      options={state.products.filter(p => p.id !== product?.id).map(p => ({ id: p.id, label: `${p.name} (Stock: ${p.stock})` }))}
+                      value={addon.addonProductId}
+                      onChange={(val) => {
+                        const selProd = state.products.find(p => p.id === val);
+                        const newAddons = [...productAddons];
+                        newAddons[index].addonProductId = val;
+                        if (selProd) {
+                          newAddons[index].name = selProd.name;
+                          newAddons[index].price = selProd.price;
+                        }
+                        setProductAddons(newAddons);
                       }}
-                      className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium text-gray-900 dark:text-white"
+                      placeholder="Search Product to Link..."
+                      icon={Database}
                     />
-                    {variants.length > 0 && variants.some(v => v.options.length > 0) && (
-                      <select
-                        value={mod.variantName || ''}
-                        onChange={(e) => {
-                          const newMods = [...modifiers];
-                          newMods[index].variantName = e.target.value || undefined;
-                          setModifiers(newMods);
-                        }}
-                        className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium"
-                      >
-                        <option value="">Apply to all variants</option>
-                        {variants.flatMap(v => v.options.map(opt => `${v.name}: ${opt}`)).map(opt => (
-                          <option key={opt} value={opt}>Only for {opt}</option>
-                        ))}
-                      </select>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-start">
                     <div className="relative flex-1 sm:flex-none w-full sm:w-24">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold z-10">+</span>
+                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold z-10 uppercase">Max</span>
+                       <input
+                         type="number"
+                         min="1"
+                         value={addon.maxQty || ''}
+                         onChange={(e) => {
+                           const newAddons = [...productAddons];
+                           newAddons[index].maxQty = parseInt(e.target.value) || 1;
+                           setProductAddons(newAddons);
+                         }}
+                         className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-9 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                       />
+                    </div>
+                    <div className="relative flex-1 sm:flex-none w-full sm:w-28">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold z-10 uppercase">Price</span>
                       <input
                         type="number"
                         placeholder="0"
-                        value={mod.price || ''}
+                        value={addon.price === 0 ? '' : addon.price}
                         onChange={(e) => {
-                          const newMods = [...modifiers];
-                          newMods[index].price = parseFloat(e.target.value) || 0;
-                          setModifiers(newMods);
+                          const newAddons = [...productAddons];
+                          newAddons[index].price = parseFloat(e.target.value) || 0;
+                          setProductAddons(newAddons);
                         }}
-                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-6 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
                       />
                     </div>
-                    <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
+                    <button type="button" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
               ))}
-
             </div>
           </div>
 

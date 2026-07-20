@@ -1043,14 +1043,24 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
               </span>
             )}
           </div>
-          {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
+          {(item.selectedVariant || item.selectedVariantLabel || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0 mt-0.5">
-              {item.selectedVariant && (
+              {item.selectedVariantLabel && (
+                <span className="text-[7px] font-bold text-gray-500 dark:text-gray-400 leading-tight">{item.selectedVariantLabel}</span>
+              )}
+              {!item.selectedVariantLabel && item.selectedVariant && (
                 <span className="text-[7px] font-bold text-gray-500 dark:text-gray-400 leading-tight">{item.selectedVariant}</span>
               )}
               {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                 <span className="text-[7px] font-bold text-primary leading-tight">+{item.selectedModifiers.map(m => m.name).join(', ')}</span>
               )}
+            </div>
+          )}
+          {item.addonItems && item.addonItems.length > 0 && (
+            <div className="mt-0.5">
+              <span className="text-[6px] font-bold text-violet-500 dark:text-violet-400 leading-tight">
+                + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
+              </span>
             </div>
           )}
           {item.toppings && item.toppings.length > 0 && (

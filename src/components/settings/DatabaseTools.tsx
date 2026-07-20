@@ -54,10 +54,13 @@ const STORE_OPTIONS = [
   { key: 'supplier_transactions', label: 'Supplier Txns', icon: Database, color: 'text-red-600', dbKey: 'supplierTransactions' },
   { key: 'payments', label: 'Payments', icon: CheckCircle2, color: 'text-primary' },
   { key: 'stock_history', label: 'Stock History', icon: History, color: 'text-gray-600', dbKey: 'stockHistory' },
+  { key: 'variant_stock_history', label: 'Variant Stock History', icon: History, color: 'text-gray-500', dbKey: 'variantStockHistory' },
   { key: 'bundles', label: 'Bundles & Deals', icon: Tag, color: 'text-purple-500' },
   { key: 'bundle_items', label: 'Bundle Items', icon: Package, color: 'text-purple-400', dbKey: 'bundleItems' },
   { key: 'bundle_slots', label: 'Bundle Slots', icon: Layers, color: 'text-purple-300', dbKey: 'bundleSlots' },
   { key: 'bundle_slot_options', label: 'Slot Options', icon: CheckCircle2, color: 'text-purple-200', dbKey: 'bundleSlotOptions' },
+  { key: 'toppings', label: 'Toppings', icon: Layers, color: 'text-amber-400' },
+  { key: 'productAddons', label: 'Product Addons', icon: Package, color: 'text-teal-500' },
 ];
 
 const DISPATCH_MAP: Record<string, string> = {
@@ -77,7 +80,10 @@ const DISPATCH_MAP: Record<string, string> = {
   purchase_orders: 'SET_PURCHASE_ORDERS',
   purchase_order_items: 'SET_PURCHASE_ORDER_ITEMS',
   stock_history: 'SET_STOCK_HISTORY',
+  variant_stock_history: 'SET_VARIANT_STOCK_HISTORY',
   bundles: 'SET_BUNDLES',
+  toppings: 'SET_TOPPINGS',
+  productAddons: 'SET_PRODUCT_ADDONS',
 };
 
 export function DatabaseTools() {
@@ -134,6 +140,7 @@ export function DatabaseTools() {
           purchase_order_items: 'purchaseOrderItems',
           supplier_transactions: 'supplierTransactions',
           stock_history: 'stockHistory',
+          variant_stock_history: 'variantStockHistory',
           bundles: 'bundles',
           bundle_items: 'bundleItems',
           bundle_slots: 'bundleSlots',
@@ -273,6 +280,7 @@ export function DatabaseTools() {
           purchase_order_items: 'purchaseOrderItems',
           supplier_transactions: 'supplierTransactions',
           stock_history: 'stockHistory',
+          variant_stock_history: 'variantStockHistory',
           bundles: 'bundles',
           bundle_items: 'bundleItems',
           bundle_slots: 'bundleSlots',

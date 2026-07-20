@@ -5,6 +5,8 @@ import { Search, ChevronDown, X, Plus } from 'lucide-react';
 interface Option {
   id: string;
   label: string;
+  image?: string;
+  sublabel?: string;
 }
 
 interface SearchableSelectProps {
@@ -41,7 +43,7 @@ export function SearchableSelect({
   const selectedOption = useMemo(() => options.find(o => o.id === value), [options, value]);
 
   const filteredOptions = useMemo(() => {
-    return options.filter(o => String(o.label || '').toLowerCase().includes(search.toLowerCase()));
+    return options.filter(o => String(o.label || '').toLowerCase().includes(search.toLowerCase()) || String(o.sublabel || '').toLowerCase().includes(search.toLowerCase()));
   }, [options, search]);
 
   const positionDropdown = useCallback(() => {
@@ -56,7 +58,7 @@ export function SearchableSelect({
     const style: React.CSSProperties = {
       position: 'fixed',
       minWidth: Math.max(triggerWidth, 180),
-      maxWidth: Math.min(260, window.innerWidth - 32),
+      maxWidth: Math.min(300, window.innerWidth - 32),
       zIndex: 9999,
     };
 
@@ -131,8 +133,9 @@ export function SearchableSelect({
         }`}
       >
         {Icon && <Icon className="h-3.5 w-3.5 text-gray-600 shrink-0" />}
-        <span className="flex-1 text-[10px] font-black uppercase tracking-widest truncate text-gray-900 dark:text-white">
+        <span className="flex-1 text-[10px] font-black uppercase tracking-widest truncate text-gray-900 dark:text-white flex items-center gap-2">
           {label ? <span className="text-gray-600 dark:text-gray-400 mr-1">{label}:</span> : ''}
+          {selectedOption?.image && <img src={selectedOption.image} alt="" className="w-5 h-5 rounded-md object-cover" />}
           {selectedOption?.label || value || 'Select...'}
         </span>
         <ChevronDown className={`h-3 w-3 text-gray-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -168,14 +171,20 @@ export function SearchableSelect({
                       onChange(option.id);
                       closeDropdown();
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-bold uppercase tracking-wider transition-colors ${
+                    className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 transition-colors ${
                       value === option.id
                         ? 'bg-primary text-white'
                         : 'text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-white/10'
                     }`}
                     style={{ minHeight: '40px' }}
                   >
-                    {option.label}
+                    {option.image && (
+                      <img src={option.image} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[12px] font-bold uppercase tracking-wider truncate">{option.label}</span>
+                      {option.sublabel && <span className={`text-[9px] font-black uppercase tracking-widest truncate ${value === option.id ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>{option.sublabel}</span>}
+                    </div>
                   </button>
                 ))}
               </div>

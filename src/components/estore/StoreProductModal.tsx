@@ -10,7 +10,7 @@ interface StoreProductModalProps {
   currency?: string;
   isOpen: boolean;
   onClose: () => void;
-  onAddToCart: (product: Product, quantity: number, options: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; toppings?: CartItemTopping[] }) => void;
+  onAddToCart: (product: Product, quantity: number, options: { selectedVariant?: string; selectedVariantId?: string; selectedModifiers?: ProductModifier[]; toppings?: CartItemTopping[] }) => void;
 }
 
 export function StoreProductModal({ product, currency, isOpen, onClose, onAddToCart }: StoreProductModalProps) {
@@ -42,32 +42,56 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
 
   if (!isOpen) return null;
 
-  const getVariantPrice = () => {
-    if (Object.keys(selectedVariants).length === 0) return product.price;
-    const variantString = Object.entries(selectedVariants)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(', ');
-    const parts = variantString.split(',').map(s => s.trim());
-    const match = product.variantData?.find(vd => {
+  // Build variant string from selections
+  const variantString = Object.entries(selectedVariants)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(', ');
+
+  // Find the matching VariantData entry for current selection
+  const getMatchingVariant = () => {
+    if (!variantString || !product.variantData || product.variantData.length === 0) return undefined;
+    const selectedParts = variantString.split(',').map(s => s.trim());
+    return product.variantData.find(vd => {
       let m = true;
-      if (vd.option1 && !parts.includes(vd.option1)) m = false;
-      if (vd.option2 && !parts.includes(vd.option2)) m = false;
-      if (vd.option3 && !parts.includes(vd.option3)) m = false;
+      if (vd.option1 && !selectedParts.includes(vd.option1)) m = false;
+      if (vd.option2 && !selectedParts.includes(vd.option2)) m = false;
+      if (vd.option3 && !selectedParts.includes(vd.option3)) m = false;
       return m;
     });
-    return match?.priceOverride !== undefined ? match.priceOverride : product.price;
   };
+
+  const matchingVariant = getMatchingVariant();
+
+  const getVariantPrice = () => {
+    return matchingVariant?.priceOverride !== undefined ? matchingVariant.priceOverride : product.price;
+  };
+
+  // Check if a specific option combination would be out-of-stock
+  const isOptionOutOfStock = (groupName: string, optionValue: string) => {
+    if (!product.variantData || product.variantData.length === 0) return false;
+    const hypotheticalVariants = { ...selectedVariants, [groupName]: optionValue };
+    const parts = Object.entries(hypotheticalVariants).map(([k, v]) => `${k}: ${v}`).join(', ').split(',').map(s => s.trim());
+    const vd = product.variantData.find(v => {
+      let m = true;
+      if (v.option1 && !parts.includes(v.option1)) m = false;
+      if (v.option2 && !parts.includes(v.option2)) m = false;
+      if (v.option3 && !parts.includes(v.option3)) m = false;
+      return m;
+    });
+    return vd?.trackInventory === true && (vd?.stock ?? 1) <= 0;
+  };
+
+  const isCurrentVariantOutOfStock = matchingVariant?.trackInventory === true && (matchingVariant?.stock ?? 1) <= 0;
 
   const basePrice = getVariantPrice();
   const toppingsPrice = selectedToppings.reduce((sum, t) => sum + t.price, 0);
   const totalPrice = (basePrice + toppingsPrice) * quantity;
 
   const handleAdd = () => {
-    const variantString = Object.entries(selectedVariants)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(', ');
+    if (isCurrentVariantOutOfStock) return;
     onAddToCart(product, quantity, {
       selectedVariant: variantString || undefined,
+      selectedVariantId: matchingVariant?.id,
       selectedModifiers: undefined,
       toppings: selectedToppings.length > 0 ? selectedToppings : undefined
     });
@@ -112,15 +136,24 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
                   <div className="flex flex-wrap gap-2">
                     {vGroup.options && vGroup.options.map(opt => {
                       const isSelected = selectedVariants[vGroup.name] === opt;
+                      const isOOS = isOptionOutOfStock(vGroup.name, opt);
                       return (
                         <button
                           key={opt}
                           onClick={() => {
+                            if (isOOS) return;
                             setSelectedVariants(prev => ({ ...prev, [vGroup.name]: opt }));
                           }}
-                          className={`px-4 py-2 rounded-xl font-bold text-sm transition-all border ${isSelected ? 'bg-primary border-primary text-white shadow-md' : 'bg-[var(--color-card-bg)] border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-80 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20'}`}
+                          disabled={isOOS}
+                          className={`px-4 py-2 rounded-xl font-bold text-sm transition-all border ${
+                            isOOS
+                              ? 'bg-gray-100 border-gray-200 text-gray-400 opacity-50 cursor-not-allowed line-through'
+                              : isSelected
+                              ? 'bg-primary border-primary text-white shadow-md'
+                              : 'bg-[var(--color-card-bg)] border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-80 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20'
+                          }`}
                         >
-                          {opt}
+                          {opt}{isOOS ? ' (Out of Stock)' : ''}
                         </button>
                       );
                     })}
@@ -157,7 +190,8 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
             <span className="font-black text-xl text-[var(--color-text)] w-10 text-center">{quantity}</span>
             <button 
               onClick={() => setQuantity(quantity + 1)}
-              className="w-10 h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:brightness-90 active:scale-95 transition-all"
+              disabled={isCurrentVariantOutOfStock}
+              className="w-10 h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:brightness-90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -165,9 +199,10 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
           
           <button 
             onClick={handleAdd}
-            className="flex-1 py-4 bg-primary text-white rounded-full font-black text-lg flex items-center justify-between px-6 hover:brightness-90 active:scale-95 transition-all shadow-xl shadow-black/10"
+            disabled={isCurrentVariantOutOfStock}
+            className="flex-1 py-4 bg-primary text-white rounded-full font-black text-lg flex items-center justify-between px-6 hover:brightness-90 active:scale-95 transition-all shadow-xl shadow-black/10 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span>Add to Order</span>
+            <span>{isCurrentVariantOutOfStock ? 'Out of Stock' : 'Add to Order'}</span>
             <span>{formatCurrency(totalPrice, currency)}</span>
           </button>
         </div>

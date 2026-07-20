@@ -537,9 +537,14 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-[11px] font-black uppercase text-gray-900 dark:text-white truncate">{item.product.name}</p>
-                              {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
+                              {(item.selectedVariant || item.selectedVariantLabel || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
                                 <div className="flex flex-col gap-0.5 my-1">
-                                  {item.selectedVariant && (
+                                  {item.selectedVariantLabel && (
+                                    <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
+                                      {item.selectedVariantLabel}
+                                    </span>
+                                  )}
+                                  {!item.selectedVariantLabel && item.selectedVariant && (
                                     <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
                                       {item.selectedVariant}
                                     </span>
@@ -549,6 +554,13 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                                       + {item.selectedModifiers.map(m => m.name).join(', ')}
                                     </span>
                                   )}
+                                </div>
+                              )}
+                              {item.addonItems && item.addonItems.length > 0 && (
+                                <div className="my-1">
+                                  <span className="text-[7px] font-bold text-violet-500 dark:text-violet-400 leading-tight truncate block">
+                                    + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
+                                  </span>
                                 </div>
                               )}
                               {item.toppings && item.toppings.length > 0 && (
@@ -622,9 +634,15 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                                   <div className="flex justify-between items-center">
                                     <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{itemNumber}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
                                     <div className="flex items-center gap-1 shrink-0 ml-2">
-                                      {item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
+                                      {item.selectedVariantLabel && <span className="text-[8px] text-gray-500">({item.selectedVariantLabel})</span>}
+                                      {!item.selectedVariantLabel && item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
                                     </div>
                                   </div>
+                                  {item.addonItems && item.addonItems.length > 0 && (
+                                    <div className="text-[9px] font-medium text-violet-500 dark:text-violet-400 leading-tight mt-0.5">
+                                      + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
+                                    </div>
+                                  )}
                                   {item.toppings && item.toppings.length > 0 && (
                                     <div className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight mt-0.5 normal-case">
                                       + {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}

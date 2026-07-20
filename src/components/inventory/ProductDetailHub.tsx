@@ -78,11 +78,14 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     isService: product.isService || false,
     requireSerial: product.requireSerial || false,
     showInEstore: product.showInEstore ?? true,
+    productType: (product.productType === 'variable') ? 'variable' : 'simple',
   });
 
   const [batches, setBatches] = useState(product.batches || []);
   const [variants, setVariants] = useState<any[]>((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
+  const [variantData, setVariantData] = useState<any[]>(product.variantData || []);
   const [modifiers, setModifiers] = useState<any[]>(product.modifiers || []);
+  const [productAddons, setProductAddons] = useState<any[]>(product.productAddons || []);
   const [toppingIds, setToppingIds] = useState<string[]>([]);
   const [toppingLoading, setToppingLoading] = useState(false);
 
@@ -105,11 +108,14 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       image: product.image || '',
       isService: product.isService || false,
       requireSerial: product.requireSerial || false,
-      showInEstore: product.showInEstore ?? true
+      showInEstore: product.showInEstore ?? true,
+      productType: (product.productType === 'variable') ? 'variable' : 'simple'
     });
     setBatches(product.batches || []);
     setVariants((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
+    setVariantData(product.variantData || []);
     setModifiers(product.modifiers || []);
+    setProductAddons(product.productAddons || []);
   }, [product]);
 
   // Load topping assignments
@@ -358,10 +364,13 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         batches: finalBatches,
         trackInventory: formData.trackInventory,
         variants: variants.map((v: any) => ({ name: v.name, options: v.options })),
+        variantData: variantData,
         modifiers: modifiers,
+        productAddons: productAddons,
         isService: formData.isService,
         requireSerial: formData.requireSerial,
         showInEstore: formData.showInEstore,
+        productType: formData.productType,
         updatedAt: now,
       };
 
@@ -755,126 +764,128 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <div className="flex items-center justify-between mb-1 ml-1">
-                  <p className="text-[9px] text-gray-600 uppercase font-bold">{t('min_stock_alert', 'Min Stock Alert')}</p>
-                  {parseInt(formData.minStock) !== (product.minStock || 0) && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          const newMin = parseInt(formData.minStock) || 0;
-                          const saved = await productsService.update(product.id, { minStock: newMin });
-                          dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
-                          sonner.success('Min stock alert updated');
-                        } catch (e) {
-                          sonner.error('Failed to save min stock');
-                        }
-                      }}
-                      className="text-[9px] font-black text-primary uppercase hover:underline"
-                    >
-                      {t('save', 'Save')}
-                    </button>
-                  )}
+            {formData.productType === 'simple' && (
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1 ml-1">
+                    <p className="text-[9px] text-gray-600 uppercase font-bold">{t('min_stock_alert', 'Min Stock Alert')}</p>
+                    {parseInt(formData.minStock) !== (product.minStock || 0) && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const newMin = parseInt(formData.minStock) || 0;
+                            const saved = await productsService.update(product.id, { minStock: newMin });
+                            dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
+                            sonner.success('Min stock alert updated');
+                          } catch (e) {
+                            sonner.error('Failed to save min stock');
+                          }
+                        }}
+                        className="text-[9px] font-black text-primary uppercase hover:underline"
+                      >
+                        {t('save', 'Save')}
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    value={formData.minStock}
+                    onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
+                  />
                 </div>
-                <input
-                  type="number"
-                  value={formData.minStock}
-                  onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
-                  className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
-                />
-              </div>
-              {isEditMode && (
-                <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
-                  <div>
-                    <div className="flex items-center justify-between mb-1 ml-1">
-                      <div className="flex items-center gap-1">
-                        <p className="text-[9px] text-gray-600 uppercase font-bold">{t('sale_price', 'Sale Price')}</p>
-                        <HelpTooltip content="YES → Updates product price AND all active batch sale prices. NO → Updates product price only. Batch sale prices are purely historical." />
-                      </div>
-                      {parseFloat(formData.price) !== product.price && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              const newPrice = parseFloat(formData.price) || 0;
-                              const saved = await productsService.update(product.id, { price: newPrice });
-                              dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
-                              const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
-                              if (activeCount > 0) {
-                                const confirm = await sonner.confirm(
-                                  'Update batch sale prices?',
-                                  `${activeCount} batch${activeCount > 1 ? 'es have' : ' has'} remaining stock. Update their sale price to ${newPrice}?`,
-                                  'Yes, update batches'
-                                );
-                                if (confirm.isConfirmed) {
-                                  await updateBatchPrices('salePrice', newPrice);
-                                  sonner.success(`Sale price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
+                {isEditMode && (
+                  <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
+                    <div>
+                      <div className="flex items-center justify-between mb-1 ml-1">
+                        <div className="flex items-center gap-1">
+                          <p className="text-[9px] text-gray-600 uppercase font-bold">{t('sale_price', 'Sale Price')}</p>
+                          <HelpTooltip content="YES → Updates product price AND all active batch sale prices. NO → Updates product price only. Batch sale prices are purely historical." />
+                        </div>
+                        {parseFloat(formData.price) !== product.price && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const newPrice = parseFloat(formData.price) || 0;
+                                const saved = await productsService.update(product.id, { price: newPrice });
+                                dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
+                                const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
+                                if (activeCount > 0) {
+                                  const confirm = await sonner.confirm(
+                                    'Update batch sale prices?',
+                                    `${activeCount} batch${activeCount > 1 ? 'es have' : ' has'} remaining stock. Update their sale price to ${newPrice}?`,
+                                    'Yes, update batches'
+                                  );
+                                  if (confirm.isConfirmed) {
+                                    await updateBatchPrices('salePrice', newPrice);
+                                    sonner.success(`Sale price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
+                                  } else {
+                                    sonner.success('Sale price updated (batches unchanged)');
+                                  }
                                 } else {
-                                  sonner.success('Sale price updated (batches unchanged)');
+                                  sonner.success('Sale price updated');
                                 }
-                              } else {
-                                sonner.success('Sale price updated');
+                              } catch (e) {
+                                sonner.error('Failed to save sale price');
                               }
-                            } catch (e) {
-                              sonner.error('Failed to save sale price');
-                            }
-                          }}
-                          className="text-[9px] font-black text-primary uppercase hover:underline"
-                        >
-                          <div className="flex items-center gap-1">
-                            <span>{t('save', 'Save')}</span>
-                            <HelpTooltip position="bottom" content="YES = product + batches both update. NO = only product price changes." />
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1 ml-1">
-                      <div className="flex items-center gap-1">
-                        <p className="text-[9px] text-gray-600 uppercase font-bold">{t('cost_price', 'Cost Price')}</p>
-                        <HelpTooltip content="Cost changes auto-update ALL active batch cost prices for accurate FIFO COGS and stock valuation." />
+                            }}
+                            className="text-[9px] font-black text-primary uppercase hover:underline"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>{t('save', 'Save')}</span>
+                              <HelpTooltip position="bottom" content="YES = product + batches both update. NO = only product price changes." />
+                            </div>
+                          </button>
+                        )}
                       </div>
-                      {parseFloat(formData.cost) !== product.cost && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              const newCost = parseFloat(formData.cost) || 0;
-                              const saved = await productsService.update(product.id, { cost: newCost });
-                              dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
-                              const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
-                              if (activeCount > 0) {
-                                await updateBatchPrices('costPrice', newCost);
-                                sonner.success(`Cost price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
-                              } else {
-                                sonner.success('Cost price updated');
-                              }
-                            } catch (e) {
-                              sonner.error('Failed to save cost price');
-                            }
-                          }}
-                          className="text-[9px] font-black text-primary uppercase hover:underline"
-                        >
-                          {t('save', 'Save')}
-                        </button>
-                      )}
+                      <input
+                        type="number"
+                        value={formData.price}
+                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                        className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
+                      />
                     </div>
-                    <input
-                      type="number"
-                      value={formData.cost}
-                      onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
-                    />
+                    <div>
+                      <div className="flex items-center justify-between mb-1 ml-1">
+                        <div className="flex items-center gap-1">
+                          <p className="text-[9px] text-gray-600 uppercase font-bold">{t('cost_price', 'Cost Price')}</p>
+                          <HelpTooltip content="Cost changes auto-update ALL active batch cost prices for accurate FIFO COGS and stock valuation." />
+                        </div>
+                        {parseFloat(formData.cost) !== product.cost && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const newCost = parseFloat(formData.cost) || 0;
+                                const saved = await productsService.update(product.id, { cost: newCost });
+                                dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
+                                const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
+                                if (activeCount > 0) {
+                                  await updateBatchPrices('costPrice', newCost);
+                                  sonner.success(`Cost price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
+                                } else {
+                                  sonner.success('Cost price updated');
+                                }
+                              } catch (e) {
+                                sonner.error('Failed to save cost price');
+                              }
+                            }}
+                            className="text-[9px] font-black text-primary uppercase hover:underline"
+                          >
+                            {t('save', 'Save')}
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        value={formData.cost}
+                        onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                        className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -891,6 +902,31 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 </div>
               </div>
               <div className="space-y-6">
+                {/* Product Type Toggle */}
+                <div className="flex bg-[#f8f9fa] dark:bg-black/75 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, productType: 'simple' }))}
+                    className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                      formData.productType !== 'variable'
+                        ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    {t('simple_product', 'Simple Product')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, productType: 'variable' }))}
+                    className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                      formData.productType === 'variable'
+                        ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    {t('variable_product', 'Variable Product')}
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <SearchableSelect
@@ -1038,26 +1074,33 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                   </div>
 
 
-                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/[0.03] rounded-[1.5rem] border border-gray-200 dark:border-white/5">
+                  <div className={`flex items-center justify-between p-4 rounded-[1.5rem] border transition-all ${
+                    formData.productType === 'variable' 
+                      ? 'bg-gray-100/50 dark:bg-white/[0.01] border-gray-200 dark:border-white/5 opacity-60 cursor-not-allowed' 
+                      : 'bg-gray-50 dark:bg-white/[0.03] border-gray-200 dark:border-white/5'
+                  }`}>
                     <div className="flex flex-col">
                       <span className="text-[11px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center">
                         {t('track_stock', 'Track Stock')}
                         <HelpTooltip content="Maintains physical inventory balance. Unchecking allows infinite sales without stock validation." />
                       </span>
-                      <span className="text-[9px] font-bold text-gray-600 uppercase">{t('inventory_control', 'Inventory Control')}</span>
+                      <span className="text-[9px] font-bold text-gray-600 uppercase">
+                        {formData.productType === 'variable' ? 'MANAGED BY VARIATIONS' : t('inventory_control', 'Inventory Control')}
+                      </span>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer scale-110">
+                    <label className={`relative inline-flex items-center scale-110 ${formData.productType === 'variable' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         className="sr-only peer"
-                        checked={formData.trackInventory}
+                        checked={formData.productType === 'variable' ? true : formData.trackInventory}
+                        disabled={formData.productType === 'variable'}
                         onChange={(e) => {
                           const checked = e.target.checked;
                           setFormData({ ...formData, trackInventory: checked });
                           if (checked) setShowStockIn(true);
                         }}
                       />
-                      <div className="w-10 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                      <div className={`w-10 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all ${formData.productType === 'variable' ? 'peer-checked:bg-gray-400' : 'peer-checked:bg-primary'}`}></div>
                     </label>
                   </div>
 
@@ -1164,8 +1207,10 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
               </div>
               <div className="space-y-6">
                 {/* Variants */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                {formData.productType === 'variable' && (
+                  <>
+                  <div className="space-y-3 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('product_variants', 'Product Variants')}</h4>
                       <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">{t('variants_sub', 'Size, Color, Material (e.g. Garments, Shoes)')}</p>
@@ -1279,69 +1324,276 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                   })}
                 </div>
 
-                {/* Modifiers */}
+                {/* Matrix Generator Button */}
+                {variants.length > 0 && variants.some(v => v.options.length > 0) && (
+                  <div className="pt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Simple matrix generation for up to 2 variants
+                        if (variants.length === 0) return;
+                        const newVariantData: any[] = [];
+                        const v1 = variants[0];
+                        const v2 = variants.length > 1 ? variants[1] : null;
+                        
+                        v1.options.forEach((opt1: string) => {
+                          if (v2 && v2.options.length > 0) {
+                            v2.options.forEach((opt2: string) => {
+                              const option1Label = `${v1.name}: ${opt1}`;
+                              const option2Label = `${v2.name}: ${opt2}`;
+                              const existing = variantData.find(vd => vd.option1 === option1Label && vd.option2 === option2Label);
+                              newVariantData.push(existing || {
+                                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                                option1: option1Label,
+                                option2: option2Label
+                              });
+                            });
+                          } else {
+                            const option1Label = `${v1.name}: ${opt1}`;
+                            const existing = variantData.find(vd => vd.option1 === option1Label && !vd.option2);
+                            newVariantData.push(existing || {
+                              id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                              option1: option1Label
+                            });
+                          }
+                        });
+                        setVariantData(newVariantData);
+                      }}
+                      className="px-4 py-2 bg-emerald-50 dark:bg-primary/10 text-emerald-600 dark:text-primary text-[10px] font-black uppercase tracking-widest rounded-lg border border-emerald-200 dark:border-primary/20 hover:border-primary shadow-sm flex items-center gap-2"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      {t('generate_matrix', 'Generate Price/Stock Matrix')}
+                    </button>
+                  </div>
+                )}
+                
+                {/* Matrix Display */}
+                {variantData.length > 0 && (
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
+                    <table className="w-full text-left text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400">
+                      <thead className="bg-gray-100 dark:bg-black/60 border-b border-gray-200 dark:border-white/10">
+                        <tr>
+                          <th className="px-3 py-2">Variant</th>
+                          <th className="px-3 py-2 w-24">Cost</th>
+                          <th className="px-3 py-2 w-24">Exact Price</th>
+                          <th className="px-3 py-2 w-20">Stock</th>
+                          <th className="px-3 py-2 w-28">Barcode</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-black/20 divide-y divide-gray-100 dark:divide-white/5">
+                        {variantData.map((vd, idx) => (
+                          <tr key={vd.id}>
+                            <td className="px-3 py-2 whitespace-nowrap text-gray-900 dark:text-white">
+                              {vd.option1} {vd.option2 ? ` / ${vd.option2}` : ''}
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={vd.cost || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].cost = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setVariantData(newData);
+                                }}
+                                placeholder={formData.cost}
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={vd.priceOverride || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].priceOverride = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setVariantData(newData);
+                                }}
+                                placeholder={formData.price}
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={vd.stock || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].stock = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                                  setVariantData(newData);
+                                }}
+                                placeholder="0"
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="text"
+                                value={vd.barcode || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].barcode = e.target.value;
+                                  setVariantData(newData);
+                                }}
+                                placeholder="Auto"
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 uppercase"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                </>
+                )}
+
+                {/* Extra Toppings */}
+                <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-white/5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('extra_toppings', 'Extra Toppings')}</h4>
+                      <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">{t('extra_toppings_sub', 'Add custom toppings with price for this product')}</p>
+                    </div>
+                  </div>
+                  
+                  {modifiers.length === 0 && (
+                    <p className="text-[10px] text-gray-500 italic">No extra toppings for this product. Add one below.</p>
+                  )}
+                  {modifiers.map((modifier, index) => (
+                    <div key={index} className="flex items-center gap-2 flex-wrap bg-white dark:bg-black/30 p-2 rounded-xl border border-gray-200 dark:border-white/5">
+                      <input
+                        type="text"
+                        placeholder="Name"
+                        value={modifier.name}
+                        onChange={(e) => {
+                          const newModifiers = [...modifiers];
+                          newModifiers[index].name = e.target.value;
+                          setModifiers(newModifiers);
+                        }}
+                        className="flex-1 min-w-[100px] bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-primary font-bold text-[10px] text-gray-900 dark:text-white"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Price"
+                        value={modifier.price || ''}
+                        onChange={(e) => {
+                          const newModifiers = [...modifiers];
+                          newModifiers[index].price = parseFloat(e.target.value) || 0;
+                          setModifiers(newModifiers);
+                        }}
+                        className="w-24 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary font-bold text-center text-gray-900 dark:text-white text-[10px]"
+                      />
+                      {variants.length > 0 && variants.some(v => v.options && v.options.length > 0) && (
+                        <select
+                          value={modifier.variantName || ''}
+                          onChange={(e) => {
+                            const newModifiers = [...modifiers];
+                            newModifiers[index].variantName = e.target.value || undefined;
+                            setModifiers(newModifiers);
+                          }}
+                          className="w-full sm:w-auto min-w-[120px] bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary text-[10px] font-bold"
+                        >
+                          <option value="">All Variants</option>
+                          {variants.flatMap(v => (v.options || []).map((opt: string) => `${v.name}: ${opt}`)).map(opt => (
+                            <option key={opt} value={opt}>Only {opt}</option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newModifiers = [...modifiers];
+                          newModifiers.splice(index, 1);
+                          setModifiers(newModifiers);
+                        }}
+                        className="p-1.5 bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg shrink-0 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => setModifiers([...modifiers, { name: '', price: 0 }])}
+                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors mt-2"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Extra Topping
+                  </button>
+                </div>
+                {/* LINKED ADD-ONS BUILDER */}
                 <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-white/5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('addons_modifiers', 'Add-ons & Modifiers')}</h4>
-                      <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">{t('modifiers_sub', 'Extra Charges (e.g. Extra Cheese, Warranty)')}</p>
+                      <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">Linked Add-ons</h4>
+                      <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Attach inventory-tracked products as extras</p>
                     </div>
                     <button 
                       type="button" 
-                      onClick={() => setModifiers([...modifiers, { name: '', price: 0 }])}
+                      onClick={() => setProductAddons([...productAddons, { id: '', productId: product?.id || '', addonProductId: '', name: '', price: 0, maxQty: 1, active: true, createdAt: new Date() }])}
                       className="px-3 py-1.5 bg-white dark:bg-black text-blue-600 dark:text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-200 dark:border-white/10 hover:border-blue-500 shadow-sm"
                     >
-                      {t('add_modifier', 'Add Modifier')}
+                      <Plus className="w-3.5 h-3.5 inline mr-1" />
+                      Add Link
                     </button>
                   </div>
                   
-                  {modifiers.map((modifier, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
-                      <div className="flex-1 min-w-0 space-y-1.5 w-full">
-                        <input
-                          type="text"
-                          placeholder={t('modifier_name_placeholder', 'Modifier Name')}
-                          value={modifier.name}
-                          onChange={(e) => {
-                            const newModifiers = [...modifiers];
-                            newModifiers[index].name = e.target.value;
-                            setModifiers(newModifiers);
+                  {productAddons.map((addon, index) => (
+                    <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5 items-center">
+                      <div className="w-full sm:flex-1 min-w-0">
+                        <SearchableSelect
+                          options={state.products.filter(p => p.id !== product?.id).map(p => ({ 
+                            id: p.id, 
+                            label: `${p.name} (Stock: ${p.stock})`,
+                            image: p.image,
+                            sublabel: p.category
+                          }))}
+                          value={addon.addonProductId}
+                          onChange={(val) => {
+                            const selProd = state.products.find(p => p.id === val);
+                            const newAddons = [...productAddons];
+                            newAddons[index].addonProductId = val;
+                            if (selProd) {
+                              newAddons[index].name = selProd.name;
+                              newAddons[index].price = selProd.price;
+                            }
+                            setProductAddons(newAddons);
                           }}
-                          className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium text-gray-900 dark:text-white"
+                          placeholder="Search Product to Link..."
+                          icon={Database}
                         />
-                        {variants.length > 0 && variants.some(v => v.options && v.options.length > 0) && (
-                          <select
-                            value={modifier.variantName || ''}
-                            onChange={(e) => {
-                              const newModifiers = [...modifiers];
-                              newModifiers[index].variantName = e.target.value || undefined;
-                              setModifiers(newModifiers);
-                            }}
-                            className="w-full min-w-0 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-medium"
-                          >
-                            <option value="">Apply to all variants</option>
-                            {variants.flatMap(v => (v.options || []).map((opt: string) => `${v.name}: ${opt}`)).map(opt => (
-                              <option key={opt} value={opt}>Only for {opt}</option>
-                            ))}
-                          </select>
-                        )}
                       </div>
                       <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-start">
                         <div className="relative flex-1 sm:flex-none w-full sm:w-24">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold z-10">+</span>
+                           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold z-10 uppercase">Max</span>
+                           <input
+                             type="number"
+                             min="1"
+                             value={addon.maxQty || ''}
+                             onChange={(e) => {
+                               const newAddons = [...productAddons];
+                               newAddons[index].maxQty = parseInt(e.target.value) || 1;
+                               setProductAddons(newAddons);
+                             }}
+                             className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-9 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                           />
+                        </div>
+                        <div className="relative flex-1 sm:flex-none w-full sm:w-28">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold z-10 uppercase">Price</span>
                           <input
                             type="number"
                             placeholder="0"
-                            value={modifier.price || ''}
+                            value={addon.price === 0 ? '' : addon.price}
                             onChange={(e) => {
-                              const newModifiers = [...modifiers];
-                              newModifiers[index].price = parseFloat(e.target.value) || 0;
-                              setModifiers(newModifiers);
+                              const newAddons = [...productAddons];
+                              newAddons[index].price = parseFloat(e.target.value) || 0;
+                              setProductAddons(newAddons);
                             }}
-                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-6 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
                           />
                         </div>
-                        <button type="button" onClick={() => setModifiers(modifiers.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
+                        <button type="button" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
                           <X className="w-4 h-4" />
                         </button>
                       </div>
@@ -1351,19 +1603,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
               </div>
             </div>
 
-            {/* Card 5: Toppings (Col span 8) */}
-            {isEditMode && (
-            <div className="lg:col-span-8 bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-primary/10 text-primary rounded-[1.5rem]"><Plus className="w-6 h-6" /></div>
-                <div>
-                  <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">Extra Toppings</h3>
-                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Enable extra toppings available for this product</p>
-                </div>
-              </div>
-              <ToppingAssignmentPanel selectedIds={toppingIds} onChange={setToppingIds} loading={toppingLoading} />
-            </div>
-            )}
+            {/* Removed ToppingAssignmentPanel */}
 
             {/* Card 4: Batches (Col span 4) */}
             <div className="lg:col-span-4 bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col h-fit">

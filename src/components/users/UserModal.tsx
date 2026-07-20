@@ -465,6 +465,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
             {[
               { key: 'access_inventory', label: t('inventory_module', 'INVENTORY MODULE'), icon: Package },
               { key: 'access_expenses', label: t('expenses_module', 'EXPENSES MODULE'), icon: Wallet },
+              { key: 'access_payments', label: t('payments_module', 'PAYMENTS MODULE'), icon: CreditCard },
               { key: 'access_customers', label: t('customers_module', 'CUSTOMERS MODULE'), icon: Users },
               { key: 'access_reports', label: t('reports_module', 'REPORTS MODULE'), icon: BarChart3 }
             ].map((mod) => (

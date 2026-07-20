@@ -15,6 +15,8 @@ import {
   StockHistory,
   Payment,
   Topping,
+  VariantStockHistory,
+  ProductAddon,
 } from '../types';
 
 export const SETTINGS_ID = '00000000-0000-4000-8000-000000000001';
@@ -41,7 +43,9 @@ export type PendingOpEntity =
   | 'bundle_items'
   | 'bundle_slots'
   | 'bundle_slot_options'
-  | 'toppings';
+  | 'toppings'
+  | 'variant_stock_history'
+  | 'product_addons';
 
 export type PendingOpType = 'create' | 'update' | 'delete' | 'upsert';
 
@@ -91,6 +95,8 @@ export class ZaynahsPosDB extends Dexie {
   bundleSlots!: Table<any>;
   bundleSlotOptions!: Table<any>;
   toppings!: Table<Topping>;
+  variantStockHistory!: Table<VariantStockHistory>;
+  productAddons!: Table<ProductAddon>;
 
   constructor() {
     // Make the IndexedDB name unique per Supabase Project so different clones on localhost don't share data
@@ -99,7 +105,7 @@ export class ZaynahsPosDB extends Dexie {
     const dbName = `ZaynahsPosDB_${projectRef}`;
 
     super(dbName);
-    this.version(17).stores({
+    this.version(18).stores({
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock, showInEstore',
       categories: 'id, name',
       suppliers: 'id, name',
@@ -124,6 +130,8 @@ export class ZaynahsPosDB extends Dexie {
       bundleSlots: 'id, bundleId',
       bundleSlotOptions: 'id, slotId, productId',
       toppings: 'id, name',
+      variantStockHistory: 'id, productId, variantId, createdAt',
+      productAddons: 'id, productId, addonProductId, active',
       // Legacy compatibility:
       app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
       purchase_records: 'id, productId, supplierId, date'
@@ -563,6 +571,8 @@ export const TABLE_TO_ENTITY: Record<string, PendingOpEntity> = {
   'bundleItems': 'bundle_items',
   'bundleSlots': 'bundle_slots',
   'bundleSlotOptions': 'bundle_slot_options',
+  'variantStockHistory': 'variant_stock_history',
+  'productAddons': 'product_addons',
 };
 
 /**
@@ -641,6 +651,8 @@ export async function seedLocalDb(data: any) {
       seedTable('bundleItems', data.bundleItems),
       seedTable('bundleSlots', data.bundleSlots),
       seedTable('bundleSlotOptions', data.bundleSlotOptions),
+      seedTable('variantStockHistory', data.variantStockHistory),
+      seedTable('productAddons', data.productAddons),
     ];
 
     await Promise.all(tasks);
