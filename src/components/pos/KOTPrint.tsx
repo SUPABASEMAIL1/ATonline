@@ -99,14 +99,30 @@ export function KOTPrint({ sale }: KOTPrintProps) {
 
     ${sale.items.map((item, idx) => {
       const itemTotal = Math.abs(item.quantity) * (item.discountedPrice ?? item.price ?? 0);
+      const isFirstOfBundle = (item.bundleId || item.bundle_id) && item === sale.items.find((i: any) => (i.bundleId || i.bundle_id) === (item.bundleId || item.bundle_id));
+      
+      let bundleHeader = '';
+      if (isFirstOfBundle) {
+        bundleHeader = `
+        <div class="table-row" style="padding-bottom: 2px; border-bottom: none;">
+          <div class="table-row-detail">
+            <div class="table-row-name" style="font-size: 14px;">🎁 ${item.bundleName || item.bundle_name || 'DEAL'}</div>
+            ${item.toppings?.length ? `<div class="table-row-meta" style="font-size: 12px; margin-bottom: 4px;">+ ${item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
+          </div>
+        </div>`;
+      }
+
       return `
-    <div class="table-row">
+    ${bundleHeader}
+    <div class="table-row" ${isFirstOfBundle ? 'style="border-top: none; padding-top: 0;"' : ''}>
       <div class="table-row-qty">${Math.abs(item.quantity)}x</div>
       <div class="table-row-detail">
         <div class="table-row-name">${idx + 1}. ${item.product.name}</div>
         ${item.selectedVariant ? `<div class="table-row-meta">- ${item.selectedVariant}</div>` : ''}
-        ${item.selectedModifiers?.length ? `<div class="table-row-meta">+ ${item.selectedModifiers.map(m => m.name).join(', ')}</div>` : ''}
-        ${item.toppings?.length ? `<div class="table-row-meta">+ ${item.toppings.map(t => `${t.name} (Rs ${t.price})`).join(', ')}</div>` : ''}
+        ${item.selectedModifiers?.length ? `<div class="table-row-meta">+ ${item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name}`).join(', ')}</div>` : ''}
+        ${item.addonItems?.length ? `<div class="table-row-meta">+ Add-ons: ${item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x`).join(', ')}</div>` : ''}
+        ${!isFirstOfBundle && item.toppings?.length ? `<div class="table-row-meta">+ ${item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
+        ${item.displayToppings?.length ? `<div class="table-row-meta">+ ${item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
       </div>
     </div>`;
     }).join('')}

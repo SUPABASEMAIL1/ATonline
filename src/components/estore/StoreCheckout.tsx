@@ -594,32 +594,43 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 no-scrollbar">
               {(() => {
                 const bundlesMap = new Map<string, { bundleId: string; bundleName: string; items: typeof cart; totalSubtotal: number }>();
-                const standaloneItems: typeof cart = [];
+                const standaloneItems: typeo                const groupCartItems = (cartItems: any[]) => {
+                  const bundlesMap = new Map<string, {
+                    bundleId: string;
+                    bundleName: string;
+                    items: { item: any; originalIndex: number }[];
+                    totalSubtotal: number;
+                  }>();
+                  const standaloneItems: { item: any; originalIndex: number }[] = [];
 
-                cart.forEach(item => {
-                  const bId = item.bundleId || item.bundle_id;
-                  if (bId) {
-                    if (!bundlesMap.has(bId)) {
-                      bundlesMap.set(bId, {
-                        bundleId: bId,
-                        bundleName: item.bundleName || 'Deal',
-                        items: [],
-                        totalSubtotal: 0
-                      });
+                  cartItems.forEach((item, index) => {
+                    const bId = item.bundleId || item.bundle_id;
+                    if (bId) {
+                      if (!bundlesMap.has(bId)) {
+                        bundlesMap.set(bId, {
+                          bundleId: bId,
+                          bundleName: item.bundleName || 'Deal',
+                          items: [],
+                          totalSubtotal: 0
+                        });
+                      }
+                      const b = bundlesMap.get(bId)!;
+                      b.items.push({ item, originalIndex: index });
+                      b.totalSubtotal += item.subtotal;
+                    } else {
+                      standaloneItems.push({ item, originalIndex: index });
                     }
-                    const b = bundlesMap.get(bId)!;
-                    b.items.push(item);
-                    b.totalSubtotal += item.subtotal;
-                  } else {
-                    standaloneItems.push(item);
-                  }
-                });
+                  });
 
-                let itemNumber = 0;
+                  return { bundles: Array.from(bundlesMap.values()), standaloneItems };
+                };
+
+                const { bundles, standaloneItems } = groupCartItems(cart);
+
                 return (
                   <div className="space-y-4 w-full">
                     {/* Render Deals */}
-                    {Array.from(bundlesMap.values()).map(b => (
+                    {bundles.map(b => (
                       <div key={b.bundleId} className="p-4 rounded-2xl border border-dashed border-primary/20 bg-primary/[0.02] space-y-2">
                         <div className="flex justify-between items-start">
                           <div>
@@ -628,18 +639,18 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                           </div>
                           <div className="text-right shrink-0">
                             <span className="font-black text-primary text-sm block">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
-                            <span className="text-[10px] font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {b.items[0]?.quantity || 1}</span>
+                            <span className="text-[10px] font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {b.items[0]?.item.quantity || 1}</span>
                           </div>
                         </div>
-                        {b.items[0]?.toppings && b.items[0].toppings.length > 0 && (
+                        {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
                           <div className="border-t border-black/5 dark:border-white/5 pt-1.5 mt-1">
-                            <p className="text-[10px] text-gray-500">+ {b.items[0].toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
+                            <p className="text-[10px] text-gray-500">+ {b.items[0].item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
                           </div>
                         )}
                         <div className="space-y-1.5 border-t border-black/5 dark:border-white/5 pt-2">
-                          {b.items.map((item) => (
-                            <div key={++itemNumber} className="flex gap-2 items-center text-xs">
-                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
+                          {b.items.map(({ item, originalIndex }) => (
+                            <div key={originalIndex} className="flex gap-2 items-center text-xs">
+                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
                               {item.product.image ? (
                                 <img src={item.product.image} alt={item.product.name} className="w-7 h-7 rounded-lg object-cover shrink-0" />
                               ) : (
@@ -654,12 +665,17 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                                 )}
                                 {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                                   <p className="text-[10px] text-gray-500 truncate">
-                                    + {item.selectedModifiers.map(m => m.name).join(', ')}
+                                    + {item.selectedModifiers.map((m: any) => `${m.name} (${formatCurrency(m.price, settings?.currency)})`).join(', ')}
                                   </p>
                                 )}
-                                {item.toppings && item.toppings.length > 0 && (
-                                  <p className="text-[10px] text-gray-500 truncate">
-                                    + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}
+                                {item.addonItems && item.addonItems.length > 0 && (
+                                  <p className="text-[10px] text-violet-500 truncate">
+                                    + Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity}x (${formatCurrency(a.subtotal, settings?.currency)})`).join(', ')}
+                                  </p>
+                                )}
+                                {item.displayToppings && item.displayToppings.length > 0 && (
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate font-medium">
+                                    + {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}
                                   </p>
                                 )}
                               </div>
@@ -670,9 +686,9 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                     ))}
 
                     {/* Render Standalone Items */}
-                    {standaloneItems.map((item) => (
-                      <div key={++itemNumber} className="flex gap-4 items-center">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
+                    {standaloneItems.map(({ item, originalIndex }) => (
+                      <div key={originalIndex} className="flex gap-4 items-center">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
                         {item.product.image ? (
                           <img src={item.product.image} alt={item.product.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
                         ) : (
@@ -687,7 +703,12 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                           )}
                           {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                             <span className="text-[10px] text-gray-500 block mt-0.5 truncate">
-                              + {item.selectedModifiers.map(m => m.name).join(', ')}
+                              + {item.selectedModifiers.map(m => `${m.name} (${formatCurrency(m.price, settings?.currency)})`).join(', ')}
+                            </span>
+                          )}
+                          {item.addonItems && item.addonItems.length > 0 && (
+                            <span className="text-[10px] text-violet-500 block mt-0.5 truncate">
+                              + Add-ons: {item.addonItems.map(a => `${a.addon?.name || a.name} ${a.quantity}x (${formatCurrency(a.subtotal, settings?.currency)})`).join(', ')}
                             </span>
                           )}
                           {item.toppings && item.toppings.length > 0 && (

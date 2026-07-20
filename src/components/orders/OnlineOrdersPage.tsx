@@ -558,79 +558,94 @@ export function OnlineOrdersPage() {
                 <h3 className="font-black text-xl text-gray-900 dark:text-white mb-6">Order Items</h3>
                 <div className="flex flex-col gap-4">
                   {(() => {
-                    const bundlesMap = new Map<string, { bundleId: string; bundleName: string; items: typeof selectedOrder.items; totalSubtotal: number }>();
-                    const standaloneItems: typeof selectedOrder.items = [];
+                    const groupCartItems = (cartItems: any[]) => {
+                      const bundlesMap = new Map<string, {
+                        bundleId: string;
+                        bundleName: string;
+                        items: { item: any; originalIndex: number }[];
+                        totalSubtotal: number;
+                      }>();
+                      const standaloneItems: { item: any; originalIndex: number }[] = [];
 
-                    selectedOrder.items.forEach(item => {
-                      const bId = item.bundleId || item.bundle_id;
-                      if (bId) {
-                        if (!bundlesMap.has(bId)) {
-                          bundlesMap.set(bId, {
-                            bundleId: bId,
-                            bundleName: item.bundleName || item.bundle_name || 'Deal',
-                            items: [],
-                            totalSubtotal: 0
-                          });
+                      cartItems.forEach((item, index) => {
+                        const bId = item.bundleId || item.bundle_id;
+                        if (bId) {
+                          if (!bundlesMap.has(bId)) {
+                            bundlesMap.set(bId, {
+                              bundleId: bId,
+                              bundleName: item.bundleName || item.bundle_name || 'Deal',
+                              items: [],
+                              totalSubtotal: 0
+                            });
+                          }
+                          const b = bundlesMap.get(bId)!;
+                          b.items.push({ item, originalIndex: index });
+                          b.totalSubtotal += item.subtotal ?? ((item.price != null ? item.price * item.quantity : (item.product?.price ?? 0) * item.quantity) - (item.discount || 0));
+                        } else {
+                          standaloneItems.push({ item, originalIndex: index });
                         }
-                        const b = bundlesMap.get(bId)!;
-                        b.items.push(item);
-                        b.totalSubtotal += item.subtotal ?? ((item.price != null ? item.price * item.quantity : (item.product?.price ?? 0) * item.quantity) - (item.discount || 0));
-                      } else {
-                        standaloneItems.push(item);
-                      }
-                    });
+                      });
 
-                    let itemNumber = 0;
+                      return { bundles: Array.from(bundlesMap.values()), standaloneItems };
+                    };
+
+                    const { bundles, standaloneItems } = groupCartItems(selectedOrder.items);
 
                     return (
                       <div className="space-y-4 w-full">
                         {/* Render Deals */}
-                        {Array.from(bundlesMap.values()).map(b => (
+                        {bundles.map(b => (
                           <div key={b.bundleId} className="p-4 rounded-2xl border border-dashed border-primary/30 bg-primary/[0.02] dark:bg-primary/[0.01] space-y-3">
                             <div className="flex justify-between items-start">
                               <div>
                                 <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1 shadow-sm">🎁 DEAL</span>
                                 <h4 className="font-black text-gray-900 dark:text-white text-base uppercase leading-tight">{b.bundleName}</h4>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="font-black text-primary text-base block">{formatCurrency(b.totalSubtotal, state.settings?.currency)}</span>
-                                <span className="text-xs font-bold text-gray-500 block mt-0.5">Qty: {b.items[0]?.quantity || 1}</span>
-                              </div>
+                              {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
+                                <p className="text-[10px] text-gray-500 truncate font-medium mt-1">+ {b.items[0].item.toppings.map((t: any) => `${Math.abs(b.items[0].item.quantity || 1) > 1 ? Math.abs(b.items[0].item.quantity || 1) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(b.items[0].item.quantity || 1), state.settings?.currency)})`).join(', ')}</p>
+                              )}
                             </div>
-                            <div className="space-y-2 border-t border-gray-100 dark:border-white/5 pt-2.5">
-                              {b.items.map((item) => (
-                                <div key={++itemNumber} className="flex gap-3 items-center text-xs">
-                                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
-                                  {item.product?.image ? (
-                                    <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
-                                  ) : (
-                                    <div className="w-8 h-8 bg-black/5 dark:bg-white/5 rounded-lg flex items-center justify-center font-bold text-gray-400 shrink-0">
-                                      {item.product?.name?.charAt(0) || 'Item'}
-                                    </div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-gray-900 dark:text-white truncate">{item.product?.name}</p>
-                                    {item.selectedVariant && (
-                                      <p className="text-[10px] text-gray-500 truncate">{item.selectedVariant}</p>
-                                    )}
-                                    {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                                      <p className="text-[10px] text-primary truncate font-medium">+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</p>
-                                    )}
-                                    {item.toppings && item.toppings.length > 0 && (
-                                      <p className="text-[10px] text-primary/70 truncate font-medium">+ Toppings: {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings?.currency)})`).join(', ')}</p>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
+                            <div className="text-right shrink-0">
+                              <span className="font-black text-primary text-base block">{formatCurrency(b.totalSubtotal, state.settings?.currency)}</span>
+                              <span className="text-xs font-bold text-gray-500 block mt-0.5">Qty: {b.items[0]?.item.quantity || 1}</span>
                             </div>
                           </div>
-                        ))}
+                          <div className="space-y-2 border-t border-gray-100 dark:border-white/5 pt-2.5">
+                            {b.items.map(({ item, originalIndex }) => (
+                              <div key={originalIndex} className="flex gap-3 items-center text-xs">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
+                                {item.product?.image ? (
+                                  <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-8 h-8 bg-black/5 dark:bg-white/5 rounded-lg flex items-center justify-center font-bold text-gray-400 shrink-0">
+                                    {item.product?.name?.charAt(0) || 'Item'}
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-gray-900 dark:text-white truncate">{item.product?.name}</p>
+                                  {item.selectedVariant && (
+                                    <p className="text-[10px] text-gray-500 truncate">{item.selectedVariant}</p>
+                                  )}
+                                  {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                    <p className="text-[10px] text-primary truncate font-medium">+ {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), state.settings?.currency)})`).join(', ')}</p>
+                                  )}
+                                  {item.addonItems && item.addonItems.length > 0 && (
+                                    <p className="text-[10px] text-violet-500 truncate font-medium">+ Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), state.settings?.currency)})`).join(', ')}</p>
+                                  )}
+                                  {item.displayToppings && item.displayToppings.length > 0 && (
+                                    <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate font-medium">+ {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
 
-                        {/* Render Standalone Items */}
-                        {standaloneItems.map((item) => (
-                          <div key={++itemNumber} className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-white/5 last:border-0">
-                            <div className="flex items-center gap-4">
-                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
+                      {/* Render Standalone Items */}
+                      {standaloneItems.map(({ item, originalIndex }) => (
+                        <div key={originalIndex} className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-white/5 last:border-0">
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
                               <div className="relative shrink-0">
                                 {item.product?.image ? (
                                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm border border-gray-200/50 dark:border-white/10">
@@ -648,13 +663,12 @@ export function OnlineOrdersPage() {
                               <div>
                                 <p className="font-bold text-gray-900 dark:text-white text-base leading-tight">{item.product?.name}</p>
                                 {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || (item.toppings && item.toppings.length > 0)) && (
-                                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1">
+                                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1 flex flex-col gap-0.5">
                                     {item.selectedVariant && <span>{item.selectedVariant}</span>}
-                                    {item.selectedVariant && item.selectedModifiers && item.selectedModifiers.length > 0 && <span> | </span>}
-                                    {item.selectedModifiers && item.selectedModifiers.map(m => m.name).join(', ')}
-                                    {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0)) && item.toppings && item.toppings.length > 0 && <span> | </span>}
-                                    {item.toppings && item.toppings.length > 0 && <span>+ {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings?.currency)})`).join(', ')}</span>}
-                                  </p>
+                                    {item.selectedModifiers && item.selectedModifiers.length > 0 && <span>+ {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), state.settings?.currency)})`).join(', ')}</span>}
+                                    {item.addonItems && item.addonItems.length > 0 && <span className="text-violet-500">+ Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), state.settings?.currency)})`).join(', ')}</span>}
+                                    {item.toppings && item.toppings.length > 0 && <span>+ {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), state.settings?.currency)})`).join(', ')}</span>}
+                                  </div>
                                 )}
                               </div>
                             </div>

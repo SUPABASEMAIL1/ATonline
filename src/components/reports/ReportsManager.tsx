@@ -550,6 +550,18 @@ export function ReportsManager() {
               modifiersRevenue += modRev;
            });
         }
+        if (item.addonItems && item.addonItems.length > 0) {
+           item.addonItems.forEach(addon => {
+              const modRev = addon.subtotal || 0;
+              modifiersRevenue += modRev;
+           });
+        }
+        if (item.toppings && item.toppings.length > 0) {
+           item.toppings.forEach(topping => {
+              const modRev = (topping.price || 0) * item.quantity;
+              modifiersRevenue += modRev;
+           });
+        }
 
         if (item.selectedVariant) {
            const varKey = `${item.product?.name} (${item.selectedVariant})`;

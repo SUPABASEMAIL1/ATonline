@@ -249,6 +249,7 @@ export interface CartItem {
   bundleHideItemPrices?: boolean; // When true, this item's original price is hidden; only deal total shown
   refundedQuantity?: number; // Quantity of this item that was refunded
   toppings?: CartItemTopping[]; // Extra toppings added to this item
+  displayToppings?: CartItemTopping[]; // Toppings mapped for visual display under nested deal items without charging
   dealSize?: string; // Selected deal size (e.g. 'large', 'medium')
 }
 

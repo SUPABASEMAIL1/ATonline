@@ -277,12 +277,14 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
       // Merge deal-level toppings into ALL cart items (price added only once)
       const finalCartItems = sizedCartItems.map((item, idx) => {
         if (toppingsSelections.length > 0) {
-          const toppingsPrice = idx === 0 ? toppingsSelections.reduce((sum, t) => sum + t.price, 0) : 0;
-          return {
-            ...item,
-            toppings: toppingsSelections,
-            subtotal: item.subtotal + toppingsPrice * item.quantity,
-          };
+          if (idx === 0) {
+            const toppingsPrice = toppingsSelections.reduce((sum, t) => sum + t.price, 0);
+            return {
+              ...item,
+              toppings: toppingsSelections,
+              subtotal: item.subtotal + (toppingsPrice * item.quantity),
+            };
+          }
         }
         return item;
       });

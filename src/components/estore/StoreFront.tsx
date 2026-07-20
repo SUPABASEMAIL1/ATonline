@@ -918,43 +918,43 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                   <p className="font-bold">Your cart is empty</p>
                 </div>
               ) : (() => {
-                const bundlesMap = new Map<string, { bundleId: string; bundleName: string; items: typeof cart; totalSubtotal: number }>();
-                const standaloneItems: typeof cart = [];
+                const groupCartItems = (cartItems: any[]) => {
+                  const bundlesMap = new Map<string, {
+                    bundleId: string;
+                    bundleName: string;
+                    items: { item: any; originalIndex: number }[];
+                    totalSubtotal: number;
+                  }>();
+                  const standaloneItems: { item: any; originalIndex: number }[] = [];
 
-                cart.forEach(item => {
-                  const bId = item.bundleId || item.bundle_id;
-                  if (bId) {
-                    if (!bundlesMap.has(bId)) {
-                      bundlesMap.set(bId, {
-                        bundleId: bId,
-                        bundleName: item.bundleName || 'Deal',
-                        items: [],
-                        totalSubtotal: 0
-                      });
-                    }
-                    const b = bundlesMap.get(bId)!;
-                    b.items.push(item);
-                    b.totalSubtotal += item.subtotal;
-                  } else {
-                    standaloneItems.push(item);
-                  }
-                });
-
-                const renderQuantityControls = (bundleItems: typeof cart, isAdd: boolean) => {
-                  bundleItems.forEach(bItem => {
-                    const idx = cart.findIndex(x => x.product.id === bItem.product.id && (x.bundleId === bItem.bundleId || x.bundle_id === bItem.bundleId) && x.selectedVariant === bItem.selectedVariant);
-                    if (idx >= 0) {
-                      const newQty = isAdd ? bItem.quantity + 1 : bItem.quantity - 1;
-                      onUpdateCart(idx, newQty);
+                  cartItems.forEach((item, index) => {
+                    const bId = item.bundleId || item.bundle_id;
+                    if (bId) {
+                      if (!bundlesMap.has(bId)) {
+                        bundlesMap.set(bId, {
+                          bundleId: bId,
+                          bundleName: item.bundleName || 'Deal',
+                          items: [],
+                          totalSubtotal: 0
+                        });
+                      }
+                      const b = bundlesMap.get(bId)!;
+                      b.items.push({ item, originalIndex: index });
+                      b.totalSubtotal += item.subtotal;
+                    } else {
+                      standaloneItems.push({ item, originalIndex: index });
                     }
                   });
+
+                  return { bundles: Array.from(bundlesMap.values()), standaloneItems };
                 };
 
-                let itemNumber = 0;
+                const { bundles, standaloneItems } = groupCartItems(cart);
+
                 return (
                   <div className="space-y-6">
                     {/* Render Deals */}
-                    {Array.from(bundlesMap.values()).map(b => (
+                    {bundles.map(b => (
                       <div key={b.bundleId} className="bg-[var(--color-card-bg)] rounded-3xl p-5 border border-black/5 dark:border-white/5 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
@@ -965,15 +965,15 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                             <span className="font-black text-primary">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
                           </div>
                         </div>
-                        {(b.items[0]?.toppings && b.items[0].toppings.length > 0) && (
+                        {(b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0) && (
                           <div className="mb-2">
-                            <p className="text-[10px] text-primary/70 font-medium">+ {b.items[0].toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
+                            <p className="text-[10px] text-primary/70 font-medium">+ {b.items[0].item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
                           </div>
                         )}
                         <div className="space-y-2 border-t border-black/5 dark:border-white/5 pt-2">
-                          {b.items.map((item) => (
-                            <div key={++itemNumber} className="flex gap-2.5 items-center text-xs">
-                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
+                          {b.items.map(({ item, originalIndex }) => (
+                            <div key={originalIndex} className="flex gap-2.5 items-center text-xs">
+                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
                               {item.product.image ? (
                                 <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                               ) : (
@@ -986,8 +986,20 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                                 {item.selectedVariant && (
                                   <p className="text-[10px] text-[var(--color-text)] opacity-50 truncate">{item.selectedVariant}</p>
                                 )}
-                                {item.toppings && item.toppings.length > 0 && (
-                                  <p className="text-[10px] text-primary/70 mt-0.5 truncate font-medium">+ {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
+                                {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                  <p className="text-[10px] text-[var(--color-text)] opacity-50 mt-0.5 truncate">
+                                    + {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), settings?.currency)})`).join(', ')}
+                                  </p>
+                                )}
+                                {item.addonItems && item.addonItems.length > 0 && (
+                                  <p className="text-[10px] text-violet-500/70 mt-0.5 truncate font-medium">
+                                    + Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), settings?.currency)})`).join(', ')}
+                                  </p>
+                                )}
+                                {item.displayToppings && item.displayToppings.length > 0 && (
+                                  <p className="text-[10px] text-[var(--color-text)] opacity-60 mt-0.5 truncate font-medium">
+                                    + {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -997,11 +1009,10 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                     ))}
 
                     {/* Render Standalone Items */}
-                    {standaloneItems.map((item) => {
-                      const idxInCart = cart.findIndex(x => x === item);
+                    {standaloneItems.map(({ item, originalIndex }) => {
                       return (
-                        <div key={++itemNumber} className="flex gap-4 items-center">
-                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{itemNumber}</span>
+                        <div key={originalIndex} className="flex gap-4 items-center">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
                           {item.product.image ? (
                             <img src={item.product.image} alt={item.product.name} className="w-16 h-16 rounded-xl object-cover shrink-0" />
                           ) : (
@@ -1010,24 +1021,31 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-[var(--color-text)] leading-tight truncate">{item.product.name}</p>
-                            <p className="text-xs text-[var(--color-text)] opacity-60 font-medium mt-0.5 truncate">{item.selectedVariant}</p>
-                            {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                              <p className="text-xs text-[var(--color-text)] opacity-50 mt-0.5 truncate">
-                                + {item.selectedModifiers.map(m => m.name).join(', ')}
-                              </p>
-                            )}
-                            {item.toppings && item.toppings.length > 0 && (
-                              <p className="text-[10px] text-primary/70 mt-0.5 truncate font-medium">
-                                + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}
-                              </p>
-                            )}
+                                <p className="font-bold text-[var(--color-text)] leading-tight truncate">{item.product.name}</p>
+                                {item.selectedVariant && (
+                                  <p className="text-[11px] text-[var(--color-text)] opacity-60 font-medium mt-0.5 truncate">{item.selectedVariant}</p>
+                                )}
+                                {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                  <p className="text-[10px] text-[var(--color-text)] opacity-40 mt-0.5 truncate">
+                                    + {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), settings?.currency)})`).join(', ')}
+                                  </p>
+                                )}
+                                {item.addonItems && item.addonItems.length > 0 && (
+                                  <p className="text-[10px] text-violet-500/80 font-medium mt-0.5 truncate">
+                                    + Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), settings?.currency)})`).join(', ')}
+                                  </p>
+                                )}
+                                {item.toppings && item.toppings.length > 0 && (
+                                  <p className="text-[10px] text-[var(--color-text)] opacity-40 mt-0.5 truncate">
+                                    + {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), settings?.currency)})`).join(', ')}
+                                  </p>
+                                )}
                             <p className="text-primary font-black mt-1">{formatCurrency(item.subtotal / item.quantity, settings?.currency)}</p>
                           </div>
                           <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 shrink-0">
-                            <button onClick={() => onUpdateCart(idxInCart, item.quantity - 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">-</button>
+                            <button onClick={() => onUpdateCart(originalIndex, item.quantity - 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">-</button>
                             <span className="font-bold w-6 text-center text-[var(--color-text)]">{item.quantity}</span>
-                            <button onClick={() => onUpdateCart(idxInCart, item.quantity + 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">+</button>
+                            <button onClick={() => onUpdateCart(originalIndex, item.quantity + 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">+</button>
                           </div>
                         </div>
                       );
@@ -1245,7 +1263,16 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     {item.selectedModifiers.map((m: any, mIdx: number) => (
                                       <span key={mIdx} className="text-[9px] bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
-                                        + {m.name}
+                                        + {m.name} ({formatCurrency(m.price, settings?.currency)})
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {item.addonItems && item.addonItems.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {item.addonItems.map((a: any, aIdx: number) => (
+                                      <span key={aIdx} className="text-[9px] bg-violet-500/10 text-violet-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                                        + Add-ons: {a.addon?.name || a.name} {a.quantity}x ({formatCurrency(a.subtotal, settings?.currency)})
                                       </span>
                                     ))}
                                   </div>
@@ -1254,7 +1281,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     {item.toppings.map((t: any, tIdx: number) => (
                                       <span key={tIdx} className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
-                                        + {t.name}
+                                        + {t.name} ({formatCurrency(t.price, settings?.currency)})
                                       </span>
                                     ))}
                                   </div>

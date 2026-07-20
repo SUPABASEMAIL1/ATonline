@@ -1009,23 +1009,23 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
       return;
     }
 
-    // Get the base items for 1 bundle unit
-    const baseItems = bundlesService.getBundleCartItems(item, state.products);
-    
-    // Map existing cart items: if they belong to this bundle, update them using baseItems; else keep them
+    if (currentQty === 0) currentQty = 1; // Fallback to avoid division by zero
+
     const newCart = state.cart.map(cartItem => {
       if ((cartItem.bundleId || cartItem.bundle_id) === item.id) {
-        const baseItem = baseItems.find(x => x.product.id === cartItem.product.id);
-        if (baseItem) {
-          const qty = isReturnMode ? -Math.abs(baseItem.quantity * newBundleQty) : baseItem.quantity * newBundleQty;
-          const discount = isReturnMode ? -Math.abs((baseItem.discount || 0) * newBundleQty) : (baseItem.discount || 0) * newBundleQty;
-          return {
-            ...cartItem,
-            quantity: qty,
-            discount: discount,
-            subtotal: cartItem.product.price * qty - discount
-          };
-        }
+        const itemBaseQty = cartItem.quantity / currentQty;
+        const qty = isReturnMode ? -Math.abs(itemBaseQty * newBundleQty) : itemBaseQty * newBundleQty;
+        
+        const itemBaseDiscount = (cartItem.discount || 0) / currentQty;
+        const discount = isReturnMode ? -Math.abs(itemBaseDiscount * newBundleQty) : itemBaseDiscount * newBundleQty;
+        
+        const toppingsTotal = (cartItem.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
+        return {
+          ...cartItem,
+          quantity: qty,
+          discount: discount,
+          subtotal: (cartItem.product.price + toppingsTotal) * qty - discount
+        };
       }
       return cartItem;
     });
@@ -1051,24 +1051,38 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         variantToSet = '13 Inch';
       }
 
+      const signaturePayload = {
+        baseId: bundle.id,
+        items: selectedItems?.map(i => `${i.productId}:${i.quantity}`).sort().join(',') || '',
+        toppings: toppingsMap ? Object.entries(toppingsMap).map(([pid, tArr]) => `${pid}:${tArr.map(t => t.id).sort().join(',')}`).sort().join('|') : ''
+      };
+      const signatureString = JSON.stringify(signaturePayload);
+      let hash = 0;
+      for (let i = 0; i < signatureString.length; i++) {
+        hash = ((hash << 5) - hash) + signatureString.charCodeAt(i);
+        hash |= 0;
+      }
+      const bundleInstanceId = `${bundle.id}-${Math.abs(hash)}`;
+
       const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map((item, idx) => {
+        let updatedItem = { ...item, bundleId: bundleInstanceId, bundle_id: bundleInstanceId };
+        
         if (variantToSet) {
-          return {
-            ...item,
-            selectedVariant: variantToSet
-          };
+          updatedItem.selectedVariant = variantToSet;
         }
+        
         if (toppingsMap && Object.keys(toppingsMap).length > 0 && toppingsMap[item.product.id] && toppingsMap[item.product.id].length > 0) {
           const toppingsArr = toppingsMap[item.product.id];
-          // Deal-level toppings: show on all items but only add price once (on first item)
-          const toppingsPrice = idx === 0 ? toppingsArr.reduce((sum, t) => sum + t.price, 0) : 0;
-          return {
-            ...item,
-            toppings: toppingsArr,
-            subtotal: item.subtotal + toppingsPrice * item.quantity,
-          };
+          updatedItem.displayToppings = toppingsArr;
+          // Deal-level toppings: add to the first item so it gets billed and displayed exactly once
+          if (idx === 0) {
+            const toppingsPrice = toppingsArr.reduce((sum, t) => sum + t.price, 0);
+            updatedItem.toppings = toppingsArr;
+            updatedItem.subtotal = updatedItem.subtotal + toppingsPrice * updatedItem.quantity;
+          }
         }
-        return item;
+        
+        return updatedItem;
       });
       
       if (!cartItems || cartItems.length === 0) {

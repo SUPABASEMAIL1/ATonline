@@ -81,11 +81,27 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
       return;
     }
 
-    let bundleDef = state.bundles?.find(b => b.id === bundleId);
+    const bundleItemsInCart = state.cart.filter((x: any) => (x.bundleId || x.bundle_id) === bundleId);
+    if (bundleItemsInCart.length === 0) return;
+
+    // IMEI/Serial check: Prevent increasing quantity of deals with serialized items
+    const oldBundleQtyInCart = bundleItemsInCart[0]?.quantity || 1;
+    if (newBundleQty > oldBundleQtyInCart) {
+      const hasSerializedItem = bundleItemsInCart.some((item: any) => item.product?.requireSerial || item.serialNumber);
+      if (hasSerializedItem) {
+        sonner.error('Cannot Increase Quantity', 'This deal contains a serialized/IMEI item. You must add the deal again separately to assign a unique serial number.');
+        return;
+      }
+    }
+
+    // Extract the original bundle definition UUID (removes the hash suffix)
+    const originalBundleId = bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || bundleId;
+
+    let bundleDef = state.bundles?.find(b => b.id === originalBundleId);
     if (!bundleDef) {
-      const localBundle = await localDb.bundles.get(bundleId);
+      const localBundle = await localDb.bundles.get(originalBundleId);
       if (localBundle) {
-        const bundleItems = await localDb.bundleItems.where('bundleId').equals(bundleId).toArray();
+        const bundleItems = await localDb.bundleItems.where('bundleId').equals(originalBundleId).toArray();
         bundleDef = {
           ...localBundle,
           discountValue: Number(localBundle.discountValue) || 0,
@@ -102,29 +118,38 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
       }
     }
     if (!bundleDef) {
-      console.warn(`[Cart] Cannot update bundle ${bundleId}: definition not found in state or localDb.`);
+      console.warn(`[Cart] Cannot update bundle ${originalBundleId}: definition not found in state or localDb.`);
       sonner.error('Bundle definition not found. Try refreshing.');
       return;
     }
 
-    // Get the base items for 1 bundle unit
-    const baseItems = bundlesService.getBundleCartItems(bundleDef, state.products);
-    
-    // Map existing cart items: if they belong to this bundle, update them using baseItems; else keep them
+    let oldBundleQty = 1;
+    if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+      const firstBi = bundleDef.items[0];
+      const cartItem = bundleItemsInCart.find(x => x.product.id === firstBi.productId);
+      if (cartItem) {
+        oldBundleQty = Math.round(cartItem.quantity / firstBi.quantity);
+      }
+    } else {
+      oldBundleQty = bundleItemsInCart[0].quantity;
+    }
+    if (oldBundleQty === 0) oldBundleQty = 1; // Fallback to avoid division by zero
+
     const newCart = state.cart.map(item => {
       if ((item.bundleId || item.bundle_id) === bundleId) {
-        const baseItem = baseItems.find(x => x.product.id === item.product.id);
-        if (baseItem) {
-          const qty = baseItem.quantity * newBundleQty;
-          const discount = (baseItem.discount || 0) * newBundleQty;
-          const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
-          return {
-            ...item,
-            quantity: qty,
-            discount: discount,
-            subtotal: (item.product.price + toppingsTotal) * qty - discount
-          };
-        }
+        const itemBaseQty = item.quantity / oldBundleQty;
+        const qty = itemBaseQty * newBundleQty;
+        
+        const itemBaseDiscount = (item.discount || 0) / oldBundleQty;
+        const discount = itemBaseDiscount * newBundleQty;
+        
+        const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
+        return {
+          ...item,
+          quantity: qty,
+          discount: discount,
+          subtotal: (item.product.price + toppingsTotal) * qty - discount
+        };
       }
       return item;
     });
@@ -564,8 +589,6 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 return b.bundleImage || b.items[0]?.item.product.image || null;
               };
 
-              let itemNumber = 0;
-
               const renderedBundleSummaries = bundles.map((b) => (
                 <div key={`cart-bundle-${b.bundleId}`} className="px-2 py-1.5 mx-2 mb-1 rounded-xl border border-dashed border-violet-500/25 bg-violet-500/[0.01] animate-in fade-in duration-200">
                   <div className="flex items-center gap-1.5">
@@ -580,6 +603,13 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                     {/* Name + Price */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[9px] font-black text-violet-700 dark:text-violet-300 truncate leading-tight">{b.bundleName}</p>
+                      {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
+                        <div className="mt-0.5">
+                          <span className="text-[8px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                            + {b.items[0].item.toppings.map((t: any) => `${b.bundleQty > 1 ? b.bundleQty + 'x ' : ''}${t.name} (${formatCurrency(t.price * b.bundleQty, state.settings.currency)})`).join(', ')}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className={`text-[8px] font-bold ${b.items.some(({ item }) => item.bundleHideItemPrices === true) ? 'text-violet-700 dark:text-violet-300' : 'text-gray-500'}`}>
                           {formatCurrency(b.totalSubtotal, state.settings.currency)}
@@ -632,11 +662,12 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   </div>
                   {/* Nested item list */}
                   <div className="mt-2 pl-10 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
-                    {b.items.map(({ item }) => (
+                    {b.items.map(({ item, originalIndex }) => (
                       <CartItemCard
-                        key={`${item.product.id}-${++itemNumber}`}
+                        key={`${item.product.id}-${originalIndex}`}
                         item={item}
-                        index={itemNumber - 1}
+                        index={originalIndex}
+                        visualIndex={originalIndex + 1}
                         onUpdateQuantity={updateQuantity}
                         onRemove={removeFromCart}
                         onApplyDiscount={applyDiscount}
@@ -651,11 +682,12 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 </div>
               ));
 
-              const renderedStandalones = standaloneItems.map(({ item }) => (
+              const renderedStandalones = standaloneItems.map(({ item, originalIndex }) => (
                 <CartItemCard
-                  key={`${item.product.id}-${++itemNumber}`}
+                  key={`${item.product.id}-${originalIndex}`}
                   item={item}
-                  index={itemNumber - 1}
+                  index={originalIndex}
+                  visualIndex={originalIndex + 1}
                   onUpdateQuantity={updateQuantity}
                   onRemove={removeFromCart}
                   onApplyDiscount={applyDiscount}
@@ -947,6 +979,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
 interface CartItemCardProps {
   item: CartItem;
   index: number;
+  visualIndex?: number;
   onUpdateQuantity: (index: number, quantity: number) => void;
   onRemove: (index: number) => void;
   onApplyDiscount: (index: number, discount: number, type: 'percentage' | 'fixed') => void;
@@ -957,7 +990,7 @@ interface CartItemCardProps {
   isFromBundle?: boolean;
 }
 
-function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount, currency, dispatch, profile, isNested, isFromBundle }: CartItemCardProps) {
+function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, onApplyDiscount, currency, dispatch, profile, isNested, isFromBundle }: CartItemCardProps) {
   const { state } = useApp();
   const showDiscount = state.settings.receiptShowDiscount !== false && 
     !state.cart.some(cartItem => cartItem.bundleHideItemPrices === true || cartItem.bundle_hide_item_prices === true);
@@ -1019,7 +1052,7 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
     <div className={`group hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors overflow-hidden ${isNested ? 'pl-0 pr-1 py-0.5 hover:bg-transparent dark:hover:bg-transparent' : isFromBundle ? 'pl-3 pr-4 py-1' : 'pl-3 pr-4 py-1.5'}`}>
       {/* Main row */}
       <div className="flex items-center gap-1.5">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{index + 1}</span>
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{visualIndex || (index + 1)}</span>
         {/* Thumbnail (not for nested items) */}
         {!isNested && (
           <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center self-start mt-0.5 aspect-square">
@@ -1052,21 +1085,28 @@ function CartItemCard({ item, index, onUpdateQuantity, onRemove, onApplyDiscount
                 <span className="text-[7px] font-bold text-gray-500 dark:text-gray-400 leading-tight">{item.selectedVariant}</span>
               )}
               {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                <span className="text-[7px] font-bold text-primary leading-tight">+{item.selectedModifiers.map(m => m.name).join(', ')}</span>
+                <span className="text-[7px] font-bold text-primary leading-tight">+{item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currency)})`).join(', ')}</span>
               )}
             </div>
           )}
           {item.addonItems && item.addonItems.length > 0 && (
             <div className="mt-0.5">
               <span className="text-[6px] font-bold text-violet-500 dark:text-violet-400 leading-tight">
-                + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
+                + Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currency)})`).join(', ')}
               </span>
             </div>
           )}
-          {item.toppings && item.toppings.length > 0 && (
+          {item.toppings && item.toppings.length > 0 && !isFromBundle && (
             <div className="mt-0.5">
               <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
-                + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                + {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
+              </span>
+            </div>
+          )}
+          {isFromBundle && item.displayToppings && item.displayToppings.length > 0 && (
+            <div className="mt-0.5">
+              <span className="text-[8px] font-medium text-gray-400 dark:text-gray-500 leading-tight">
+                + {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}
               </span>
             </div>
           )}

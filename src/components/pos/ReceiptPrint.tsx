@@ -584,14 +584,19 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           {shBundles.map((b: any) => (
             <div key={b.bundleId} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
               <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>🎁 {b.bundleName}</div>
+              {b.items[0]?.toppings?.length > 0 && (
+                <div style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '2px', paddingLeft: '8px' }}>
+                  + {b.items[0].toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}
+                </div>
+              )}
               <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
                 {b.items.map((item: any, idx: number) => (
                   <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
                     {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
                     {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
-                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
-                    {item.addonItems?.length > 0 ? ` +Add-ons: ${item.addonItems.map((a:any) => `${a.name} (${a.quantity}x)`).join(', ')}` : ''}
-                    {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}` : ''}
+                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(',')}` : ''}
+                    {item.addonItems?.length > 0 ? ` +Add-ons: ${item.addonItems.map((a:any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
+                    {item.displayToppings?.length > 0 ? ` +${item.displayToppings.map((t:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}` : ''}
                   </div>
                 ))}
               </div>
@@ -618,9 +623,10 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{index + 1}. {item.product?.name || 'Item'}</div>
               {item.selectedVariantLabel && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariantLabel}</div>}
               {!item.selectedVariantLabel && item.selectedVariant && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariant}</div>}
-              {item.selectedModifiers && item.selectedModifiers.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</div>}
-              {item.addonItems && item.addonItems.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ Add-ons: {item.addonItems.map((a: any) => `${a.name} (${a.quantity}x)`).join(', ')}</div>}
-              {item.toppings && item.toppings.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}</div>}
+              {item.selectedModifiers && item.selectedModifiers.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(', ')}</div>}
+              {item.addonItems && item.addonItems.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}</div>}
+              {item.toppings && item.toppings.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), currencyCode)})`).join(', ')}</div>}
+              {item.displayToppings && item.displayToppings.length > 0 && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>}
               {item.serialNumber && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>SN: {item.serialNumber}</div>}
               <TwoCol left={`${item.quantity} PCS x ${formatCurrency(item.subtotal / item.quantity, currencyCode)}`} right={formatCurrency(item.subtotal, currencyCode)} />
               {showDiscount && item.discount > 0 && (
@@ -1265,9 +1271,9 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                           <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
                             {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
                             {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
-                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => m.name).join(',')}` : ''}
-                    {item.addonItems?.length > 0 ? ` + Add-ons: ${item.addonItems.map((a:any) => `${a.name} (${a.quantity}x)`).join(', ')}` : ''}
-                    {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}` : ''}
+                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(',')}` : ''}
+                    {item.addonItems?.length > 0 ? ` + Add-ons: ${item.addonItems.map((a:any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
+                    {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
                           </div>
                         ))}
                       </div>
@@ -1320,13 +1326,13 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariant}</div>
                       )}
                       {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => m.name).join(', ')}</div>
+                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(', ')}</div>
                       )}
                       {item.addonItems && item.addonItems.length > 0 && (
-                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ Add-ons: {item.addonItems.map((a: any) => `${a.name} (${a.quantity}x)`).join(', ')}</div>
+                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}</div>
                       )}
                       {item.toppings && item.toppings.length > 0 && (
-                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}</div>
+                        <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>+ {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), currencyCode)})`).join(', ')}</div>
                       )}
                       {item.serialNumber && (
                         <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>SN: {item.serialNumber}</div>

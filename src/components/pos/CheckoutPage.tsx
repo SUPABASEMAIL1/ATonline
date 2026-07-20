@@ -695,14 +695,14 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                   bundleId: string;
                   bundleName: string;
                   bundleImage?: string;
-                  items: CartItem[];
+                  items: { item: CartItem; originalIndex: number }[];
                   totalOriginal: number;
                   totalDiscount: number;
                   totalSubtotal: number;
                 }>();
-                const standaloneItems: CartItem[] = [];
+                const standaloneItems: { item: CartItem; originalIndex: number }[] = [];
 
-                cartItems.forEach((item) => {
+                cartItems.forEach((item, index) => {
                   const bundleId = item.bundleId || item.bundle_id;
                   const bundleName = item.bundleName || item.bundle_name;
 
@@ -718,12 +718,12 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                       });
                     }
                     const b = bundlesMap.get(bundleId)!;
-                    b.items.push(item);
+                    b.items.push({ item, originalIndex: index });
                     b.totalOriginal += item.product.price * item.quantity;
                     b.totalDiscount += item.discount || 0;
                     b.totalSubtotal += item.subtotal || 0;
                   } else {
-                    standaloneItems.push(item);
+                    standaloneItems.push({ item, originalIndex: index });
                   }
                 });
 
@@ -740,16 +740,17 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
               const { bundles, standaloneItems } = groupCartItems(checkoutCartItems);
 
-                      let itemNumber = 0;
-                      const renderItemCard = (item: CartItem, iIdx: number, isNested = false) => {
-                        const hidePrices = isNested && item.bundleHideItemPrices === true;
-                        return (
-                          <div key={iIdx} className={cn(
-                            "flex items-start gap-2.5 p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/5",
-                            isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
-                          )}>
-                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0 mt-0.5">{iIdx}</span>
-                            <div className="h-9 w-9 rounded-lg bg-white dark:bg-surface border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 mt-0.5 aspect-square">
+              const renderItemCard = (itemData: { item: CartItem; originalIndex: number }, isNested = false) => {
+                const { item, originalIndex } = itemData;
+                const iIdx = originalIndex + 1;
+                const hidePrices = isNested && item.bundleHideItemPrices === true;
+                return (
+                  <div key={originalIndex} className={cn(
+                    "flex items-start gap-2.5 p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/5",
+                    isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
+                  )}>
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0 mt-0.5">{iIdx}</span>
+                    <div className="h-9 w-9 rounded-lg bg-white dark:bg-surface border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 mt-0.5 aspect-square">
                       {item.product.image ? (
                         <img src={item.product.image} className="h-full w-full object-cover" />
                       ) : (
@@ -758,46 +759,53 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-black uppercase text-gray-900 dark:text-white truncate leading-none">{item.product.name}</p>
-                          {(item.selectedVariant || item.selectedVariantLabel || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
-                            <div className="flex flex-col gap-0.5 my-1">
-                              {item.selectedVariantLabel && (
-                                <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
-                                  {item.selectedVariantLabel}
-                                </span>
-                              )}
-                              {!item.selectedVariantLabel && item.selectedVariant && (
-                                <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
-                                  {item.selectedVariant}
-                                </span>
-                              )}
-                              {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                                <span className="text-[8px] font-bold text-primary dark:text-primary leading-tight truncate">
-                                  + {item.selectedModifiers.map(m => m.name).join(', ')}
-                                </span>
-                              )}
-                            </div>
+                      {(item.selectedVariant || item.selectedVariantLabel || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
+                        <div className="flex flex-col gap-0.5 my-1">
+                          {item.selectedVariantLabel && (
+                            <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
+                              {item.selectedVariantLabel}
+                            </span>
                           )}
-                          {item.addonItems && item.addonItems.length > 0 && (
-                            <div className="my-1">
-                              <span className="text-[7px] font-bold text-violet-500 dark:text-violet-400 leading-tight truncate block">
-                                + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
-                              </span>
-                            </div>
+                          {!item.selectedVariantLabel && item.selectedVariant && (
+                            <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
+                              {item.selectedVariant}
+                            </span>
                           )}
-                          {item.toppings && item.toppings.length > 0 && (
-                            <div className="my-1">
-                              <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
-                                + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
-                              </span>
-                            </div>
+                          {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                            <span className="text-[8px] font-bold text-primary dark:text-primary leading-tight truncate">
+                              + {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
+                            </span>
                           )}
-                          {item.serialNumber && (
-                            <div className="my-1">
-                              <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
-                                SN: {item.serialNumber}
-                              </span>
-                            </div>
-                          )}
+                        </div>
+                      )}
+                      {item.addonItems && item.addonItems.length > 0 && (
+                        <div className="my-1">
+                          <span className="text-[7px] font-bold text-violet-500 dark:text-violet-400 leading-tight truncate block">
+                            + Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
+                          </span>
+                        </div>
+                      )}
+                      {item.toppings && item.toppings.length > 0 && (
+                        <div className="my-1">
+                          <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                            + {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
+                          </span>
+                        </div>
+                      )}
+                      {item.displayToppings && item.displayToppings.length > 0 && (
+                        <div className="my-1">
+                          <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 leading-tight">
+                            + {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}
+                          </span>
+                        </div>
+                      )}
+                      {item.serialNumber && (
+                        <div className="my-1">
+                          <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
+                            SN: {item.serialNumber}
+                          </span>
+                        </div>
+                      )}
                       {!hidePrices && (
                         <div className="flex items-center justify-between mt-0.5">
                           <p className="text-[8px] text-gray-600 font-bold">
@@ -843,7 +851,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 </div>
               ) : null;
 
-              const bundleThumb = (b: typeof bundles[number]) => b.bundleImage || b.items[0]?.product?.image || null;
+              const bundleThumb = (b: typeof bundles[number]) => b.bundleImage || b.items[0]?.item.product?.image || null;
 
               const renderedBundles = bundles.map((b) => {
                 const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
@@ -855,11 +863,18 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                       price={formatCurrency(b.totalSubtotal, state.settings.currency)}
                       discount={discountStr}
                     />
+                    {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
+                      <div className="pl-[3.25rem] pr-3 mt-0.5 mb-1">
+                        <span className="text-[9px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                          + {b.items[0].item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                        </span>
+                      </div>
+                    )}
                     <div className="mt-2 pl-8 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
-                      {b.items.map((item) => (
-                        <div key={++itemNumber} className="flex flex-col text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
+                      {b.items.map(({ item, originalIndex }) => (
+                        <div key={originalIndex} className="flex flex-col text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
                           <div className="flex justify-between items-center">
-                            <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{itemNumber}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
+                            <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{originalIndex + 1}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
                             <div className="flex items-center gap-1 shrink-0 ml-2">
                               {item.selectedVariantLabel && <span className="text-[8px] text-gray-500">({item.selectedVariantLabel})</span>}
                               {!item.selectedVariantLabel && item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
@@ -867,12 +882,12 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                           </div>
                           {item.addonItems && item.addonItems.length > 0 && (
                             <div className="text-[9px] font-medium text-violet-500 dark:text-violet-400 leading-tight mt-0.5">
-                              + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
+                              + Add-ons: {item.addonItems.map(a => `${a.addon?.name || a.name} ${a.quantity}x (${formatCurrency(a.subtotal, state.settings.currency)})`).join(', ')}
                             </div>
                           )}
-                          {item.toppings && item.toppings.length > 0 && (
-                            <div className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight mt-0.5 normal-case">
-                              + {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                          {item.displayToppings && item.displayToppings.length > 0 && (
+                            <div className="text-[9px] font-medium text-gray-400 dark:text-gray-500 leading-tight mt-0.5">
+                              + {item.displayToppings.map(t => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}
                             </div>
                           )}
                         </div>
@@ -882,7 +897,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 );
               });
 
-              const renderedStandalones = standaloneItems.map((item) => renderItemCard(item, ++itemNumber));
+              const renderedStandalones = standaloneItems.map((item) => renderItemCard(item));
 
               return (
                 <>

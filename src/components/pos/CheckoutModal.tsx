@@ -551,7 +551,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                                   )}
                                   {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                                     <span className="text-[8px] font-bold text-primary dark:text-primary leading-tight truncate">
-                                      + {item.selectedModifiers.map(m => m.name).join(', ')}
+                                      + {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
                                     </span>
                                   )}
                                 </div>
@@ -559,14 +559,14 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                               {item.addonItems && item.addonItems.length > 0 && (
                                 <div className="my-1">
                                   <span className="text-[7px] font-bold text-violet-500 dark:text-violet-400 leading-tight truncate block">
-                                    + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
+                                    + Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
                                   </span>
                                 </div>
                               )}
                               {item.toppings && item.toppings.length > 0 && (
                                 <div className="my-1">
                                   <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
-                                    + {item.toppings.map(t => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                                    + {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
                                   </span>
                                 </div>
                               )}
@@ -590,34 +590,49 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                               {showDiscount && !isNested && item.discount > 0 && (
                                 <div className="flex items-center justify-between text-[8px] text-rose-500 font-black mt-1.5 uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">
                                   <span className="flex items-center gap-1">
-                                    <Gift className="w-2.5 h-2.5" />
-                                    {t("discount", "Discount")} {item.discountType === 'percentage' && item.discountValue ? `(${item.discountValue}%)` : ''}
-                                  </span>
-                                  <span className="tabular-nums">-{formatCurrency(item.discount, state.settings.currency)}</span>
-                                </div>
-                              )}
-                            </div>
+                      const bundleThumb = (b: any) => {
+                        const bundleDef = state.bundles?.find(x => x.id === b.bundleId);
+                        if (bundleDef?.image) return bundleDef.image;
+                        return b.items[0]?.item.product.image;
+                      };
+
+                      const renderItemCard = (itemData: { item: CartItem; originalIndex: number }) => {
+                        const { item, originalIndex } = itemData;
+                        const discountStr = showDiscount && item.discount > 0 ? `-${formatCurrency(item.discount, state.settings.currency)}` : undefined;
+                        return (
+                          <div key={item.product.id + originalIndex} className="p-3 my-1.5 rounded-xl border border-gray-100 dark:border-white/5 bg-white dark:bg-white/[0.02]">
+                            <CompactItemRow
+                              image={item.product.image}
+                              name={item.product.name}
+                              variant={item.selectedVariantLabel || item.selectedVariant}
+                              quantity={Math.abs(item.quantity)}
+                              price={formatCurrency(item.product.price * item.quantity, state.settings.currency)}
+                              discount={discountStr}
+                              modifiers={item.selectedModifiers}
+                              addons={item.addonItems}
+                              toppings={item.toppings}
+                              displayToppings={item.displayToppings}
+                              sn={item.serialNumber}
+                              index={originalIndex + 1}
+                            />
                           </div>
                         );
                       };
 
-                      const renderedBundlesHeader = bundles.length > 0 ? (
-                        <div className="flex items-center gap-1.5 px-1 text-[8px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-widest mb-1">
-                          <Gift className="h-3 w-3 text-violet-500 shrink-0" />
-                          <span>{t('combo_deals_sec', 'Bundle / Deal Items')} ({bundles.length})</span>
+                      const renderedBundlesHeader = bundles.length > 0 && (
+                        <div className="flex items-center gap-2 mb-2 text-violet-500">
+                          <Package className="w-3.5 h-3.5" />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Deals ({bundles.length})</span>
                         </div>
-                      ) : null;
+                      );
 
-                      const renderedStandalonesHeader = bundles.length > 0 && standaloneItems.length > 0 ? (
-                        <div className="flex items-center gap-1.5 px-1 pt-2 text-[8px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest border-t border-gray-100 dark:border-white/5 mt-2 mb-1">
-                          <ShoppingBag className="h-3 w-3 text-gray-400 shrink-0" />
-                          <span>{t('standalone_items_sec', 'Other / Standalone Items')} ({standaloneItems.length})</span>
+                      const renderedStandalonesHeader = standaloneItems.length > 0 && bundles.length > 0 && (
+                        <div className="flex items-center gap-2 mt-4 mb-2 text-primary">
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span className="text-[9px] font-black uppercase tracking-widest">A La Carte ({standaloneItems.length})</span>
                         </div>
-                      ) : null;
+                      );
 
-                      const bundleThumb = (b: typeof bundles[number]) => b.bundleImage || b.items[0]?.product?.image || null;
-
-                      let itemNumber = 0;
                       const renderedBundles = bundles.map((b) => {
                         const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
                         return (
@@ -628,11 +643,18 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                               price={formatCurrency(b.totalSubtotal, state.settings.currency)}
                               discount={discountStr}
                             />
+                            {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
+                              <div className="pl-[3.25rem] pr-3 mt-0.5 mb-1">
+                                <span className="text-[9px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                                  + {b.items[0].item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                                </span>
+                              </div>
+                            )}
                             <div className="mt-2 pl-8 border-t border-dashed border-violet-500/10 pt-1.5 space-y-1">
-                              {b.items.map((item) => (
-                                <div key={++itemNumber} className="flex flex-col text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
+                              {b.items.map(({ item, originalIndex }) => (
+                                <div key={originalIndex} className="flex flex-col text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
                                   <div className="flex justify-between items-center">
-                                    <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{itemNumber}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
+                                    <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{originalIndex + 1}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
                                     <div className="flex items-center gap-1 shrink-0 ml-2">
                                       {item.selectedVariantLabel && <span className="text-[8px] text-gray-500">({item.selectedVariantLabel})</span>}
                                       {!item.selectedVariantLabel && item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
@@ -640,12 +662,12 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                                   </div>
                                   {item.addonItems && item.addonItems.length > 0 && (
                                     <div className="text-[9px] font-medium text-violet-500 dark:text-violet-400 leading-tight mt-0.5">
-                                      + Add-ons: {item.addonItems.map(a => `${a.name} (${a.quantity}x)`).join(', ')}
+                                      + Add-ons: {item.addonItems.map(a => `${a.addon?.name || a.name} ${a.quantity}x (${formatCurrency(a.subtotal, state.settings.currency)})`).join(', ')}
                                     </div>
                                   )}
-                                  {item.toppings && item.toppings.length > 0 && (
-                                    <div className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight mt-0.5 normal-case">
-                                      + {item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}
+                                  {item.displayToppings && item.displayToppings.length > 0 && (
+                                    <div className="text-[9px] font-medium text-gray-400 dark:text-gray-500 leading-tight mt-0.5">
+                                      + {item.displayToppings.map(t => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}
                                     </div>
                                   )}
                                 </div>
@@ -655,7 +677,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         );
                       });
 
-                      const renderedStandalones = standaloneItems.map((item) => renderItemCard(item, ++itemNumber));
+                      const renderedStandalones = standaloneItems.map((item) => renderItemCard(item));
 
                       return (
                         <>

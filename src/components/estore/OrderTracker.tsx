@@ -196,7 +196,16 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {item.selectedModifiers.map((m: any, mIdx: number) => (
                           <span key={mIdx} className="text-[9px] bg-black/10 dark:bg-white/10 text-[var(--color-text)] px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
-                            + {m.name}
+                            + {Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}{m.name} ({formatCurrency(m.price * Math.abs(item.quantity), settings?.currency)})
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {item.addonItems && item.addonItems.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {item.addonItems.map((a: any, aIdx: number) => (
+                          <span key={aIdx} className="text-[9px] bg-violet-500/10 text-violet-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                            + {a.addon?.name || a.name} {a.quantity * Math.abs(item.quantity)}x ({formatCurrency(a.subtotal * Math.abs(item.quantity), settings?.currency)})
                           </span>
                         ))}
                       </div>
@@ -205,7 +214,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
                       <div className="flex flex-wrap gap-1 mt-1">
                         {item.toppings.map((t: any, tIdx: number) => (
                           <span key={tIdx} className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
-                            + {t.name}
+                            + {Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}{t.name} ({formatCurrency(t.price * Math.abs(item.quantity), settings?.currency)})
                           </span>
                         ))}
                       </div>

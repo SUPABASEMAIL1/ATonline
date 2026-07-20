@@ -16,13 +16,9 @@ export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?
   const { cart, discounts, selectedCustomer, settings, billDiscountValue, billDiscountType, products } = state;
 
   return useMemo(() => {
-    const subtotal = roundTo2(cart.reduce((sum, item) => {
-      const price = item.product.price;
-      return sum + (price * item.quantity);
-    }, 0));
-
     const manualItemDiscountTotal = roundTo2(cart.reduce((sum, item) => sum + (item.discount || 0), 0));
-    const subtotalAfterItemDiscounts = roundTo2(subtotal - manualItemDiscountTotal);
+    const subtotalAfterItemDiscounts = roundTo2(cart.reduce((sum, item) => sum + (item.subtotal || 0), 0));
+    const subtotal = roundTo2(subtotalAfterItemDiscounts + manualItemDiscountTotal);
 
     // 2. Identify Applicable Automatic Discounts
     const activePromotions: AppliedDiscount[] = [];

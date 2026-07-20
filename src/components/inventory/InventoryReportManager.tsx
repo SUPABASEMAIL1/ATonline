@@ -584,13 +584,13 @@ export default function InventoryReportManager({
                                     <div className="flex justify-between text-[10px]"><span className="text-gray-600 font-bold uppercase tracking-tight">{t('customer', 'Customer')}</span><span className="text-gray-900 dark:text-white font-black truncate max-w-[100px] text-right">{sale.customerName || t('walk_in', 'Walk-in')}</span></div>
                                     <div className="flex justify-between text-[10px]"><span className="text-gray-600 font-bold uppercase tracking-tight">{t('qty', 'Quantity')}</span><span className="text-gray-900 dark:text-white font-black">{sale.quantity}</span></div>
                                     <div className="flex justify-between text-[10px] pt-1 border-t border-gray-200 dark:border-white/5"><span className="text-gray-600 font-bold uppercase tracking-tight">{t('revenue', 'Revenue')}</span><span className="text-primary dark:text-emerald-400 font-black">{formatCurrency(sale.revenue, state.settings.currency)}</span></div>
-                                    {(sale.selectedVariant || sale.serialNumber || (sale.selectedModifiers && sale.selectedModifiers.length > 0)) && (
-                                      <div className="pt-1 border-t border-gray-200 dark:border-white/5 text-[9px] font-bold text-gray-500 truncate text-right">
+                                    {(sale.selectedVariant || sale.serialNumber || (sale.selectedModifiers && sale.selectedModifiers.length > 0) || (sale.addonItems && sale.addonItems.length > 0) || (sale.toppings && sale.toppings.length > 0)) && (
+                                      <div className="pt-1 border-t border-gray-200 dark:border-white/5 text-[9px] font-bold text-gray-500 text-right flex flex-col gap-0.5 mt-0.5 normal-case tracking-normal">
                                         {sale.selectedVariant && <span>{sale.selectedVariant}</span>}
-                                        {sale.selectedVariant && (sale.serialNumber || sale.selectedModifiers?.length > 0) && <span> | </span>}
-                                        {sale.serialNumber && <span>SN: {sale.serialNumber}</span>}
-                                        {sale.serialNumber && sale.selectedModifiers?.length > 0 && <span> | </span>}
-                                        {sale.selectedModifiers?.length > 0 && <span>+ {sale.selectedModifiers.map((m: any) => m.name).join(', ')}</span>}
+                                        {sale.serialNumber && <span className="text-amber-500">SN: {sale.serialNumber}</span>}
+                                        {sale.selectedModifiers?.length > 0 && <span className="text-primary">+ {sale.selectedModifiers.map((m: any) => `${m.name} (${formatCurrency(m.price, state.settings.currency)})`).join(', ')}</span>}
+                                        {sale.addonItems?.length > 0 && <span className="text-violet-500">+ Add-ons: {sale.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity}x (${formatCurrency(a.subtotal, state.settings.currency)})`).join(', ')}</span>}
+                                        {sale.toppings?.length > 0 && <span className="text-gray-500">+ {sale.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}</span>}
                                       </div>
                                     )}
                                   </div>
@@ -722,13 +722,13 @@ export default function InventoryReportManager({
                           <span className="font-bold text-gray-500">INV #{sale.invoiceNumber}</span>
                           <span className="font-black text-gray-900 dark:text-white">{t('qty', 'Qty')}: {sale.quantity}</span>
                         </div>
-                        {(sale.selectedVariant || sale.serialNumber || (sale.selectedModifiers && sale.selectedModifiers.length > 0)) && (
-                          <div className="text-[9px] font-bold text-gray-500 truncate pt-1">
+                        {(sale.selectedVariant || sale.serialNumber || (sale.selectedModifiers && sale.selectedModifiers.length > 0) || (sale.addonItems && sale.addonItems.length > 0) || (sale.toppings && sale.toppings.length > 0)) && (
+                          <div className="text-[9px] font-bold text-gray-500 pt-1 flex flex-col gap-0.5 normal-case tracking-normal">
                             {sale.selectedVariant && <span>{sale.selectedVariant}</span>}
-                            {sale.selectedVariant && (sale.serialNumber || sale.selectedModifiers?.length > 0) && <span> | </span>}
-                            {sale.serialNumber && <span>SN: {sale.serialNumber}</span>}
-                            {sale.serialNumber && sale.selectedModifiers?.length > 0 && <span> | </span>}
-                            {sale.selectedModifiers?.length > 0 && <span>+ {sale.selectedModifiers.map((m: any) => m.name).join(', ')}</span>}
+                            {sale.serialNumber && <span className="text-amber-500">SN: {sale.serialNumber}</span>}
+                            {sale.selectedModifiers?.length > 0 && <span className="text-primary">+ {sale.selectedModifiers.map((m: any) => `${m.name} (${formatCurrency(m.price, state.settings.currency)})`).join(', ')}</span>}
+                            {sale.addonItems?.length > 0 && <span className="text-violet-500">+ Add-ons: {sale.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity}x (${formatCurrency(a.subtotal, state.settings.currency)})`).join(', ')}</span>}
+                            {sale.toppings?.length > 0 && <span className="text-gray-500">+ {sale.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, state.settings.currency)})`).join(', ')}</span>}
                           </div>
                         )}
                       </div>
