@@ -37,6 +37,7 @@ import {
   MapPin,
   Navigation,
   Info,
+  LocateFixed,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatRelativeTime } from '../../lib/timeUtils';

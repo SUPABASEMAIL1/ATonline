@@ -230,6 +230,8 @@ export function TransactionsManager() {
     return list.filter(sale => {
       if (isDraftSale(sale)) return false;
       if (sale.status === 'pending') return false;
+      // Filter out invalid phantom sales
+      if (!sale.invoiceNumber && !sale.receiptNumber) return false;
       const matchesSearch = isCloudSearch || (
         (sale.receiptNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (sale.invoiceNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
