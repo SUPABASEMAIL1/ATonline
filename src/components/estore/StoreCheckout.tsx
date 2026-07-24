@@ -593,8 +593,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
             <h2 className="text-xl font-black text-[var(--color-text)] mb-6">Order Summary</h2>
             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 no-scrollbar">
               {(() => {
-                const bundlesMap = new Map<string, { bundleId: string; bundleName: string; items: typeof cart; totalSubtotal: number }>();
-                const standaloneItems: typeo                const groupCartItems = (cartItems: any[]) => {
+                const groupCartItems = (cartItems: any[]) => {
                   const bundlesMap = new Map<string, {
                     bundleId: string;
                     bundleName: string;

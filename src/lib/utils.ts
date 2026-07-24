@@ -66,3 +66,18 @@ export function getDealCountBreakdown(items: CartItem[], bundles?: Bundle[]): {
 
   return { totalItems, dealsCount, standaloneCount, totalPcs, dealsQty, standaloneQty, label };
 }
+
+export interface DiscountInfo {
+  flatAmount: number;
+  percent: number;
+  isValid: boolean;
+}
+
+export function calculateDiscount(originalPrice: number, discountedPrice: number): DiscountInfo {
+  if (originalPrice == null || discountedPrice == null || originalPrice <= 0 || discountedPrice >= originalPrice) {
+    return { flatAmount: 0, percent: 0, isValid: false };
+  }
+  const flatAmount = originalPrice - discountedPrice;
+  const percent = Math.round((flatAmount / originalPrice) * 100);
+  return { flatAmount, percent, isValid: percent > 0 };
+}

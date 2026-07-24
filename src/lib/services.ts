@@ -34,6 +34,34 @@ import { generateBarcodeValue } from '../utils/barcode';
 export { generateId };
 
 /**
+ * Generic helper to fetch all rows across pagination limits (default 1000) for full cache initialization or delta sync.
+ */
+async function fetchAllPages(queryFn: () => any, limit = 1000): Promise<any[]> {
+  let allData: any[] = [];
+  let from = 0;
+  let to = limit - 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await queryFn().range(from, to);
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      if (data.length < limit) {
+        hasMore = false;
+      } else {
+        from += limit;
+        to += limit;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+  return allData;
+}
+
+/**
  * DEVICE IDENTIFICATION (Unique per browser/terminal)
  * Prevents invoice number collisions between multiple offline devices.
  */
@@ -168,6 +196,7 @@ export const mapSale = (item: any): Sale => ({
   saleType: item.sale_type ?? item.saleType,
   extraCharges: item.extra_charges ?? item.extraCharges,
   splitPayments: item.split_payments ?? item.splitPayments,
+  deletedAt: item.deleted_at ?? item.deletedAt,
   total: item.total ? Number(item.total) : 0,
   subtotal: item.subtotal ? Number(item.subtotal) : 0,
   estoreStatus: item.estore_status ?? item.estoreStatus,
@@ -331,6 +360,7 @@ export const mapSettings = (item: any): AppSettings => {
     enableSplitPayment: s.enable_split_payment ?? s.enableSplitPayment ?? false,
     enableExtraCharges: s.enable_extra_charges ?? s.enableExtraCharges ?? false,
     enableKotPrinter: s.enable_kot_printer ?? s.enableKotPrinter ?? false,
+    autoSaveReceiptPng: s.auto_save_receipt_png ?? s.autoSaveReceiptPng ?? false,
 
     createdAt: s.created_at ? new Date(s.created_at) : (s.createdAt ? new Date(s.createdAt) : new Date()),
     updatedAt: s.updated_at ? new Date(s.updated_at) : (s.updatedAt ? new Date(s.updatedAt) : new Date())
@@ -472,6 +502,7 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('enableSplitPayment' in s) { remote.enable_split_payment = s.enableSplitPayment; }
   if ('enableExtraCharges' in s) { remote.enable_extra_charges = s.enableExtraCharges; }
   if ('enableKotPrinter' in s) { remote.enable_kot_printer = s.enableKotPrinter; }
+  if ('autoSaveReceiptPng' in s) { remote.auto_save_receipt_png = s.autoSaveReceiptPng; }
 
   if ('updatedAt' in s) {
     remote.updated_at = s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt;
@@ -666,11 +697,14 @@ export const toRemoteSupplierTransaction = (t: any) => {
   if ('id' in t && t.id) remote.id = t.id;
   if ('supplierId' in t && t.supplierId !== undefined) remote.supplier_id = t.supplierId;
   if ('type' in t && t.type !== undefined) remote.type = t.type;
+  if ('sourceType' in t && t.sourceType !== undefined) remote.source_type = t.sourceType;
   if ('amount' in t && t.amount !== undefined) remote.amount = t.amount;
   if ('referenceId' in t && t.referenceId !== undefined) remote.reference_id = t.referenceId;
   if ('referenceType' in t && t.referenceType !== undefined) remote.reference_type = t.referenceType;
   if ('note' in t && t.note !== undefined) remote.note = t.note;
   if ('balanceAfter' in t && t.balanceAfter !== undefined) remote.balance_after = t.balanceAfter;
+  if ('isManualOverride' in t && t.isManualOverride !== undefined) remote.is_manual_override = t.isManualOverride;
+  if ('overrideBy' in t && t.overrideBy !== undefined) remote.override_by = t.overrideBy;
   if ('createdAt' in t && t.createdAt !== undefined) remote.created_at = t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt;
   if ('updatedAt' in t && t.updatedAt !== undefined) remote.updated_at = t.updatedAt instanceof Date ? t.updatedAt.toISOString() : t.updatedAt;
   return remote;
@@ -737,6 +771,7 @@ export const toRemoteSale = (s: Partial<Sale>) => {
   if ('billDiscountType' in s) { remote.bill_discount_type = s.billDiscountType; delete remote.billDiscountType; }
   if ('extraCharges' in s) { remote.extra_charges = s.extraCharges; delete remote.extraCharges; }
   if ('splitPayments' in s) { remote.split_payments = s.splitPayments; delete remote.splitPayments; }
+  if ('deletedAt' in s) { remote.deleted_at = s.deletedAt; delete remote.deletedAt; }
   if ('estoreStatus' in s) { remote.estore_status = s.estoreStatus; delete remote.estoreStatus; }
   if ('deliveryAddress' in s) { remote.delivery_address = s.deliveryAddress; delete remote.deliveryAddress; }
   if ('deliveryFee' in s) { remote.delivery_fee = s.deliveryFee; delete remote.deliveryFee; }
@@ -824,10 +859,14 @@ export const productsService = {
     return items.sort((a, b) => a.name.localeCompare(b.name));
   },
 
-  async fetchRemote(): Promise<Product[]> {
-    const { data, error } = await supabase.from('products').select('*');
-    if (error) throw error;
-    return (data || []).map(mapProduct);
+  async fetchRemote(lastSyncTime?: Date): Promise<Product[]> {
+    const queryFn = () => {
+      let q = supabase.from('products').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapProduct);
   },
 
   async getById(id: string): Promise<Product | null> {
@@ -981,8 +1020,8 @@ export const productsService = {
     // 1. Local Update
     await localDb.products.put(updated);
 
-    // 2. Queue for Sync
-    await queueOp('products', 'update', id, toRemoteProduct({ ...updates, updatedAt: now }));
+    // 2. Queue for Sync — send FULL product to prevent field drift
+    await queueOp('products', 'update', id, toRemoteProduct(updated));
 
     // 3. Update/Create child variations if productType is 'variable'
     if (updated.productType === 'variable' && updated.variantData) {
@@ -1046,11 +1085,21 @@ export const productsService = {
   },
 
   async delete(id: string): Promise<void> {
+    await localDb.productBatches.where('productId').equals(id).delete();
+    await localDb.stockHistory.where('productId').equals(id).delete();
+    await localDb.productAddons.where('productId').equals(id).delete();
+    await localDb.productAddons.where('addonProductId').equals(id).delete();
     await localDb.products.delete(id);
     queueOp('products', 'delete', id, {});
   },
 
   async bulkDelete(ids: string[]): Promise<void> {
+    for (const id of ids) {
+      await localDb.productBatches.where('productId').equals(id).delete();
+      await localDb.stockHistory.where('productId').equals(id).delete();
+      await localDb.productAddons.where('productId').equals(id).delete();
+      await localDb.productAddons.where('addonProductId').equals(id).delete();
+    }
     await localDb.products.bulkDelete(ids);
     for (const id of ids) {
       queueOp('products', 'delete', id, {});
@@ -1059,6 +1108,29 @@ export const productsService = {
 
   async bulkUpdate(ids: string[], updates: Partial<Product>): Promise<void> {
     const now = new Date();
+
+    // Log per-product price-change history if price is being changed
+    if (updates.price !== undefined) {
+      const products = await localDb.products.where('id').anyOf(ids).toArray();
+      for (const product of products) {
+        if (product.price !== updates.price) {
+          const histId = generateId();
+          const histEntry = {
+            id: histId,
+            productId: product.id,
+            changeQty: 0,
+            type: 'adjustment' as const,
+            note: `Batch Price Change: ${product.price} → ${updates.price}`,
+            balanceAfter: product.stock || 0,
+            cashierName: 'Bulk Edit',
+            createdAt: now
+          };
+          await localDb.stockHistory.add(histEntry);
+          await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
+        }
+      }
+    }
+
     await localDb.products.where('id').anyOf(ids).modify({ ...updates, updatedAt: now });
     for (const id of ids) {
       await queueOp('products', 'update', id, toRemoteProduct({ ...updates, updatedAt: now }));
@@ -1070,9 +1142,52 @@ export const productsService = {
     if (!product) return;
 
     const newStock = (product.stock || 0) + delta;
-    await this.update(id, { stock: newStock });
 
-    // Log History — type MUST be one of: sale, purchase, return, adjustment, initial
+    // Create an adjustment batch for stock-in, or reduce from newest batch for stock-out
+    const now = new Date();
+    let updatedBatches = [...(product.batches || [])];
+
+    if (delta > 0) {
+      const batchId = generateId();
+      const newBatch = {
+        id: batchId,
+        productId: id,
+        quantity: delta,
+        qtyRemaining: delta,
+        purchasePrice: 0,
+        salePrice: product.price,
+        type: 'adjustment' as const,
+        createdAt: now,
+        updatedAt: now
+      };
+      updatedBatches.push(newBatch);
+      await localDb.productBatches.add(newBatch);
+      await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(newBatch));
+    } else if (delta < 0) {
+      let remaining = Math.abs(delta);
+      updatedBatches = updatedBatches
+        .map(b => ({ ...b }))
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const finalBatches: typeof updatedBatches = [];
+      for (const batch of updatedBatches) {
+        if (remaining <= 0) {
+          finalBatches.push(batch);
+          continue;
+        }
+        const deduct = Math.min(batch.qtyRemaining || 0, remaining);
+        if (deduct <= 0) { finalBatches.push(batch); continue; }
+        const newQty = (batch.qtyRemaining || 0) - deduct;
+        remaining -= deduct;
+        await localDb.productBatches.update(batch.id, { qtyRemaining: newQty, updatedAt: now });
+        await queueOp('product_batches', 'update', batch.id, { qty_remaining: newQty, updated_at: now.toISOString() });
+        if (newQty > 0) finalBatches.push({ ...batch, qtyRemaining: newQty });
+      }
+      updatedBatches = finalBatches;
+    }
+
+    await localDb.products.put({ ...product, stock: newStock, batches: updatedBatches, updatedAt: now });
+    await queueOp('products', 'update', id, toRemoteProduct({ stock: newStock, batches: updatedBatches, updatedAt: now }));
+
     const histId = generateId();
     const historyEntry = {
       id: histId,
@@ -1081,7 +1196,7 @@ export const productsService = {
       type: 'adjustment',
       note,
       balanceAfter: newStock,
-      createdAt: new Date()
+      createdAt: now
     };
     await localDb.stockHistory.add(historyEntry);
     await queueOp('stock_history', 'create', histId, toRemoteStockHistory(historyEntry));
@@ -1096,10 +1211,14 @@ export const customersService = {
     return await localDb.customers.toArray();
   },
 
-  async fetchRemote(): Promise<Customer[]> {
-    const { data, error } = await supabase.from('customers').select('*');
-    if (error) throw error;
-    return (data || []).map(mapCustomer);
+  async fetchRemote(lastSyncTime?: Date): Promise<Customer[]> {
+    const queryFn = () => {
+      let q = supabase.from('customers').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapCustomer);
   },
 
   async create(customer: Omit<Customer, 'id'>): Promise<Customer> {
@@ -1170,10 +1289,14 @@ export const usersService = {
     return await localDb.users.toArray();
   },
 
-  async fetchRemote(): Promise<User[]> {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) throw error;
-    return (data || []).map(mapUser);
+  async fetchRemote(lastSyncTime?: Date): Promise<User[]> {
+    const queryFn = () => {
+      let q = supabase.from('users').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapUser);
   },
 
   async update(id: string, updates: Partial<User>): Promise<User> {
@@ -1223,14 +1346,20 @@ export const salesService = {
     return sales.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   },
 
-  async fetchRemote(): Promise<Sale[]> {
-    const { data, error } = await supabase
-      .from('sales')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5000);
-    if (error) throw error;
-    return (data || []).map(mapSale);
+  async fetchRemote(lastSyncTime?: Date): Promise<Sale[]> {
+    if (lastSyncTime) {
+      const queryFn = () => supabase.from('sales').select('*').gte('updated_at', lastSyncTime.toISOString());
+      const data = await fetchAllPages(queryFn);
+      return data.map(mapSale);
+    } else {
+      const { data, error } = await supabase
+        .from('sales')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      return (data || []).map(mapSale);
+    }
   },
 
   async searchSales(filters: {
@@ -1308,6 +1437,7 @@ export const salesService = {
         const qty = item.weight || item.quantity;
         // RULE: Allow negative stock — never block a sale on stock level
         const newStock = (product.stock || 0) - qty;
+        const clampedStock = Math.max(0, newStock);
         if (newStock < 0) anyOversold = true;
 
         // --- START BATCH-LEVEL FIFO REDUCTION & COSTING ---
@@ -1394,16 +1524,16 @@ export const salesService = {
         };
         // --- END BATCH-LEVEL FIFO REDUCTION ---
 
-        // Update Product — allow negative stock
+        // Update Product — floor stock at 0 (never write negative)
         await localDb.products.update(product.id, {
-          stock: newStock,
+          stock: clampedStock,
           batches: updatedBatchesForProduct,
           updatedAt: now
         });
 
         await queueOp('products', 'update', product.id, toRemoteProduct({
           ...product,
-          stock: newStock,
+          stock: clampedStock,
           batches: updatedBatchesForProduct,
           updatedAt: now
         }), { batchId: id });
@@ -1417,7 +1547,7 @@ export const salesService = {
           type: 'sale' as const,
           referenceId: id,
           note: `Sale ${sale.invoiceNumber}`,
-          balanceAfter: newStock,
+          balanceAfter: clampedStock,
           cashierName: sale.cashier || 'System',
           createdAt: now,
           ...(newStock < 0 ? { wasOversold: true } : {}),
@@ -1430,8 +1560,9 @@ export const salesService = {
           const variant = product.variantData.find(v => v.id === item.selectedVariantId);
           if (variant && variant.stock !== undefined) {
             const newVariantStock = variant.stock - qty;
+            const clampedVariantStock = Math.max(0, newVariantStock);
             const updatedVariantData = product.variantData.map(v =>
-              v.id === item.selectedVariantId ? { ...v, stock: newVariantStock } : v
+              v.id === item.selectedVariantId ? { ...v, stock: clampedVariantStock } : v
             );
             await localDb.products.update(product.id, { variantData: updatedVariantData });
             await queueOp('products', 'update', product.id, toRemoteProduct({
@@ -1451,7 +1582,7 @@ export const salesService = {
               type: 'sale',
               referenceId: id,
               note: `Sale ${sale.invoiceNumber}`,
-              balanceAfter: newVariantStock,
+              balanceAfter: clampedVariantStock,
               cashierName: sale.cashier || 'System',
               createdAt: now,
             };
@@ -1467,10 +1598,11 @@ export const salesService = {
             if (addonProduct && addonProduct.trackInventory) {
               const addonQty = addonItem.quantity * Math.abs(item.quantity);
               const newAddonStock = (addonProduct.stock || 0) - addonQty;
-              await localDb.products.update(addonProduct.id, { stock: newAddonStock, updatedAt: now });
+              const clampedAddonStock = Math.max(0, newAddonStock);
+              await localDb.products.update(addonProduct.id, { stock: clampedAddonStock, updatedAt: now });
               await queueOp('products', 'update', addonProduct.id, toRemoteProduct({
                 ...addonProduct,
-                stock: newAddonStock,
+                stock: clampedAddonStock,
                 updatedAt: now
               }), { batchId: id });
 
@@ -1482,7 +1614,7 @@ export const salesService = {
                 type: 'sale',
                 referenceId: id,
                 note: `Add-on for Sale ${sale.invoiceNumber} (${addonItem.addon.name})`,
-                balanceAfter: newAddonStock,
+                balanceAfter: clampedAddonStock,
                 cashierName: sale.cashier || 'System',
                 createdAt: now,
               };
@@ -1689,14 +1821,14 @@ export const salesService = {
     }
     }
 
-    // 2. Local Delete
+    // 2. Hard-Delete: Permanently remove from local database
     await localDb.sales.delete(id);
 
-    // 3. Queue Sync for Sale Deletion
+    // 3. Queue Sync for Sale Hard-Deletion
     await queueOp('sales', 'delete', id, {});
 
-    // 4. Reverse Customer Credit/Stats if it was a credit sale (RULE: Ensure data parity on delete)
-    if (sale.customerId) {
+    // 4. Reverse Customer Credit/Stats if it was a credit sale (Only if not already deleted)
+    if (sale.customerId && sale.status !== 'deleted') {
       const customer = await localDb.customers.get(sale.customerId);
       if (customer) {
         const isCreditSale = sale.paymentMethod === 'credit' || sale.status === 'credit';
@@ -2036,6 +2168,26 @@ export const salesService = {
 /**
  * Categories & Suppliers
  */
+export const mapCategory = (item: any): Category => ({
+  ...item,
+  estoreSortOrder: item.estore_sort_order ?? item.estoreSortOrder,
+  createdAt: item.created_at ? new Date(item.created_at) : (item.createdAt ? new Date(item.createdAt) : undefined)
+});
+
+export const mapSupplier = (item: any): Supplier => ({
+  id: item.id,
+  name: item.name || '',
+  email: item.email || '',
+  phone: item.phone || '',
+  address: item.address || '',
+  businessType: item.business_type || item.businessType || '',
+  paymentTerms: item.payment_terms || item.paymentTerms || '',
+  openingBalance: Number(item.opening_balance ?? item.openingBalance ?? 0),
+  rating: Number(item.rating ?? 0),
+  createdAt: item.created_at ? new Date(item.created_at) : (item.createdAt ? new Date(item.createdAt) : new Date()),
+  updatedAt: item.updated_at ? new Date(item.updated_at) : (item.updatedAt ? new Date(item.updatedAt) : undefined)
+});
+
 export const categoriesService = {
   async getAll() { return await localDb.categories.toArray(); },
   async create(nameOrObj: string | Category) {
@@ -2070,16 +2222,14 @@ export const categoriesService = {
     }
     await queueOp('categories', 'update', id, remote);
   },
-  async fetchRemote(): Promise<Category[]> {
-    const { data, error } = await supabase.from('categories').select('*');
-    if (error) throw error;
-    return (data || []).map(item => ({
-      ...item,
-      estoreSortOrder: item.estore_sort_order ?? 0,
-      active: item.active ?? true,
-      createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
-      updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
-    }));
+  async fetchRemote(lastSyncTime?: Date): Promise<Category[]> {
+    const queryFn = () => {
+      let q = supabase.from('categories').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapCategory);
   }
 };
 
@@ -2150,38 +2300,48 @@ export const suppliersService = {
       id: tx.id,
       date: tx.createdAt,
       type: tx.type,
+      sourceType: tx.sourceType || (tx.type === 'opening_balance' ? 'opening_balance' : tx.type === 'payment' ? 'payment' : 'manual_bill'),
       detail: tx.note || tx.referenceType || 'Transaction',
       debit: (tx.type === 'payment' || tx.type === 'return') ? tx.amount : 0,
       credit: (tx.type === 'purchase' || tx.type === 'opening_balance' || tx.type === 'loan') ? tx.amount : 0,
+      isManualOverride: tx.isManualOverride || false,
+      overrideBy: tx.overrideBy || null,
     }));
   },
 
-  async recordPayment(data: { supplier_id: string; amount: number; payment_type: string; note?: string }) {
+  async recordPayment(data: { supplier_id: string; amount: number; payment_type: string; note?: string; isManualOverride?: boolean; overrideBy?: string }) {
     const id = generateId();
     const tx: any = {
       id,
       supplierId: data.supplier_id,
       type: 'payment',
+      sourceType: 'payment' as const,
       amount: data.amount,
       note: data.note,
       paymentType: data.payment_type,
+      isManualOverride: data.isManualOverride || false,
+      overrideBy: data.overrideBy || undefined,
       createdAt: new Date()
     };
     await localDb.supplierTransactions.add(tx);
     await queueOp('supplier_transactions', 'create', id, toRemoteSupplierTransaction(tx));
     return tx;
-
   },
 
-  async recordBill(data: { supplierId: string; amount: number; note?: string; referenceId?: string }) {
+  async recordBill(data: { supplierId: string; amount: number; note?: string; referenceId?: string; sourceType?: 'auto_purchase' | 'manual_bill' | 'opening_balance'; isManualOverride?: boolean; overrideBy?: string }) {
     const id = generateId();
+    const inferredType = data.note === 'Opening Balance' ? 'opening_balance' : 'purchase';
+    const inferredSourceType = data.sourceType || (inferredType === 'opening_balance' ? 'opening_balance' : 'manual_bill');
     const tx: any = {
       id,
       supplierId: data.supplierId,
-      type: data.note === 'Opening Balance' ? 'opening_balance' : 'purchase',
+      type: inferredType,
+      sourceType: inferredSourceType,
       amount: data.amount,
       note: data.note,
       referenceId: data.referenceId,
+      isManualOverride: data.isManualOverride || false,
+      overrideBy: data.overrideBy || undefined,
       createdAt: new Date()
     };
     await localDb.supplierTransactions.add(tx);
@@ -2194,15 +2354,14 @@ export const suppliersService = {
     queueOp('supplier_transactions', 'delete', id, {});
   },
 
-  async fetchRemote(): Promise<Supplier[]> {
-    const { data, error } = await supabase.from('suppliers').select('*');
-    if (error) throw error;
-    return (data || []).map(item => ({
-      ...item,
-      creditLimit: item.credit_limit ?? item.creditLimit,
-      openingBalance: item.opening_balance ?? item.openingBalance,
-      createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt)
-    }));
+  async fetchRemote(lastSyncTime?: Date): Promise<Supplier[]> {
+    const queryFn = () => {
+      let q = supabase.from('suppliers').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapSupplier);
   }
 };
 
@@ -2248,16 +2407,15 @@ export const settingsService = {
     if (local) return local;
     return await this.fetchRemote();
   },
-  async fetchRemote(): Promise<AppSettings | null> {
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('*')
-      .eq('id', SETTINGS_ID)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return null;
-    return mapSettings(data);
+  async fetchRemote(lastSyncTime?: Date): Promise<AppSettings | null> {
+    const queryFn = () => {
+      let q = supabase.from('app_settings').select('*').eq('id', SETTINGS_ID);
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    if (!data || data.length === 0) return null;
+    return mapSettings(data[0]);
   },
   async update(updates: Partial<AppSettings>): Promise<void> {
     const existing = await this.get();
@@ -2313,10 +2471,14 @@ export const expensesService = {
     await queueOp('expenses', 'delete', id, {});
   },
 
-  async fetchRemote(): Promise<Expense[]> {
-    const { data, error } = await supabase.from('expenses').select('*');
-    if (error) throw error;
-    return (data || []).map(mapExpense);
+  async fetchRemote(lastSyncTime?: Date): Promise<Expense[]> {
+    const queryFn = () => {
+      let q = supabase.from('expenses').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapExpense);
   },
 
   async getReportExpensesLocal(startDate: Date, endDate: Date): Promise<Expense[]> {
@@ -2371,10 +2533,14 @@ export const discountsService = {
     });
   },
 
-  async fetchRemote(): Promise<Discount[]> {
-    const { data, error } = await supabase.from('discounts').select('*');
-    if (error) throw error;
-    return (data || []).map(mapDiscount);
+  async fetchRemote(lastSyncTime?: Date): Promise<Discount[]> {
+    const queryFn = () => {
+      let q = supabase.from('discounts').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapDiscount);
   }
 };
 /**
@@ -2488,10 +2654,14 @@ export const purchaseRecordsService = {
     return newRecord;
   },
 
-  async fetchRemote(): Promise<PurchaseRecord[]> {
-    const { data, error } = await supabase.from('purchase_records').select('*');
-    if (error) throw error;
-    return (data || []).map(mapPurchaseRecord);
+  async fetchRemote(lastSyncTime?: Date): Promise<PurchaseRecord[]> {
+    const queryFn = () => {
+      let q = supabase.from('purchase_records').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapPurchaseRecord);
   },
 
   async delete(id: string): Promise<void> {
@@ -2506,10 +2676,17 @@ export const toRemoteSalesTab = (tab: Partial<SalesTab>) => {
   if ('billDiscountValue' in tab) { remote.bill_discount_value = tab.billDiscountValue; delete remote.billDiscountValue; }
   if ('billDiscountType' in tab) { remote.bill_discount_type = tab.billDiscountType; delete remote.billDiscountType; }
   if ('createdAt' in tab) { remote.created_at = tab.createdAt; delete remote.createdAt; }
+  if ('editingSaleId' in tab) { remote.editing_sale_id = tab.editingSaleId ?? null; delete remote.editingSaleId; }
 
-  // Strip known non-DB fields or those that cause 400 errors
+  // Extract only the customer ID for the DB column
+  if (tab.selectedCustomer) {
+    remote.selected_customer_id = tab.selectedCustomer.id;
+  } else if ('selectedCustomer' in tab) {
+    remote.selected_customer_id = null;
+  }
+
+  // Strip full customer object (not a DB column, reconstructed from ID on load)
   delete remote.selectedCustomer;
-  delete remote.selectedCustomerId;
 
   return remote;
 };
@@ -2548,10 +2725,21 @@ export const salesTabsService = {
  * Supplier Transactions Service
  */
 export const supplierTransactionsService = {
-  async fetchRemote(): Promise<SupplierTransaction[]> {
-    const { data, error } = await supabase.from('supplier_transactions').select('*');
-    if (error) throw error;
-    return (data || []).map((item: any) => ({
+  async fetchRemote(lastSyncTime?: Date): Promise<SupplierTransaction[]> {
+    const queryFn = () => {
+      let q = supabase.from('supplier_transactions').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    let data;
+    try {
+      data = await fetchAllPages(queryFn);
+    } catch {
+      // Fallback: fetch all if updated_at column doesn't exist
+      console.warn('[supplierTransactions] Delta sync failed, fetching all');
+      data = await fetchAllPages(() => supabase.from('supplier_transactions').select('*'));
+    }
+    return data.map((item: any) => ({
       ...item,
       supplierId: item.supplier_id ?? item.supplierId,
       referenceId: item.reference_id ?? item.referenceId,
@@ -2571,10 +2759,21 @@ export const stockHistoryService = {
     const items = await localDb.stockHistory.toArray();
     return items.map(mapStockHistory).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
-  async fetchRemote(): Promise<StockHistory[]> {
-    const { data, error } = await supabase.from('stock_history').select('*');
-    if (error) throw error;
-    return (data || []).map(mapStockHistory);
+  async fetchRemote(lastSyncTime?: Date): Promise<StockHistory[]> {
+    const queryFn = () => {
+      let q = supabase.from('stock_history').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    let data;
+    try {
+      data = await fetchAllPages(queryFn);
+    } catch {
+      // Fallback: fetch all if updated_at column doesn't exist
+      console.warn('[stockHistory] Delta sync failed, fetching all');
+      data = await fetchAllPages(() => supabase.from('stock_history').select('*'));
+    }
+    return data.map(mapStockHistory);
   }
 };
 
@@ -2607,10 +2806,22 @@ export const variantStockHistoryService = {
     return newEntry;
   },
 
-  async fetchRemote(): Promise<VariantStockHistory[]> {
-    const { data, error } = await supabase.from('variant_stock_history').select('*');
-    if (error) throw error;
-    return (data || []).map(mapVariantStockHistory);
+  async fetchRemote(lastSyncTime?: Date): Promise<VariantStockHistory[]> {
+    const queryFn = () => {
+      let q = supabase.from('variant_stock_history').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map((item: any) => ({
+      ...item,
+      productId: item.product_id ?? item.productId,
+      variantId: item.variant_id ?? item.variantId,
+      changeQty: item.change_qty ?? item.changeQty,
+      balanceAfter: item.balance_after ?? item.balanceAfter,
+      referenceId: item.reference_id ?? item.referenceId,
+      createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
+    }));
   }
 };
 
@@ -2644,10 +2855,18 @@ export const productAddonsService = {
     await queueOp('product_addons', 'delete', id, {});
   },
 
-  async fetchRemote(): Promise<ProductAddon[]> {
-    const { data, error } = await supabase.from('product_addons').select('*');
-    if (error) throw error;
-    return (data || []).map(mapProductAddon);
+  async fetchRemote(lastSyncTime?: Date): Promise<ProductAddon[]> {
+    const queryFn = () => {
+      let q = supabase.from('product_addons').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map((item: any) => ({
+      ...item,
+      productId: item.product_id ?? item.productId,
+      createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
+    }));
   }
 };
 
@@ -2655,10 +2874,21 @@ export const productAddonsService = {
  * Payment Modes Service
  */
 export const paymentModesService = {
-  async fetchRemote(): Promise<Payment[]> {
-    const { data, error } = await supabase.from('payments').select('*');
-    if (error) throw error;
-    return (data || []).map((item: any) => ({
+  async fetchRemote(lastSyncTime?: Date): Promise<Payment[]> {
+    const queryFn = () => {
+      let q = supabase.from('payments').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    let data;
+    try {
+      data = await fetchAllPages(queryFn);
+    } catch {
+      // Fallback: fetch all if updated_at column doesn't exist
+      console.warn('[payments] Delta sync failed, fetching all');
+      data = await fetchAllPages(() => supabase.from('payments').select('*'));
+    }
+    return data.map((item: any) => ({
       ...item,
       createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
     }));
@@ -3508,4 +3738,99 @@ export const productToppingsService = {
 };
 
 
+/**
+ * Stock Reconciliation Tool — Cross-checks products.stock vs SUM(product_batches.qty_remaining)
+ * Returns mismatches and optionally auto-fixes them.
+ */
+export interface ReconcileResult {
+  name: string;
+  productId: string;
+  stock: number;
+  batchSum: number;
+  diff: number;
+  fixed: boolean;
+}
+
+export const reconcileAllStock = async (autoFix: boolean = false): Promise<ReconcileResult[]> => {
+  const results: ReconcileResult[] = [];
+  
+  const products = await localDb.products.toArray();
+  
+  for (const product of products) {
+    // Skip untracked products
+    if (!product.trackInventory) continue;
+    
+    const batches = await localDb.productBatches
+      .where('productId').equals(product.id)
+      .toArray();
+    
+    const batchSum = batches.reduce((sum, b) => sum + (b.qtyRemaining || 0), 0);
+    const stock = product.stock || 0;
+    
+    if (stock !== batchSum) {
+      const entry: ReconcileResult = {
+        name: product.name,
+        productId: product.id,
+        stock,
+        batchSum,
+        diff: stock - batchSum,
+        fixed: false
+      };
+      
+      if (autoFix) {
+        const now = new Date();
+        
+        if (stock > batchSum) {
+          // Stock is higher than batches — create a corrective batch
+          const gap = stock - batchSum;
+          const batchId = generateId();
+          const corrBatch = {
+            id: batchId,
+            productId: product.id,
+            batchNumber: `RECONCILE-${now.toISOString().slice(0, 10)}`,
+            quantity: gap,
+            qtyRemaining: gap,
+            costPrice: product.cost || 0,
+            salePrice: product.price || 0,
+            supplier: 'SYSTEM-RECONCILIATION',
+            createdAt: now
+          };
+          await localDb.productBatches.add(corrBatch as any);
+          await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(corrBatch));
+          
+          // Update embedded batches
+          const updatedBatches = [...(product.batches || []), corrBatch];
+          await localDb.products.update(product.id, { batches: updatedBatches, updatedAt: now });
+          await queueOp('products', 'update', product.id, toRemoteProduct({ ...product, batches: updatedBatches, updatedAt: now }));
+        } else {
+          // Batches are higher than stock — adjust stock UP to match batches
+          await localDb.products.update(product.id, { stock: batchSum, updatedAt: now });
+          await queueOp('products', 'update', product.id, toRemoteProduct({ ...product, stock: batchSum, updatedAt: now }));
+        }
+        
+        // Log to stock_history
+        const histId = generateId();
+        const histEntry = {
+          id: histId,
+          productId: product.id,
+          changeQty: 0,
+          type: 'adjustment' as const,
+          referenceId: 'RECONCILE',
+          note: `[RECONCILE] stock=${stock}, batches=${batchSum}, diff=${stock - batchSum}. Auto-fixed.`,
+          balanceAfter: Math.max(stock, batchSum),
+          cashierName: 'System',
+          createdAt: now
+        };
+        await localDb.stockHistory.add(histEntry);
+        await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
+        
+        entry.fixed = true;
+      }
+      
+      results.push(entry);
+    }
+  }
+  
+  return results;
+};
 

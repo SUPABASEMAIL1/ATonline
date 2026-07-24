@@ -39,7 +39,8 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
 
   const [billAmount, setBillAmount] = useState('');
   const [billNote, setBillNote] = useState('');
-
+  const [isPaymentManualOverride, setIsPaymentManualOverride] = useState(false);
+  const [isBillManualOverride, setIsBillManualOverride] = useState(false);
   const loadLedger = async (isInitial = true) => {
     try {
       setLoading(true);
@@ -105,7 +106,9 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
         supplier_id: supplier.id,
         amount: amount,
         payment_type: paymentMethod,
-        note: paymentNote
+        note: paymentNote,
+        isManualOverride: isPaymentManualOverride,
+        overrideBy: isPaymentManualOverride ? (state.currentUser?.id || state.currentUser?.username) : undefined,
       });
 
       // Automatically generate an Expense for financial reporting
@@ -125,6 +128,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
 
       sonner.success('Payment recorded!');
       setShowPaymentModal(false);
+      setIsPaymentManualOverride(false);
       loadLedger();
     } catch (err) {
       console.error(err);
@@ -155,11 +159,15 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
       await suppliersService.recordBill({
         supplierId: supplier.id,
         amount: amount,
-        note: billNote || 'Manual Bill Entry'
+        note: billNote || 'Manual Bill Entry',
+        sourceType: 'manual_bill',
+        isManualOverride: isBillManualOverride,
+        overrideBy: isBillManualOverride ? (state.currentUser?.id || state.currentUser?.username) : undefined,
       });
 
       sonner.success('Bill recorded!');
       setShowBillModal(false);
+      setIsBillManualOverride(false);
       loadLedger();
     } catch (err) {
       console.error(err);
@@ -212,14 +220,18 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
     );
   }, [ledger, searchTerm, dateFilter, startDate, endDate]);
 
-  const getBadge = (type: string) => {
+  const getBadge = (type: string, sourceType?: string) => {
+    // Use sourceType for more granular distinction
+    if (sourceType === 'auto_purchase') {
+      return { label: t('auto_purchase', 'AUTO-PURCHASE'), cls: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' };
+    }
     switch (type) {
       case 'payment':
         return { label: t('paid', 'PAID'), cls: 'bg-primary/10 text-emerald-400 border border-primary/20' };
       case 'opening_balance':
         return { label: t('opening_debt', 'OPENING'), cls: 'bg-violet-500/10 text-violet-400 border border-violet-500/20' };
       default:
-        return { label: t('bill', 'BILL'), cls: 'bg-red-500/10 text-red-400 border border-red-500/20' };
+        return { label: t('manual_bill', 'MANUAL BILL'), cls: 'bg-red-500/10 text-red-400 border border-red-500/20' };
     }
   };
 
@@ -359,7 +371,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                 </tr>
               ) : (
                 filteredLedger.map((tx, idx) => {
-                  const badge = getBadge(tx.type);
+                  const badge = getBadge(tx.type, tx.sourceType);
                   return (
                     <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-white/[0.01] transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -411,7 +423,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
             <div className="p-12 text-center text-gray-600 font-bold uppercase text-[10px] tracking-widest">{t('no_transactions_yet', 'No entries found')}</div>
           ) : (
             filteredLedger.map((tx, idx) => {
-              const badge = getBadge(tx.type);
+              const badge = getBadge(tx.type, tx.sourceType);
               return (
                 <div key={idx} className="p-4 flex flex-col gap-2 hover:bg-gray-50 dark:hover:bg-white/[0.01]">
                   <div className="flex justify-between items-start">
@@ -543,6 +555,21 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                 onChange={(e) => setPaymentNote(e.target.value)}
               />
             </div>
+
+            {/* Manual Override Toggle */}
+            <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-3.5 rounded-xl">
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{t('manual_override', 'Manual Override')}</p>
+                <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">{t('override_desc', 'Admin amount correction — logged')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPaymentManualOverride(prev => !prev)}
+                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${isPaymentManualOverride ? 'bg-amber-500' : 'bg-gray-300 dark:bg-white/10'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${isPaymentManualOverride ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -598,6 +625,21 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                 value={billNote}
                 onChange={(e) => setBillNote(e.target.value)}
               />
+            </div>
+
+            {/* Manual Override Toggle */}
+            <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-3.5 rounded-xl">
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{t('manual_override', 'Manual Override')}</p>
+                <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">{t('override_desc', 'Admin amount correction — logged')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBillManualOverride(prev => !prev)}
+                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${isBillManualOverride ? 'bg-amber-500' : 'bg-gray-300 dark:bg-white/10'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${isBillManualOverride ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
             </div>
           </div>
         </div>

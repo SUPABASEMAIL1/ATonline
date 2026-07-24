@@ -1,5 +1,5 @@
 import { ShoppingBag } from 'lucide-react';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency } from '../../lib/currencies';
 
 interface CompactItemRowProps {
   image?: string | null;

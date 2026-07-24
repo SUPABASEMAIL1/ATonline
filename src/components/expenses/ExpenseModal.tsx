@@ -27,6 +27,7 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
     notes: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isManualOverride, setIsManualOverride] = useState(false);
 
   useEffect(() => {
     if (expense) {
@@ -68,7 +69,8 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
         paymentMethod: formData.paymentMethod,
         storeType: formData.storeType,
         notes: formData.notes,
-      });
+        isManualOverride,
+      } as any);
       onClose();
     } catch (error) {
       console.error('Error saving expense:', error);
@@ -249,6 +251,21 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
                 value={formData.notes}
                 onChange={e => setFormData({ ...formData, notes: e.target.value })}
               />
+            </div>
+
+            {/* Manual Override Toggle */}
+            <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-3.5 rounded-xl">
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{t('manual_override', 'Manual Override')}</p>
+                <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">{t('override_desc', 'Admin amount correction — logged')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManualOverride(prev => !prev)}
+                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${isManualOverride ? 'bg-amber-500' : 'bg-gray-300 dark:bg-white/10'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${isManualOverride ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
             </div>
           </div>
         </div>

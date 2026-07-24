@@ -938,6 +938,46 @@ export function startSyncEngine() {
         window.dispatchEvent(new Event('pendingops-changed'));
     });
 
+    // Active Network Watcher: Detects ISP restorations that bypass the OS 'online' event
+    let wasOffline = false;
+    setInterval(async () => {
+        if (!navigator.onLine) {
+            wasOffline = true;
+            return;
+        }
+        
+        // If we are in offline mode or were previously offline, actively ping to check real internet access
+        if (_offlineMode || wasOffline) {
+            try {
+                // Lightweight ping to check real connectivity via Supabase (no CORS issues)
+                const { error } = await supabase.from('app_settings').select('id').limit(1);
+                if (!error) {
+                    if (_offlineMode || wasOffline) {
+                        console.log('[POS SYNC] Network restored via active watcher! Triggering instant sync.');
+                        wasOffline = false;
+                        _offlineMode = false;
+                        _offlineBackoff = 0;
+                        if (_offlineTimer) {
+                            clearTimeout(_offlineTimer);
+                            _offlineTimer = null;
+                        }
+                        // Unstick all pending ops and sync instantly
+                        syncToCloud({ resetRetries: true }).catch(() => {});
+                        // Dispatch online event to trigger SupabaseAppContext loadData(true)
+                        window.dispatchEvent(new Event('online'));
+                    }
+                }
+            } catch (err) {
+                // Still truly offline (e.g. connected to router but ISP is down)
+                wasOffline = true;
+                if (!_offlineMode) {
+                    _offlineMode = true;
+                    scheduleOfflineRetry();
+                }
+            }
+        }
+    }, 8000); // Fast 8-second polling when offline for true instant recovery
+
     // 1-hour auto-recovery and maintenance timer
     setInterval(() => {
         if (navigator.onLine) {

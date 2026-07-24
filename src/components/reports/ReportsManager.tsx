@@ -25,6 +25,7 @@ import { CustomersReport } from './tabs/CustomersReport';
 import { FinancialReport } from './tabs/FinancialReport';
 import { InventoryReport } from './tabs/InventoryReport';
 import { SkeletonLoader } from '../common/SkeletonLoader';
+import { SuppliersReport } from './tabs/SuppliersReport';
 
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -103,7 +104,7 @@ export function ReportsManager() {
   const userPerms = state.currentUser?.permissions || [];
   const hasFullAccess = userRole === 'admin' || userRole === 'manager' || userPerms.includes('access_reports');
 
-  const validReportTypes = ['sales', 'inventory', 'customers', 'expenses', 'financial'] as const;
+  const validReportTypes = ['sales', 'inventory', 'customers', 'expenses', 'financial', 'suppliers'] as const;
   type ReportType = typeof validReportTypes[number];
   const reportType = (validReportTypes.includes(subTab as ReportType) ? subTab : 'sales') as ReportType;
   const [repairing, setRepairing] = useState(false);
@@ -1080,6 +1081,7 @@ export function ReportsManager() {
               { id: 'customers', label: t("customers", "CUSTOMERS"), icon: Users, color: 'bg-teal-600', show: true },
               { id: 'expenses', label: t("expenses", "EXPENSES"), icon: FileText, color: 'bg-rose-600', show: true },
               { id: 'financial', label: t("payments", "PAYMENTS"), icon: DollarSign, color: 'bg-indigo-600', show: true },
+              { id: 'suppliers', label: t("suppliers", "SUPPLIERS"), icon: Truck, color: 'bg-amber-600', show: true },
             ].filter(tab => {
               const role = state.currentUser?.role;
               const perms = state.currentUser?.permissions || [];
@@ -1294,6 +1296,14 @@ export function ReportsManager() {
             globalCategory={selectedCategory}
             globalStore={selectedSaleType}
             sales={filteredSales}
+          />
+        </div>
+      )}
+      {reportType === 'suppliers' && (
+        <div className="relative z-20 mt-2 sm:mt-4">
+          <SuppliersReport
+            currency={state.settings.currency}
+            country={state.settings.country}
           />
         </div>
       )}

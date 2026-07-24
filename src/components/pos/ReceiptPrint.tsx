@@ -293,6 +293,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
 
   // ── Auto-print ──
   const autoPrintStartedRef = useRef(false);
+  const autoPngSavedRef = useRef(false);
 
   useEffect(() => {
     // Prevent background scroll when modal is open
@@ -322,6 +323,68 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       return () => clearTimeout(timer);
     }
   }, [isAutoPrint]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto-Save PNG ──
+  useEffect(() => {
+    const isEnabled = settings.autoSaveReceiptPng;
+    if (!isEnabled || autoPngSavedRef.current) return;
+    autoPngSavedRef.current = true;
+
+    const timer = setTimeout(async () => {
+      try {
+        const receiptEl = document.getElementById('receipt-content');
+        if (!receiptEl) return;
+
+        const originalStyle = receiptEl.style.cssText;
+        receiptEl.style.boxShadow = 'none';
+        receiptEl.style.height = 'auto';
+        receiptEl.style.overflow = 'visible';
+
+        const canvas = await html2canvas(receiptEl, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+          width: receiptEl.offsetWidth,
+          height: receiptEl.scrollHeight,
+          windowHeight: receiptEl.scrollHeight,
+          y: 0, scrollX: 0, scrollY: 0
+        });
+
+        receiptEl.style.cssText = originalStyle;
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+
+          const dateStr = new Date().toISOString().slice(0, 10);
+          const fileName = `${dateStr}_${sale.invoiceNumber || sale.id?.slice(-8)}.png`;
+
+          // Save to IndexedDB
+          try {
+            const { localDb } = await import('../../lib/localDb');
+            await localDb.savedReceiptPngs.put({
+              id: `${dateStr}_${sale.id}`,
+              invoiceNumber: sale.invoiceNumber,
+              saleDate: dateStr,
+              saleId: sale.id,
+              blob,
+              fileName,
+              createdAt: new Date()
+            });
+          } catch (dbErr) {
+            console.warn('[ReceiptPrint] Failed to save PNG to IndexedDB:', dbErr);
+          }
+
+          // Trigger download
+          triggerDownload(blob, fileName);
+        }, 'image/png');
+      } catch (err) {
+        console.error('[ReceiptPrint] Auto-save PNG failed:', err);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [settings.autoSaveReceiptPng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Keyboard Shortcuts ──
   useEffect(() => {

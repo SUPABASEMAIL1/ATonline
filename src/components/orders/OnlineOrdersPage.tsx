@@ -3,7 +3,7 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { Sale } from '../../types';
 import { salesService } from '../../lib/services';
 import { formatCurrency } from '../../lib/currencies';
-import { ShoppingBag, ChevronRight, CheckCircle2, XCircle, MapPin, Phone, FileText, Bike, Store, Home, Clock, Flame } from 'lucide-react';
+import { ShoppingBag, ChevronRight, CheckCircle2, XCircle, MapPin, Phone, FileText, Bike, Store, Home, Clock, Flame, Info } from 'lucide-react';
 import { sonner } from '../../lib/sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -365,7 +365,7 @@ export function OnlineOrdersPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-[#0a0a0a] overflow-hidden">
       {/* Header Tabs (Hidden on mobile if detail is open) */}
-      <div className={`flex gap-4 border-b border-gray-200 dark:border-gray-800 px-6 pt-4 shrink-0 bg-white dark:bg-[#111] ${isMobileDetailOpen ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`flex gap-4 border-b border-gray-200 dark:border-gray-800 px-6 pt-4 shrink-0 bg-white dark:bg-[#111] ${isMobileDetailOpen ? 'hidden md:flex' : 'flex'} items-center`}>
         <button 
           onClick={() => { setActiveTab('active'); setSelectedOrderId(null); setIsMobileDetailOpen(false); }}
           className={`font-black uppercase tracking-widest text-[11px] pb-3 border-b-2 transition-colors ${activeTab === 'active' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'} flex items-center gap-2`}
@@ -381,6 +381,16 @@ export function OnlineOrdersPage() {
         >
           Past Orders
         </button>
+
+        <div className="ml-auto mb-3 flex items-center gap-2 text-[10px] font-bold text-gray-400 group cursor-help relative">
+          <Info className="w-4 h-4 text-gray-400" />
+          <span className="hidden sm:inline">How does stock work?</span>
+          <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-[11px] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+            <p className="mb-2">📦 <strong>Pending Orders:</strong> Do NOT affect your stock. Inventory is untouched until accepted.</p>
+            <p className="mb-2">✅ <strong>Accepted Orders:</strong> Stock is deducted when you finalize the bill in POS.</p>
+            <p>🗑️ <strong>Cancelled Orders:</strong> Automatically deleted from the database after 24 hours.</p>
+          </div>
+        </div>
       </div>
 
       {/* Main Split Layout */}

@@ -278,23 +278,28 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
             dispatch({ type: 'DELETE_SALE', payload: oldSaleId });
           } catch (deleteError) {
             // CRITICAL: New sale exists, old sale restoration failed
-            // Instead of leaving both as 'completed', mark old as 'void'
+            // Step 1: Rollback the new sale's stock deduction to prevent double-decrement
             console.error('BILL EDIT CONFLICT: New sale created but old sale delete failed', { oldSaleId, newSaleId: savedSale.id, deleteError });
 
             try {
-              // Fallback: Status update instead of full delete/stock reversal
+              await salesService.delete(savedSale.id, profile?.name || 'Admin');
+            } catch (rollbackError) {
+              console.error('Failed to rollback new sale stock after edit failure:', rollbackError);
+            }
+
+            // Step 2: Mark old sale as void so it doesn't count toward revenue
+            try {
               const existingOld = await localDb.sales.get(oldSaleId);
               if (existingOld) {
                 const voidedSale = {
                   ...existingOld,
                   status: 'refunded' as const,
-                  notes: (existingOld.notes ? existingOld.notes + ' ' : '') + `[VOID] Replaced by ${savedSale.invoiceNumber} on edit`,
+                  notes: (existingOld.notes ? existingOld.notes + ' ' : '') + `[VOID] Edit failed — old sale preserved`,
                   updatedAt: new Date()
                 };
                 await localDb.sales.put(voidedSale);
                 await queueOp('sales', 'update', oldSaleId, toRemoteSale(voidedSale));
 
-                // Update in memory too so it reflects the 'void' state
                 const updatedSales = state.sales.map(s => s.id === oldSaleId ? voidedSale : s);
                 dispatch({ type: 'SET_SALES', payload: updatedSales });
               }
@@ -302,11 +307,12 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
               console.error('Failed to void old sale during conflict:', statusError);
             }
 
-            sonner.warning(
-              '⚠️ Bill Updated with Warning',
-              'The new sale was saved, but the original could not be fully removed. Inventory may be double-deducted. Please verify stock counts.',
-              'Understood'
+            sonner.error(
+              '⚠️ Bill Edit Failed',
+              'The new bill could not be saved. The old bill has been preserved.'
             );
+            setIsProcessing(false);
+            return;
           }
 
           // Phase 3: Finalize UI
@@ -520,76 +526,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
 
                       const { bundles, standaloneItems } = groupCartItems(state.cart);
 
-                      const renderItemCard = (item: CartItem, iIdx: number, isNested = false) => {
-                        const hidePrices = isNested && item.bundleHideItemPrices === true;
-                        return (
-                          <div key={iIdx} className={cn(
-                            "flex items-center gap-3 bg-white dark:bg-white/5 p-2 rounded-2xl border border-gray-50 dark:border-white/5 shadow-sm",
-                            isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
-                          )}>
-                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{iIdx}</span>
-                            <div className="h-10 w-10 bg-gray-100 dark:bg-black/20 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/10 aspect-square">
-                              {item.product.image ? (
-                                <img src={item.product.image} className="h-full w-full object-cover" />
-                              ) : (
-                                <ShoppingBag className="w-5 h-5 text-gray-600" />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[11px] font-black uppercase text-gray-900 dark:text-white truncate">{item.product.name}</p>
-                              {(item.selectedVariant || item.selectedVariantLabel || (item.selectedModifiers && item.selectedModifiers.length > 0)) && (
-                                <div className="flex flex-col gap-0.5 my-1">
-                                  {item.selectedVariantLabel && (
-                                    <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
-                                      {item.selectedVariantLabel}
-                                    </span>
-                                  )}
-                                  {!item.selectedVariantLabel && item.selectedVariant && (
-                                    <span className="text-[8px] font-bold text-gray-600 dark:text-gray-400 leading-tight truncate">
-                                      {item.selectedVariant}
-                                    </span>
-                                  )}
-                                  {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                                    <span className="text-[8px] font-bold text-primary dark:text-primary leading-tight truncate">
-                                      + {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              {item.addonItems && item.addonItems.length > 0 && (
-                                <div className="my-1">
-                                  <span className="text-[7px] font-bold text-violet-500 dark:text-violet-400 leading-tight truncate block">
-                                    + Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
-                                  </span>
-                                </div>
-                              )}
-                              {item.toppings && item.toppings.length > 0 && (
-                                <div className="my-1">
-                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
-                                    + {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
-                                  </span>
-                                </div>
-                              )}
-                              {item.serialNumber && (
-                                <div className="my-1">
-                                  <span className="text-[8px] font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-1 py-[1px] rounded max-w-fit leading-none tracking-widest uppercase">
-                                    SN: {item.serialNumber}
-                                  </span>
-                                </div>
-                              )}
-                              {!hidePrices && (
-                                <div className="flex items-center justify-between mt-0.5">
-                                  <p className="text-[9px] font-bold text-gray-600 uppercase">
-                                    {Math.abs(item.quantity)} × {formatCurrency(item.product.price, state.settings.currency)}
-                                  </p>
-                                  <p className="text-[11px] font-black text-gray-900 dark:text-white tabular-nums">
-                                    {formatCurrency(item.product.price * item.quantity, state.settings.currency)}
-                                  </p>
-                                </div>
-                              )}
-                              {showDiscount && !isNested && item.discount > 0 && (
-                                <div className="flex items-center justify-between text-[8px] text-rose-500 font-black mt-1.5 uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">
-                                  <span className="flex items-center gap-1">
                       const bundleThumb = (b: any) => {
                         const bundleDef = state.bundles?.find(x => x.id === b.bundleId);
                         if (bundleDef?.image) return bundleDef.image;

@@ -462,7 +462,7 @@ export function ExpenseManager() {
                         <TrendingDown className="h-4 w-4 text-rose-500" />
                       </div>
                       <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-500 border border-orange-500/20 uppercase tracking-tight">
-                        {expense.category.substring(0, 8)}
+                        {(expense.category || 'General').substring(0, 8)}
                       </span>
                     </div>
 

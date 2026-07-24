@@ -54,7 +54,7 @@
 
 ## 🔴 FINANCIAL INTEGRITY RULES
 
-See [GEMINI.md](GEMINI.md) sections F1-F8 for complete financial rules:
+See [GEMINI.md](GEMINI.md) sections F1-F11 for complete financial rules:
 - F1: Duplicate Product Prevention
 - F2: Stock History Is Mandatory
 - F3: Dual Batch Sync (products.stock, product_batches.qty_remaining, products.batches[])
@@ -63,6 +63,9 @@ See [GEMINI.md](GEMINI.md) sections F1-F8 for complete financial rules:
 - F6: Reports Must Query DB Directly
 - F7: Shift ID Is Mandatory On All Records
 - F8: Stock Audit Function
+- F9: Purchase Record Deletion Must Restore Batches + Log History
+- F10: Bill Edit Rollback On Failure (Both CheckoutModal + CheckoutPage)
+- F11: Reconcile Tool Must Exist (reconcileAllStock + UI button)
 
 ---
 
@@ -143,7 +146,7 @@ After update: run `npm run build`, clear browser IndexedDB.
 - **Local-First Handshake**: Load remote only if cloud `updatedAt` is 5+ minutes newer than local
 - **Strict Snake-Case Mapping**: `mapSettings` always prioritizes Supabase snake_case. Never use spread operator
 - **Instant Persistence**: Every setting syncs immediately on change via `handleInstantUpdate`
-- **Singleton ID**: Always use `00000000-0000-4000-8000-000000000001`
+- **Singleton ID**: Always use `00000000-0000-4000-8000-000000000001`. **Strict Rule:** NEVER fetch settings using a generic `select('*')` without appending `.eq('id', SETTINGS_ID)`. Database bugs can sometimes create garbage rows, and a generic query will fetch a random row, causing a global settings reset bug on refresh.
 - **Type Safety**: Font Weight always String. Sliders use correct type.
 
 ---

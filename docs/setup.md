@@ -389,6 +389,7 @@ Settings.tsx (UI Toggle)
 | `enableExtraCharges` | boolean | false | Payment |
 | `allowCreditOverLimit` | boolean | true | Payment |
 | `enableKotPrinter` | boolean | false | Kitchen |
+| `autoSaveReceiptPng` | boolean | false | Auto-save receipt PNG |
 | `posGridColumns` | number | 4 | POS |
 | `soundEnabled` | boolean | true | System |
 | `offlineMode` | boolean | true | Sync |
@@ -667,7 +668,7 @@ curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/que
   -d '{"query": "SELECT column_name FROM information_schema.columns WHERE table_name = '\''app_settings'\'' AND column_name = '\''enable_kot_printer'\''"}'
 ```
 
-**Verify these columns exist in all 3 DBs:** enable_kot_printer, enable_split_payment, enable_extra_charges, allow_credit_over_limit, pos_grid_columns, variant_data, modifiers, split_payments, extra_charges
+**Verify these columns exist in all 3 DBs:** enable_kot_printer, enable_split_payment, enable_extra_charges, allow_credit_over_limit, pos_grid_columns, variant_data, modifiers, split_payments, extra_charges, auto_save_receipt_png
 
 ### Check 2: Realtime Publication
 

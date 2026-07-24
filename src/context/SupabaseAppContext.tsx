@@ -255,6 +255,7 @@ const getCachedSettings = (): AppState['settings'] => {
     posGridColumns: 4,
     enableSplitPayment: false,
     enableExtraCharges: false,
+    autoSaveReceiptPng: false,
     estorePickupEnabled: true,
     estoreDeliveryEnabled: true,
     storeType: 'both',
@@ -277,6 +278,20 @@ const getCachedSettings = (): AppState['settings'] => {
   return defaultSettings;
 };
 
+const getCachedActiveSalesTab = (): string => {
+  try {
+    return localStorage.getItem('pos_active_sales_tab') || '';
+  } catch (_) { return ''; }
+};
+
+const getCachedSalesTabs = (): SalesTab[] => {
+  try {
+    const cached = localStorage.getItem('pos_sales_tabs');
+    if (cached) return JSON.parse(cached);
+  } catch (_) {}
+  return [];
+};
+
 const initialState: AppState = {
   products: [],
   customers: [],
@@ -287,8 +302,8 @@ const initialState: AppState = {
   currentUser: getCachedCurrentUser(),
   selectedCustomer: null,
   settings: getCachedSettings(),
-  salesTabs: [],
-  activeSalesTab: '',
+  salesTabs: getCachedSalesTabs(),
+  activeSalesTab: getCachedActiveSalesTab(),
   billDiscountValue: 0,
   billDiscountType: 'percentage',
   expenses: [],
@@ -463,8 +478,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
           if (productIdx >= 0 && updatedProducts[productIdx].trackInventory !== false) {
             const qtyToDeduct = item.weight || item.quantity;
             const updatedProduct = { ...updatedProducts[productIdx] };
-            // Mathematically correct: positive qty deducts stock, negative qty (return) adds stock
-            updatedProduct.stock = (updatedProduct.stock || 0) - qtyToDeduct;
+            // Floor stock at 0 — never show negative stock in UI
+            updatedProduct.stock = Math.max(0, (updatedProduct.stock || 0) - qtyToDeduct);
             updatedProducts[productIdx] = updatedProduct;
           }
         });
@@ -492,12 +507,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
       if (saleToDelete && saleToDelete.customerId) {
         const isCreditSale = saleToDelete.status === 'credit' || saleToDelete.paymentMethod === 'credit';
+        const remainingTotal = saleToDelete.total - (saleToDelete.refundedAmount || 0);
         updatedCustomers = state.customers.map(c => {
           if (c.id === saleToDelete.customerId) {
             return {
               ...c,
-              creditUsed: isCreditSale ? Math.max(0, (c.creditUsed || 0) - saleToDelete.total) : (c.creditUsed || 0),
-              totalPurchases: Math.max(0, (c.totalPurchases || 0) - saleToDelete.total),
+              creditUsed: isCreditSale ? Math.max(0, (c.creditUsed || 0) - remainingTotal) : (c.creditUsed || 0),
+              totalPurchases: Math.max(0, (c.totalPurchases || 0) - remainingTotal),
               updatedAt: new Date()
             };
           }
@@ -507,7 +523,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
       // ── RESTORE STOCK IN MEMORY (RULE F2) ──
       if (saleToDelete && (saleToDelete.status === 'completed' || saleToDelete.status === 'credit')) {
-        const isReturn = saleToDelete.total < 0 || saleToDelete.id.startsWith('RET-') || saleToDelete.notes?.includes('RETURN');
 
         saleToDelete.items.forEach(item => {
           const productIdx = updatedProducts.findIndex(p => p.id === item.product.id);
@@ -841,7 +856,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       localStorage.removeItem('pos_selected_customer');
     }
-  }, [state.cart, state.editingSaleId, state.selectedCustomer]);
+    if (state.activeSalesTab) {
+      localStorage.setItem('pos_active_sales_tab', state.activeSalesTab);
+    } else {
+      localStorage.removeItem('pos_active_sales_tab');
+    }
+    if (state.salesTabs.length > 0) {
+      localStorage.setItem('pos_sales_tabs', JSON.stringify(state.salesTabs));
+    } else {
+      localStorage.removeItem('pos_sales_tabs');
+    }
+  }, [state.cart, state.editingSaleId, state.selectedCustomer, state.activeSalesTab, state.salesTabs]);
 
   // Load data from Supabase when user is authenticated
   useEffect(() => {
@@ -894,6 +919,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('pos_settings', JSON.stringify(state.settings));
     }
   }, [state.settings]);
+
+  // 🛡️ Validate active sales tab whenever tabs change (e.g. after loadData)
+  useEffect(() => {
+    if (state.salesTabs.length > 0 && state.activeSalesTab) {
+      const tabExists = state.salesTabs.some(t => t.id === state.activeSalesTab);
+      if (!tabExists) {
+        const savedActiveTab = localStorage.getItem('pos_active_sales_tab');
+        const restoredId = savedActiveTab && state.salesTabs.some(t => t.id === savedActiveTab)
+          ? savedActiveTab
+          : state.salesTabs[0].id;
+        if (restoredId !== state.activeSalesTab) {
+          dispatch({ type: 'SET_ACTIVE_SALES_TAB', payload: restoredId });
+        }
+      }
+    }
+  }, [state.salesTabs]);
 
 
 
@@ -1027,15 +1068,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // which closes all open modals and blinks cards.
           if (settingsDebounceTimer) clearTimeout(settingsDebounceTimer);
           settingsDebounceTimer = setTimeout(async () => {
+            // SECURITY GUARD: If we have pending local changes for app_settings, ignore stale cloud heartbeats
+            const pendingOps = await localDb.pendingOps.where('entity').equals('app_settings').toArray();
+            if (pendingOps.length > 0) {
+              console.log('[Realtime] Ignoring app_settings update because local pending changes exist.');
+              return;
+            }
+
             const mapped = mapSettings(payload.new);
             await localDb.appSettings.put(mapped);
-            // Only dispatch if this is a real settings change (not just updated_at heartbeat)
+            // Only dispatch if content actually changed (skip heartbeat-only updates)
             const localSettings = await localDb.appSettings.get(SETTINGS_ID);
-            const remoteTs = payload.new.updated_at ? new Date(payload.new.updated_at).getTime() : 0;
-            const localTs = localSettings?.updatedAt ? new Date(localSettings.updatedAt as any).getTime() : 0;
-            // If remote is more than 5 minutes newer, it's a real settings change — dispatch it
-            if (remoteTs > localTs + 5 * 60 * 1000) {
-              dispatch({ type: 'SET_SETTINGS', payload: mapped });
+            if (localSettings) {
+              const { updatedAt: _, ...localContent } = localSettings as any;
+              const { updatedAt: _r, ...remoteContent } = mapped as any;
+              const isRealChange = JSON.stringify(localContent) !== JSON.stringify(remoteContent);
+              if (isRealChange) {
+                dispatch({ type: 'SET_SETTINGS', payload: mapped });
+              }
             }
           }, 2000);
         }
@@ -1190,6 +1240,85 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.users.delete(payload.old.id);
           const all = await localDb.users.toArray();
           dispatch({ type: 'SET_USERS', payload: all });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_tabs' }, async (payload) => {
+        const currentUserId = user?.id;
+        if (!currentUserId) return;
+        const affectedUserId = (payload.new as any)?.user_id || (payload.old as any)?.user_id;
+        if (affectedUserId !== currentUserId) return;
+
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (await isPendingDelete('sales_tabs', payload.new.id)) return;
+          const row = payload.new as any;
+          const mapped = {
+            ...row,
+            userId: row.user_id,
+            editingSaleId: row.editing_sale_id ?? null,
+          };
+          await localDb.salesTabs.put(mapped);
+          const allTabs = await localDb.salesTabs.where('userId').equals(currentUserId).toArray();
+          dispatch({ type: 'SET_SALES_TABS', payload: allTabs.slice(0, 3) });
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.salesTabs.delete(payload.old.id);
+          const allTabs = await localDb.salesTabs.where('userId').equals(currentUserId).toArray();
+          dispatch({ type: 'SET_SALES_TABS', payload: allTabs.slice(0, 3) });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_order_items' }, async (payload) => {
+        if (await isPendingDelete('purchase_order_items', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.purchaseOrderItems.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.purchaseOrderItems.delete(payload.old.id).catch(() => {});
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bundles' }, async (payload) => {
+        if (await isPendingDelete('bundles', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.bundles.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.bundles.delete(payload.old.id).catch(() => {});
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bundle_items' }, async (payload) => {
+        if (await isPendingDelete('bundle_items', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.bundleItems.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.bundleItems.delete(payload.old.id).catch(() => {});
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bundle_slots' }, async (payload) => {
+        if (await isPendingDelete('bundle_slots', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.bundleSlots.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.bundleSlots.delete(payload.old.id).catch(() => {});
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bundle_slot_options' }, async (payload) => {
+        if (await isPendingDelete('bundle_slot_options', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.bundleSlotOptions.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.bundleSlotOptions.delete(payload.old.id).catch(() => {});
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'variant_stock_history' }, async (payload) => {
+        if (await isPendingDelete('variant_stock_history', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.variantStockHistory.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.variantStockHistory.delete(payload.old.id).catch(() => {});
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_addons' }, async (payload) => {
+        if (await isPendingDelete('product_addons', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.productAddons.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.productAddons.delete(payload.old.id).catch(() => {});
         }
       })
       .subscribe((status) => {
@@ -1398,6 +1527,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const fetchBackgroundData = async () => {
       try {
+        const lastSyncRecord = await localDb.syncHistory.orderBy('timestamp').last();
+        // 5 minute buffer for safety overlap to prevent missing edge-case writes
+        const lastSyncTime = lastSyncRecord ? new Date(lastSyncRecord.timestamp - 5 * 60000) : undefined;
+
+        const fetchDeltasAndMerge = async (localTable: any, fetchFn: (ts?: Date) => Promise<any[]>) => {
+          const remoteDeltas = await fetchFn(lastSyncTime);
+          if (!lastSyncTime) return remoteDeltas;
+          
+          const allLocal = await localTable.toArray();
+          const mergedMap = new Map(allLocal.map((i: any) => [i.id, i]));
+          remoteDeltas.forEach((r: any) => mergedMap.set(r.id, r));
+          return Array.from(mergedMap.values());
+        };
+
         let totalBytes = 0;
         const totalSteps = 10;
         let currentStep = 2;
@@ -1425,25 +1568,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           categoriesService.fetchRemote()
         ]);
         if (settings) {
-          // CRITICAL: Don't overwrite local settings if we have a pending sync operation
-          const pending = await localDb.pendingOps
-            .where('[entity+entityId]')
-            .equals(['app_settings', SETTINGS_ID])
-            .first();
-
           const local = await localDb.appSettings.get(SETTINGS_ID);
-
-          // Only overwrite if no pending ops AND remote is strictly newer or local is missing
-          const remoteTs = settings.updatedAt ? new Date(settings.updatedAt).getTime() : 0;
-          const localTs = local?.updatedAt ? new Date(local.updatedAt).getTime() : 0;
-          const remoteIsNewer = !local || (remoteTs > localTs + 2000);
-
-          if (!pending && remoteIsNewer) {
-            console.log(`[Handshake] Updating settings from cloud (Remote: ${remoteTs} vs Local: ${localTs})`);
+          const pendingSettingsOps = await localDb.pendingOps.where('entity').equals('app_settings').toArray();
+          
+          if (!local || pendingSettingsOps.length === 0) {
+            console.log(`[Handshake] Syncing settings from cloud`);
             dispatch({ type: 'SET_SETTINGS', payload: settings });
             await localDb.appSettings.put(settings);
           } else {
-            console.log(`[Handshake] Preserving local settings. Reason: ${pending ? 'Sync Pending' : 'Local is newer/same'}`);
+            console.log(`[Handshake] Preserving local settings due to pending changes`);
           }
         }
         if (categoriesData) {
@@ -1453,28 +1586,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateStatus('Cloud handshake complete...', (categoriesData?.length || 0) + 1);
 
         // Phase 2: Sequential fetch from Supabase to seed local cache
+        // Metadata: Full Sync (paginated) to support hard deletes
         const products = await productsService.fetchRemote();
         updateStatus(`Fetched ${products.length} products...`, products.length);
 
         const customers = await customersService.fetchRemote();
         updateStatus(`Fetched ${customers.length} customers...`, customers.length);
 
-        const sales = await salesService.fetchRemote();
+        // Transactional: Delta Sync to drastically improve speed
+        const sales = await fetchDeltasAndMerge(localDb.sales, salesService.fetchRemote);
         updateStatus(`Fetched ${sales.length} sales records...`, sales.length);
 
         const [discounts, usersList, expenses, purchaseRecords, suppliersData] = await Promise.all([
-          discountsService.fetchRemote(),
-          usersService.fetchRemote(),
-          expensesService.fetchRemote(),
-          purchaseRecordsService.fetchRemote(),
-          suppliersService.fetchRemote()
+          discountsService.fetchRemote(), // Metadata
+          usersService.fetchRemote(), // Metadata
+          fetchDeltasAndMerge(localDb.expenses, expensesService.fetchRemote), // Transactional
+          fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
+          suppliersService.fetchRemote() // Metadata
         ]);
         updateStatus('Syncing marketing and procurement data...', discounts.length + usersList.length + expenses.length + purchaseRecords.length + suppliersData.length);
 
         // Fetch sales tabs, supplier transactions, product batches, stock history, payments
         const [salesTabsData, supplierTxData, remoteBatches, remoteStockHistory, remotePayments] = await Promise.all([
           supabase.from('sales_tabs').select('*').eq('user_id', user.id),
-          supplierTransactionsService.fetchRemote().catch(() => []),
+          fetchDeltasAndMerge(localDb.supplierTransactions, supplierTransactionsService.fetchRemote).catch(() => []),
           supabase.from('product_batches').select('*').then(r => (r.data || []).map((b: any) => ({
             ...b,
             productId: b.product_id ?? b.productId,
@@ -1484,10 +1619,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             salePrice: b.sale_price ?? b.salePrice,
             createdAt: b.created_at ? new Date(b.created_at) : new Date(),
           }))).catch(() => []),
-          stockHistoryService.fetchRemote().catch(() => []),
-          supabase.from('payments').select('*').then(r => (r.data || []).map(mapPayment)).catch(() => [])
+          fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote).catch(() => []),
+          fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(() => [])
         ]);
-        const salesTabs = (salesTabsData.data || []).map(t => ({ ...t, userId: t.user_id, selectedCustomerId: t.selected_customer_id }));
+        const salesTabs = (salesTabsData.data || []).map(t => ({ ...t, userId: t.user_id, editingSaleId: t.editing_sale_id ?? null }));
 
         // Seed remote batches into local productBatches table so batch hydration works
         if (remoteBatches.length > 0) {
@@ -1590,7 +1725,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_SALES', payload: mergedSales });
         dispatch({ type: 'SET_DISCOUNTS', payload: mergedDiscounts });
         dispatch({ type: 'SET_USERS', payload: mergedUsers });
-        dispatch({ type: 'SET_SALES_TABS', payload: mergedSalesTabs as SalesTab[] });
+        if (mergedSalesTabs.length > 0) dispatch({ type: 'SET_SALES_TABS', payload: mergedSalesTabs as SalesTab[] });
         dispatch({ type: 'SET_SUPPLIERS', payload: mergedSuppliers });
         dispatch({ type: 'SET_PRODUCT_BATCHES', payload: allBatches });
         dispatch({ type: 'SET_EXPENSES', payload: mergedExpenses });
@@ -1613,6 +1748,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localDb.productBatches,
             localDb.stockHistory,
             localDb.payments,
+            localDb.salesTabs,
             localDb.pendingOps,
             async () => {
               // Helper for smart deletion to prevent race condition data loss
@@ -1647,43 +1783,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 }
               };
 
+              const getSafeItemsToPut = async (entityName: string, mergedItems: any[]) => {
+                const pendingOps = await localDb.pendingOps.where('entity').equals(entityName).toArray();
+                const pendingIds = new Set(pendingOps.map(op => op.entityId));
+                return mergedItems.filter(item => !pendingIds.has(item.id));
+              };
+
               await processDeletions(localDb.products, mergedProducts, 'products');
-              if (mergedProducts.length > 0) await localDb.products.bulkPut(mergedProducts);
+              const safeProducts = await getSafeItemsToPut('products', mergedProducts);
+              if (safeProducts.length > 0) await localDb.products.bulkPut(safeProducts);
 
               await processDeletions(localDb.customers, mergedCustomers, 'customers');
-              if (mergedCustomers.length > 0) await localDb.customers.bulkPut(mergedCustomers);
+              const safeCustomers = await getSafeItemsToPut('customers', mergedCustomers);
+              if (safeCustomers.length > 0) await localDb.customers.bulkPut(safeCustomers);
 
               await processDeletions(localDb.sales, mergedSales, 'sales');
-              if (mergedSales.length > 0) await localDb.sales.bulkPut(mergedSales);
+              const safeSales = await getSafeItemsToPut('sales', mergedSales);
+              if (safeSales.length > 0) await localDb.sales.bulkPut(safeSales);
 
               await processDeletions(localDb.discounts, mergedDiscounts, 'discounts');
-              if (mergedDiscounts.length > 0) await localDb.discounts.bulkPut(mergedDiscounts);
+              const safeDiscounts = await getSafeItemsToPut('discounts', mergedDiscounts);
+              if (safeDiscounts.length > 0) await localDb.discounts.bulkPut(safeDiscounts);
 
               await processDeletions(localDb.users, mergedUsers, 'users');
-              if (mergedUsers.length > 0) await localDb.users.bulkPut(mergedUsers);
+              const safeUsers = await getSafeItemsToPut('users', mergedUsers);
+              if (safeUsers.length > 0) await localDb.users.bulkPut(safeUsers);
 
               await processDeletions(localDb.suppliers, mergedSuppliers, 'suppliers');
-              if (mergedSuppliers.length > 0) await localDb.suppliers.bulkPut(mergedSuppliers);
+              const safeSuppliers = await getSafeItemsToPut('suppliers', mergedSuppliers);
+              if (safeSuppliers.length > 0) await localDb.suppliers.bulkPut(safeSuppliers);
 
               await processDeletions(localDb.expenses, mergedExpenses, 'expenses');
-              if (mergedExpenses.length > 0) await localDb.expenses.bulkPut(mergedExpenses);
+              const safeExpenses = await getSafeItemsToPut('expenses', mergedExpenses);
+              if (safeExpenses.length > 0) await localDb.expenses.bulkPut(safeExpenses);
 
               await processDeletions(localDb.purchaseRecords, mergedPurchaseRecords, 'purchase_records');
-              if (mergedPurchaseRecords.length > 0) await localDb.purchaseRecords.bulkPut(mergedPurchaseRecords);
+              const safePurchaseRecords = await getSafeItemsToPut('purchase_records', mergedPurchaseRecords);
+              if (safePurchaseRecords.length > 0) await localDb.purchaseRecords.bulkPut(safePurchaseRecords);
+
+              await processDeletions(localDb.salesTabs, mergedSalesTabs, 'sales_tabs');
+              const safeSalesTabs = await getSafeItemsToPut('sales_tabs', mergedSalesTabs);
+              if (safeSalesTabs.length > 0) await localDb.salesTabs.bulkPut(safeSalesTabs);
 
               await processDeletions(localDb.productBatches, allBatches, 'product_batches');
-              if (allBatches.length > 0) await localDb.productBatches.bulkPut(allBatches);
+              const safeBatches = await getSafeItemsToPut('product_batches', allBatches);
+              if (safeBatches.length > 0) await localDb.productBatches.bulkPut(safeBatches);
 
               await processDeletions(localDb.stockHistory, remoteStockHistory, 'stock_history');
-              if (remoteStockHistory.length > 0) await localDb.stockHistory.bulkPut(remoteStockHistory);
+              const safeStockHistory = await getSafeItemsToPut('stock_history', remoteStockHistory);
+              if (safeStockHistory.length > 0) await localDb.stockHistory.bulkPut(safeStockHistory);
 
               await processDeletions(localDb.payments, mergedPayments, 'payments');
-              if (mergedPayments.length > 0) await localDb.payments.bulkPut(mergedPayments);
+              const safePayments = await getSafeItemsToPut('payments', mergedPayments);
+              if (safePayments.length > 0) await localDb.payments.bulkPut(safePayments);
             }
           );
           if (supplierTxData.length > 0) {
             dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: supplierTxData });
-            await localDb.supplierTransactions.bulkPut(supplierTxData).catch(() => { });
+            const safeSupplierTx = await getSafeItemsToPut('supplier_transactions', supplierTxData);
+            if (safeSupplierTx.length > 0) await localDb.supplierTransactions.bulkPut(safeSupplierTx).catch(() => { });
           }
 
           // Load bundles from cloud
@@ -1761,6 +1919,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             });
             setTimeout(() => dispatch({ type: 'SET_SYNC_PROGRESS', payload: null }), 1000);
           }
+          
+          // Record successful sync timestamp for future delta syncs
+          await localDb.syncHistory.add({ timestamp: Date.now() });
+
           const remainingAfterFetch = await localDb.pendingOps.count();
           if (remainingAfterFetch === 0) {
             console.log(`✅ Full Sync Complete. ${remoteBundles.length > 0 ? `${remoteBundles.length} bundles restored` : ''}`);

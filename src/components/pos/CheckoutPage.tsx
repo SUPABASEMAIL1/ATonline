@@ -31,6 +31,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [amountPaid, setAmountPaid] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingLock = useRef(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [saleNotes, setSaleNotes] = useState('');
@@ -193,6 +194,9 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const handlePayment = async () => {
     // Keep ref synced so the keyboard shortcut always calls this latest version
     handlePaymentRef.current = handlePayment;
+    // ── DOUBLE-CLICK GUARD ──
+    if (processingLock.current) return;
+    processingLock.current = true;
     // ── CREDIT LIMIT ENFORCEMENT (RULE F9) ──
     if (paymentMethod === 'credit' || (paymentMethod === 'split' && splitPayments.some(p => p.method === 'credit'))) {
       if (!state.selectedCustomer) {
@@ -289,13 +293,20 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
             dispatch({ type: 'DELETE_SALE', payload: oldSaleId });
           } catch (deleteError) {
             console.error('BILL EDIT CONFLICT: New sale created but old sale delete failed', { oldSaleId, newSaleId: savedSale.id, deleteError });
+            // Restore stock for the new sale since old sale wasn't deleted,
+            // preventing double-decrement
+            try {
+              await salesService.delete(savedSale.id, profile?.name || 'Admin');
+            } catch (rollbackError) {
+              console.error('Failed to rollback new sale stock after edit failure:', rollbackError);
+            }
             try {
               const existingOld = await localDb.sales.get(oldSaleId);
               if (existingOld) {
                 const voidedSale = {
                   ...existingOld,
-                  status: 'refunded' as const,
-                  notes: (existingOld.notes ? existingOld.notes + ' ' : '') + `[VOID] Replaced by ${savedSale.invoiceNumber} on edit`,
+                  status: 'cancelled' as const,
+                  notes: (existingOld.notes ? existingOld.notes + ' ' : '') + `[VOID] Edit failed — old sale preserved`,
                   updatedAt: new Date()
                 };
                 await localDb.sales.put(voidedSale);
@@ -304,11 +315,11 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 dispatch({ type: 'SET_SALES', payload: updatedSales });
               }
             } catch (statusError) {
-              console.error('Failed to void old sale during conflict:', statusError);
+              console.error('Failed to mark old sale during conflict:', statusError);
             }
-            sonner.warning(
-              '⚠️ Bill Updated with Warning',
-              'The new bill was recorded successfully, but removing the old bill record had an issue. It has been marked as void.'
+            sonner.error(
+              '⚠️ Bill Edit Failed',
+              'The new bill could not be saved. The old bill has been preserved.'
             );
           }
           dispatch({ type: 'SET_EDITING_SALE_ID', payload: null });
@@ -331,9 +342,11 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
       setCompletedSale(savedSale);
       onComplete(savedSale);
       setIsProcessing(false);
+      processingLock.current = false;
       setShowReceipt(true);
     } catch (error: any) {
       setIsProcessing(false);
+      processingLock.current = false;
       sonner.error('Payment Failed', error.message || 'Payment processing failed. Please try again.');
     }
   };

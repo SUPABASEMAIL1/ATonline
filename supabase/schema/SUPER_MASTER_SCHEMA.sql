@@ -169,6 +169,21 @@
 --   5. services.ts: new variantStockHistoryService, productAddonsService;
 --      salesService.create now deducts variant stock + addon stock
 --   6. syncEngine.ts: registers variant_stock_history, product_addons
+--
+-- [2026-07-24] Full Inventory Integrity Audit + Reconciliation Tool
+--   Migration: supabase/migrations/20260724000000_fix_legacy_batches.sql
+--   Changes:
+--   1. DB: Fixed 12 stock/batch mismatches (phantom LEGACY-BACKFILL-001 batches cleaned,
+--      corrective batches created for orphan stock, negative stock reset)
+--   2. CODE: PurchaseHistory.tsx handleDeleteRecord() now restores batch qty_remaining
+--      and logs stock_history entry on purchase record deletion
+--   3. CODE: SupabaseAppContext.tsx DELETE_SALE reducer uses (total - refundedAmount)
+--      instead of bare total for customer credit/purchases reversal
+--   4. CODE: CheckoutModal.tsx bill-edit rollback now deletes the new sale's stock
+--      deduction if old sale delete fails (prevents double-deduction)
+--   5. CODE: services.ts added reconcileAllStock() — cross-checks products.stock vs
+--      SUM(product_batches.qty_remaining) with optional auto-fix
+--   6. CODE: InventoryManager.tsx added Reconcile Stock button (purple, Shield icon)
 -- ════════════════════════════════════════════════════════════════
 
 
@@ -185,7 +200,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS app_settings (
-    id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                          UUID PRIMARY KEY DEFAULT '00000000-0000-4000-8000-000000000001'::uuid,
 
     -- Store Identity
     store_name                  TEXT DEFAULT 'Zaynahs',
@@ -283,6 +298,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
     allow_credit_over_limit     BOOLEAN DEFAULT true,
     enable_split_payment        BOOLEAN DEFAULT false,
     enable_extra_charges        BOOLEAN DEFAULT false,
+    auto_save_receipt_png       BOOLEAN DEFAULT false,
 
     -- System Module Toggles
     retail_enabled              BOOLEAN DEFAULT true,
@@ -567,7 +583,7 @@ CREATE TABLE IF NOT EXISTS sales (
     change_amount       DECIMAL(12,2),
     payment_method      TEXT CHECK (payment_method IN ('cash', 'card', 'digital', 'credit', 'cheque', 'split')),
     card_details        JSONB,
-    status              TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded', 'partially_refunded', 'credit', 'draft')),
+    status              TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded', 'partially_refunded', 'credit', 'draft', 'deleted', 'cancelled')),
     cashier             TEXT,
     cashier_role        TEXT,
     receipt_number      TEXT,
@@ -698,11 +714,14 @@ CREATE TABLE IF NOT EXISTS supplier_transactions (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     supplier_id     UUID REFERENCES suppliers(id) ON DELETE CASCADE,
     type            TEXT NOT NULL CHECK (type IN ('purchase', 'loan', 'advance', 'payment', 'return', 'opening_balance')),
+    source_type     TEXT DEFAULT 'manual_bill',
     amount          DECIMAL(12,2) NOT NULL,
     reference_id    UUID,
     reference_type  TEXT,
     note            TEXT,
     balance_after   DECIMAL(12,2),
+    is_manual_override BOOLEAN DEFAULT FALSE,
+    override_by     TEXT,
     created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -719,6 +738,8 @@ CREATE TABLE IF NOT EXISTS payments (
     payment_type    TEXT,
     direction       TEXT CHECK (direction IN ('in', 'out')),
     note            TEXT,
+    is_manual_override BOOLEAN DEFAULT FALSE,
+    override_by     TEXT,
     created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -1581,6 +1602,7 @@ ALTER TABLE app_settings
   ADD COLUMN IF NOT EXISTS enable_kot_printer            BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS enable_split_payment           BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS enable_extra_charges           BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS auto_save_receipt_png          BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS allow_credit_over_limit        BOOLEAN DEFAULT true,
   ADD COLUMN IF NOT EXISTS pos_grid_columns               INTEGER DEFAULT 4,
   ADD COLUMN IF NOT EXISTS estore_location_lat            NUMERIC,
@@ -2038,7 +2060,7 @@ CREATE TABLE IF NOT EXISTS variant_stock_history (
   variant_id TEXT NOT NULL,
   variant_label TEXT,
   change_qty INTEGER NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('sale', 'return', 'adjustment', 'initial', 'purchase')),
+  type TEXT NOT NULL CHECK (type IN ('sale', 'return', 'adjustment', 'initial', 'purchase', 'stock_in', 'adjustment_out')),
   reference_id UUID,
   note TEXT,
   balance_after INTEGER,
@@ -2124,3 +2146,25 @@ CREATE INDEX IF NOT EXISTS idx_bundle_slot_toppings_slot ON bundle_slot_toppings
 
 GRANT SELECT, INSERT, DELETE ON TABLE bundle_slot_toppings TO anon, authenticated, service_role;
 GRANT ALL ON TABLE bundle_slot_toppings TO service_role;
+
+-- ════════════════════════════════════════════════════════════════
+-- POST-LAUNCH ALTER TABLE: supplier_transactions — Ledger Separation + Manual Override
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE supplier_transactions
+  ADD COLUMN IF NOT EXISTS source_type          TEXT DEFAULT 'manual_bill',
+  ADD COLUMN IF NOT EXISTS is_manual_override   BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS override_by          TEXT;
+
+-- POST-LAUNCH ALTER TABLE: payments — Manual Override
+ALTER TABLE payments
+  ADD COLUMN IF NOT EXISTS is_manual_override   BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS override_by          TEXT;
+
+-- POST-LAUNCH ALTER TABLE: expenses — Manual Override
+ALTER TABLE expenses
+  ADD COLUMN IF NOT EXISTS is_manual_override   BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS override_by          TEXT;
+
+-- POST-LAUNCH ALTER TABLE: sales — Soft Delete Support
+ALTER TABLE sales
+  ADD COLUMN IF NOT EXISTS deleted_at           TIMESTAMPTZ;

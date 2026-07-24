@@ -31,6 +31,7 @@ export function PurchaseOrderSystem() {
   const [batchSupplier, setBatchSupplier] = useState('');
   const [batchCategory, setBatchCategory] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [recordAsSupplierBill, setRecordAsSupplierBill] = useState(true);
 
   // Filter options
   const suppliers = useMemo(() => {
@@ -151,9 +152,9 @@ export function PurchaseOrderSystem() {
 
         dispatch({ type: 'ADD_PURCHASE_RECORD', payload: newRecord });
 
-        // Record supplier ledger transaction if a supplier is associated
+        // Record supplier ledger transaction if toggle is ON and a supplier is associated
         const supplierName = item.supplier;
-        if (supplierName && supplierName !== 'PO TRANSIT' && supplierName !== 'DIRECT ENTRY') {
+        if (recordAsSupplierBill && supplierName && supplierName !== 'PO TRANSIT' && supplierName !== 'DIRECT ENTRY') {
           const matchedSupplier = state.suppliers.find(
             s => s.name.toLowerCase() === supplierName.toLowerCase()
           );
@@ -165,6 +166,7 @@ export function PurchaseOrderSystem() {
                 amount: qty * cost,
                 note: `PO Stock In: ${item.name} x${qty}`,
                 referenceId: newRecord.id,
+                sourceType: 'auto_purchase',
               });
             } catch (ledgerErr) {
               console.warn('[PO] Failed to record supplier ledger entry:', ledgerErr);
@@ -438,6 +440,18 @@ export function PurchaseOrderSystem() {
                 <CheckCircle2 className="h-4 w-4" />
                 {t('admit_all_to_stock', 'ADMIT ALL TO STOCK')}
               </button>
+
+              {/* Supplier Bill Toggle */}
+              <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-white/5">
+                <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest whitespace-nowrap">{t('record_supplier_bill', 'Supplier Bill')}</span>
+                <button
+                  type="button"
+                  onClick={() => setRecordAsSupplierBill(prev => !prev)}
+                  className={`relative w-9 h-5 rounded-full transition-all duration-200 ${recordAsSupplierBill ? 'bg-primary' : 'bg-gray-300 dark:bg-white/20'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${recordAsSupplierBill ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
 
               <button onClick={handleExportCSV} className="p-3.5 bg-gray-100 dark:bg-white/5 text-gray-600 rounded-2xl hover:text-primary transition-all border border-transparent hover:border-primary/30">
                 <Download className="h-4 w-4" />

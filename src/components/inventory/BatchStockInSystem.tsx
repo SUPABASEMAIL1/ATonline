@@ -44,6 +44,7 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
     batchSupplier: initialProduct.supplier || ''
   }] : []);
   const [isCommitting, setIsCommitting] = useState(false);
+  const [recordAsSupplierBill, setRecordAsSupplierBill] = useState(true);
 
   const [batchData, setBatchData] = useState({
     date: new Date().toLocaleDateString('en-CA'),
@@ -218,9 +219,9 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
           dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
         }
 
-        // Record supplier ledger transaction if a supplier is associated
+        // Record supplier ledger transaction if toggle is ON and a supplier is associated
         const supplierName = item.batchSupplier || item.supplier;
-        if (supplierName && supplierName !== 'DIRECT ENTRY') {
+        if (recordAsSupplierBill && supplierName && supplierName !== 'DIRECT ENTRY') {
           const matchedSupplier = state.suppliers.find(
             s => s.name.toLowerCase() === supplierName.toLowerCase()
           );
@@ -231,6 +232,7 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
                 amount: qty * cost,
                 note: `Stock In: ${item.name} x${qty}`,
                 referenceId: recordId,
+                sourceType: 'auto_purchase',
               });
             } catch (ledgerErr) {
               console.warn('[BatchStockIn] Failed to record supplier ledger entry:', ledgerErr);
@@ -367,6 +369,21 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
                   placeholder="PO_ID..."
                 />
               </div>
+            </div>
+
+            {/* Supplier Bill Toggle */}
+            <div className="flex items-center justify-between bg-[#f8f9fa] dark:bg-black/75 p-4 rounded-xl">
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest">{t('record_supplier_bill', 'Record as Supplier Bill')}</p>
+                <p className="text-[9px] text-gray-500 dark:text-gray-500 mt-0.5">{t('supplier_bill_desc', 'Creates payable in supplier ledger')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRecordAsSupplierBill(prev => !prev)}
+                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${recordAsSupplierBill ? 'bg-primary' : 'bg-gray-300 dark:bg-white/10'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${recordAsSupplierBill ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
             </div>
           </div>
         </div>

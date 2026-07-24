@@ -35,8 +35,8 @@ import {
   LayoutGrid,
   HardDrive,
   MapPin,
-  LocateFixed,
   Navigation,
+  Info,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatRelativeTime } from '../../lib/timeUtils';
@@ -244,6 +244,7 @@ export function Settings() {
     touchKeyboardEnabled: state.settings.touchKeyboardEnabled ?? false,
     soundEnabled: state.settings.soundEnabled ?? true,
     enableKotPrinter: state.settings?.enableKotPrinter ?? false,
+    autoSaveReceiptPng: state.settings?.autoSaveReceiptPng ?? false,
     taxId: state.settings?.taxId || '',
     country: state.settings?.country || 'PK',
     language: (state.settings as any)?.language || 'en',
@@ -1334,6 +1335,24 @@ export function Settings() {
                             className="w-4 h-4 rounded text-primary focus:ring-emerald-500"
                           />
                         </label>
+
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group">
+                          <div>
+                            <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300">Auto-Save Receipt PNG</span>
+                            <p className="text-[9px] text-gray-400 mt-0.5">Saves PNG to device, organized by date</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            name="autoSaveReceiptPng"
+                            checked={!!formData.autoSaveReceiptPng}
+                            onChange={(e) => {
+                              setFormData(p => ({ ...p, autoSaveReceiptPng: e.target.checked }));
+                              handleInstantUpdate('autoSaveReceiptPng', e.target.checked);
+                            }}
+                            disabled={!canEditSettings}
+                            className="w-4 h-4 rounded text-primary focus:ring-emerald-500"
+                          />
+                        </label>
                       </div>
                     </div>
 
@@ -1681,7 +1700,18 @@ export function Settings() {
                     <Globe className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Online Store Settings</h2>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      Online Store Settings
+                      <div className="group relative cursor-help inline-flex items-center">
+                        <Info className="w-4 h-4 text-emerald-500 hover:text-emerald-600 transition-colors" />
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 bg-gray-900 text-white text-[11px] font-normal leading-relaxed rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                          <p className="mb-1.5">📦 <strong>Inventory Flow:</strong></p>
+                          <p className="mb-1.5">Pending online orders do <strong>not</strong> affect stock.</p>
+                          <p className="mb-1.5">Stock is only deducted when you accept and finalize the order in the POS terminal.</p>
+                          <p>🗑️ <strong>Cancelled Orders:</strong> Automatically deleted from the database after 24 hours.</p>
+                        </div>
+                      </div>
+                    </h2>
                     <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Manage your public E-Store</p>
                   </div>
                 </div>

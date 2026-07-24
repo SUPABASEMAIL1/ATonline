@@ -5,6 +5,7 @@ import { ShoppingCart, ShoppingBag, Search, Plus, Minus, ChevronRight, ChevronLe
 import { useEstoreAuth } from './useEstoreAuth';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/currencies';
+import { calculateDiscount } from '../../lib/utils';
 import { StoreProductModal } from './StoreProductModal';
 import { StoreDealModal } from './StoreDealModal';
 import { HighlightBadge } from '../common/HighlightBadge';
@@ -420,17 +421,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
       return matchesSearch && matchesCategory;
     });
 
-    return filtered.sort((a, b) => {
-      if (activeCategory === 'All') {
-        const aPizza = a.category === 'Pizzas';
-        const bPizza = b.category === 'Pizzas';
-        if (aPizza && !bPizza) return -1;
-        if (!aPizza && bPizza) return 1;
-        if (aPizza && bPizza) return (a.menuNumber ?? 999) - (b.menuNumber ?? 999);
-        return (a.menuNumber ?? 999) - (b.menuNumber ?? 999);
-      }
-      return (a.menuNumber ?? 999) - (b.menuNumber ?? 999);
-    });
+    return filtered.sort((a, b) => (a.menuNumber ?? 999) - (b.menuNumber ?? 999));
   }, [products, searchTerm, activeCategory]);
 
   const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
@@ -750,11 +741,14 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                               <Flame className="h-3 w-3" /> SCHEDULED
                             </span>
                           )}
-                          {bundle.overridePrice !== undefined && bundle.overridePrice !== null ? null : bundle.discountValue > 0 && (!bundle.isCombo || !bundle.slots) ? (
-                            <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow ml-auto flex items-center gap-1">
-                              {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF
-                            </span>
-                          ) : null}
+                          {bundle.overridePrice !== undefined && bundle.overridePrice !== null ? null : bundle.discountValue > 0 && (!bundle.isCombo || !bundle.slots) ? (() => {
+                            const di = calculateDiscount(bundleTotal, dealPrice);
+                            return di.isValid ? (
+                              <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow ml-auto flex items-center gap-1">
+                                -{di.percent}% OFF
+                              </span>
+                            ) : null;
+                          })() : null}
                         </div>
                         {bundle.scheduleType === 'scheduled' && (
                           <DealCountdown bundle={bundle} />
@@ -839,36 +833,24 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
           filteredProducts.length > 0 ? (
             activeCategory === 'All' && !searchTerm ? (
               <>
-                {/* ─── Pizzas Section ─── */}
                 {(() => {
-                  const pizzas = filteredProducts.filter(p => p.category === 'Pizzas');
-                  const beverages = filteredProducts.filter(p => p.category === 'Beverages');
-                  return (
-                    <>
-                      {pizzas.length > 0 && (
-                        <section className="mb-8">
-                          <div className="flex items-center gap-2 mb-4">
-                            <h3 className="text-lg font-black text-[var(--color-text)]">Pizzas</h3>
-                            <span className="text-xs text-gray-400 font-medium">({pizzas.length})</span>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-                            {pizzas.map(product => renderProductCard(product))}
-                          </div>
-                        </section>
-                      )}
-                      {beverages.length > 0 && (
-                        <section className="mb-8">
-                          <div className="flex items-center gap-2 mb-4">
-                            <h3 className="text-lg font-black text-[var(--color-text)]">Beverages</h3>
-                            <span className="text-xs text-gray-400 font-medium">({beverages.length})</span>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-                            {beverages.map(product => renderProductCard(product))}
-                          </div>
-                        </section>
-                      )}
-                    </>
-                  );
+                  const grouped = new Map<string, typeof filteredProducts>();
+                  for (const p of filteredProducts) {
+                    const cat = p.category || 'General';
+                    if (!grouped.has(cat)) grouped.set(cat, []);
+                    grouped.get(cat)!.push(p);
+                  }
+                  return Array.from(grouped.entries()).map(([catName, catProducts]) => (
+                    <section key={catName} className="mb-8">
+                      <div className="flex items-center gap-2 mb-4">
+                        <h3 className="text-lg font-black text-[var(--color-text)]">{catName}</h3>
+                        <span className="text-xs text-gray-400 font-medium">({catProducts.length})</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+                        {catProducts.map(product => renderProductCard(product))}
+                      </div>
+                    </section>
+                  ));
                 })()}
               </>
             ) : (

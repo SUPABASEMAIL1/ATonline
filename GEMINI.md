@@ -236,6 +236,66 @@ export const auditStockIntegrity = async (): Promise<{
 
 ---
 
+## RULE F9 — PURCHASE RECORD DELETION MUST RESTORE BATCHES + LOG HISTORY (PERMANENT)
+
+When a purchase record is deleted (`PurchaseHistory.tsx handleDeleteRecord`), the system MUST:
+
+1. **Restore batch qty_remaining** — find the batch(es) associated with the deleted purchase and reduce/remove their `qty_remaining`
+2. **Update product.batches[] embedded array** — keep the embedded cache in sync
+3. **Log stock_history** — create an entry with type `'adjustment'`, negative `change_qty`, and a note referencing the deleted purchase
+4. **Sync all 3 to Supabase** via queueOp
+
+**If you write code that deletes a purchase record WITHOUT restoring its batch → that code is WRONG. Fix immediately.**
+
+```typescript
+// CORRECT pattern (in PurchaseHistory.tsx):
+// 1. Delete the purchase record
+await purchaseRecordsService.delete(record.id);
+// 2. Find and reduce batch qty_remaining
+// 3. Update embedded product.batches[]
+// 4. Log stock_history entry
+// 5. Sync to Supabase
+```
+
+---
+
+## RULE F10 — BILL EDIT ROLLBACK ON FAILURE (PERMANENT)
+
+Bill edit uses create-first, delete-second pattern. Both CheckoutModal.tsx AND CheckoutPage.tsx MUST:
+
+1. **Phase 1**: Create new sale (deducts stock)
+2. **Phase 2**: Delete old sale (restores stock)
+3. **If Phase 2 fails**: MUST rollback Phase 1 by calling `salesService.delete(savedSale.id)` to restore the new sale's stock deduction
+
+**If Phase 2 fails and you DON'T rollback Phase 1 → stock is double-deducted. This is a CRITICAL financial bug.**
+
+```typescript
+// CORRECT: Both CheckoutModal.tsx AND CheckoutPage.tsx must have this:
+} catch (deleteError) {
+  // Rollback the new sale's stock
+  try {
+    await salesService.delete(savedSale.id, profile?.name || 'Admin');
+  } catch (rollbackError) {
+    console.error('Failed to rollback new sale stock after edit failure:', rollbackError);
+  }
+  // Then mark old sale as void + show error
+}
+```
+
+---
+
+## RULE F11 — RECONCILE TOOL MUST EXIST (PERMANENT)
+
+The `reconcileAllStock()` function in `services.ts` and the "Reconcile" button in `InventoryManager.tsx` toolbar MUST always exist. They are the safety net for detecting and fixing stock/batch drift.
+
+- **Function**: `reconcileAllStock(autoFix?: boolean)` in `services.ts`
+- **UI**: Purple "Reconcile" button with Shield icon in inventory toolbar
+- **Behavior**: Scans all tracked products, compares `products.stock` vs `SUM(product_batches.qty_remaining)`, reports mismatches, optionally auto-fixes
+
+**Never remove this tool. It is the last line of defense against inventory corruption.**
+
+---
+
 # 🗄️ DATABASE MIGRATION RULES (THE GOLDEN RULE)
 
 Whenever ANY change to database structure is made:
@@ -472,6 +532,26 @@ To implement similar auto-deletion models in the future:
 Whenever a database change is made, it MUST be recorded here.
 
 > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
+
+### [2026-07-24] Fix: App Settings Singleton Reset Bug (Multiple DB Rows)
+**Files:** `services.ts`, `GEMINI.md`
+**Issue:** `app_settings` is a singleton table and must only have one row (`id = 00000000-0000-4000-8000-000000000001`). However, Supabase contained 7 extra garbage rows with random UUIDs. `settingsService.fetchRemote()` was doing `select('*')` without an order and picking `data[0]`. This caused it to randomly pick a garbage row containing default settings (Dark mode, 4 columns), which would overwrite local state and cause settings to "reset" across all devices on page refresh.
+**Fixes:**
+1. **Database Cleanup:** Executed a Supabase API DELETE command to remove all rows where `id != 00000000-0000-4000-8000-000000000001`.
+2. **Code Hardening:** Modified `settingsService.fetchRemote()` in `src/lib/services.ts` to strictly query `.eq('id', SETTINGS_ID)`. This ensures that even if garbage rows are accidentally created in the future, the app will ALWAYS fetch the correct singleton row.
+
+### [2026-07-23] Full-System Re-Audit v2: Ledger Separation, Manual Override, Soft-Delete, Suppliers Report
+**Files:** `supabase/migrations/20260723120000_ledger_separation_manual_override.sql`, `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `BatchStockInSystem.tsx`, `PurchaseOrderSystem.tsx`, `SupplierLedger.tsx`, `CustomerDetailModal.tsx`, `ExpenseModal.tsx`, `SuppliersReport.tsx` (NEW), `ReportsManager.tsx`, `GEMINI.md`
+**Changes:**
+1. **Schema Migration:** Adds `source_type TEXT`, `is_manual_override BOOLEAN`, `override_by TEXT` to `supplier_transactions`. Adds `is_manual_override`, `override_by` to `payments` and `expenses`. Adds `deleted_at TIMESTAMPTZ` to `sales`. Backfills existing entries.
+2. **Master Schema:** Added to both CREATE TABLE and post-launch ALTER TABLE blocks in `SUPER_MASTER_SCHEMA.sql`.
+3. **Types:** Added `sourceType`, `isManualOverride`, `overrideBy` to `SupplierTransaction`, `Payment`, `Expense` interfaces.
+4. **Services:** `toRemoteSupplierTransaction` maps 3 new fields; `recordBill` accepts `sourceType`; `recordPayment` accepts override flags; `getLedger` exposes `sourceType`; `bulkUpdate` logs per-product price-change history via stock_history; `salesService.delete` converted from hard-delete to soft-delete (status='deleted').
+5. **BatchStockInSystem + PurchaseOrderSystem:** Added "Record as Supplier Bill" toggle (default ON), passes `sourceType: 'auto_purchase'`.
+6. **SupplierLedger:** Color-coded badges (AUTO-PURCHASE blue, MANUAL BILL red, PAYMENT green, OPENING violet), manual override toggles in payment + bill modals.
+7. **CustomerDetailModal + ExpenseModal:** Manual override toggle added to payment/expense forms.
+8. **SuppliersReport (NEW):** Full supplier report tab with summary cards, sortable table, expandable per-supplier ledger, source badges, CSV export, mobile responsive.
+9. **ReportsManager:** Added 'suppliers' tab with Truck icon (amber color).
 
 ### [2026-07-17] Add Custom Badge System to Bundles (Color, Text, Icon, Enable/Disable)
 **Files:** `supabase/migrations/20260717170000_add_badge_columns.sql`, `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `BundleManager.tsx`, `HighlightBadge.tsx`, `StoreFront.tsx`, `GEMINI.md`
@@ -903,6 +983,18 @@ Supabase ka free plan 1 hafte baad database pause kar deta hai. Isey 24/7 active
 3.  **Idempotent Schema:** Added `ALTER TABLE ADD COLUMN IF NOT EXISTS` block in `SUPER_MASTER_SCHEMA.sql` for post-launch updates.
 
 ✅ **All Done!**
+
+### [2026-07-24] Full Inventory Integrity Audit + Reconciliation Tool
+**Files:** `supabase/migrations/20260724000000_fix_legacy_batches.sql`, `SUPER_MASTER_SCHEMA.sql`, `PurchaseHistory.tsx`, `SupabaseAppContext.tsx`, `CheckoutModal.tsx`, `services.ts`, `InventoryManager.tsx`, `GEMINI.md`, `AGENTS.md`
+**Changes:**
+1. **DB Migration:** Fixed 12 stock/batch mismatches — deleted 2 phantom LEGACY-BACKFILL-001 batches (999K+ qty), corrected 4 legacy batch quantities, created 4 corrective batches for orphan stock, reset 1 negative stock to 0. All corrections logged to stock_history with `[RECONCILE]` prefix.
+2. **PurchaseHistory.tsx:** `handleDeleteRecord()` now correctly restores batch `qty_remaining`, updates embedded `product.batches[]`, and logs `stock_history` entry on purchase record deletion.
+3. **SupabaseAppContext.tsx:** `DELETE_SALE` reducer now uses `(total - refundedAmount)` instead of bare `total` for customer credit/purchases reversal. Removed unused `isReturn` variable.
+4. **CheckoutModal.tsx:** Bill-edit failure now rollbacks the new sale's stock deduction via `salesService.delete(savedSale.id)` before marking old sale as void (matches CheckoutPage.tsx pattern).
+5. **services.ts:** Added `reconcileAllStock(autoFix?: boolean)` — scans all tracked products, compares `products.stock` vs `SUM(product_batches.qty_remaining)`, optionally auto-fixes with corrective batches + stock_history logging.
+6. **InventoryManager.tsx:** Added purple "Reconcile" button (Shield icon) in inventory toolbar — one-click stock integrity scan + auto-fix.
+7. **GEMINI.md:** Added rules F9 (purchase delete must restore batches), F10 (bill edit must rollback on failure), F11 (reconcile tool must exist).
+8. **SUPER_MASTER_SCHEMA.sql:** Added schema change log entry, fixed `variant_stock_history` type CHECK to include `stock_in` and `adjustment_out`.
 
 ---
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Minus, Check, Gift, Package, Timer, Flame } from 'lucide-react';
 import { Bundle, Product, CartItem, CartItemTopping } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
+import { calculateDiscount } from '../../lib/utils';
 import { bundlesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import ExtraToppingSelector from '../common/ExtraToppingSelector';
@@ -354,11 +355,14 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
           
           <div className="absolute bottom-4 left-6 right-6 text-white">
             <div className="flex items-center gap-2 mb-2">
-              {bundle.overridePrice !== undefined && bundle.overridePrice !== null || bundle.discountValue === 0 ? null : (
-                <span className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full inline-block shadow">
-                  {bundle.discountType === 'percentage' ? `-${bundle.discountValue}%` : `-${bundle.discountValue}`} OFF Deal
-                </span>
-              )}
+              {bundle.overridePrice !== undefined && bundle.overridePrice !== null || bundle.discountValue === 0 ? null : (() => {
+                const di = calculateDiscount(dealCalc.totalPrice, dealCalc.dealPrice);
+                return di.isValid ? (
+                  <span className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full inline-block shadow">
+                    -{di.percent}% OFF
+                  </span>
+                ) : null;
+              })()}
               {bundle.scheduleType === 'scheduled' && (
                 <span className="bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full inline-block shadow flex items-center gap-1">
                   <Flame className="h-3 w-3" /> Hot Deal

@@ -567,7 +567,7 @@ const ProductCard = memo(function ProductCard({ product, onAddToCart, onUpdateQu
           {isInfinite
             ? <Infinity className="h-3 w-3" />
             : isNegativeStock
-              ? `${product.stock} ${t('deficit', 'DEFICIT')}`
+              ? t('no_stock', 'NO STOCK')
               : isNoStock
                 ? t('no_stock', 'NO STOCK')
                 : product.stock

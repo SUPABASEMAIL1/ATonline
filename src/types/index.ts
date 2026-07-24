@@ -144,11 +144,14 @@ export interface SupplierTransaction {
   id: string;
   supplierId: string;
   type: 'purchase' | 'loan' | 'advance' | 'payment' | 'return' | 'opening_balance';
+  sourceType?: 'auto_purchase' | 'manual_bill' | 'payment' | 'opening_balance' | 'return';
   amount: number;
   referenceId?: string;
   referenceType?: string;
   note?: string;
   balanceAfter?: number;
+  isManualOverride?: boolean;
+  overrideBy?: string;
   createdAt: Date;
 }
 
@@ -162,6 +165,8 @@ export interface Payment {
   direction?: 'in' | 'out';
   note?: string;
   notes?: string;
+  isManualOverride?: boolean;
+  overrideBy?: string;
   createdAt: Date;
 }
 
@@ -399,6 +404,7 @@ export interface AppSettings {
   receiptPaperSize: '58mm' | '80mm' | 'A4';
   receiptDensity: 'draft' | 'normal' | 'detailed';
   enableKotPrinter?: boolean; // Kitchen Order Ticket printer toggle
+  autoSaveReceiptPng?: boolean; // Auto-save receipt as PNG to device storage
   // Receipt Print Position Adjustments
   receiptPaddingTop: number;
   receiptPaddingBottom: number;
@@ -514,6 +520,8 @@ export interface Expense {
   paymentMethod: 'cash' | 'card' | 'digital';
   storeType?: 'retail' | 'wholesale' | 'estore';
   notes?: string;
+  isManualOverride?: boolean;
+  overrideBy?: string;
   createdAt: Date;
   updatedAt?: Date;
   addedBy?: string;

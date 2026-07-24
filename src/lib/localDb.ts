@@ -97,6 +97,7 @@ export class ZaynahsPosDB extends Dexie {
   toppings!: Table<Topping>;
   variantStockHistory!: Table<VariantStockHistory>;
   productAddons!: Table<ProductAddon>;
+  savedReceiptPngs!: Table<any>;
 
   constructor() {
     // Make the IndexedDB name unique per Supabase Project so different clones on localhost don't share data
@@ -106,6 +107,7 @@ export class ZaynahsPosDB extends Dexie {
 
     super(dbName);
     this.version(18).stores({
+      savedReceiptPngs: 'id, invoiceNumber, saleDate',
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock, showInEstore',
       categories: 'id, name',
       suppliers: 'id, name',
