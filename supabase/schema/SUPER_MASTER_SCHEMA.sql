@@ -1832,6 +1832,7 @@ BEGIN
       purchase_records,
       sales,
       sales_tabs,
+      store_orders,
       stock_history,
       supplier_transactions,
       suppliers,

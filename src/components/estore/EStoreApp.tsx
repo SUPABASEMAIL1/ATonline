@@ -21,14 +21,7 @@ function TrackPage({ settings }: { settings: AppSettings | null }) {
 }
 
 export function EStoreApp() {
-  const [settings, setSettings] = useState<AppSettings | null>(() => {
-    try {
-      const saved = localStorage.getItem('pos_settings');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
-  });
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -53,11 +46,10 @@ export function EStoreApp() {
   useEffect(() => {
     async function loadData() {
       try {
-        // Fetch Settings (checking local IndexedDB first, then falling back to remote)
-        const activeSettings = await settingsService.get();
+        // Fetch Settings directly from cloud (bypass local cache since E-Store doesn't run syncEngine)
+        const activeSettings = await settingsService.fetchRemote();
         if (activeSettings) {
           setSettings(activeSettings);
-          localStorage.setItem('pos_settings', JSON.stringify(activeSettings));
         }
 
         // Fetch Products
