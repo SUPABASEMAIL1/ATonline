@@ -1628,6 +1628,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const sales = await fetchDeltasAndMerge(localDb.sales, salesService.fetchRemote);
         updateStatus(`Fetched ${sales.length} sales records...`, sales.length);
 
+        const storeOrders = await fetchDeltasAndMerge(localDb.storeOrders, storeOrdersService.fetchRemote);
+        updateStatus(`Fetched ${storeOrders.length} online orders...`, storeOrders.length);
+
         const [discounts, usersList, expenses, purchaseRecords, suppliersData] = await Promise.all([
           discountsService.fetchRemote(), // Metadata
           usersService.fetchRemote(), // Metadata
@@ -1708,6 +1711,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // ── OTHER ENTITIES ──
         const mergedCustomers = await smartMerge('customers', customers, localDb.customers);
 
+        const mergedStoreOrders = (await smartMerge('store_orders', storeOrders, localDb.storeOrders))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
         const allSales = await smartMerge('sales', sales, localDb.sales);
         const mergedSales = allSales
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -1727,6 +1733,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_PRODUCTS', payload: mergedProducts });
         dispatch({ type: 'SET_CUSTOMERS', payload: mergedCustomers });
         dispatch({ type: 'SET_SALES', payload: mergedSales });
+        dispatch({ type: 'SET_STORE_ORDERS', payload: mergedStoreOrders });
         dispatch({ type: 'SET_DISCOUNTS', payload: mergedDiscounts });
         dispatch({ type: 'SET_USERS', payload: mergedUsers });
         if (mergedSalesTabs.length > 0) dispatch({ type: 'SET_SALES_TABS', payload: mergedSalesTabs as SalesTab[] });
@@ -1748,7 +1755,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localDb.suppliers,
             localDb.expenses,
             localDb.purchaseRecords,
-            localDb.productBatches,
+            localDb.storeOrders,
             localDb.stockHistory,
             localDb.payments,
             localDb.salesTabs,
@@ -1828,9 +1835,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               const safeSalesTabs = await getSafeItemsToPut('sales_tabs', mergedSalesTabs);
               if (safeSalesTabs.length > 0) await localDb.salesTabs.bulkPut(safeSalesTabs);
 
-              await processDeletions(localDb.productBatches, allBatches, 'product_batches');
-              const safeBatches = await getSafeItemsToPut('product_batches', allBatches);
-              if (safeBatches.length > 0) await localDb.productBatches.bulkPut(safeBatches);
+              await processDeletions(localDb.storeOrders, mergedStoreOrders, 'store_orders');
+              const safeStoreOrders = await getSafeItemsToPut('store_orders', mergedStoreOrders);
+              if (safeStoreOrders.length > 0) await localDb.storeOrders.bulkPut(safeStoreOrders);
 
               await processDeletions(localDb.stockHistory, remoteStockHistory, 'stock_history');
               const safeStockHistory = await getSafeItemsToPut('stock_history', remoteStockHistory);
