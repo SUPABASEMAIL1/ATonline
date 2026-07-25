@@ -96,7 +96,7 @@
 --   Migration: supabase/migrations/20260710030000_drop_workspace_id.sql
 --   Changes:
 --   1. DROP COLUMN workspace_id from all 18 tables (app_settings, categories,
---      customers, suppliers, products, product_batches, discounts, users, sales,
+--      customers, suppliers, products, discounts, users, sales,
 --      expenses, sales_tabs, purchase_records, purchase_orders, purchase_order_items,
 --      supplier_transactions, payments, stock_history, bundles)
 --   2. Replaced unique index idx_bundles_name_workspace with idx_bundles_name_unique
@@ -468,31 +468,6 @@ ALTER TABLE products REPLICA IDENTITY FULL;
 -- 6. PRODUCT BATCHES  [DEPRECATED - DO NOT USE] (FIFO / Expiry tracking)
 -- ════════════════════════════════════════════════════════════════
 
-CREATE TABLE IF NOT EXISTS product_batches (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id          UUID REFERENCES products(id) ON DELETE CASCADE,
-    batch_number        TEXT NOT NULL,
-    batch_type          TEXT DEFAULT 'purchase' CHECK (batch_type IN ('opening', 'purchase')),
-    manufacturing_date  DATE,
-    expiry_date         DATE,
-    quantity            INTEGER NOT NULL DEFAULT 0,
-    qty_remaining       INTEGER DEFAULT 0,
-    cost_price          DECIMAL(10,2),
-    sale_price          DECIMAL(10,2),
-    supplier_id         UUID REFERENCES suppliers(id) ON DELETE SET NULL,
-    supplier_name       TEXT,
-    supplier_info       TEXT,
-    po_id               UUID,
-    active              BOOLEAN DEFAULT true,
-    created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-
-    CONSTRAINT product_batches_quantity_non_negative CHECK (quantity >= 0),
-    CONSTRAINT product_batches_cost_positive          CHECK (cost_price >= 0),
-    CONSTRAINT unique_batch_per_product               UNIQUE (product_id, batch_number)
-);
-
-ALTER TABLE product_batches REPLICA IDENTITY FULL;
 
 
 -- ════════════════════════════════════════════════════════════════
@@ -969,10 +944,6 @@ CREATE INDEX IF NOT EXISTS idx_sales_cashier            ON sales(cashier);
 CREATE INDEX IF NOT EXISTS idx_sales_created_at_status  ON sales(created_at, status);
 CREATE INDEX IF NOT EXISTS idx_sales_sale_date          ON sales(sale_date);
 
--- Product Batches
-CREATE INDEX IF NOT EXISTS idx_product_batches_product_id   ON product_batches(product_id);
-CREATE INDEX IF NOT EXISTS idx_product_batches_expiry       ON product_batches(expiry_date) WHERE expiry_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_product_batches_batch_number ON product_batches(batch_number);
 
 -- Discounts
 CREATE INDEX IF NOT EXISTS idx_discounts_active          ON discounts(active);
@@ -1044,7 +1015,6 @@ DO $$ BEGIN CREATE TRIGGER update_categories_updated_at         BEFORE UPDATE ON
 DO $$ BEGIN CREATE TRIGGER update_customers_updated_at          BEFORE UPDATE ON customers          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TRIGGER update_suppliers_updated_at          BEFORE UPDATE ON suppliers          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TRIGGER update_products_updated_at           BEFORE UPDATE ON products           FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN CREATE TRIGGER update_product_batches_updated_at   BEFORE UPDATE ON product_batches    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TRIGGER update_discounts_updated_at          BEFORE UPDATE ON discounts          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TRIGGER update_users_updated_at             BEFORE UPDATE ON users              FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TRIGGER update_sales_updated_at              BEFORE UPDATE ON sales              FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -1335,30 +1305,6 @@ GRANT EXECUTE ON FUNCTION process_return(UUID, JSONB) TO anon;
 -- AUDIT FUNCTIONS (Stock & Financial Integrity Checks)
 -- ════════════════════════════════════════════════════════════════
 
--- ── Stock Integrity Audit ──
--- Returns products where products.stock != SUM(product_batches.qty_remaining)
--- Zero rows = healthy. Any rows = stock is corrupt and must be fixed.
-CREATE OR REPLACE FUNCTION audit_stock_integrity()
-RETURNS TABLE(
-  product_id    uuid,
-  name          text,
-  stock         integer,
-  batch_sum     bigint,
-  diff          bigint
-)
-LANGUAGE sql SECURITY DEFINER AS $$
-  SELECT 
-    p.id,
-    p.name,
-    p.stock,
-    COALESCE(SUM(pb.qty_remaining), 0) AS batch_sum,
-    p.stock::bigint - COALESCE(SUM(pb.qty_remaining), 0) AS diff
-  FROM products p
-  LEFT JOIN product_batches pb ON pb.product_id = p.id
-  GROUP BY p.id, p.name, p.stock
-  HAVING p.stock != COALESCE(SUM(pb.qty_remaining), 0)
-  ORDER BY ABS(p.stock - COALESCE(SUM(pb.qty_remaining), 0)) DESC;
-$$;
 
 GRANT EXECUTE ON FUNCTION audit_stock_integrity() TO authenticated;
 GRANT EXECUTE ON FUNCTION audit_stock_integrity() TO anon;
@@ -1880,7 +1826,6 @@ BEGIN
       expenses,
       payments,
       product_addons,
-      product_batches,
       products,
       purchase_order_items,
       purchase_orders,
@@ -1907,42 +1852,7 @@ END $$;
 -- ════════════════════════════════════════════════════════════════
 -- Safe to re-run: uses LEFT JOIN + HAVING COUNT(pb.id) = 0
 
--- Backfill product_batches for tracked products with stock but no batches
-INSERT INTO product_batches (id, product_id, batch_number, quantity, qty_remaining, cost_price, sale_price, active, created_at)
-SELECT
-  gen_random_uuid(),
-  p.id,
-  'LEGACY-BACKFILL-001',
-  GREATEST(p.stock, 0),
-  GREATEST(p.stock, 0),
-  COALESCE(p.cost, 0),
-  COALESCE(p.price, 0),
-  true,
-  COALESCE(p.created_at, NOW())
-FROM products p
-LEFT JOIN product_batches pb ON pb.product_id = p.id
-WHERE p.track_inventory = true
-  AND p.stock > 0
-GROUP BY p.id, p.name, p.stock, p.cost, p.price, p.created_at
-HAVING COUNT(pb.id) = 0;
 
--- Backfill for negative stock products (0 qty batch for completeness)
-INSERT INTO product_batches (id, product_id, batch_number, quantity, qty_remaining, cost_price, sale_price, active, created_at)
-SELECT
-  gen_random_uuid(),
-  p.id,
-  'LEGACY-BACKFILL-001',
-  0, 0,
-  COALESCE(p.cost, 0),
-  COALESCE(p.price, 0),
-  true,
-  COALESCE(p.created_at, NOW())
-FROM products p
-LEFT JOIN product_batches pb ON pb.product_id = p.id
-WHERE p.track_inventory = true
-  AND p.stock < 0
-GROUP BY p.id, p.name, p.stock, p.cost, p.price, p.created_at
-HAVING COUNT(pb.id) = 0;
 
 -- Backfill missing 'initial' stock_history entries
 INSERT INTO stock_history (id, product_id, change_qty, balance_after, type, note, cashier_name, created_at)
