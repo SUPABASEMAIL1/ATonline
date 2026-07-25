@@ -116,12 +116,11 @@ async function main() {
       
       // Setup authenticated URL
       const authUrl = repoUrl.replace('https://', `https://${pat}@`);
-      const remoteName = `remote_${projectName}`;
-      
-      try { run(`git remote remove ${remoteName} 2>/dev/null || true`); } catch(e){}
-      run(`git remote add ${remoteName} ${authUrl}`);
-      run(`git push ${remoteName} main || git push ${remoteName} master`);
-      run(`git remote remove ${remoteName}`);
+      run(`git commit -m "chore: sync schema, apply tooltips fix, deploy" || true`);
+      run(`git remote remove remote_${projectName} 2>/dev/null || true`);
+      run(`git remote add remote_${projectName} ${repoUrl.replace('https://', `https://${pat}@`)}`);
+      run(`git push -f remote_${projectName} main || git push -f remote_${projectName} master`);
+      console.log('✅ Pushed to GitHub successfully.');
     } catch (e) {
       console.warn('⚠️  Failed to push to GitHub:', e.message);
     }
