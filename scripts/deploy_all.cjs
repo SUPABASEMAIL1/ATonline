@@ -11,9 +11,7 @@ const envFiles = [
 ];
 
 const masterSchemaPath = path.join(__dirname, '../supabase/schema/SUPER_MASTER_SCHEMA.sql');
-const cleanupSchemaPath = path.join(__dirname, '../supabase/migrations/20260725120000_remove_batch_system.sql');
 const masterSchema = fs.readFileSync(masterSchemaPath, 'utf8');
-const cleanupSchema = fs.readFileSync(cleanupSchemaPath, 'utf8');
 
 function parseEnv(content) {
   const env = {};
@@ -80,16 +78,6 @@ async function main() {
       const resJson1 = JSON.parse(res1);
       if (resJson1.error) console.error('❌ Master Schema Error:', resJson1.error);
       else console.log('✅ Master Schema Applied.');
-
-      // Run Cleanup Schema (Drops product_batches etc)
-      const payload2 = JSON.stringify({ query: cleanupSchema });
-      const res2 = execSync(`curl -s -X POST "https://api.supabase.com/v1/projects/${supabaseRef}/database/query" \\
-        -H "Authorization: Bearer ${mgmtKey}" \\
-        -H "Content-Type: application/json" \\
-        -d @-`, { input: payload2 }).toString();
-      const resJson2 = JSON.parse(res2);
-      if (resJson2.error) console.error('❌ Cleanup Schema Error:', resJson2.error);
-      else console.log('✅ Cleanup Schema Applied.');
     } catch (e) {
       console.error('❌ Failed to run schema curl:', e.message);
     }

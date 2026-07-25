@@ -495,10 +495,11 @@ async function executeOp(op: PendingOp): Promise<void> {
                 throw new Error(`MISSING_BACKEND_FUNCTION: '${op.entity}' RPC required.`);
             }
 
-            // PostgREST Invalid Data Errors (e.g. string "normal" into numeric column)
+            // PostgREST Invalid Data Errors (e.g. string "normal" into numeric column, or check constraint violation)
             // Code 22P02: invalid input syntax for type. Code 22003: numeric value out of range.
-            if (error.code === '22P02' || error.code === '22003' || errStr.includes('invalid input syntax')) {
-                console.error(`[SyncEngine] CRITICAL DATA TYPE ERROR: entity=${op.entity} error=${error.message} details=${JSON.stringify(error.details)} payload=${JSON.stringify(payload).slice(0, 500)}`);
+            // Code 23514: check constraint violation (e.g. invalid status string).
+            if (error.code === '22P02' || error.code === '22003' || error.code === '23514' || errStr.includes('invalid input syntax') || errStr.includes('violates check constraint')) {
+                console.error(`[SyncEngine] CRITICAL DATA TYPE/CONSTRAINT ERROR: entity=${op.entity} error=${error.message} details=${JSON.stringify(error.details)} payload=${JSON.stringify(payload).slice(0, 500)}`);
                 if (op.id) await localDb.pendingOps.delete(op.id);
                 return;
             }
