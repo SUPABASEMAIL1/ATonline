@@ -701,7 +701,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                       <div className="flex items-center justify-between mb-1 ml-1">
                         <div className="flex items-center gap-1">
                           <p className="text-[9px] text-gray-600 uppercase font-bold">{t('cost_price', 'Cost Price')}</p>
-                          <HelpTooltip content="Cost changes auto-update ALL active batch cost prices for accurate FIFO COGS and stock valuation." />
+                          <HelpTooltip content="Cost changes will instantly update the product's cost price for accurate profit calculations." />
                         </div>
                         {parseFloat(formData.cost) !== product.cost && (
                           <button

@@ -1146,16 +1146,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
 
             const mapped = mapSettings(payload.new);
-            await localDb.appSettings.put(mapped);
-            // Only dispatch if content actually changed (skip heartbeat-only updates)
             const localSettings = await localDb.appSettings.get(SETTINGS_ID);
+            
+            let isRealChange = true;
             if (localSettings) {
               const { updatedAt: _, ...localContent } = localSettings as any;
               const { updatedAt: _r, ...remoteContent } = mapped as any;
-              const isRealChange = JSON.stringify(localContent) !== JSON.stringify(remoteContent);
-              if (isRealChange) {
-                dispatch({ type: 'SET_SETTINGS', payload: mapped });
-              }
+              isRealChange = JSON.stringify(localContent) !== JSON.stringify(remoteContent);
+            }
+
+            // Always save to IndexedDB to keep timestamps synced
+            await localDb.appSettings.put(mapped);
+            
+            if (isRealChange) {
+              dispatch({ type: 'SET_SETTINGS', payload: mapped });
             }
           }, 2000);
         }

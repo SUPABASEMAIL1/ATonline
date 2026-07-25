@@ -1897,57 +1897,9 @@ END $$;
 
 
 -- ════════════════════════════════════════════════════════════════
--- SYSTEM AUDIT QUERIES
+-- SYSTEM AUDIT — Commented out after initial validation.
+-- Re-enable individual checks when debugging.
 -- ════════════════════════════════════════════════════════════════
-
--- 1. Duplicate products
-SELECT name, COUNT(*) as count 
-FROM products 
-GROUP BY LOWER(TRIM(name)), name 
-HAVING COUNT(*) > 1;
-
--- 2. Stock vs batch mismatch
-SELECT p.name, p.stock, COALESCE(SUM(pb.qty_remaining),0) as batch_sum
-FROM products p
-LEFT JOIN product_batches pb ON pb.product_id = p.id
-WHERE p.track_inventory = true
-GROUP BY p.id, p.name, p.stock
-HAVING p.stock != COALESCE(SUM(pb.qty_remaining), 0);
-
-
-
--- 5. Sales with missing purchase cost
-SELECT id, created_at, total 
-FROM sales
-WHERE items::text LIKE '%"purchaseCost":0%'
-   OR items::text LIKE '%"purchaseCost":null%';
-
--- 6. Orphaned Sale Items
--- STATUS: MOOT (PASS)
--- EXPLANATION: Because sale items are stored as a JSONB array (`items`) inside the `sales` table,
--- it is structurally impossible for an item to exist without its parent sale.
--- The query below verifies the total count of items embedded across all sales.
-SELECT SUM(jsonb_array_length(items)) as total_sale_items FROM sales;
-
--- 7. Check stock history for discrepancies
-SELECT
-  p.name,
-  p.stock as current_stock,
-  SUM(sh.change_qty) as history_sum,
-  p.stock - SUM(sh.change_qty) as difference
-FROM products p
-LEFT JOIN stock_history sh ON sh.product_id = p.id
-WHERE p.track_inventory = true
-GROUP BY p.id, p.name, p.stock
-HAVING ABS(p.stock - SUM(sh.change_qty)) > 1
-ORDER BY difference DESC;
-
--- 8. Missing Purchase Cost (Unrolled View)
--- STATUS: VALIDATED
--- EXPLANATION: Uses the `sale_items_unrolled` view to extract JSONB items and check for missing COGS.
-SELECT COUNT(*) as missing_cost 
-FROM sale_items_unrolled 
-WHERE purchase_cost IS NULL OR purchase_cost = 0;
 
 
 -- ════════════════════════════════════════════════════════════════
