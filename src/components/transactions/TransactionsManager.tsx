@@ -230,8 +230,10 @@ export function TransactionsManager() {
     return list.filter(sale => {
       if (isDraftSale(sale)) return false;
       if (sale.status === 'pending') return false;
-      // Filter out invalid phantom sales
-      if (!sale.invoiceNumber && !sale.receiptNumber) return false;
+      // Filter out invalid phantom sales (including literal "undefined" or whitespace)
+      const inv = sale.invoiceNumber ? String(sale.invoiceNumber).trim() : '';
+      const rec = sale.receiptNumber ? String(sale.receiptNumber).trim() : '';
+      if ((!inv || inv === 'undefined') && (!rec || rec === 'undefined')) return false;
       const matchesSearch = isCloudSearch || (
         (sale.receiptNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (sale.invoiceNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -692,7 +694,7 @@ export function TransactionsManager() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${getStatusColor(tx.status)}`}>
-                      {tx.status}
+                      {tx.status || 'Ghost / Empty'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right flex items-center justify-end gap-2">
@@ -730,7 +732,10 @@ export function TransactionsManager() {
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
-                          const res = await sonner.confirm('Delete Sale?', 'Revert all records?', 'Delete');
+                          const isGhost = !tx.items || tx.items.length === 0 || !tx.total;
+                          const title = isGhost ? 'Delete Empty Record?' : 'Delete Sale?';
+                          const msg = isGhost ? 'Remove this empty/ghost row?' : 'Revert all records?';
+                          const res = await sonner.confirm(title, msg, 'Delete');
                           if (res.isConfirmed) {
                             try {
                               await salesService.delete(tx.id, profile?.name || 'Admin');

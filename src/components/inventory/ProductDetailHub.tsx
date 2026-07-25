@@ -19,9 +19,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product, PurchaseRecord, Sale } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
-import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProductBatch, toRemoteProduct, productToppingsService } from '../../lib/services';
+import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProduct, productToppingsService } from '../../lib/services';
 import { localDb, queueOp } from '../../lib/localDb';
-import { calculateFIFOSplit } from '../../lib/inventoryUtils';
 import { compressImage } from '../../lib/imageCompression';
 import { sonner } from '../../lib/sonner';
 import { BatchStockInSystem } from './BatchStockInSystem';
@@ -81,7 +80,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     productType: (product.productType === 'variable') ? 'variable' : 'simple',
   });
 
-  const [batches, setBatches] = useState(product.batches || []);
+  // batches removed — batch system deprecated
   const [variants, setVariants] = useState<any[]>((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
   const [variantData, setVariantData] = useState<any[]>(product.variantData || []);
   const [modifiers, setModifiers] = useState<any[]>(product.modifiers || []);
@@ -111,7 +110,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       showInEstore: product.showInEstore ?? true,
       productType: (product.productType === 'variable') ? 'variable' : 'simple'
     });
-    setBatches(product.batches || []);
+    // setBatches(product.batches || []);
     setVariants((product.variants || []).map((v: any) => ({ ...v, optionsRaw: '' })));
     setVariantData(product.variantData || []);
     setModifiers(product.modifiers || []);
@@ -207,33 +206,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     sonner.loading(t('adjusting_stock', 'Adjusting stock...'));
 
     try {
-      let updatedBatches = [...batches];
       const now = new Date();
-
-      if (qtyChange < 0) {
-        // Deduction - Use FIFO
-        const deduction = calculateFIFOSplit(product, Math.abs(qtyChange));
-        updatedBatches = deduction.updatedBatches;
-      } else {
-        // Addition - Create Adjustment Batch
-        const adjBatchId = generateId();
-        const adjBatch = {
-          id: adjBatchId,
-          productId: product.id,
-          batchNumber: `ADJ-${now.getTime().toString().slice(-6)}`,
-          batchType: 'purchase',
-          quantity: qtyChange,
-          qtyRemaining: qtyChange,
-          costPrice: product.cost || 0,
-          salePrice: product.price || 0,
-          createdAt: now
-        };
-        updatedBatches.push(adjBatch as any);
-
-        // Persist batch to separate productBatches table + queue for cloud sync
-        await localDb.productBatches.add(adjBatch as any);
-        await queueOp('product_batches', 'create', adjBatchId, toRemoteProductBatch(adjBatch));
-      }
 
       const newRecord = {
         id: generateId(),
@@ -253,12 +226,11 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       // Read fresh product from localDb to avoid stale stock from prop
       const freshProduct = await localDb.products.get(product.id);
       const currentStock = freshProduct?.stock ?? product.stock ?? 0;
-      const newStock = Math.max(0, currentStock + qtyChange);
+      const finalStock = Math.max(0, currentStock + qtyChange);
 
       const updatedProduct = {
         ...product,
-        stock: newStock,
-        batches: updatedBatches,
+        stock: finalStock,
         updatedAt: now
       };
 
@@ -321,35 +293,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       const newCost = parseFloat(formData.cost) || 0;
       const newPrice = parseFloat(formData.price) || 0;
 
-      let finalBatches = isInfinity ? [] : [...batches];
-
-      if (!isInfinity) {
-        // If cost or price changed, update them on all active batches
-        const costChanged = newCost !== product.cost;
-        const priceChanged = newPrice !== product.price;
-
-        if (costChanged || priceChanged) {
-          finalBatches = finalBatches.map(b => {
-            if ((b.qtyRemaining || 0) > 0) {
-              const updated = { ...b, updatedAt: now };
-              if (costChanged) updated.costPrice = newCost;
-              if (priceChanged) updated.salePrice = newPrice;
-              return updated;
-            }
-            return b;
-          });
-
-          // Also persist these changes to the separate productBatches table and queue sync
-          const activeBatches = finalBatches.filter(b => (b.qtyRemaining || 0) > 0);
-          for (const batch of activeBatches) {
-            await localDb.productBatches.put(batch);
-            const patch: any = { id: batch.id, updatedAt: now };
-            if (costChanged) patch.costPrice = newCost;
-            if (priceChanged) patch.salePrice = newPrice;
-            await queueOp('product_batches', 'update', batch.id, toRemoteProductBatch(patch));
-          }
-        }
-      }
+      // Batch tracking logic removed
 
       const updatedProduct = {
         ...product,
@@ -361,7 +305,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         // Fixed: If turning tracking ON, and it was previously infinite (>= 990,000), reset baseline to 0.
         // This prevents the '1,000,009' display bug where the infinity baseline was accidentally kept.
         stock: isInfinity ? 0 : (wasInfinity && (product.stock || 0) >= 990000 ? 0 : (product.stock || 0)),
-        batches: finalBatches,
+        // batches removed
         trackInventory: formData.trackInventory,
         variants: variants.map((v: any) => ({ name: v.name, options: v.options })),
         variantData: variantData,
@@ -376,29 +320,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
 
       // NEW: Log 'Initial' movement and create batch if we just enabled tracking
       if (!isInfinity && wasInfinity) {
-        const batchId = generateId();
-        const initialBatch = {
-          id: batchId,
-          productId: product.id,
-          batchNumber: `B-${now.getTime().toString().slice(-6)}`,
-          quantity: updatedProduct.stock,
-          qtyRemaining: updatedProduct.stock,
-          costPrice: updatedProduct.cost || 0,
-          salePrice: updatedProduct.price || 0,
-          manufacturingDate: now,
-          expiryDate: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000),
-          createdAt: now,
-          updatedAt: now
-        };
-
-        // Ensure we have at least one batch if tracking is on
-        if (updatedProduct.batches.length === 0) {
-          updatedProduct.batches = [initialBatch];
-        }
-
-        // Persist initial batch to product_batches table + queue sync
-        await localDb.productBatches.add(initialBatch as any);
-        await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(initialBatch));
+        // Initial batch creation logic removed
 
         // Register in Audit Log
         const histId = generateId();
@@ -407,7 +329,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
           productId: product.id,
           changeQty: updatedProduct.stock,
           type: 'stock_in' as const,
-          referenceId: batchId,
+          referenceId: 'INITIAL_STOCK',
           note: 'Inventory Tracking Enabled (Initial Balance)',
           balanceAfter: updatedProduct.stock,
           cashierName: profile?.email || 'System',
@@ -430,58 +352,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     }
   };
 
-  const addBatch = () => {
-    setBatches([...batches, {
-      id: crypto.randomUUID(),
-      batchNumber: `BATCH-${Date.now()}`,
-      quantity: 0,
-      costPrice: parseFloat(formData.cost) || 0,
-      createdAt: new Date(),
-    }]);
-  };
-
-  const updateBatch = (index: number, field: string, value: any) => {
-    const newBatches = [...batches];
-    newBatches[index] = { ...newBatches[index], [field]: value };
-    setBatches(newBatches);
-  };
-
-  const removeBatch = (index: number) => {
-    setBatches(batches.filter((_, i) => i !== index));
-  };
-
-  const updateBatchPrices = async (field: 'costPrice' | 'salePrice', newValue: number) => {
-    const activeBatches = batches.filter(b => (b.qtyRemaining || 0) > 0);
-    if (activeBatches.length === 0) return;
-    const now = new Date();
-    for (const batch of activeBatches) {
-      const updatedBatch = { ...batch, [field]: newValue, updatedAt: now };
-      await localDb.productBatches.put(updatedBatch);
-      await queueOp('product_batches', 'update', batch.id, toRemoteProductBatch({ id: batch.id, [field]: newValue, updatedAt: now }));
-    }
-
-    // Get all updated batches of this product from Dexie
-    const allProductBatches = await localDb.productBatches.where('productId').equals(product.id).toArray();
-    
-    // Update the product record's batches array in Dexie and sync
-    const currentProduct = await localDb.products.get(product.id);
-    if (currentProduct) {
-      const updatedProduct = {
-        ...currentProduct,
-        batches: allProductBatches,
-        updatedAt: now
-      };
-      await localDb.products.put(updatedProduct);
-      await queueOp('products', 'update', product.id, toRemoteProduct(updatedProduct));
-      
-      // Update global context so other parts of UI (like POS Checkout) immediately read updated values
-      dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
-    }
-
-    setBatches(prev => prev.map(b =>
-      (b.qtyRemaining || 0) > 0 ? { ...b, [field]: newValue } : b
-    ));
-  };
+  // addBatch, updateBatch, removeBatch, updateBatchPrices removed
 
   const generateBarcode = () => {
     if (!formData.name.trim()) {
@@ -800,7 +671,6 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                       <div className="flex items-center justify-between mb-1 ml-1">
                         <div className="flex items-center gap-1">
                           <p className="text-[9px] text-gray-600 uppercase font-bold">{t('sale_price', 'Sale Price')}</p>
-                          <HelpTooltip content="YES → Updates product price AND all active batch sale prices. NO → Updates product price only. Batch sale prices are purely historical." />
                         </div>
                         {parseFloat(formData.price) !== product.price && (
                           <button
@@ -809,32 +679,14 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                                 const newPrice = parseFloat(formData.price) || 0;
                                 const saved = await productsService.update(product.id, { price: newPrice });
                                 dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
-                                const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
-                                if (activeCount > 0) {
-                                  const confirm = await sonner.confirm(
-                                    'Update batch sale prices?',
-                                    `${activeCount} batch${activeCount > 1 ? 'es have' : ' has'} remaining stock. Update their sale price to ${newPrice}?`,
-                                    'Yes, update batches'
-                                  );
-                                  if (confirm.isConfirmed) {
-                                    await updateBatchPrices('salePrice', newPrice);
-                                    sonner.success(`Sale price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
-                                  } else {
-                                    sonner.success('Sale price updated (batches unchanged)');
-                                  }
-                                } else {
-                                  sonner.success('Sale price updated');
-                                }
+                                sonner.success('Sale price updated');
                               } catch (e) {
                                 sonner.error('Failed to save sale price');
                               }
                             }}
                             className="text-[9px] font-black text-primary uppercase hover:underline"
                           >
-                            <div className="flex items-center gap-1">
-                              <span>{t('save', 'Save')}</span>
-                              <HelpTooltip position="bottom" content="YES = product + batches both update. NO = only product price changes." />
-                            </div>
+                              {t('save', 'Save')}
                           </button>
                         )}
                       </div>
@@ -858,13 +710,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                                 const newCost = parseFloat(formData.cost) || 0;
                                 const saved = await productsService.update(product.id, { cost: newCost });
                                 dispatch({ type: 'UPDATE_PRODUCT', payload: saved });
-                                const activeCount = batches.filter(b => (b.qtyRemaining || 0) > 0).length;
-                                if (activeCount > 0) {
-                                  await updateBatchPrices('costPrice', newCost);
-                                  sonner.success(`Cost price updated (${activeCount} batch${activeCount > 1 ? 'es' : ''} synced)`);
-                                } else {
-                                  sonner.success('Cost price updated');
-                                }
+                                sonner.success('Cost price updated');
                               } catch (e) {
                                 sonner.error('Failed to save cost price');
                               }
@@ -1604,61 +1450,6 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
             </div>
 
             {/* Removed ToppingAssignmentPanel */}
-
-            {/* Card 4: Batches (Col span 4) */}
-            <div className="lg:col-span-4 bg-white dark:bg-[#1C1C1C] p-6 sm:p-8 rounded-[3rem] border border-gray-200 dark:border-white/5 shadow-2xl flex flex-col h-fit">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-primary/10 text-primary rounded-[1.5rem]"><Plus className="w-6 h-6" /></div>
-                  <div>
-                    <h3 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">{t('batches', 'Batches')}</h3>
-                    <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">{t('inventory_stock_logs', 'Inventory stock logs')}</p>
-                  </div>
-                </div>
-                {!isInfinite && (
-                  <button
-                    onClick={() => setShowStockIn(true)}
-                    className="p-3 bg-primary text-white rounded-[1.1rem] shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 no-scrollbar">
-                {isInfinite ? (
-                  <div className="text-center py-12 text-[10px] text-gray-600 font-bold uppercase border-2 border-dashed border-gray-200 dark:border-white/5 rounded-[2.5rem]">{t('tracking_disabled', 'Tracking Disabled')}</div>
-                ) : batches.length === 0 ? (
-                  <div className="text-center py-12 text-[10px] text-gray-600 font-bold uppercase border-2 border-dashed border-gray-200 dark:border-white/5 rounded-[2.5rem]">{t('no_batches', 'No Batches')}</div>
-                ) : [...batches].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).map((batch) => (
-                  <div key={batch.id} className="p-4 bg-gray-50 dark:bg-white/[0.03] rounded-[1.75rem] border border-gray-200 dark:border-white/5 group relative transition-transform hover:scale-[1.02]">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-black uppercase text-gray-600 tracking-widest mb-1">{t('batch_id', 'Batch ID')}</span>
-                        <span className="text-xs font-black text-gray-700 dark:text-gray-200">{batch.batchNumber}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[9px] font-black uppercase text-gray-600 tracking-widest mb-1 block">{t('quantity', 'Quantity')}</span>
-                        <span className="text-sm font-black text-primary">{Number(batch.quantity) || 0}</span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-white dark:bg-white/5 rounded-2xl border border-gray-50 dark:border-white/5">
-                        <p className="text-[8px] font-black text-gray-600 uppercase mb-0.5 tracking-widest">{t('added', 'Added')}</p>
-                        <p className="text-[11px] font-bold text-gray-600 dark:text-gray-400">
-                          {batch.createdAt ? new Date(batch.createdAt).toLocaleDateString() : 'N/A'}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-white dark:bg-white/5 rounded-2xl border border-gray-50 dark:border-white/5">
-                        <p className="text-[8px] font-black text-gray-600 uppercase mb-0.5 tracking-widest">{t('source', 'Source')}</p>
-                        <p className="text-[11px] font-bold text-primary truncate">
-                          {batch.supplier || 'DIRECT'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
           </div>
         )}

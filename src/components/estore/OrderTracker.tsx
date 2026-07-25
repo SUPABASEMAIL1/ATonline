@@ -22,7 +22,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
     
     const fetchOrder = async () => {
       const { data } = await supabase
-        .from('sales')
+        .from('store_orders')
         .select('*')
         .eq('invoice_number', orderId)
         .maybeSingle();
@@ -43,7 +43,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'sales',
+          table: 'store_orders',
           filter: `invoice_number=eq.${orderId}`
         },
         (payload) => {
@@ -73,10 +73,10 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
       const remaining = targetTime - now;
       if (remaining <= 0) {
         setTimeLeft(0);
-        const currentStatus = orderData.estore_status || 'pending';
+        const currentStatus = orderData.status || 'pending';
         if (['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(currentStatus)) {
-          supabase.from('sales').update({ estore_status: 'delivered' }).eq('id', orderData.id).then(() => {
-            setOrder((prev: any) => prev ? { ...prev, estore_status: 'delivered' } : null);
+          supabase.from('store_orders').update({ status: 'delivered' }).eq('id', orderData.id).then(() => {
+            setOrder((prev: any) => prev ? { ...prev, status: 'delivered' } : null);
           });
         }
       } else {
@@ -94,7 +94,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
       const cleanup = setupTimer(order);
       return cleanup;
     }
-  }, [order?.created_at, settings?.estoreOrderTimerEnabled, order?.estore_status]);
+  }, [order?.created_at, settings?.estoreOrderTimerEnabled, order?.status]);
 
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -129,7 +129,7 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
     }
   };
 
-  const status = order?.estore_status || 'pending';
+  const status = order?.status || 'pending';
   const showTimer = settings?.estoreOrderTimerEnabled && timeLeft > 0 && ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(status);
   const progressPercent = timeTotal > 0 ? ((timeTotal - timeLeft) / timeTotal) * 100 : 0;
 

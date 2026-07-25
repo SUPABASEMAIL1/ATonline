@@ -34,7 +34,7 @@ export function POSTerminal() {
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isReturnMode, setIsReturnMode] = useState(false);
 
-  const pendingEstoreOrders = state.sales.filter(s => s.estoreStatus === 'pending').length;
+  const pendingEstoreOrders = state.storeOrders.filter(s => s.status === 'pending').length;
 
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
   const [pendingWeight, setPendingWeight] = useState<number | undefined>(undefined);

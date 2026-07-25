@@ -3,6 +3,7 @@ import {
   Product,
   Customer,
   Sale,
+  StoreOrder,
   Discount,
   User,
   AppSettings,
@@ -11,7 +12,6 @@ import {
   PurchaseRecord,
   Category,
   Supplier,
-  ProductBatch,
   StockHistory,
   Payment,
   Topping,
@@ -32,7 +32,7 @@ export type PendingOpEntity =
   | 'expenses'
   | 'categories'
   | 'suppliers'
-  | 'product_batches'
+  // product_batches removed — batch system deprecated
   | 'purchase_records'
   | 'purchase_orders'
   | 'purchase_order_items'
@@ -45,7 +45,8 @@ export type PendingOpEntity =
   | 'bundle_slot_options'
   | 'toppings'
   | 'variant_stock_history'
-  | 'product_addons';
+  | 'product_addons'
+  | 'store_orders';
 
 export type PendingOpType = 'create' | 'update' | 'delete' | 'upsert';
 
@@ -78,7 +79,7 @@ export class ZaynahsPosDB extends Dexie {
   users!: Table<User>;
   categories!: Table<Category>;
   suppliers!: Table<Supplier>;
-  productBatches!: Table<any>;
+  productBatches!: Table<any>; // DEPRECATED — kept for Dexie schema compat
   purchaseRecords!: Table<any>;
   purchaseOrders!: Table<any>;
   purchaseOrderItems!: Table<any>;
@@ -98,6 +99,7 @@ export class ZaynahsPosDB extends Dexie {
   variantStockHistory!: Table<VariantStockHistory>;
   productAddons!: Table<ProductAddon>;
   savedReceiptPngs!: Table<any>;
+  storeOrders!: Table<StoreOrder>;
 
   constructor() {
     // Make the IndexedDB name unique per Supabase Project so different clones on localhost don't share data
@@ -106,6 +108,40 @@ export class ZaynahsPosDB extends Dexie {
     const dbName = `ZaynahsPosDB_${projectRef}`;
 
     super(dbName);
+    this.version(19).stores({
+      savedReceiptPngs: 'id, invoiceNumber, saleDate',
+      products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock, showInEstore',
+      categories: 'id, name',
+      suppliers: 'id, name',
+      sales: 'id, invoiceNumber, customerId, timestamp, saleDate, status, dcNumber, extraCharges',
+      customers: 'id, name, phone, email',
+      expenses: 'id, categoryId, date',
+      discounts: 'id, name, type, active',
+      users: 'id, username, email',
+      productBatches: 'id, productId, created_at, status',
+      purchaseRecords: 'id, productId, supplierId, date',
+      purchaseOrders: 'id, poNumber, supplierId',
+      purchaseOrderItems: 'id, poId, productId',
+      supplierTransactions: 'id, supplierId',
+      payments: 'id, supplierId',
+      stockHistory: 'id, productId, timestamp, type',
+      salesTabs: 'id, userId',
+      appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',
+      pendingOps: '++id, [entity+entityId], status, createdAt',
+      syncHistory: '++id, timestamp',
+      bundles: 'id, name, active',
+      bundleItems: 'id, bundleId, productId',
+      bundleSlots: 'id, bundleId',
+      bundleSlotOptions: 'id, slotId, productId',
+      toppings: 'id, name',
+      variantStockHistory: 'id, productId, variantId, createdAt',
+      productAddons: 'id, productId, addonProductId, active',
+      storeOrders: 'id, invoiceNumber, customerId, status, createdAt',
+      // Legacy compatibility:
+      app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
+      purchase_records: 'id, productId, supplierId, date'
+    });
+
     this.version(18).stores({
       savedReceiptPngs: 'id, invoiceNumber, saleDate',
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock, showInEstore',

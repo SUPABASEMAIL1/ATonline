@@ -181,52 +181,11 @@ export function PurchaseHistory() {
           const now = new Date();
           const newStock = (product.stock || 0) - record.quantity;
 
-          // --- BATCH RESTORATION ---
-          if (record.quantity > 0) {
-            // Original purchase ADDED a batch — find and reduce/remove it
-            const allBatches = await localDb.productBatches
-              .where('productId').equals(product.id)
-              .toArray();
-
-            // Find the batch most likely created by this purchase (match by cost + approximate qty)
-            let remainingToRemove = record.quantity;
-            const updatedEmbeddedBatches = [...(product.batches || [])];
-
-            // Sort newest-first so we remove the most recent matching batch
-            const sortedBatches = [...allBatches].sort(
-              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-
-            for (const batch of sortedBatches) {
-              if (remainingToRemove <= 0) break;
-              if ((batch.qtyRemaining || 0) <= 0) continue;
-
-              const reduceBy = Math.min(batch.qtyRemaining, remainingToRemove);
-              const newQtyRemaining = batch.qtyRemaining - reduceBy;
-              remainingToRemove -= reduceBy;
-
-              await localDb.productBatches.update(batch.id, { qtyRemaining: newQtyRemaining });
-              await queueOp('product_batches', 'update', batch.id, { qty_remaining: newQtyRemaining });
-
-              const embIdx = updatedEmbeddedBatches.findIndex(b => b.id === batch.id);
-              if (embIdx !== -1) {
-                updatedEmbeddedBatches[embIdx] = { ...updatedEmbeddedBatches[embIdx], qtyRemaining: newQtyRemaining };
-              }
-            }
-
-            // Update embedded batches array on the product
-            await localDb.products.update(product.id, { batches: updatedEmbeddedBatches, stock: newStock, updatedAt: now });
-            await queueOp('products', 'update', product.id, toRemoteProduct({
-              ...product, batches: updatedEmbeddedBatches, stock: newStock, updatedAt: now
-            }));
-          } else {
-            // Original purchase was a RETURN (negative qty) — we need to re-add stock
-            // No batch to restore for returns, just update stock
-            await localDb.products.update(product.id, { stock: newStock, updatedAt: now });
-            await queueOp('products', 'update', product.id, toRemoteProduct({
-              ...product, stock: newStock, updatedAt: now
-            }));
-          }
+          // --- STOCK ONLY UPDATE (Batch system deprecated) ---
+          await localDb.products.update(product.id, { stock: newStock, updatedAt: now });
+          await queueOp('products', 'update', product.id, toRemoteProduct({
+            ...product, stock: newStock, updatedAt: now
+          }));
 
           // --- STOCK HISTORY LOG ---
           const histId = generateId();

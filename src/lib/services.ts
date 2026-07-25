@@ -177,6 +177,7 @@ export function getAmountByMethod(sale: any, method: string): number {
 
 export const mapSale = (item: any): Sale => ({
   ...item,
+  sourceOrderId: item.source_order_id ?? item.sourceOrderId,
   invoiceNumber: item.invoice_number ?? item.invoiceNumber,
   customerId: item.customer_id ?? item.customerId,
   customerName: item.customer_name ?? item.customerName,
@@ -598,22 +599,8 @@ export const mapPurchaseRecord = (item: any): PurchaseRecord => ({
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
 });
 
-export const mapProductBatch = (item: any): ProductBatch => ({
-  ...item,
-  productId: item.product_id ?? item.productId,
-  batchNumber: item.batch_number ?? item.batchNumber,
-  batchType: item.batch_type ?? item.batchType,
-  qtyRemaining: item.qty_remaining ?? item.qtyRemaining,
-  costPrice: item.cost_price ? Number(item.cost_price) : 0,
-  salePrice: item.sale_price ? Number(item.sale_price) : 0,
-  supplierId: item.supplier_id ?? item.supplierId,
-  supplierName: item.supplier_name ?? item.supplierName,
-  poId: item.po_id ?? item.poId,
-  manufacturingDate: item.manufacturing_date ? new Date(item.manufacturing_date) : (item.manufacturingDate ? new Date(item.manufacturingDate) : undefined),
-  expiryDate: item.expiry_date ? new Date(item.expiry_date) : (item.expiryDate ? new Date(item.expiryDate) : undefined),
-  createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
-  updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
-});
+// mapProductBatch removed — batch system deprecated
+// toRemoteProductBatch removed — batch system deprecated
 
 /**
  * REVERSE MAPPERS: CamelCase (Frontend) -> snake_case (Remote DB)
@@ -644,6 +631,7 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   if ('highlightTag' in p) { remote.highlight_tag = p.highlightTag; delete remote.highlightTag; }
   delete remote.batches;
   delete remote.product_batches;
+  delete remote.productBatches;
   
   // Enforce NOT NULL constraint for sku
   if (!remote.sku) {
@@ -728,30 +716,12 @@ export const toRemotePurchaseRecord = (r: any) => {
 };
 
 
-export const toRemoteProductBatch = (b: any) => {
-  const remote: any = { ...b };
-  if ('productId' in b) { remote.product_id = b.productId; delete remote.productId; }
-  if ('batchNumber' in b) { remote.batch_number = b.batchNumber; delete remote.batchNumber; }
-  if ('batchType' in b) { remote.batch_type = b.batchType; delete remote.batchType; }
-  if ('qtyRemaining' in b) { remote.qty_remaining = b.qtyRemaining; delete remote.qtyRemaining; }
-  if ('costPrice' in b) { remote.cost_price = b.costPrice; delete remote.costPrice; }
-  if ('salePrice' in b) { remote.sale_price = b.salePrice; delete remote.salePrice; }
-  if ('supplier' in b) { remote.supplier_name = b.supplier; delete remote.supplier; }
-  if ('supplierId' in b) { remote.supplier_id = b.supplierId; delete remote.supplierId; }
-  if ('supplierName' in b) { remote.supplier_name = b.supplierName; delete remote.supplierName; }
-  if ('supplierInfo' in b) { remote.supplier_info = b.supplierInfo; delete remote.supplierInfo; }
-  if ('poId' in b) { remote.po_id = b.poId; delete remote.poId; }
-  if ('expiryDate' in b) { remote.expiry_date = b.expiryDate instanceof Date ? b.expiryDate.toISOString() : b.expiryDate; delete remote.expiryDate; }
-  if ('manufacturingDate' in b) { remote.manufacturing_date = b.manufacturingDate instanceof Date ? b.manufacturingDate.toISOString() : b.manufacturingDate; delete remote.manufacturingDate; }
-  if ('createdAt' in b) { remote.created_at = b.createdAt instanceof Date ? b.createdAt.toISOString() : b.createdAt; delete remote.createdAt; }
-  if ('updatedAt' in b) { remote.updated_at = b.updatedAt instanceof Date ? b.updatedAt.toISOString() : b.updatedAt; delete remote.updatedAt; }
-  if ('source' in remote) { delete remote.source; }
-  return remote;
-};
+// toRemoteProductBatch removed — batch system deprecated
 
 
 export const toRemoteSale = (s: Partial<Sale>) => {
   const remote: any = { ...s };
+  if ('sourceOrderId' in s) { remote.source_order_id = s.sourceOrderId; delete remote.sourceOrderId; }
   if ('invoiceNumber' in s) { remote.invoice_number = s.invoiceNumber; delete remote.invoiceNumber; }
   if ('customerId' in s) { remote.customer_id = s.customerId; delete remote.customerId; }
   if ('customerName' in s) { remote.customer_name = s.customerName; delete remote.customerName; }
@@ -931,27 +901,9 @@ export const productsService = {
     // 2. Queue Parent Product FIRST (to satisfy FK constraints in cloud)
     await queueOp('products', 'create', id, toRemoteProduct(newProduct));
 
-    // 3. Queue Batches/History (if tracking enabled)
+    // 3. Queue History (if tracking enabled)
     if (product.trackInventory && product.stock > 0) {
-      const batchId = generateId();
       const initialQty = Number(product.stock) || 0;
-      const initialBatch = {
-        id: batchId,
-        productId: id,
-        batchNumber: `B-OPEN-${now.getTime()}`,
-        batchType: 'opening',
-        quantity: initialQty,
-        qtyRemaining: initialQty,
-        costPrice: product.cost,
-        salePrice: product.price,
-        source: 'direct',
-        active: true,
-        createdAt: now,
-        updatedAt: now
-      };
-
-      await localDb.productBatches.add(initialBatch as any);
-      await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(initialBatch));
 
       // Also log stock history
       const logId = generateId();
@@ -961,15 +913,12 @@ export const productsService = {
         type: 'initial',
         changeQty: initialQty,
         balanceAfter: initialQty,
-        referenceId: batchId,
+        referenceId: 'INITIAL_STOCK',
         note: 'Initial opening stock',
         createdAt: now
       };
       await localDb.stockHistory.add(stockLog as any);
       await queueOp('stock_history', 'create', logId, toRemoteStockHistory(stockLog));
-
-      newProduct.batches = [initialBatch];
-      await localDb.products.update(id, { batches: [initialBatch] });
     }
 
     // 4. Create child variations if productType is 'variable'
@@ -1142,51 +1091,10 @@ export const productsService = {
     if (!product) return;
 
     const newStock = (product.stock || 0) + delta;
-
-    // Create an adjustment batch for stock-in, or reduce from newest batch for stock-out
     const now = new Date();
-    let updatedBatches = [...(product.batches || [])];
 
-    if (delta > 0) {
-      const batchId = generateId();
-      const newBatch = {
-        id: batchId,
-        productId: id,
-        quantity: delta,
-        qtyRemaining: delta,
-        purchasePrice: 0,
-        salePrice: product.price,
-        type: 'adjustment' as const,
-        createdAt: now,
-        updatedAt: now
-      };
-      updatedBatches.push(newBatch);
-      await localDb.productBatches.add(newBatch);
-      await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(newBatch));
-    } else if (delta < 0) {
-      let remaining = Math.abs(delta);
-      updatedBatches = updatedBatches
-        .map(b => ({ ...b }))
-        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      const finalBatches: typeof updatedBatches = [];
-      for (const batch of updatedBatches) {
-        if (remaining <= 0) {
-          finalBatches.push(batch);
-          continue;
-        }
-        const deduct = Math.min(batch.qtyRemaining || 0, remaining);
-        if (deduct <= 0) { finalBatches.push(batch); continue; }
-        const newQty = (batch.qtyRemaining || 0) - deduct;
-        remaining -= deduct;
-        await localDb.productBatches.update(batch.id, { qtyRemaining: newQty, updatedAt: now });
-        await queueOp('product_batches', 'update', batch.id, { qty_remaining: newQty, updated_at: now.toISOString() });
-        if (newQty > 0) finalBatches.push({ ...batch, qtyRemaining: newQty });
-      }
-      updatedBatches = finalBatches;
-    }
-
-    await localDb.products.put({ ...product, stock: newStock, batches: updatedBatches, updatedAt: now });
-    await queueOp('products', 'update', id, toRemoteProduct({ stock: newStock, batches: updatedBatches, updatedAt: now }));
+    await localDb.products.put({ ...product, stock: newStock, updatedAt: now });
+    await queueOp('products', 'update', id, toRemoteProduct({ stock: newStock, updatedAt: now }));
 
     const histId = generateId();
     const historyEntry = {
@@ -1336,6 +1244,93 @@ export const usersService = {
   }
 };
 
+// ── Store Order Mapper ──
+export const mapStoreOrder = (item: any): StoreOrder => ({
+  ...item,
+  invoiceNumber: item.invoice_number ?? item.invoiceNumber,
+  customerId: item.customer_id ?? item.customerId,
+  customerName: item.customer_name ?? item.customerName,
+  customerPhone: item.customer_phone ?? item.customerPhone,
+  discountAmount: item.discount_amount ?? item.discountAmount,
+  taxAmount: item.tax_amount ?? item.taxAmount,
+  deliveryFee: item.delivery_fee ? Number(item.delivery_fee) : (item.deliveryFee ? Number(item.deliveryFee) : 0),
+  paymentMethod: item.payment_method ?? item.paymentMethod,
+  deliveryAddress: item.delivery_address ?? item.deliveryAddress,
+  deliveryLocationLat: item.delivery_location_lat ?? item.deliveryLocationLat,
+  deliveryLocationLng: item.delivery_location_lng ?? item.deliveryLocationLng,
+  customerNotes: item.customer_notes ?? item.customerNotes,
+  fulfilledSaleId: item.fulfilled_sale_id ?? item.fulfilledSaleId,
+  total: item.total ? Number(item.total) : 0,
+  subtotal: item.subtotal ? Number(item.subtotal) : 0,
+  createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
+  updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
+});
+
+export const toRemoteStoreOrder = (s: Partial<StoreOrder>) => {
+  const remote: any = { ...s };
+  if ('invoiceNumber' in s) { remote.invoice_number = s.invoiceNumber; delete remote.invoiceNumber; }
+  if ('customerId' in s) { remote.customer_id = s.customerId; delete remote.customerId; }
+  if ('customerName' in s) { remote.customer_name = s.customerName; delete remote.customerName; }
+  if ('customerPhone' in s) { remote.customer_phone = s.customerPhone; delete remote.customerPhone; }
+  if ('discountAmount' in s) { remote.discount_amount = s.discountAmount; delete remote.discountAmount; }
+  if ('taxAmount' in s) { remote.tax_amount = s.taxAmount; delete remote.taxAmount; }
+  if ('deliveryFee' in s) { remote.delivery_fee = s.deliveryFee; delete remote.deliveryFee; }
+  if ('paymentMethod' in s) { remote.payment_method = s.paymentMethod; delete remote.paymentMethod; }
+  if ('deliveryAddress' in s) { remote.delivery_address = s.deliveryAddress; delete remote.deliveryAddress; }
+  if ('deliveryLocationLat' in s) { remote.delivery_location_lat = s.deliveryLocationLat; delete remote.deliveryLocationLat; }
+  if ('deliveryLocationLng' in s) { remote.delivery_location_lng = s.deliveryLocationLng; delete remote.deliveryLocationLng; }
+  if ('customerNotes' in s) { remote.customer_notes = s.customerNotes; delete remote.customerNotes; }
+  if ('fulfilledSaleId' in s) { remote.fulfilled_sale_id = s.fulfilledSaleId; delete remote.fulfilledSaleId; }
+  if ('createdAt' in s) { remote.created_at = s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt; delete remote.createdAt; }
+  if ('updatedAt' in s) { remote.updated_at = s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt; delete remote.updatedAt; }
+  return remote;
+};
+
+/**
+ * Store Orders Service
+ */
+export const storeOrdersService = {
+  async getAll(): Promise<StoreOrder[]> {
+    const orders = await localDb.storeOrders.toArray();
+    return orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async fetchRemote(lastSyncTime?: Date): Promise<StoreOrder[]> {
+    if (lastSyncTime) {
+      const queryFn = () => supabase.from('store_orders').select('*').gte('updated_at', lastSyncTime.toISOString());
+      const data = await fetchAllPages(queryFn);
+      return data.map(mapStoreOrder);
+    } else {
+      const queryFn = () => supabase.from('store_orders').select('*').order('created_at', { ascending: false }).limit(5000);
+      const data = await fetchAllPages(queryFn);
+      return data.map(mapStoreOrder);
+    }
+  },
+
+  async create(order: Omit<StoreOrder, 'id'>): Promise<StoreOrder> {
+    const id = crypto.randomUUID();
+    const newOrder = { ...order, id, createdAt: new Date(), updatedAt: new Date() } as StoreOrder;
+    await localDb.storeOrders.add(newOrder);
+    await queueOp('store_orders', 'create', id, toRemoteStoreOrder(newOrder));
+    return newOrder;
+  },
+
+  async update(id: string, updates: Partial<StoreOrder>): Promise<StoreOrder> {
+    const existing = await localDb.storeOrders.get(id);
+    if (!existing) throw new Error('Store order not found');
+    const updated = { ...existing, ...updates, updatedAt: new Date() };
+    await localDb.storeOrders.put(updated);
+    await queueOp('store_orders', 'update', id, toRemoteStoreOrder(updated));
+    return updated;
+  },
+
+  async delete(id: string): Promise<void> {
+    await localDb.storeOrders.delete(id);
+    await queueOp('store_orders', 'delete', id, {});
+  },
+};
+
+
 /**
  * Sales Service
  * Implements atomic-like stock logic and local-first persistence
@@ -1418,6 +1413,10 @@ export const salesService = {
   },
 
   async create(sale: Omit<Sale, 'id'>): Promise<Sale> {
+    if (!sale.invoiceNumber || String(sale.invoiceNumber).trim() === '' || sale.invoiceNumber === 'undefined') {
+      console.error("[FATAL] Attempted to create a sale without a valid invoiceNumber:", sale);
+      throw new Error("Cannot create a sale without a valid invoice number. This prevents ghost records.");
+    }
     const id = generateId();
     const now = new Date();
     const newSale = {
@@ -1440,49 +1439,6 @@ export const salesService = {
         const clampedStock = Math.max(0, newStock);
         if (newStock < 0) anyOversold = true;
 
-        // --- START BATCH-LEVEL FIFO REDUCTION & COSTING ---
-        const batches = await localDb.productBatches
-          .where('productId').equals(product.id)
-          .toArray();
-
-        const sortedBatches = batches
-          .filter(b => (b.qtyRemaining || 0) > 0)
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-        let remainingToDeduct = qty;
-        // Fallback cost: use product.cost if no batches available
-        let totalPurchaseCost = 0;
-        const fifoDetails: { batchId: string; quantity: number; cost: number; salePrice: number }[] = [];
-        const updatedBatchesForProduct = [...(product.batches || [])];
-
-        for (const batch of sortedBatches) {
-          if (remainingToDeduct <= 0) break;
-
-          const deductFromThisBatch = Math.min(batch.qtyRemaining, remainingToDeduct);
-          const newQtyRemaining = batch.qtyRemaining - deductFromThisBatch;
-          remainingToDeduct -= deductFromThisBatch;
-
-          // Calculate exact cost for this deduction chunk
-          const batchCost = Number(batch.costPrice) || Number(product.cost) || 0;
-          totalPurchaseCost += (deductFromThisBatch * batchCost);
-
-          fifoDetails.push({
-            batchId: batch.id,
-            quantity: deductFromThisBatch,
-            cost: batchCost,
-            salePrice: Number(batch.salePrice) || Number(product.price) || 0
-          });
-
-          // Update individual batch
-          await localDb.productBatches.update(batch.id, { qtyRemaining: newQtyRemaining });
-          await queueOp('product_batches', 'update', batch.id, { qty_remaining: newQtyRemaining }, { batchId: id });
-
-          const batchIndex = updatedBatchesForProduct.findIndex(b => b.id === batch.id);
-          if (batchIndex !== -1) {
-            updatedBatchesForProduct[batchIndex] = { ...updatedBatchesForProduct[batchIndex], qtyRemaining: newQtyRemaining };
-          }
-        }
-
         // Find variant cost fallback if applicable
         let baseCostFallback = Number(product.cost) || 0;
         if (item.selectedVariantId && product.variantData) {
@@ -1490,12 +1446,6 @@ export const salesService = {
           if (variant && variant.cost !== undefined && variant.cost > 0) {
             baseCostFallback = Number(variant.cost);
           }
-        }
-
-        // If batches were exhausted but qty still needed — deficit sale (negative stock)
-        // Add fallback cost for remaining deficit units using baseCostFallback
-        if (remainingToDeduct > 0) {
-          totalPurchaseCost += remainingToDeduct * baseCostFallback;
         }
 
         // Calculate total Add-on costs
@@ -1509,32 +1459,24 @@ export const salesService = {
           }
         }
 
-        // Inject FIFO cost back into the line item for accurate profit reporting
-        // Always use baseCostFallback as fallback if no FIFO data available
-        const baseEffectiveCost = totalPurchaseCost > 0
-          ? totalPurchaseCost
-          : baseCostFallback * qty;
-          
-        const effectivePurchaseCost = baseEffectiveCost + addonCostTotal;
+        // Simple cost calculation (no FIFO)
+        const effectivePurchaseCost = (baseCostFallback * qty) + addonCostTotal;
 
         newSale.items[i] = {
           ...item,
           purchaseCost: effectivePurchaseCost,
-          fifoDetails
+          fifoDetails: [] // Kept for backward compatibility but always empty now
         };
-        // --- END BATCH-LEVEL FIFO REDUCTION ---
 
         // Update Product — floor stock at 0 (never write negative)
         await localDb.products.update(product.id, {
           stock: clampedStock,
-          batches: updatedBatchesForProduct,
           updatedAt: now
         });
 
         await queueOp('products', 'update', product.id, toRemoteProduct({
           ...product,
           stock: clampedStock,
-          batches: updatedBatchesForProduct,
           updatedAt: now
         }), { batchId: id });
 
@@ -1715,50 +1657,12 @@ export const salesService = {
         if (qty <= 0) continue;
         const newStock = (product.stock || 0) + qty;
 
-        // --- START EXACT BATCH-LEVEL RESTORATION (Reverse FIFO) ---
-        const batches = await localDb.productBatches
-          .where('productId').equals(product.id)
-          .toArray();
-
-        const updatedBatchesForProduct = [...(product.batches || [])];
-
-        if (item.fifoDetails && item.fifoDetails.length > 0) {
-          // Restore exact quantities to the exact batches they were deducted from
-          for (const detail of item.fifoDetails) {
-            const batchToRestore = batches.find(b => b.id === detail.batchId);
-            if (batchToRestore) {
-              const newQtyRemaining = (batchToRestore.qtyRemaining || 0) + detail.quantity;
-              await localDb.productBatches.update(batchToRestore.id, { qtyRemaining: newQtyRemaining });
-              await queueOp('product_batches', 'update', batchToRestore.id, { qty_remaining: newQtyRemaining });
-
-              const batchIndex = updatedBatchesForProduct.findIndex(b => b.id === batchToRestore.id);
-              if (batchIndex !== -1) {
-                updatedBatchesForProduct[batchIndex] = { ...updatedBatchesForProduct[batchIndex], qtyRemaining: newQtyRemaining };
-              }
-            }
-          }
-        } else if (batches.length > 0) {
-          // Fallback for legacy sales without fifoDetails: Add returned quantity to the LATEST batch
-          const newestBatch = batches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-          const newQtyRemaining = (newestBatch.qtyRemaining || 0) + qty;
-
-          await localDb.productBatches.update(newestBatch.id, { qtyRemaining: newQtyRemaining });
-          await queueOp('product_batches', 'update', newestBatch.id, { qty_remaining: newQtyRemaining });
-
-          const batchIndex = updatedBatchesForProduct.findIndex(b => b.id === newestBatch.id);
-          if (batchIndex !== -1) {
-            updatedBatchesForProduct[batchIndex] = { ...updatedBatchesForProduct[batchIndex], qtyRemaining: newQtyRemaining };
-          }
-        }
-        // --- END EXACT BATCH-LEVEL RESTORATION ---
-
         // Update Local Product
         await localDb.products.update(product.id, {
           stock: newStock,
-          batches: updatedBatchesForProduct,
           updatedAt: now
         });
-        const updatedProduct = { ...product, stock: newStock, batches: updatedBatchesForProduct, updatedAt: now };
+        const updatedProduct = { ...product, stock: newStock, updatedAt: now };
         affectedProducts.push(updatedProduct);
 
         // Queue Product Sync
@@ -1951,61 +1855,13 @@ export const salesService = {
         const qty = reqItem.qty;
         const newStock = (product.stock || 0) + qty;
 
-        // --- START EXACT BATCH-LEVEL RESTORATION (Reverse FIFO) ---
-        const batches = await localDb.productBatches
-          .where('productId').equals(product.id)
-          .toArray();
-
-        const updatedBatchesForProduct = [...(product.batches || [])];
-
-        if (item.fifoDetails && item.fifoDetails.length > 0) {
-          // Restore exact quantities to the exact batches they were deducted from
-          // For partial refunds, we restore from the most recently deducted batch (last in fifoDetails)
-          let qtyToRestore = qty;
-          for (let i = item.fifoDetails.length - 1; i >= 0; i--) {
-            if (qtyToRestore <= 0) break;
-            const detail = item.fifoDetails[i];
-            
-            // Only restore up to what was deducted from this batch
-            const restoreAmount = Math.min(qtyToRestore, detail.quantity);
-            qtyToRestore -= restoreAmount;
-            
-            const batchToRestore = batches.find(b => b.id === detail.batchId);
-            if (batchToRestore) {
-              const newQtyRemaining = (batchToRestore.qtyRemaining || 0) + restoreAmount;
-              await localDb.productBatches.update(batchToRestore.id, { qtyRemaining: newQtyRemaining });
-              await queueOp('product_batches', 'update', batchToRestore.id, { qty_remaining: newQtyRemaining }, { batchId: id });
-
-              const batchIndex = updatedBatchesForProduct.findIndex(b => b.id === batchToRestore.id);
-              if (batchIndex !== -1) {
-                updatedBatchesForProduct[batchIndex] = { ...updatedBatchesForProduct[batchIndex], qtyRemaining: newQtyRemaining };
-              }
-            }
-          }
-        } else if (batches.length > 0) {
-          // Fallback for legacy sales without fifoDetails: Add returned quantity to the LATEST batch
-          const newestBatch = batches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-          const newQtyRemaining = (newestBatch.qtyRemaining || 0) + qty;
-
-          await localDb.productBatches.update(newestBatch.id, { qtyRemaining: newQtyRemaining });
-          await queueOp('product_batches', 'update', newestBatch.id, { qty_remaining: newQtyRemaining }, { batchId: id });
-
-          const batchIndex = updatedBatchesForProduct.findIndex(b => b.id === newestBatch.id);
-          if (batchIndex !== -1) {
-            updatedBatchesForProduct[batchIndex] = { ...updatedBatchesForProduct[batchIndex], qtyRemaining: newQtyRemaining };
-          }
-        }
-        // --- END EXACT BATCH-LEVEL RESTORATION ---
-
         await localDb.products.update(product.id, {
           stock: newStock,
-          batches: updatedBatchesForProduct,
           updatedAt: now
         });
         await queueOp('products', 'update', product.id, toRemoteProduct({
           ...product,
           stock: newStock,
-          batches: updatedBatchesForProduct,
           updatedAt: now
         }), { batchId: id });
 
@@ -2563,74 +2419,24 @@ export const purchaseRecordsService = {
     if (record.productId) {
       const product = await localDb.products.get(record.productId);
       if (product && record.type !== 'Adjustment') {
-        // For non-Adjustment records: create batch, update stock, log stock_history
-        if (record.quantity < 0) {
-          // --- BATCH-LEVEL FIFO REDUCTION FOR SUPPLIER RETURNS ---
-          const batches = await localDb.productBatches
-            .where('productId').equals(product.id)
-            .toArray();
+        const newStock = (product.stock || 0) + record.quantity;
+        
+        // If it's a stock-in purchase, update the product's last cost price
+        const costUpdate = record.quantity > 0 && record.costPrice > 0 
+          ? { cost: record.costPrice } 
+          : {};
 
-          const sortedBatches = batches
-            .filter(b => (b.qtyRemaining || 0) > 0)
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-          let remainingToDeduct = Math.abs(record.quantity);
-          const updatedBatchesForProduct = [...(product.batches || [])];
-
-          for (const batch of sortedBatches) {
-            if (remainingToDeduct <= 0) break;
-
-            const deductFromThisBatch = Math.min(batch.qtyRemaining, remainingToDeduct);
-            const newQtyRemaining = batch.qtyRemaining - deductFromThisBatch;
-            remainingToDeduct -= deductFromThisBatch;
-
-            await localDb.productBatches.update(batch.id, { qtyRemaining: newQtyRemaining });
-            await queueOp('product_batches', 'update', batch.id, { qty_remaining: newQtyRemaining });
-
-            const batchIndex = updatedBatchesForProduct.findIndex(b => b.id === batch.id);
-            if (batchIndex !== -1) {
-              updatedBatchesForProduct[batchIndex] = {
-                ...updatedBatchesForProduct[batchIndex],
-                qtyRemaining: newQtyRemaining
-              };
-            }
-          }
-          await localDb.products.update(product.id, { batches: updatedBatchesForProduct });
-          await queueOp('products', 'update', product.id, toRemoteProduct(
-            { ...product, batches: updatedBatchesForProduct, updatedAt: now }
-          ));
-        } else {
-          // --- STOCK IN: CREATE NEW BATCH — batch_number NEVER null ---
-          const batchId = generateId();
-          const newBatch = {
-            id: batchId,
-            productId: record.productId,
-            batchNumber: `B-${now.getTime()}-${batchId.substr(0, 6).toUpperCase()}`,
-            quantity: record.quantity,
-            qtyRemaining: record.quantity,
-            costPrice: record.costPrice,
-            salePrice: (record as any).retailPrice || product.price,
-            supplier: record.supplier || 'DIRECT ENTRY',
-            createdAt: now
-          };
-
-          // Save to separate productBatches table
-          await localDb.productBatches.add(newBatch as any);
-          await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(newBatch));
-
-          // ALSO update the embedded product.batches array — THIS is what the UI reads
-          const existingBatches: any[] = product.batches || [];
-          const updatedBatches = [...existingBatches, newBatch];
-          await localDb.products.update(product.id, { batches: updatedBatches });
-          // Queue product sync so cloud has updated batches
-          await queueOp('products', 'update', product.id, toRemoteProduct(
-            { ...product, batches: updatedBatches, updatedAt: now }
-          ));
-        }
+        await localDb.products.update(product.id, { 
+          stock: newStock, 
+          ...costUpdate,
+          updatedAt: now 
+        });
+        
+        await queueOp('products', 'update', product.id, toRemoteProduct(
+          { ...product, stock: newStock, ...costUpdate, updatedAt: now }
+        ));
 
         // Log stock movement to stock_history for full audit trail
-        const newStock = (product.stock || 0) + record.quantity;
-        await localDb.products.update(product.id, { stock: newStock });
         const histId = generateId();
         const histEntry = {
           id: histId,
@@ -2897,30 +2703,7 @@ export const paymentModesService = {
 
 
 
-/**
- * Stock Integrity Audit (RULE F8)
- * Calls the audit_stock_integrity() RPC and returns products where
- * products.stock != SUM(product_batches.qty_remaining).
- * Zero rows = healthy system. Call from admin panel.
- */
-export const auditStockIntegrity = async (): Promise<Array<{
-  product_id: string;
-  name: string;
-  stock: number;
-  batch_sum: number;
-  diff: number;
-}>> => {
-  const { data, error } = await supabase.rpc('audit_stock_integrity');
-  if (error) throw error;
-  return (data || []) as Array<{
-    product_id: string;
-    name: string;
-    stock: number;
-    batch_sum: number;
-    diff: number;
-  }>;
-};
-
+// auditStockIntegrity removed — batch system deprecated
 /**
  * Barcode Seeding / Population (RULE F1 / CODE 128)
  * Fetches existing products where barcode_value is null or empty,
@@ -3738,99 +3521,4 @@ export const productToppingsService = {
 };
 
 
-/**
- * Stock Reconciliation Tool — Cross-checks products.stock vs SUM(product_batches.qty_remaining)
- * Returns mismatches and optionally auto-fixes them.
- */
-export interface ReconcileResult {
-  name: string;
-  productId: string;
-  stock: number;
-  batchSum: number;
-  diff: number;
-  fixed: boolean;
-}
-
-export const reconcileAllStock = async (autoFix: boolean = false): Promise<ReconcileResult[]> => {
-  const results: ReconcileResult[] = [];
-  
-  const products = await localDb.products.toArray();
-  
-  for (const product of products) {
-    // Skip untracked products
-    if (!product.trackInventory) continue;
-    
-    const batches = await localDb.productBatches
-      .where('productId').equals(product.id)
-      .toArray();
-    
-    const batchSum = batches.reduce((sum, b) => sum + (b.qtyRemaining || 0), 0);
-    const stock = product.stock || 0;
-    
-    if (stock !== batchSum) {
-      const entry: ReconcileResult = {
-        name: product.name,
-        productId: product.id,
-        stock,
-        batchSum,
-        diff: stock - batchSum,
-        fixed: false
-      };
-      
-      if (autoFix) {
-        const now = new Date();
-        
-        if (stock > batchSum) {
-          // Stock is higher than batches — create a corrective batch
-          const gap = stock - batchSum;
-          const batchId = generateId();
-          const corrBatch = {
-            id: batchId,
-            productId: product.id,
-            batchNumber: `RECONCILE-${now.toISOString().slice(0, 10)}`,
-            quantity: gap,
-            qtyRemaining: gap,
-            costPrice: product.cost || 0,
-            salePrice: product.price || 0,
-            supplier: 'SYSTEM-RECONCILIATION',
-            createdAt: now
-          };
-          await localDb.productBatches.add(corrBatch as any);
-          await queueOp('product_batches', 'create', batchId, toRemoteProductBatch(corrBatch));
-          
-          // Update embedded batches
-          const updatedBatches = [...(product.batches || []), corrBatch];
-          await localDb.products.update(product.id, { batches: updatedBatches, updatedAt: now });
-          await queueOp('products', 'update', product.id, toRemoteProduct({ ...product, batches: updatedBatches, updatedAt: now }));
-        } else {
-          // Batches are higher than stock — adjust stock UP to match batches
-          await localDb.products.update(product.id, { stock: batchSum, updatedAt: now });
-          await queueOp('products', 'update', product.id, toRemoteProduct({ ...product, stock: batchSum, updatedAt: now }));
-        }
-        
-        // Log to stock_history
-        const histId = generateId();
-        const histEntry = {
-          id: histId,
-          productId: product.id,
-          changeQty: 0,
-          type: 'adjustment' as const,
-          referenceId: 'RECONCILE',
-          note: `[RECONCILE] stock=${stock}, batches=${batchSum}, diff=${stock - batchSum}. Auto-fixed.`,
-          balanceAfter: Math.max(stock, batchSum),
-          cashierName: 'System',
-          createdAt: now
-        };
-        await localDb.stockHistory.add(histEntry);
-        await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
-        
-        entry.fixed = true;
-      }
-      
-      results.push(entry);
-    }
-  }
-  
-  return results;
-};
-
+// reconcileAllStock removed — batch system deprecated

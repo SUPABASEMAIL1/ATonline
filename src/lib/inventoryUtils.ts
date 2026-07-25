@@ -1,105 +1,32 @@
-import { Product, ProductBatch, CartItem } from '../types';
+// inventoryUtils.ts — DEPRECATED
+// Batch/FIFO system has been removed. This file is kept as an empty stub
+// to prevent import errors from any legacy code that may reference it.
+// The calculateFIFOSplit function is no longer needed.
 
 export interface FIFODeductionResult {
   totalCost: number;
-  totalSaleValue: number; // For batch-wise pricing
-  updatedBatches: ProductBatch[];
-  usedBatches: {
-    batchId: string;
-    quantity: number;
-    cost: number;
-    salePrice: number;
-  }[];
+  totalSaleValue: number;
+  updatedBatches: any[];
+  usedBatches: any[];
 }
 
 /**
- * Calculates FIFO split for a sale.
- * Returns which batches should be used and at what price.
+ * @deprecated Batch system removed. Uses product.cost directly now.
+ * Kept as stub for backward compatibility.
  */
-export function calculateFIFOSplit(product: Product, quantityToDeduct: number): FIFODeductionResult {
-  // Sort batches by arrival order (FIFO)
-  const batches = [...(product.batches || [])].sort((a, b) => {
-    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return timeA - timeB;
-  });
-
-  let remainingToDeduct = Math.abs(quantityToDeduct);
-  let totalCost = 0;
-  let totalSaleValue = 0;
-  const usedBatches: FIFODeductionResult['usedBatches'] = [];
-  const updatedBatches: ProductBatch[] = [...batches];
-
-  // If no batches exist, fallback to product's current cost/price
-  if (batches.length === 0) {
-    return {
-      totalCost: remainingToDeduct * (product.cost || 0),
-      totalSaleValue: remainingToDeduct * (product.price || 0),
-      updatedBatches: [],
-      usedBatches: [{
-        batchId: 'opening',
-        quantity: remainingToDeduct,
-        cost: product.cost || 0,
-        salePrice: product.price || 0
-      }]
-    };
-  }
-
-  for (let i = 0; i < updatedBatches.length; i++) {
-    const batch = updatedBatches[i];
-    const qtyLeft = batch.qtyRemaining !== undefined ? batch.qtyRemaining : batch.quantity;
-    if (qtyLeft <= 0) continue;
-
-    const amountFromThisBatch = Math.min(qtyLeft, remainingToDeduct);
-    
-    totalCost += amountFromThisBatch * batch.costPrice;
-    totalSaleValue += amountFromThisBatch * batch.salePrice;
-    remainingToDeduct -= amountFromThisBatch;
-    
-    // Update batch qtyRemaining
-    const newQtyRemaining = qtyLeft - amountFromThisBatch;
-    updatedBatches[i] = {
-      ...batch,
-      qtyRemaining: newQtyRemaining,
-      quantity: batch.quantity // Keep original quantity as IN qty
-    };
-
-    usedBatches.push({
-      batchId: batch.id,
-      quantity: amountFromThisBatch,
-      cost: batch.costPrice,
-      salePrice: batch.salePrice
-    });
-
-    if (remainingToDeduct === 0) break;
-  }
-
-  // If there's still quantity remaining (sold more than in batches), 
-  // use the last batch's price or product price
-  if (remainingToDeduct > 0) {
-    const fallbackCost = product.cost || (batches.length > 0 ? batches[batches.length - 1].costPrice : 0);
-    const fallbackPrice = product.price || (batches.length > 0 ? batches[batches.length - 1].salePrice : 0);
-    
-    totalCost += remainingToDeduct * fallbackCost;
-    totalSaleValue += remainingToDeduct * fallbackPrice;
-    
-    usedBatches.push({
-      batchId: 'overflow',
-      quantity: remainingToDeduct,
-      cost: fallbackCost,
-      salePrice: fallbackPrice
-    });
-  }
-
+export function calculateFIFOSplit(product: any, quantityToDeduct: number): FIFODeductionResult {
+  const qty = Math.abs(quantityToDeduct);
+  const cost = product.cost || 0;
+  const price = product.price || 0;
   return {
-    totalCost,
-    totalSaleValue,
-    updatedBatches,
-    usedBatches
+    totalCost: qty * cost,
+    totalSaleValue: qty * price,
+    updatedBatches: [],
+    usedBatches: [{
+      batchId: 'legacy',
+      quantity: qty,
+      cost,
+      salePrice: price
+    }]
   };
-}
-
-export function getCartItemCost(product: Product, quantity: number): number {
-  const result = calculateFIFOSplit(product, quantity);
-  return result.totalCost;
 }

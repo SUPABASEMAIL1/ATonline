@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { AppSettings, CartItem, Sale } from '../../types';
-import { toRemoteSale } from '../../lib/services';
+import { AppSettings, CartItem, StoreOrder } from '../../types';
+import { toRemoteStoreOrder } from '../../lib/services';
 import { formatCurrency } from '../../lib/currencies';
 import { ArrowLeft, CheckCircle, CheckCircle2, MapPin, AlertCircle, LocateFixed, User, Phone, Map as MapIcon, AlignLeft, Navigation, Clock } from 'lucide-react';
 import { sonner } from '../../lib/sonner';
@@ -101,10 +101,9 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
       if (customer) {
         try {
           const { data, error } = await supabase
-            .from('sales')
+            .from('store_orders')
             .select('delivery_address, customer_notes')
             .eq('customer_id', customer.id)
-            .eq('sale_type', 'estore')
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -260,7 +259,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
       const randomInt = Math.floor(1000 + Math.random() * 9000);
       const generatedInvoice = `WEB-${dateStr}-${randomInt}`;
 
-      const saleData: Partial<Sale> = {
+      const orderData: Partial<StoreOrder> = {
         id: crypto.randomUUID(),
         invoiceNumber: generatedInvoice,
         customerId: customerId,
@@ -283,15 +282,11 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         paymentMethod: (selectedPaymentMethod === 'custom' ? 'digital' : selectedPaymentMethod) as any,
         status: 'pending',
         cashier: 'ONLINE_STORE',
-        timestamp: new Date(),
-        createdAt: new Date(),
-        estoreStatus: 'preparing',
-        saleType: 'estore',
       };
 
-      const remoteData = toRemoteSale(saleData);
+      const remoteData = toRemoteStoreOrder(orderData);
 
-      const { error } = await supabase.from('sales').insert(remoteData);
+      const { error } = await supabase.from('store_orders').insert(remoteData);
       if (error) throw error;
 
       setOrderId(generatedInvoice);

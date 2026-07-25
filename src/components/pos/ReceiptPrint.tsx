@@ -523,11 +523,35 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       const bundleId = item.bundleId || item.bundle_id;
       const bundleName = item.bundleName || item.bundle_name;
       if (bundleId) {
-        if (!bundlesMap.has(bundleId)) {
-          bundlesMap.set(bundleId, { bundleId, bundleName, items: [], totalOriginal: 0, totalDiscount: 0, totalSubtotal: 0 });
+        if (!bundlesMap.has(bundleName)) {
+          bundlesMap.set(bundleName, { bundleName, bundleIds: new Set(), itemsMap: new Map(), totalOriginal: 0, totalDiscount: 0, totalSubtotal: 0 });
         }
-        const b = bundlesMap.get(bundleId)!;
-        b.items.push(item);
+        const b = bundlesMap.get(bundleName)!;
+        b.bundleIds.add(bundleId);
+        
+        const childKey = `${item.product?.name || 'Item'}_${item.selectedVariant || ''}_${item.selectedVariantLabel || ''}`;
+        if (!b.itemsMap.has(childKey)) {
+          b.itemsMap.set(childKey, { ...item, quantity: 0, aggregatedExtras: new Map() });
+        }
+        const c = b.itemsMap.get(childKey);
+        c.quantity += Math.abs(item.quantity);
+        
+        const aggregateExtra = (arr: any[], type: string, priceProp: string) => {
+          (arr || []).forEach((x: any) => {
+            const name = x.name || x.addon?.name;
+            const price = x[priceProp] || 0;
+            const key = `${type}_${name}_${price}`;
+            if (!c.aggregatedExtras.has(key)) c.aggregatedExtras.set(key, { name, price, qty: 0 });
+            const addQty = type === 'addon' ? (x.quantity || 1) * Math.abs(item.quantity) : Math.abs(item.quantity);
+            c.aggregatedExtras.get(key).qty += addQty;
+          });
+        };
+        
+        aggregateExtra(item.selectedModifiers, 'mod', 'price');
+        aggregateExtra(item.addonItems, 'addon', 'subtotal');
+        aggregateExtra(item.toppings, 'top', 'price');
+        aggregateExtra(item.displayToppings, 'dtop', 'price');
+
         const itemPrice = item.product?.price || ((item.subtotal + item.discount) / (item.quantity || 1));
         b.totalOriginal += itemPrice * item.quantity;
         b.totalDiscount += (item.discount || 0);
@@ -536,7 +560,21 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         standaloneItems.push(item);
       }
     });
-    return { bundles: Array.from(bundlesMap.values()), standaloneItems };
+    
+    const bundles = Array.from(bundlesMap.values()).map(b => ({
+      bundleId: Array.from(b.bundleIds)[0], // For keys
+      bundleName: b.bundleName,
+      bundleQty: b.bundleIds.size,
+      items: Array.from(b.itemsMap.values()).map((c: any) => ({
+         ...c,
+         extrasList: Array.from(c.aggregatedExtras.values())
+      })),
+      totalOriginal: b.totalOriginal,
+      totalDiscount: b.totalDiscount,
+      totalSubtotal: b.totalSubtotal
+    }));
+    
+    return { bundles, standaloneItems };
   };
   const grouped = groupItems(sale.items);
   const shBundles = grouped.bundles;
@@ -646,7 +684,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           </div>
           {shBundles.map((b: any) => (
             <div key={b.bundleId} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
-              <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>🎁 {b.bundleName}</div>
+              <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>🎁 {b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}{b.bundleName}</div>
               {b.items[0]?.toppings?.length > 0 && (
                 <div style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '2px', paddingLeft: '8px' }}>
                   + {b.items[0].toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}
@@ -657,9 +695,11 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                   <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
                     {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
                     {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
-                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(',')}` : ''}
-                    {item.addonItems?.length > 0 ? ` +Add-ons: ${item.addonItems.map((a:any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
-                    {item.displayToppings?.length > 0 ? ` +${item.displayToppings.map((t:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}` : ''}
+                    {item.extrasList && item.extrasList.length > 0 && (
+                      <div style={{ paddingLeft: '6px', fontSize: `${Math.max(8, fs.body - 3)}px`, fontWeight: 'bold' }}>
+                        + {item.extrasList.map((e: any) => `${e.qty > 1 ? e.qty + 'x ' : ''}${e.name} ${e.price ? '(' + formatCurrency(e.price * e.qty, currencyCode) + ')' : ''}`).join(', ')}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

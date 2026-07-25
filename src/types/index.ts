@@ -52,7 +52,7 @@ export interface Product {
   isWeightBased?: boolean;
   pricePerUnit?: number; // For weight-based pricing (per kg, per lb, etc.)
   unit?: string; // kg, lb, piece, etc.
-  batches?: ProductBatch[];
+  // batches removed — simple stock system now
   trackInventory?: boolean; // Whether to track and manage inventory for this product
   variants?: ProductVariant[];
   variantData?: VariantData[]; // Advanced variant pricing, stock, barcodes
@@ -68,21 +68,8 @@ export interface Product {
 }
 
 
-export interface ProductBatch {
-  id: string;
-  batchNumber: string;
-  batchType: 'opening' | 'purchase';
-  manufacturingDate: Date;
-  expiryDate: Date;
-  quantity: number;
-  qtyRemaining: number; // Important for FIFO tracking
-  costPrice: number;
-  salePrice: number; // Locked at batch creation
-  supplierId?: string;
-  supplierName?: string;
-  poId?: string;
-  createdAt: Date;
-}
+// ProductBatch interface removed — batch system deprecated. Simple stock + cost system now.
+// Historical batch data remains in Supabase product_batches table for reference.
 
 export interface Customer {
   id: string;
@@ -232,7 +219,7 @@ export interface CartItem {
   discountValue?: number; // Raw input (e.g. 10 for 10%)
   discountType: 'percentage' | 'fixed';
   subtotal: number;
-  batchId?: string; // For batch tracking
+  // batchId removed — batch system deprecated
   purchaseCost?: number; // Total purchase cost for this line item (FIFO calculated)
   originalPrice?: number; // The original retail price before any manual edits
   // FIFO Tracking info added for reporting
@@ -295,6 +282,7 @@ export interface SplitPayment {
 
 export interface Sale {
   id: string;
+  sourceOrderId?: string;
   invoiceNumber: string;
   customerId?: string;
   customerName?: string;
@@ -342,6 +330,30 @@ export interface RefundRequest {
     refundAmount: number;
   }[];
   totalRefundAmount: number;
+}
+
+export interface StoreOrder {
+  id: string;
+  invoiceNumber: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  items: CartItem[];
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  total: number;
+  deliveryFee?: number;
+  paymentMethod?: string;
+  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  deliveryAddress?: string;
+  deliveryLocationLat?: number;
+  deliveryLocationLng?: number;
+  customerNotes?: string;
+  cashier: string;
+  fulfilledSaleId?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface AppliedDiscount {

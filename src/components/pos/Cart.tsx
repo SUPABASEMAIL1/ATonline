@@ -75,14 +75,18 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
   };
 
   const updateBundleQuantity = async (bundleId: string, newBundleQty: number) => {
+    const originalBundleId = bundleId;
+    const bundleItemsInCart = state.cart.filter(i => (i.bundleId || i.bundle_id) === bundleId);
+    
+    if (bundleItemsInCart.length === 0) return;
+
     if (newBundleQty === 0) {
-      const newCart = state.cart.filter(x => (x.bundleId || x.bundle_id) !== bundleId);
-      dispatch({ type: 'SET_CART', payload: newCart });
+      dispatch({
+        type: 'SET_CART',
+        payload: state.cart.filter(item => (item.bundleId || item.bundle_id) !== bundleId)
+      });
       return;
     }
-
-    const bundleItemsInCart = state.cart.filter((x: any) => (x.bundleId || x.bundle_id) === bundleId);
-    if (bundleItemsInCart.length === 0) return;
 
     // IMEI/Serial check: Prevent increasing quantity of deals with serialized items
     const oldBundleQtyInCart = bundleItemsInCart[0]?.quantity || 1;
@@ -95,13 +99,13 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
     }
 
     // Extract the original bundle definition UUID (removes the hash suffix)
-    const originalBundleId = bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || bundleId;
+    const originalBundleDefId = bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || bundleId;
 
-    let bundleDef = state.bundles?.find(b => b.id === originalBundleId);
+    let bundleDef = state.bundles?.find(b => b.id === originalBundleDefId);
     if (!bundleDef) {
-      const localBundle = await localDb.bundles.get(originalBundleId);
+      const localBundle = await localDb.bundles.get(originalBundleDefId);
       if (localBundle) {
-        const bundleItems = await localDb.bundleItems.where('bundleId').equals(originalBundleId).toArray();
+        const bundleItems = await localDb.bundleItems.where('bundleId').equals(originalBundleDefId).toArray();
         bundleDef = {
           ...localBundle,
           discountValue: Number(localBundle.discountValue) || 0,
@@ -603,13 +607,6 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                     {/* Name + Price */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[9px] font-black text-violet-700 dark:text-violet-300 truncate leading-tight">{b.bundleName}</p>
-                      {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
-                        <div className="mt-0.5">
-                          <span className="text-[8px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
-                            + {b.items[0].item.toppings.map((t: any) => `${b.bundleQty > 1 ? b.bundleQty + 'x ' : ''}${t.name} (${formatCurrency(t.price * b.bundleQty, state.settings.currency)})`).join(', ')}
-                          </span>
-                        </div>
-                      )}
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className={`text-[8px] font-bold ${b.items.some(({ item }) => item.bundleHideItemPrices === true) ? 'text-violet-700 dark:text-violet-300' : 'text-gray-500'}`}>
                           {formatCurrency(b.totalSubtotal, state.settings.currency)}
@@ -1096,17 +1093,10 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
               </span>
             </div>
           )}
-          {item.toppings && item.toppings.length > 0 && !isFromBundle && (
+          {item.toppings && item.toppings.length > 0 && (
             <div className="mt-0.5">
-              <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
-                + {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}
-              </span>
-            </div>
-          )}
-          {isFromBundle && item.displayToppings && item.displayToppings.length > 0 && (
-            <div className="mt-0.5">
-              <span className="text-[8px] font-medium text-gray-400 dark:text-gray-500 leading-tight">
-                + {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}
+              <span className={`font-medium leading-tight ${isFromBundle ? 'text-[8px] text-gray-400 dark:text-gray-500' : 'text-[10px] text-gray-500 dark:text-gray-400'}`}>
+                + {item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), currency)})`).join(', ')}
               </span>
             </div>
           )}

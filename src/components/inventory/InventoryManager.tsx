@@ -26,7 +26,7 @@ import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
 import { useTranslation } from '../../hooks/useTranslation';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { generateId, localDb, queueOp } from '../../lib/localDb';
-import { toRemoteProduct, reconcileAllStock } from '../../lib/services';
+import { toRemoteProduct } from '../../lib/services';
 import { BundleManager } from './BundleManager';
 import { StoreSort } from './StoreSort';
 
@@ -685,37 +685,6 @@ export function InventoryManager() {
                     </button>
                     <button onClick={handleExportSelected} className="flex items-center justify-center gap-2 px-4 py-2.5 text-[9px] font-black bg-emerald-50 dark:bg-primary/10 border border-emerald-100 dark:border-primary/20 text-primary dark:text-emerald-400 rounded-xl transition-all active:scale-95 uppercase tracking-widest">
                       <Download className="h-4 w-4" /> <span>{t("export", "Export")}</span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        sonner.loading('Running stock reconciliation...');
-                        try {
-                          const results = await reconcileAllStock(false);
-                          sonner.close();
-                          if (results.length === 0) {
-                            sonner.success('All stock counts match their batch totals. No issues found.');
-                          } else {
-                            const fix = await sonner.confirm(
-                              `${results.length} Mismatch${results.length > 1 ? 'es' : ''} Found`,
-                              results.map(r => `${r.name}: stock=${r.stock}, batches=${r.batchSum} (diff: ${r.diff > 0 ? '+' : ''}${r.diff})`).join('\n'),
-                              'Auto-Fix All'
-                            );
-                            if (fix.isConfirmed) {
-                              sonner.loading('Fixing mismatches...');
-                              await reconcileAllStock(true);
-                              sonner.close();
-                              sonner.success(`Fixed ${results.length} stock/batch mismatch${results.length > 1 ? 'es' : ''}`);
-                            }
-                          }
-                        } catch (err: any) {
-                          sonner.close();
-                          sonner.error('Reconciliation failed: ' + (err.message || 'Unknown error'));
-                        }
-                      }}
-                      className="flex items-center justify-center gap-2 px-4 py-2.5 text-[9px] font-black bg-violet-50 dark:bg-violet-500/10 border border-violet-100 dark:border-violet-500/20 text-violet-600 dark:text-violet-400 rounded-xl transition-all active:scale-95 uppercase tracking-widest"
-                      title="Check stock vs batch integrity and auto-fix mismatches"
-                    >
-                      <Shield className="h-4 w-4" /> <span>Reconcile</span>
                     </button>
                   </>
                 )}

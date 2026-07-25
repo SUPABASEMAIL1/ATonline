@@ -97,36 +97,95 @@ export function KOTPrint({ sale }: KOTPrintProps) {
       <span class="table-header-item">ITEM</span>
     </div>
 
-    ${sale.items.map((item, idx) => {
-      const itemTotal = Math.abs(item.quantity) * (item.discountedPrice ?? item.price ?? 0);
-      const isFirstOfBundle = (item.bundleId || item.bundle_id) && item === sale.items.find((i: any) => (i.bundleId || i.bundle_id) === (item.bundleId || item.bundle_id));
+    ${(() => {
+      const bundlesMap = new Map<string, any>();
+      const standaloneItems: any[] = [];
       
-      let bundleHeader = '';
-      if (isFirstOfBundle) {
-        bundleHeader = `
-        <div class="table-row" style="padding-bottom: 2px; border-bottom: none;">
-          <div class="table-row-detail">
-            <div class="table-row-name" style="font-size: 14px;">🎁 ${item.bundleName || item.bundle_name || 'DEAL'}</div>
-            ${item.toppings?.length ? `<div class="table-row-meta" style="font-size: 12px; margin-bottom: 4px;">+ ${item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
-          </div>
-        </div>`;
+      sale.items.forEach((item: any) => {
+        const bundleId = item.bundleId || item.bundle_id;
+        const bundleName = item.bundleName || item.bundle_name;
+        if (bundleId) {
+          if (!bundlesMap.has(bundleName)) {
+            bundlesMap.set(bundleName, { bundleName, bundleIds: new Set(), itemsMap: new Map() });
+          }
+          const b = bundlesMap.get(bundleName)!;
+          b.bundleIds.add(bundleId);
+          
+          const childKey = `${item.product?.name || 'Item'}_${item.selectedVariant || ''}_${item.selectedVariantLabel || ''}`;
+          if (!b.itemsMap.has(childKey)) {
+            b.itemsMap.set(childKey, { ...item, quantity: 0, aggregatedExtras: new Map() });
+          }
+          const c = b.itemsMap.get(childKey);
+          c.quantity += Math.abs(item.quantity);
+          
+          const aggregateExtra = (arr: any[], type: string) => {
+            (arr || []).forEach((x: any) => {
+              const name = x.name || x.addon?.name;
+              const key = `${type}_${name}`;
+              if (!c.aggregatedExtras.has(key)) c.aggregatedExtras.set(key, { name, qty: 0 });
+              const addQty = type === 'addon' ? (x.quantity || 1) * Math.abs(item.quantity) : Math.abs(item.quantity);
+              c.aggregatedExtras.get(key).qty += addQty;
+            });
+          };
+          
+          aggregateExtra(item.selectedModifiers, 'mod');
+          aggregateExtra(item.addonItems, 'addon');
+          aggregateExtra(item.toppings, 'top');
+          aggregateExtra(item.displayToppings, 'dtop');
+        } else {
+          standaloneItems.push(item);
+        }
+      });
+      
+      const shBundles = Array.from(bundlesMap.values()).map(b => ({
+        bundleName: b.bundleName,
+        bundleQty: b.bundleIds.size,
+        items: Array.from(b.itemsMap.values()).map((c: any) => ({ ...c, extrasList: Array.from(c.aggregatedExtras.values()) }))
+      }));
+
+      let html = '';
+      
+      if (shBundles.length > 0) {
+        shBundles.forEach((b: any) => {
+          html += `
+          <div class="table-row" style="padding-bottom: 2px; border-bottom: none;">
+            <div class="table-row-detail">
+              <div class="table-row-name" style="font-size: 14px;">🎁 ${b.bundleQty}x ${b.bundleName}</div>
+            </div>
+          </div>`;
+          b.items.forEach((item: any, idx: number) => {
+            html += `
+            <div class="table-row" style="border-top: none; padding-top: 0;">
+              <div class="table-row-qty" style="font-size: 13px;">${item.quantity}x</div>
+              <div class="table-row-detail">
+                <div class="table-row-name" style="font-weight: normal;">${idx + 1}. ${item.product?.name || 'Item'}</div>
+                ${item.selectedVariant ? `<div class="table-row-meta" style="font-weight: bold;">- ${item.selectedVariant}</div>` : ''}
+                ${item.extrasList.length > 0 ? `<div class="table-row-meta" style="font-weight: bold; font-size: 11px;">+ ${item.extrasList.map((e: any) => `${e.qty > 1 ? e.qty + 'x ' : ''}${e.name}`).join(', ')}</div>` : ''}
+              </div>
+            </div>`;
+          });
+        });
       }
-
-      return `
-    ${bundleHeader}
-    <div class="table-row" ${isFirstOfBundle ? 'style="border-top: none; padding-top: 0;"' : ''}>
-      <div class="table-row-qty">${Math.abs(item.quantity)}x</div>
-      <div class="table-row-detail">
-        <div class="table-row-name">${idx + 1}. ${item.product.name}</div>
-        ${item.selectedVariant ? `<div class="table-row-meta">- ${item.selectedVariant}</div>` : ''}
-        ${item.selectedModifiers?.length ? `<div class="table-row-meta">+ ${item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name}`).join(', ')}</div>` : ''}
-        ${item.addonItems?.length ? `<div class="table-row-meta">+ Add-ons: ${item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x`).join(', ')}</div>` : ''}
-        ${!isFirstOfBundle && item.toppings?.length ? `<div class="table-row-meta">+ ${item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
-        ${item.displayToppings?.length ? `<div class="table-row-meta">+ ${item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
-      </div>
-    </div>`;
-    }).join('')}
-
+      
+      if (standaloneItems.length > 0) {
+        standaloneItems.forEach((item: any, idx: number) => {
+          html += `
+          <div class="table-row">
+            <div class="table-row-qty">${Math.abs(item.quantity)}x</div>
+            <div class="table-row-detail">
+              <div class="table-row-name">${shBundles.length > 0 ? idx + 1 + '.' : idx + 1 + '.'} ${item.product?.name || 'Item'}</div>
+              ${item.selectedVariant ? `<div class="table-row-meta">- ${item.selectedVariant}</div>` : ''}
+              ${item.selectedModifiers?.length ? `<div class="table-row-meta">+ ${item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name}`).join(', ')}</div>` : ''}
+              ${item.addonItems?.length ? `<div class="table-row-meta">+ Add-ons: ${item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x`).join(', ')}</div>` : ''}
+              ${item.toppings?.length ? `<div class="table-row-meta">+ ${item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
+              ${item.displayToppings?.length ? `<div class="table-row-meta">+ ${item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</div>` : ''}
+            </div>
+          </div>`;
+        });
+      }
+      
+      return html;
+    })()}
     <div class="footer">
       *** END OF KOT ***
     </div>

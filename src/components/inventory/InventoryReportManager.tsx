@@ -9,7 +9,7 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
 import { formatAppDate } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
-import { auditStockIntegrity, productsService } from '../../lib/services';
+import { productsService } from '../../lib/services';
 import { localDb } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
 
@@ -43,80 +43,7 @@ export default function InventoryReportManager({
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [displayLimit, setDisplayLimit] = useState(25);
-  const [integrityResults, setIntegrityResults] = useState<Array<{productId: string; name: string; type: 'batch_drift' | 'history_drift'; productStock: number; expectedStock: number; diff: number}>>([]);
-  const [showIntegrity, setShowIntegrity] = useState(false);
-  const [isCheckingIntegrity, setIsCheckingIntegrity] = useState(false);
-  const [isRepairing, setIsRepairing] = useState(false);
-
-  const runIntegrityCheck = async () => {
-    setIsCheckingIntegrity(true);
-    setShowIntegrity(true);
-    const results: Array<{productId: string; name: string; type: 'batch_drift' | 'history_drift'; productStock: number; expectedStock: number; diff: number}> = [];
-
-    try {
-      // 1. Server-side: audit products.stock vs product_batches.qty_remaining
-      const serverIssues = await auditStockIntegrity();
-      for (const issue of serverIssues) {
-        results.push({
-          productId: issue.product_id,
-          name: issue.name,
-          type: 'batch_drift',
-          productStock: issue.stock,
-          expectedStock: issue.batch_sum,
-          diff: issue.diff,
-        });
-      }
-
-      // 2. Client-side: audit products.stock vs SUM(stock_history.change_qty)
-      const allProducts = state.products.filter(p => p.trackInventory !== false && p.active !== false);
-      const allStockHistory = await localDb.stockHistory.toArray();
-
-      for (const product of allProducts) {
-        const historySum = allStockHistory
-          .filter(h => h.productId === product.id)
-          .reduce((sum, h) => sum + (h.changeQty || 0), 0);
-        const productStock = product.stock || 0;
-        if (productStock !== historySum) {
-          results.push({
-            productId: product.id,
-            name: product.name,
-            type: 'history_drift',
-            productStock: productStock,
-            expectedStock: historySum,
-            diff: productStock - historySum,
-          });
-        }
-      }
-    } catch (e) {
-      console.error('[IntegrityCheck] Error:', e);
-    }
-
-    setIntegrityResults(results);
-    setIsCheckingIntegrity(false);
-  };
-
-  const repairIntegrity = async () => {
-    setIsRepairing(true);
-    try {
-      const fixed: string[] = [];
-      for (const issue of integrityResults) {
-        const product = state.products.find(p => p.id === issue.productId);
-        if (!product) continue;
-
-        const correctStock = issue.expectedStock;
-        // Use productsService.update() which handles local DB + cloud sync queue
-        const updated = await productsService.update(issue.productId, { stock: correctStock });
-        dispatch({ type: 'UPDATE_PRODUCT', payload: updated });
-        fixed.push(issue.name);
-      }
-      setIntegrityResults([]);
-      sonner.success(`Repaired ${fixed.length} product(s). Stock values corrected to match batch/history sums.`);
-    } catch (e) {
-      console.error('[RepairIntegrity] Error:', e);
-      sonner.error('Repair failed — see console.');
-    }
-    setIsRepairing(false);
-  };
+  // Integrity checks removed as batch system is deprecated
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -172,16 +99,7 @@ export default function InventoryReportManager({
     const stats = productsToProcess.map(product => {
       const isInfinite = product.trackInventory === false || product.stock >= 990000;
 
-      const batchQtySum = (product.batches || []).reduce((sum, b) => sum + (b.qtyRemaining || 0), 0);
-      const isBatchSyncOk = batchQtySum === product.stock;
-
-      const batchValue = (product.batches && product.batches.length > 0 && isBatchSyncOk)
-        ? product.batches.reduce((sum, b) => sum + ((b.qtyRemaining || 0) * (b.costPrice || 0)), 0)
-        : 0;
-
-      // Fallback: If individual batch costs aren't available, use product-level cost
-      // Only calculate value if NOT infinite
-      const stockValue = isInfinite ? 0 : (batchValue > 0 ? batchValue : (product.stock * (product.cost || 0)));
+      const stockValue = isInfinite ? 0 : (product.stock * (product.cost || 0));
 
       const sellingPrice = product.isWeightBased ? (product.pricePerUnit || 0) : product.price;
       const potentialRevenue = isInfinite ? 0 : (product.stock * sellingPrice);
@@ -437,48 +355,7 @@ export default function InventoryReportManager({
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search_report_placeholder', 'Search jeans, shirt, SKU...')} className="w-full bg-gray-50 dark:bg-white/5 rounded-xl py-2 pl-10 pr-4 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none" />
         </div>
         <button onClick={exportCSV} className="btn btn-md btn-primary w-full sm:w-auto hover:scale-105"><Download className="w-3.5 h-3.5" /> {t('export_report', 'Export Report')}</button>
-        <button onClick={runIntegrityCheck} disabled={isCheckingIntegrity} className="btn btn-md btn-secondary w-full sm:w-auto hover:scale-105">
-          <Database className="w-3.5 h-3.5" />
-          {isCheckingIntegrity ? t('checking', 'Checking...') : t('integrity_check', 'Integrity Check')}
-        </button>
       </div>
-
-      {showIntegrity && (
-        <div className="bg-white dark:bg-zinc-900/60 rounded-3xl border border-gray-200/50 dark:border-white/5 overflow-hidden shadow-xl shadow-black/5 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-900 dark:text-white">{t('integrity_results', 'Inventory Integrity Results')}</h3>
-            <button onClick={() => setShowIntegrity(false)} className="text-[10px] font-bold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">&times;</button>
-          </div>
-          {integrityResults.length === 0 ? (
-            <div className="flex items-center gap-2 text-primary text-xs font-bold">
-              <CheckCircle2 className="w-4 h-4" />
-              {t('integrity_clean', 'All checks passed — stock, batches, and history agree.')}
-            </div>
-          ) : (
-            <div>
-              <div className="space-y-2 max-h-60 overflow-y-auto mb-3">
-                {integrityResults.map((r, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2 bg-rose-500/10 rounded-xl text-[10px] font-bold">
-                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                    <span className="text-gray-900 dark:text-white truncate">{r.name}</span>
-                    <span className="text-rose-500 shrink-0 ml-auto">
-                      {r.type === 'batch_drift' ? 'Batch' : 'History'}: stock={r.productStock}, expected={r.expectedStock}, diff={r.diff > 0 ? '+':''}{r.diff}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={repairIntegrity}
-                disabled={isRepairing}
-                className="btn btn-md btn-ghost w-full hover:scale-105"
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                {isRepairing ? 'Repairing...' : `Repair All (${integrityResults.length} issues)`}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Desktop Table View */}
       <div className="hidden lg:block bg-white dark:bg-zinc-900/60 rounded-3xl border border-gray-200/50 dark:border-white/5 overflow-hidden shadow-xl shadow-black/5">

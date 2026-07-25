@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import {
-  Product, Customer, Sale, User, Discount, CartItem, AppSettings, SalesTab, DiscountCondition, Expense, PurchaseRecord,
+  Product, Customer, Sale, StoreOrder, User, Discount, CartItem, AppSettings, SalesTab, DiscountCondition, Expense, PurchaseRecord,
   Category, Supplier, ProductBatch, PurchaseOrder, SupplierTransaction, Payment, StockHistory, Bundle
 } from '../types';
 import { useAuth } from './AuthContext';
@@ -24,12 +24,14 @@ import {
   mapProduct,
   mapCustomer,
   mapSale,
+  mapStoreOrder,
   mapUser,
   mapSettings,
   mapExpense,
   mapDiscount,
   mapPurchaseRecord,
   mapPayment,
+  storeOrdersService,
   getNextInvoiceNumber,
   generateNextInvoiceNumber
 } from '../lib/services';
@@ -57,14 +59,16 @@ interface AppState {
   purchaseRecords: PurchaseRecord[];
   categories: Category[];
   suppliers: Supplier[];
-  productBatches: ProductBatch[];
+  // productBatches removed — batch system deprecated
   purchaseOrders: PurchaseOrder[];
   supplierTransactions: SupplierTransaction[];
   payments: Payment[];
   stockHistory: StockHistory[];
   bundles: Bundle[];
   notes: string;
+  storeOrders: StoreOrder[];
   editingSaleId: string | null;
+  editingStoreOrderId: string | null;
   inventoryActiveTab: string;
   inventoryActiveCategory: string;
   lastProductHubId: string | null;
@@ -104,6 +108,12 @@ type AppAction =
   | { type: 'ADD_SALE'; payload: Sale }
   | { type: 'UPDATE_SALE'; payload: Sale }
   | { type: 'DELETE_SALE'; payload: string }
+  | { type: 'SET_STORE_ORDERS'; payload: StoreOrder[] }
+  | { type: 'ADD_STORE_ORDER'; payload: StoreOrder }
+  | { type: 'UPDATE_STORE_ORDER'; payload: StoreOrder }
+  | { type: 'DELETE_STORE_ORDER'; payload: string }
+  | { type: 'SET_EDITING_STORE_ORDER_ID'; payload: string | null }
+  | { type: 'APPEND_STORE_ORDERS'; payload: StoreOrder[] }
   | { type: 'SET_USERS'; payload: User[] }
   | { type: 'SET_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'INCREMENT_INVOICE_COUNTER'; payload: number }
@@ -126,7 +136,7 @@ type AppAction =
   | { type: 'DELETE_PURCHASE_RECORD'; payload: string }
   | { type: 'SET_CATEGORIES'; payload: Category[] }
   | { type: 'SET_SUPPLIERS'; payload: Supplier[] }
-  | { type: 'SET_PRODUCT_BATCHES'; payload: ProductBatch[] }
+  // SET_PRODUCT_BATCHES removed — batch system deprecated
   | { type: 'SET_PURCHASE_ORDERS'; payload: PurchaseOrder[] }
   | { type: 'SET_SUPPLIER_TRANSACTIONS'; payload: SupplierTransaction[] }
   | { type: 'SET_PAYMENTS'; payload: Payment[] }
@@ -296,6 +306,7 @@ const initialState: AppState = {
   products: [],
   customers: [],
   sales: [],
+  storeOrders: [],
   users: [],
   discounts: [],
   cart: [],
@@ -310,7 +321,7 @@ const initialState: AppState = {
   purchaseRecords: [],
   categories: [],
   suppliers: [],
-  productBatches: [],
+  // productBatches removed — batch system deprecated
   purchaseOrders: [],
   supplierTransactions: [],
   payments: [],
@@ -318,6 +329,7 @@ const initialState: AppState = {
   bundles: [],
   notes: '',
   editingSaleId: null,
+  editingStoreOrderId: null,
   inventoryActiveTab: localStorage.getItem('pos_inventory_active_tab') || 'inventory',
   inventoryActiveCategory: 'All',
   lastProductHubId: null,
@@ -427,6 +439,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         billDiscountType: 'percentage',
         notes: '',
         editingSaleId: null,
+        editingStoreOrderId: null,
         salesTabs: state.salesTabs.map(tab =>
           tab.id === state.activeSalesTab ? { ...tab, cart: [], selectedCustomer: null, billDiscountValue: 0, billDiscountType: 'percentage', notes: '', editingSaleId: null } : tab
         )
@@ -499,6 +512,30 @@ function appReducer(state: AppState, action: AppAction): AppState {
         sales: state.sales.map(s => s.id === updatedSale.id ? { ...s, ...updatedSale } : s)
       };
     }
+    case 'SET_STORE_ORDERS':
+      return { ...state, storeOrders: action.payload };
+    case 'ADD_STORE_ORDER': {
+      if (state.storeOrders.some(o => o.id === action.payload.id)) return state;
+      return { ...state, storeOrders: [...state.storeOrders, action.payload] };
+    }
+    case 'UPDATE_STORE_ORDER':
+      return {
+        ...state,
+        storeOrders: state.storeOrders.map(o => o.id === action.payload.id ? { ...o, ...action.payload } : o)
+      };
+    case 'DELETE_STORE_ORDER':
+      return { ...state, storeOrders: state.storeOrders.filter(o => o.id !== action.payload) };
+    case 'APPEND_STORE_ORDERS': {
+      const existingIds = new Set(state.storeOrders.map(o => o.id));
+      const newOrders = action.payload.filter(o => !existingIds.has(o.id));
+      return {
+        ...state,
+        storeOrders: [...state.storeOrders, ...newOrders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      };
+    }
+    case 'SET_EDITING_STORE_ORDER_ID':
+      return { ...state, editingStoreOrderId: action.payload };
+
     case 'DELETE_SALE': {
       const saleId = action.payload;
       const saleToDelete = state.sales.find(s => s.id === saleId);
@@ -527,11 +564,28 @@ function appReducer(state: AppState, action: AppAction): AppState {
         saleToDelete.items.forEach(item => {
           const productIdx = updatedProducts.findIndex(p => p.id === item.product.id);
           if (productIdx >= 0 && updatedProducts[productIdx].trackInventory !== false) {
-            const qty = item.weight || item.quantity;
-            const updatedProduct = { ...updatedProducts[productIdx] };
-            // Mathematically correct: deleting a sale restores stock (+qty), deleting a return reverses it (-qty)
-            updatedProduct.stock = (updatedProduct.stock || 0) + qty;
-            updatedProducts[productIdx] = updatedProduct;
+            const qty = (item.weight || item.quantity) - (item.refundedQuantity || 0);
+            if (qty > 0) {
+              const updatedProduct = { ...updatedProducts[productIdx] };
+              // Mathematically correct: deleting a sale restores stock (+qty), deleting a return reverses it (-qty)
+              updatedProduct.stock = (updatedProduct.stock || 0) + qty;
+              updatedProducts[productIdx] = updatedProduct;
+            }
+          }
+
+          // Add-on stock restoration in memory
+          if (item.addonItems && item.addonItems.length > 0) {
+            item.addonItems.forEach(addonItem => {
+              const addonIdx = updatedProducts.findIndex(p => p.id === addonItem.addon.addonProductId);
+              if (addonIdx >= 0 && updatedProducts[addonIdx].trackInventory !== false) {
+                const addonQty = (addonItem.quantity * item.quantity) - (item.refundedQuantity ? addonItem.quantity * item.refundedQuantity : 0);
+                if (addonQty > 0) {
+                  const updatedAddonProduct = { ...updatedProducts[addonIdx] };
+                  updatedAddonProduct.stock = (updatedAddonProduct.stock || 0) + addonQty;
+                  updatedProducts[addonIdx] = updatedAddonProduct;
+                }
+              }
+            });
           }
         });
       }
@@ -726,8 +780,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, categories: action.payload };
     case 'SET_SUPPLIERS':
       return { ...state, suppliers: action.payload };
-    case 'SET_PRODUCT_BATCHES':
-      return { ...state, productBatches: action.payload };
+    // SET_PRODUCT_BATCHES removed — batch system deprecated
     case 'SET_PURCHASE_ORDERS':
       return { ...state, purchaseOrders: action.payload };
     case 'SET_SUPPLIER_TRANSACTIONS':
@@ -806,6 +859,7 @@ const AppContext = createContext<{
   loadData: (silent?: boolean) => Promise<void>;
   loadMoreSales: (offset: number, limit?: number) => Promise<boolean>;
   searchSales: (term: string) => Promise<void>;
+  loadMoreStoreOrders: (offset: number, limit?: number) => Promise<boolean>;
 } | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -878,6 +932,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_PRODUCTS', payload: [] });
       dispatch({ type: 'SET_CUSTOMERS', payload: [] });
       dispatch({ type: 'SET_SALES', payload: [] });
+      dispatch({ type: 'SET_STORE_ORDERS', payload: [] });
       dispatch({ type: 'SET_USERS', payload: [] });
       dispatch({ type: 'SET_DISCOUNTS', payload: [] });
       dispatch({ type: 'SET_SALES_TABS', payload: [] });
@@ -885,7 +940,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_PURCHASE_RECORDS', payload: [] });
       dispatch({ type: 'SET_CATEGORIES', payload: [] });
       dispatch({ type: 'SET_SUPPLIERS', payload: [] });
-      dispatch({ type: 'SET_PRODUCT_BATCHES', payload: [] });
+      // SET_PRODUCT_BATCHES removed — batch system deprecated
+      dispatch({ type: 'SET_PURCHASE_ORDERS', payload: [] });
       dispatch({ type: 'CLEAR_CART' });
       dispatch({ type: 'SET_CURRENT_USER', payload: null });
       setInitialized(false);
@@ -1060,6 +1116,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'DELETE_SALE', payload: payload.old.id });
         }
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_orders' }, async (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const mapped = mapStoreOrder(payload.new);
+          await localDb.storeOrders.put(mapped);
+          dispatch({ type: 'ADD_STORE_ORDER', payload: mapped });
+        } else if (payload.eventType === 'UPDATE') {
+          const mapped = mapStoreOrder(payload.new);
+          await localDb.storeOrders.put(mapped);
+          dispatch({ type: 'UPDATE_STORE_ORDER', payload: mapped });
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.storeOrders.delete(payload.old.id);
+          dispatch({ type: 'DELETE_STORE_ORDER', payload: payload.old.id });
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, async (payload) => {
         if (payload.eventType === 'UPDATE') {
           if (payload.new.id !== SETTINGS_ID) return; // Only process our singleton settings row
@@ -1090,25 +1160,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }, 2000);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_batches' }, async (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          if (await isPendingDelete('product_batches', payload.new.id)) return;
-          // Map to camelCase before storing
-          const mapped = {
-            ...payload.new,
-            productId: payload.new.product_id ?? payload.new.productId,
-            batchNumber: payload.new.batch_number ?? payload.new.batchNumber,
-            qtyRemaining: payload.new.qty_remaining ?? payload.new.qtyRemaining,
-            costPrice: payload.new.cost_price ?? payload.new.costPrice,
-            salePrice: payload.new.sale_price ?? payload.new.salePrice,
-          };
-          await localDb.productBatches.put(mapped);
-          // Use granular update instead of full-array replace to prevent re-renders
-          dispatch({ type: 'SET_PRODUCT_BATCHES', payload: await localDb.productBatches.toArray() });
-        } else if (payload.eventType === 'DELETE') {
-          await localDb.productBatches.delete(payload.old.id);
-        }
-      })
+        // product_batches realtime subscription removed — batch system deprecated
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, async (payload) => {
         if (payload.eventType === 'INSERT') {
           if (await isPendingDelete('expenses', payload.new.id)) return;
@@ -1408,6 +1460,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         localProducts,
         localCustomers,
         localSales,
+        localStoreOrders,
         localDiscounts,
         localUsers,
         localSalesTabs,
@@ -1415,12 +1468,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         localPurchaseRecords,
         localSettingsArr,
         localCategories,
-        localSuppliers
+        localSuppliers,
+        localPurchaseOrders
       ] =
         await Promise.all([
           localDb.products.toArray(),
           localDb.customers.toArray(),
           localDb.sales.toArray(),
+          localDb.storeOrders.toArray(),
           localDb.discounts.toArray(),
           localDb.users.toArray(),
           localDb.salesTabs.toArray(),
@@ -1429,6 +1484,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           localDb.appSettings.toArray(),
           localDb.categories.toArray(),
           localDb.suppliers.toArray(),
+          localDb.purchaseOrders.toArray()
         ]);
 
       // NOTE: SET_PRODUCTS is dispatched below after batch hydration to avoid "NO BATCHES" flash
@@ -1446,6 +1502,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (localPurchaseRecords.length > 0) dispatch({ type: 'SET_PURCHASE_RECORDS', payload: localPurchaseRecords });
       if (localCategories.length > 0) dispatch({ type: 'SET_CATEGORIES', payload: localCategories });
       if (localSuppliers.length > 0) dispatch({ type: 'SET_SUPPLIERS', payload: localSuppliers });
+      if (localPurchaseOrders.length > 0) dispatch({ type: 'SET_PURCHASE_ORDERS', payload: localPurchaseOrders });
+      if (localStoreOrders.length > 0) {
+        const recentOrders = localStoreOrders
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 500);
+        dispatch({ type: 'SET_STORE_ORDERS', payload: recentOrders });
+      }
 
       // Load bundles from local cache
       try {
@@ -1473,43 +1536,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_SETTINGS', payload: { ...initialState.settings, ...localSettings } });
       }
 
-      // Re-hydrate product.batches from productBatches store for initial UI display
-      const localBatchRecords = await localDb.productBatches.toArray();
-
-      // ── STARTUP REPAIR: Auto-fix null batchNumber values ──
-      let repairedCount = 0;
-      for (const batch of localBatchRecords) {
-        if (!batch.batchNumber) {
-          const repairedNum = `B-REPAIR-${batch.id.substr(0, 8).toUpperCase()}`;
-          await localDb.productBatches.update(batch.id, { batchNumber: repairedNum });
-          (batch as any).batchNumber = repairedNum;
-          repairedCount++;
-        }
-      }
-      if (repairedCount > 0) {
-        console.log(`[AppContext] Auto-repaired ${repairedCount} null batchNumber(s) in local DB`);
-      }
-
-      if (localBatchRecords.length > 0) {
-        const batchMap = localBatchRecords.reduce((acc: Record<string, any[]>, b: any) => {
-          const pid = b.productId || b.product_id;
-          if (pid) { (acc[pid] = acc[pid] || []).push(b); }
-          return acc;
-        }, {} as Record<string, any[]>);
-        // Patch products in-state with their batches
-        const hydratedProducts = localProducts.map((p: any) => ({
-          ...p,
-          batches: batchMap[p.id] || p.batches || []
-        }));
-        if (hydratedProducts.length > 0) dispatch({ type: 'SET_PRODUCTS', payload: hydratedProducts });
-        const localBatches = localBatchRecords as ProductBatch[];
-        dispatch({ type: 'SET_PRODUCT_BATCHES', payload: localBatches });
-      } else {
-        // No batches — dispatch products as-is
-        if (localProducts.length > 0) dispatch({ type: 'SET_PRODUCTS', payload: localProducts });
-        const localBatches = localProducts.reduce((acc: ProductBatch[], p: any) => [...acc, ...(p.batches || [])], [] as ProductBatch[]);
-        if (localBatches.length > 0) dispatch({ type: 'SET_PRODUCT_BATCHES', payload: localBatches });
-      }
+      if (localProducts.length > 0) dispatch({ type: 'SET_PRODUCTS', payload: localProducts });
 
       if (localProducts.length > 0 || localSettingsArr.length > 0) {
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -1606,28 +1633,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
         updateStatus('Syncing marketing and procurement data...', discounts.length + usersList.length + expenses.length + purchaseRecords.length + suppliersData.length);
 
-        // Fetch sales tabs, supplier transactions, product batches, stock history, payments
-        const [salesTabsData, supplierTxData, remoteBatches, remoteStockHistory, remotePayments] = await Promise.all([
+        // Fetch sales tabs, supplier transactions, stock history, payments
+        const [salesTabsData, supplierTxData, remoteStockHistory, remotePayments] = await Promise.all([
           supabase.from('sales_tabs').select('*').eq('user_id', user.id),
           fetchDeltasAndMerge(localDb.supplierTransactions, supplierTransactionsService.fetchRemote).catch(() => []),
-          supabase.from('product_batches').select('*').then(r => (r.data || []).map((b: any) => ({
-            ...b,
-            productId: b.product_id ?? b.productId,
-            batchNumber: b.batch_number ?? b.batchNumber,
-            qtyRemaining: b.qty_remaining ?? b.qtyRemaining,
-            costPrice: b.cost_price ?? b.costPrice,
-            salePrice: b.sale_price ?? b.salePrice,
-            createdAt: b.created_at ? new Date(b.created_at) : new Date(),
-          }))).catch(() => []),
           fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote).catch(() => []),
           fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(() => [])
         ]);
         const salesTabs = (salesTabsData.data || []).map(t => ({ ...t, userId: t.user_id, editingSaleId: t.editing_sale_id ?? null }));
 
-        // Seed remote batches into local productBatches table so batch hydration works
-        if (remoteBatches.length > 0) {
-          await localDb.productBatches.bulkPut(remoteBatches).catch(() => { });
-        }
         // Seed remote stock history
         if (remoteStockHistory.length > 0) {
           await localDb.stockHistory.bulkPut(remoteStockHistory).catch(() => { });
@@ -1684,21 +1698,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return merged;
         };
 
-        // ── PRODUCTS (with batch hydration) ──
-        const rawMergedProducts = await smartMerge('products', products, localDb.products);
-
-        // Re-hydrate product.batches from the separate productBatches table.
-        const allLocalBatches = await localDb.productBatches.toArray();
-        const batchesByProductId = allLocalBatches.reduce((acc: Record<string, any[]>, b: any) => {
-          const pid = b.productId || b.product_id;
-          if (pid) { (acc[pid] = acc[pid] || []).push(b); }
-          return acc;
-        }, {} as Record<string, any[]>);
-
-        const mergedProducts = rawMergedProducts.map((p: any) => ({
-          ...p,
-          batches: batchesByProductId[p.id] || p.batches || []
-        }));
+        // ── PRODUCTS ──
+        const mergedProducts = await smartMerge('products', products, localDb.products);
 
         // ── OTHER ENTITIES ──
         const mergedCustomers = await smartMerge('customers', customers, localDb.customers);
@@ -1717,7 +1718,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         const mergedPayments = await smartMerge('payments', remotePayments, localDb.payments);
 
-        const allBatches = mergedProducts.reduce((acc, p) => [...acc, ...(p.batches || [])], [] as ProductBatch[]);
         const mergedSalesTabs = (await smartMerge('sales_tabs', salesTabs as SalesTab[], localDb.salesTabs)).slice(0, 3);
 
         dispatch({ type: 'SET_PRODUCTS', payload: mergedProducts });
@@ -1727,7 +1727,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_USERS', payload: mergedUsers });
         if (mergedSalesTabs.length > 0) dispatch({ type: 'SET_SALES_TABS', payload: mergedSalesTabs as SalesTab[] });
         dispatch({ type: 'SET_SUPPLIERS', payload: mergedSuppliers });
-        dispatch({ type: 'SET_PRODUCT_BATCHES', payload: allBatches });
         dispatch({ type: 'SET_EXPENSES', payload: mergedExpenses });
         dispatch({ type: 'SET_PURCHASE_RECORDS', payload: mergedPurchaseRecords });
         dispatch({ type: 'SET_PAYMENTS', payload: mergedPayments });
@@ -1966,6 +1965,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function loadMoreStoreOrders(offset: number, limit: number = 100) {
+    try {
+      const moreLocal = await localDb.storeOrders
+        .orderBy('createdAt')
+        .reverse()
+        .offset(offset)
+        .limit(limit)
+        .toArray();
+      if (moreLocal.length > 0) {
+        dispatch({ type: 'APPEND_STORE_ORDERS', payload: moreLocal });
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Load more store orders failed:", e);
+      return false;
+    }
+  }
+
   async function searchSales(term: string) {
     if (!term || term.length < 2) return;
 
@@ -2005,7 +2023,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AppContext.Provider value={{ state, dispatch, loadData, loadMoreSales, searchSales }}>
+    <AppContext.Provider value={{ state, dispatch, loadData, loadMoreSales, searchSales, loadMoreStoreOrders }}>
       {children}
     </AppContext.Provider>
   );

@@ -52,7 +52,7 @@ const StoreOrderTimer = ({ order, settings, onExpire }: { order: any, settings: 
 
   if (!settings?.estoreOrderTimerEnabled || timeLeft <= 0) return null;
 
-  const isActive = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(order.estoreStatus || 'pending');
+  const isActive = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(order.status || 'pending');
   if (!isActive) return null;
 
   const s = Math.floor(timeLeft / 1000);
@@ -243,19 +243,17 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
     setLoadingOrders(true);
     try {
       const { data, error } = await supabase
-        .from('sales')
+        .from('store_orders')
         .select('*')
         .eq('customer_id', customer.id)
         .order('created_at', { ascending: false });
         
       if (!error && data) {
-        // Map sales to frontend Sale objects using mapping logic (we can assume basic mapping or use mapSale if we import it, but we can just use the data as is for display purposes, but let's do basic mapping to ensure typing)
-        // For E-Store past orders, we really just need id, total, items, status, timestamp.
         setPastOrders(data.map(d => ({
           ...d,
           saleDate: d.sale_date,
           createdAt: new Date(d.created_at),
-          estoreStatus: d.estore_status
+          status: d.status
         } as any)));
       }
     } catch (err) {
@@ -1183,7 +1181,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                               {order.id.split('-')[0].toUpperCase()}
                             </span>
                             {(() => {
-                              const estoreStatus = order.estoreStatus || order.estore_status || 'pending';
+                              const estoreStatus = order.status || 'pending';
                               const labels: Record<string, string> = {
                                 pending: 'Pending',
                                 accepted: 'Accepted',
@@ -1219,7 +1217,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                         </div>
                       </div>
 
-                      <EStoreOrderProgress status={order.estoreStatus || order.estore_status || 'pending'} />
+                      <EStoreOrderProgress status={order.status || 'pending'} />
                       
                       <div className="space-y-2 mb-4 bg-[var(--color-bg)] p-3 rounded-xl border border-gray-100">
                         {order.items.map((item: any, idx: number) => (

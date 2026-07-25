@@ -465,7 +465,7 @@ ALTER TABLE products REPLICA IDENTITY FULL;
 
 
 -- ════════════════════════════════════════════════════════════════
--- 6. PRODUCT BATCHES  (FIFO / Expiry tracking)
+-- 6. PRODUCT BATCHES  [DEPRECATED - DO NOT USE] (FIFO / Expiry tracking)
 -- ════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS product_batches (
@@ -650,7 +650,44 @@ CREATE TABLE IF NOT EXISTS sales_tabs (
 
 
 -- ════════════════════════════════════════════════════════════════
--- 14. PURCHASE RECORDS  (Unified inventory ledger)
+-- 14. STORE ORDERS  (Online e-store orders, separate from POS sales)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS store_orders (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_number      TEXT NOT NULL,
+    customer_id         UUID REFERENCES customers(id) ON DELETE SET NULL,
+    customer_name       TEXT,
+    customer_phone      TEXT,
+    items               JSONB NOT NULL DEFAULT '[]'::jsonb,
+    subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount_amount     DECIMAL(12,2) DEFAULT 0,
+    tax_amount          DECIMAL(12,2) DEFAULT 0,
+    total               DECIMAL(12,2) NOT NULL,
+    delivery_fee        DECIMAL(12,2) DEFAULT 0,
+    payment_method      TEXT DEFAULT 'cash',
+    status              TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled', 'converted')),
+    delivery_address    TEXT,
+    delivery_location_lat NUMERIC,
+    delivery_location_lng NUMERIC,
+    customer_notes      TEXT,
+    cashier             TEXT DEFAULT 'ONLINE_STORE',
+    fulfilled_sale_id   UUID REFERENCES sales(id) ON DELETE SET NULL,
+    created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at          TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE store_orders REPLICA IDENTITY FULL;
+
+CREATE INDEX IF NOT EXISTS idx_store_orders_invoice_number ON store_orders(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_store_orders_status ON store_orders(status);
+CREATE INDEX IF NOT EXISTS idx_store_orders_fulfilled_sale_id ON store_orders(fulfilled_sale_id);
+CREATE INDEX IF NOT EXISTS idx_store_orders_customer_id ON store_orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_store_orders_created_at ON store_orders(created_at DESC);
+
+
+-- ════════════════════════════════════════════════════════════════
+-- 15. PURCHASE RECORDS  (Unified inventory ledger)
 -- ════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS purchase_records (
@@ -675,7 +712,7 @@ CREATE TABLE IF NOT EXISTS purchase_records (
 
 
 -- ════════════════════════════════════════════════════════════════
--- 15. PURCHASE ORDERS  (PO Headers)
+-- 16. PURCHASE ORDERS  (PO Headers)
 -- ════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
@@ -692,7 +729,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 
 
 -- ════════════════════════════════════════════════════════════════
--- 16. PURCHASE ORDER ITEMS  (PO line items)
+-- 17. PURCHASE ORDER ITEMS  (PO line items)
 -- ════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS purchase_order_items (
@@ -2165,6 +2202,9 @@ ALTER TABLE expenses
   ADD COLUMN IF NOT EXISTS is_manual_override   BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS override_by          TEXT;
 
--- POST-LAUNCH ALTER TABLE: sales — Soft Delete Support
+-- POST-LAUNCH ALTER TABLE: sales — Soft Delete Support & Online Orders Tracing
 ALTER TABLE sales
-  ADD COLUMN IF NOT EXISTS deleted_at           TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS deleted_at           TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS source_order_id      UUID REFERENCES store_orders(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_sales_source_order_id ON sales(source_order_id);

@@ -6,7 +6,7 @@ import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { useAuth } from '../../context/AuthContext';
 import { ReceiptPrint } from './ReceiptPrint';
 import { KOTPrint } from './KOTPrint';
-import { salesService, generateId, getCustomerCreditStatus, toRemoteSale, getAmountByMethod } from '../../lib/services';
+import { salesService, storeOrdersService, generateId, getCustomerCreditStatus, toRemoteSale, getAmountByMethod } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
 import { Modal } from '../common/Modal';
@@ -213,6 +213,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     try {
       let finalInvoiceNumber = '';
       let oldSale: Sale | undefined = undefined;
+      const editingStoreOrder = state.storeOrders.find(o => o.id === state.editingStoreOrderId) || null;
       
       if (state.editingSaleId) {
         oldSale = state.sales.find(s => s.id === state.editingSaleId);
@@ -247,8 +248,9 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
         receivedAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? parseFloat(amountPaid) || undefined : (paymentMethod === 'split' ? splitTotal : undefined),
         changeAmount: paymentMethod === 'cash' ? change || undefined : (paymentMethod === 'split' ? (splitTotal - total) || undefined : undefined),
-        // If editing an estore order, preserve saleType='estore' so it stays in active orders panel
-        saleType: (oldSale?.saleType as any) || saleType,
+        // If editing an estore order or fulfilling a store order, preserve saleType='estore'
+        saleType: (editingStoreOrder ? 'estore' : (oldSale?.saleType as any) || saleType),
+        sourceOrderId: state.editingStoreOrderId || undefined,
         saleDate: new Date().toLocaleDateString('en-CA'),
         // New fields
         dcNumber: dcNumber || undefined,
@@ -256,12 +258,12 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         otherAmountName: otherAmountName || undefined,
         splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
         // E-Store order → mark as out_for_delivery (Dispatched) when bill is saved in POS
-        estoreStatus: (oldSale?.saleType === 'estore' || oldSale?.estoreStatus) ? 'out_for_delivery' : undefined,
-        deliveryAddress: oldSale?.deliveryAddress,
-        deliveryFee: oldSale?.deliveryFee,
-        deliveryLocationLat: oldSale?.deliveryLocationLat,
-        deliveryLocationLng: oldSale?.deliveryLocationLng,
-        customerNotes: oldSale?.customerNotes,
+        estoreStatus: (editingStoreOrder || oldSale?.saleType === 'estore' || oldSale?.estoreStatus) ? 'out_for_delivery' : undefined,
+        deliveryAddress: editingStoreOrder?.deliveryAddress || oldSale?.deliveryAddress,
+        deliveryFee: editingStoreOrder?.deliveryFee ?? oldSale?.deliveryFee,
+        deliveryLocationLat: editingStoreOrder?.deliveryLocationLat || oldSale?.deliveryLocationLat,
+        deliveryLocationLng: editingStoreOrder?.deliveryLocationLng || oldSale?.deliveryLocationLng,
+        customerNotes: editingStoreOrder?.customerNotes || oldSale?.customerNotes,
       };
 
       // ── BILL EDIT: Safe two-phase create → delete (Replaces broken delete-first pattern) ──
@@ -316,6 +318,24 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
           }
 
           // Phase 3: Finalize UI
+          if (state.editingStoreOrderId) {
+            try {
+              await storeOrdersService.update(state.editingStoreOrderId, {
+                status: 'converted',
+                fulfilledSaleId: savedSale.id,
+              });
+              const fulfilledOrder = state.storeOrders.find(o => o.id === state.editingStoreOrderId);
+              if (fulfilledOrder) {
+                dispatch({
+                  type: 'UPDATE_STORE_ORDER',
+                  payload: { ...fulfilledOrder, status: 'converted', fulfilledSaleId: savedSale.id, updatedAt: new Date() }
+                });
+              }
+            } catch (e) {
+              console.error('Failed to fulfill store order:', e);
+            }
+            dispatch({ type: 'SET_EDITING_STORE_ORDER_ID', payload: null });
+          }
           dispatch({ type: 'ADD_SALE', payload: savedSale });
           dispatch({ type: 'CLEAR_CART' });
           dispatch({ type: 'SET_EDITING_SALE_ID', payload: null });
@@ -343,6 +363,26 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
           'Some items were sold beyond available stock. Inventory may show negative quantities.'
         );
       }
+
+      if (state.editingStoreOrderId) {
+        try {
+          await storeOrdersService.update(state.editingStoreOrderId, {
+            status: 'converted',
+            fulfilledSaleId: savedSale.id,
+          });
+          const fulfilledOrder = state.storeOrders.find(o => o.id === state.editingStoreOrderId);
+          if (fulfilledOrder) {
+            dispatch({
+              type: 'UPDATE_STORE_ORDER',
+              payload: { ...fulfilledOrder, status: 'converted', fulfilledSaleId: savedSale.id, updatedAt: new Date() }
+            });
+          }
+        } catch (e) {
+          console.error('Failed to fulfill store order:', e);
+        }
+        dispatch({ type: 'SET_EDITING_STORE_ORDER_ID', payload: null });
+      }
+
       dispatch({ type: 'ADD_SALE', payload: savedSale });
 
       dispatch({ type: 'CLEAR_CART' });

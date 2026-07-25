@@ -138,7 +138,7 @@ async function executeOp(op: PendingOp): Promise<void> {
         sales_tabs: 'sales_tabs',
         app_settings: 'app_settings',
         expenses: 'expenses',
-        product_batches: 'product_batches',
+        // product_batches removed — batch system deprecated
         suppliers: 'suppliers',
         categories: 'categories',
         purchase_records: 'purchase_records',
@@ -152,7 +152,8 @@ async function executeOp(op: PendingOp): Promise<void> {
         bundle_slots: 'bundle_slots',
         bundle_slot_options: 'bundle_slot_options',
         variant_stock_history: 'variant_stock_history',
-        product_addons: 'product_addons'
+        product_addons: 'product_addons',
+        store_orders: 'store_orders'
     };
 
     const table = tableMap[op.entity];
@@ -274,26 +275,7 @@ async function executeOp(op: PendingOp): Promise<void> {
             }
         }
 
-        // Hydration for Product Batches (Required: batch_number)
-        if (op.entity === 'product_batches' && opType !== 'delete') {
-            if (!payload.batch_number || !payload.product_id) {
-                const local = await localDb.productBatches.get(op.entityId);
-                if (local) {
-                    payload = {
-                        ...payload,
-                        batch_number: payload.batch_number || local.batchNumber,
-                        product_id: payload.product_id || local.productId
-                    };
-                }
-            }
-            // FINAL GUARD: batch_number MUST NOT be null — auto-repair if still missing
-            if (!payload.batch_number) {
-                payload.batch_number = `B-REPAIR-${op.entityId.substr(0, 8).toUpperCase()}`;
-                console.warn(`[SyncEngine] Auto-repaired null batch_number for ${op.entityId}: ${payload.batch_number}`);
-                // Also patch local record so it's consistent
-                await localDb.productBatches.update(op.entityId, { batchNumber: payload.batch_number });
-            }
-        }
+        // Hydration for Product Batches removed — batch system deprecated
 
         // --- PATCHING: Fix bad keys for legacy stuck queue items ---
         if (op.entity === 'stock_history' && opType !== 'delete') {
@@ -314,16 +296,7 @@ async function executeOp(op: PendingOp): Promise<void> {
             }
         }
 
-        if (op.entity === 'product_batches' && opType !== 'delete') {
-            if ('batchType' in payload) { payload.batch_type = payload.batchType; delete payload.batchType; }
-            if ('supplierId' in payload) { payload.supplier_id = payload.supplierId; delete payload.supplierId; }
-            if ('supplierName' in payload) { payload.supplier_name = payload.supplierName; delete payload.supplierName; }
-            if ('supplier' in payload && !payload.supplier_name) { payload.supplier_name = payload.supplier; delete payload.supplier; }
-            if ('supplierInfo' in payload) { payload.supplier_info = payload.supplierInfo; delete payload.supplierInfo; }
-            if ('poId' in payload) { payload.po_id = payload.poId; delete payload.poId; }
-            if ('updatedAt' in payload) { payload.updated_at = payload.updatedAt; delete payload.updatedAt; }
-            delete payload.source;
-        }
+        // Product Batches patching removed — batch system deprecated
 
         if (op.entity === 'purchase_records' && opType !== 'delete') {
             if ('updatedAt' in payload) { payload.updated_at = payload.updatedAt; delete payload.updatedAt; }
@@ -918,6 +891,7 @@ export function startSyncEngine() {
     pruneStaleOps();
     pruneOldStockHistory();
     pruneExpiredCancelledOrders();
+    pruneGhostSales();
     syncToCloud().catch(() => { });
 
     window.addEventListener('online', () => {
@@ -985,6 +959,7 @@ export function startSyncEngine() {
             pruneStaleOps();
             pruneOldStockHistory();
             pruneExpiredCancelledOrders();
+            pruneGhostSales();
         }
     }, 60 * 60 * 1000);
 

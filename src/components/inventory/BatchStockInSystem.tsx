@@ -148,36 +148,8 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
 
         dispatch({ type: 'ADD_PURCHASE_RECORD', payload: newRecord as any });
 
-        const newBatch = {
-          id: batchId,
-          productId: item.id,
-          // RULE: batch_number NEVER null — use B-{timestamp}-{id} format
-          batchNumber: `B-${Date.now()}-${batchId.substr(0, 6).toUpperCase()}`,
-          quantity: qty,
-          qtyRemaining: qty,
-          costPrice: cost,
-          salePrice: retail,
-          supplier: item.batchSupplier || item.supplier || 'DIRECT ENTRY',
-          createdAt: new Date()
-        };
-
-        await localDb.productBatches.put(newBatch as any);
-        queueOp('product_batches', 'create', batchId, toRemoteProductBatch(newBatch));
-
         const currentProduct = state.products.find(p => p.id === item.id);
         if (currentProduct) {
-          const updatedBatches = [...(currentProduct.batches || []), {
-            id: newBatch.id,
-            productId: item.id,
-            batchNumber: newBatch.batchNumber,
-            quantity: qty,
-            qtyRemaining: qty,
-            costPrice: cost,
-            salePrice: retail,
-            supplier: newBatch.supplier,
-            createdAt: now
-          }];
-
           const baselineStock = (currentProduct.stock >= 990000 || currentProduct.trackInventory === false) ? 0 : currentProduct.stock;
           const newStockCount = baselineStock + qty;
 
@@ -187,8 +159,7 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
             cost: cost,
             price: retail,
             trackInventory: true,
-            supplier: item.batchSupplier || currentProduct.supplier,
-            batches: updatedBatches
+            supplier: item.batchSupplier || currentProduct.supplier
           };
 
           await productsService.update(item.id, {
@@ -196,8 +167,7 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
             cost: updatedProduct.cost,
             price: updatedProduct.price,
             trackInventory: true,
-            supplier: updatedProduct.supplier,
-            batches: updatedBatches
+            supplier: updatedProduct.supplier
           });
 
           const histId = generateId();

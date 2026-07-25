@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../../context/SupabaseAppContext';
-import { Sale } from '../../types';
-import { salesService } from '../../lib/services';
+import { StoreOrder, Sale } from '../../types';
+import { storeOrdersService } from '../../lib/services';
 import { formatCurrency } from '../../lib/currencies';
 import { ShoppingBag, ChevronRight, CheckCircle2, XCircle, MapPin, Phone, FileText, Bike, Store, Home, Clock, Flame, Info } from 'lucide-react';
 import { sonner } from '../../lib/sonner';
 import { useNavigate } from 'react-router-dom';
 
 // ─── Module-level component (prevents blink from re-mounting on parent re-render) ───
-const OrderTimer = ({ order, settings, onExpire }: { order: Sale, settings: any, onExpire?: (orderId: string) => void }) => {
+const OrderTimer = ({ order, settings, onExpire }: { order: StoreOrder, settings: any, onExpire?: (orderId: string) => void }) => {
   const [timeLeft, setTimeLeft] = useState<number>(-1);
   const [timeTotal, setTimeTotal] = useState<number>(0);
   const [notifiedHalf, setNotifiedHalf] = useState(false);
@@ -73,7 +73,7 @@ const OrderTimer = ({ order, settings, onExpire }: { order: Sale, settings: any,
 
   if (!settings?.estoreOrderTimerEnabled || timeLeft < 0) return null;
 
-  const isActive = ['pending', 'accepted', 'preparing'].includes(order.estoreStatus || '');
+  const isActive = ['pending', 'accepted', 'preparing'].includes(order.status || '');
 
   if (timeLeft === 0 && isActive) {
     return (
@@ -99,7 +99,7 @@ const OrderTimer = ({ order, settings, onExpire }: { order: Sale, settings: any,
     red:    'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 animate-pulse',
   }[phase];
 
-  const isPending = order.estoreStatus === 'pending';
+  const isPending = order.status === 'pending';
 
   return (
     <div className={`mt-2 flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase px-2.5 py-1.5 rounded-full border shadow-sm ${
@@ -126,7 +126,7 @@ const OrderProgress = ({ status, deliveryAddress }: { status: string; deliveryAd
   if (['pending', 'accepted'].includes(status)) activeIndex = 0;
   else if (['preparing', 'ready'].includes(status)) activeIndex = 1;
   else if (status === 'out_for_delivery') activeIndex = 2;
-  else if (status === 'delivered') activeIndex = 3;
+  else if (['delivered', 'converted'].includes(status)) activeIndex = 3;
   else if (status === 'cancelled') activeIndex = -1;
 
   if (activeIndex === -1) {
@@ -211,7 +211,7 @@ const OrderProgress = ({ status, deliveryAddress }: { status: string; deliveryAd
   );
 };
 
-const STATUS_FLOW = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
+const STATUS_FLOW = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'converted', 'cancelled'];
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   accepted: 'Accepted',
@@ -219,6 +219,7 @@ const STATUS_LABELS: Record<string, string> = {
   ready: 'Ready',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
+  converted: 'Converted',
   cancelled: 'Cancelled'
 };
 
@@ -229,6 +230,7 @@ const STATUS_COLORS: Record<string, string> = {
   ready: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   out_for_delivery: 'bg-orange-100 text-orange-800 border-orange-200',
   delivered: 'bg-gray-100 text-gray-800 border-gray-200',
+  converted: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   cancelled: 'bg-red-100 text-red-800 border-red-200'
 };
 
@@ -237,17 +239,17 @@ export function OnlineOrdersPage() {
   const navigate = useNavigate();
 
   const activeOrders = useMemo(() => {
-    return state.sales
-      .filter(s => s.estoreStatus && !['delivered', 'cancelled'].includes(s.estoreStatus))
+    return state.storeOrders
+      .filter(s => !['delivered', 'cancelled'].includes(s.status))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [state.sales]);
+  }, [state.storeOrders]);
 
   const pastOrders = useMemo(() => {
-    return state.sales
-      .filter(s => s.estoreStatus && ['delivered', 'cancelled'].includes(s.estoreStatus))
+    return state.storeOrders
+      .filter(s => ['delivered', 'cancelled'].includes(s.status))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 50);
-  }, [state.sales]);
+  }, [state.storeOrders]);
 
   const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -283,24 +285,21 @@ export function OnlineOrdersPage() {
 
 
   const handleTimerExpire = useCallback((orderId: string) => {
-    const order = state.sales.find(s => s.id === orderId);
-    if (order && ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(order.estoreStatus || '')) {
+    const order = state.storeOrders.find(s => s.id === orderId);
+    if (order && ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(order.status || '')) {
       sonner.error(`⏰ Order #${order.invoiceNumber} prep/delivery countdown expired! Please process it immediately.`);
     }
-  }, [state.sales]);
+  }, [state.storeOrders]);
 
-  const updateStatus = async (sale: Sale, newStatus: string) => {
-    const updates: Partial<Sale> = { estoreStatus: newStatus as any };
-    if (newStatus === 'cancelled') {
-      updates.status = 'cancelled';
-    }
-    const updated = { ...sale, ...updates };
-    dispatch({ type: 'UPDATE_SALE', payload: updated });
+  const updateStatus = async (order: StoreOrder, newStatus: string) => {
+    const updates: Partial<StoreOrder> = { status: newStatus as any };
+    const updated = { ...order, ...updates };
+    dispatch({ type: 'UPDATE_STORE_ORDER', payload: updated });
     try {
-      await salesService.update(sale.id, updates);
-      sonner.success(`Order #${sale.invoiceNumber} status updated to ${STATUS_LABELS[newStatus]}`);
+      await storeOrdersService.update(order.id, updates);
+      sonner.success(`Order #${order.invoiceNumber} status updated to ${STATUS_LABELS[newStatus]}`);
     } catch (error: any) {
-      dispatch({ type: 'UPDATE_SALE', payload: sale });
+      dispatch({ type: 'UPDATE_STORE_ORDER', payload: order });
       sonner.error(error.message || 'Failed to update status');
     }
   };
@@ -313,31 +312,36 @@ export function OnlineOrdersPage() {
     return null;
   };
 
-  const handleAcceptToPOS = async (sale: Sale) => {
-    // Change status to preparing automatically
-    await updateStatus(sale, 'preparing');
+  const handleAcceptToPOS = async (order: StoreOrder) => {
+    if (order.fulfilledSaleId || order.status === 'converted') {
+      sonner.error('This order has already been processed into a POS Sale.');
+      return;
+    }
 
-    // 1. Set editing sale ID
-    dispatch({ type: 'SET_EDITING_SALE_ID', payload: sale.id });
+    // Change status to preparing automatically
+    await updateStatus(order, 'preparing');
+
+    // 1. Set editing store order ID for fulfillment tracking
+    dispatch({ type: 'SET_EDITING_STORE_ORDER_ID', payload: order.id });
     
     // 2. Load items to cart and notes
-    let fullNotes = sale.notes || '';
-    if (sale.customerName) fullNotes += `\nCustomer Name: ${sale.customerName}`;
-    if (sale.deliveryAddress) fullNotes += `\nDelivery Address: ${sale.deliveryAddress}`;
-    if (sale.customerPhone) fullNotes += `\nPhone: ${sale.customerPhone}`;
-    if (sale.customerNotes) fullNotes += `\nCustomer Notes: ${sale.customerNotes}`;
+    let fullNotes = order.customerNotes || '';
+    if (order.customerName) fullNotes += `\nCustomer Name: ${order.customerName}`;
+    if (order.deliveryAddress) fullNotes += `\nDelivery Address: ${order.deliveryAddress}`;
+    if (order.customerPhone) fullNotes += `\nPhone: ${order.customerPhone}`;
+    if (order.customerNotes) fullNotes += `\nCustomer Notes: ${order.customerNotes}`;
     // 3. Inject Delivery Fee as a synthetic cart item if present
-    const cartItems = [...sale.items];
-    if (sale.deliveryFee && sale.deliveryFee > 0) {
+    const cartItems = [...order.items];
+    if (order.deliveryFee && order.deliveryFee > 0) {
       cartItems.push({
         id: crypto.randomUUID(),
         productId: 'delivery-fee',
         name: 'Delivery Fee',
-        price: sale.deliveryFee,
+        price: order.deliveryFee,
         quantity: 1,
-        subtotal: sale.deliveryFee,
+        subtotal: order.deliveryFee,
         isCustom: true,
-        product: { id: 'delivery-fee', name: 'Delivery Fee', price: sale.deliveryFee, cost: 0, category: 'Service', isService: true }
+        product: { id: 'delivery-fee', name: 'Delivery Fee', price: order.deliveryFee, cost: 0, category: 'Service', isService: true }
       } as any);
     }
     
@@ -351,9 +355,8 @@ export function OnlineOrdersPage() {
         id: state.activeSalesTab,
         updates: {
           cart: cartItems,
-          customerId: sale.customerId || null,
+          customerId: order.customerId || null,
           notes: fullNotes.trim(),
-          editingSaleId: sale.id,
         }
       }
     });
@@ -429,8 +432,8 @@ export function OnlineOrdersPage() {
                       {new Date(order.createdAt).toLocaleTimeString()}
                     </span>
                   </div>
-                  <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-widest ${STATUS_COLORS[order.estoreStatus!]}`}>
-                    {STATUS_LABELS[order.estoreStatus!]}
+                    <div className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-widest ${STATUS_COLORS[order.status]}`}>
+                      {STATUS_LABELS[order.status]}
                   </div>
                 </div>
                 <div className="flex justify-between items-center w-full mt-1">
@@ -466,8 +469,8 @@ export function OnlineOrdersPage() {
                     <h2 className="text-xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">Order #{selectedOrder.invoiceNumber}</h2>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-2 md:ml-0 ml-10">
-                    <div className={`px-3 py-1 rounded-lg border text-xs font-black uppercase tracking-widest ${STATUS_COLORS[selectedOrder.estoreStatus!]}`}>
-                      {STATUS_LABELS[selectedOrder.estoreStatus!]}
+                    <div className={`px-3 py-1 rounded-lg border text-xs font-black uppercase tracking-widest ${STATUS_COLORS[selectedOrder.status]}`}>
+                      {STATUS_LABELS[selectedOrder.status]}
                     </div>
                     <span className="text-sm font-bold text-gray-500">
                       {new Date(selectedOrder.createdAt).toLocaleString()}
@@ -484,24 +487,33 @@ export function OnlineOrdersPage() {
               {/* Action Buttons */}
               {activeTab === 'active' && (
                 <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/5 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row gap-3">
-                  <button 
-                    onClick={() => handleAcceptToPOS(selectedOrder)}
-                    className="w-full sm:flex-1 py-3 bg-primary text-white rounded-xl font-black uppercase tracking-widest text-sm hover:bg-opacity-90 transition-all flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle2 className="w-5 h-5" />
-                    Accept & Load to POS
-                  </button>
-                  <button 
-                    onClick={() => updateStatus(selectedOrder, 'cancelled')}
-                    className="w-full sm:w-auto px-6 py-3 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Cancel
-                  </button>
+                  {(selectedOrder.status === 'converted' || selectedOrder.fulfilledSaleId) ? (
+                    <div className="w-full py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-800/30 dark:text-indigo-300 rounded-xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-5 h-5" />
+                      Converted to Sale {selectedOrder.fulfilledSaleId && `(POS)`}
+                    </div>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => handleAcceptToPOS(selectedOrder)}
+                        className="w-full sm:flex-1 py-3 bg-primary text-white rounded-xl font-black uppercase tracking-widest text-sm hover:bg-opacity-90 transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        Accept & Load to POS
+                      </button>
+                      <button 
+                        onClick={() => updateStatus(selectedOrder, 'cancelled')}
+                        className="w-full sm:w-auto px-6 py-3 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Cancel
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
-              <OrderProgress status={selectedOrder.estoreStatus || 'pending'} deliveryAddress={selectedOrder.deliveryAddress} />
+              <OrderProgress status={selectedOrder.status || 'pending'} deliveryAddress={selectedOrder.deliveryAddress} />
 
               {/* Customer Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -58,8 +58,13 @@ export function SalesTabManager({ showAddButton = true }: SalesTabManagerProps) 
         }
       }
 
+      const maxSaleNumber = state.salesTabs.reduce((max, tab) => {
+        const match = tab.name.match(/^Sale (\d+)$/);
+        return match ? Math.max(max, parseInt(match[1], 10)) : max;
+      }, 0);
+
       const newTabData: Omit<SalesTab, 'id' | 'createdAt'> = {
-        name: `Sale ${state.salesTabs.length + 1}`,
+        name: `Sale ${maxSaleNumber + 1}`,
         cart: [],
         selectedCustomer: null,
       };

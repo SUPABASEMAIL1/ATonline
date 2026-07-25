@@ -23,7 +23,7 @@ import {
   Barcode
 } from 'lucide-react';
 import { localDb, queueOp, purgeLocalData, SETTINGS_ID } from '../../lib/localDb';
-import { seedMissingBarcodes, auditStockIntegrity } from '../../lib/services';
+import { seedMissingBarcodes } from '../../lib/services';
 import { useApp } from '../../context/SupabaseAppContext';
 import { sonner } from '../../lib/sonner';
 
@@ -91,7 +91,6 @@ export function DatabaseTools() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
-  const [isAuditing, setIsAuditing] = useState(false);
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set(STORE_OPTIONS.map(s => s.key)));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -589,25 +588,6 @@ export function DatabaseTools() {
     }
   };
 
-  const handleAuditStock = async () => {
-    setIsAuditing(true);
-    sonner.loading('Executing database-level stock integrity audit...');
-    try {
-      const res = await auditStockIntegrity();
-      sonner.close();
-      if (res.length === 0) {
-        sonner.success('Stock Integrity Audit Passed: 0 discrepancies found across all batches.');
-      } else {
-        sonner.warning(`Found ${res.length} product(s) with stock discrepancies.`);
-      }
-    } catch (err: any) {
-      sonner.close();
-      sonner.error(`Stock audit failed: ${err.message}`);
-    } finally {
-      setIsAuditing(false);
-    }
-  };
-
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       {/* Header */}
@@ -763,30 +743,6 @@ export function DatabaseTools() {
             >
               {isSeeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Barcode className="w-3.5 h-3.5" />}
               {isSeeding ? 'Populating...' : 'Populate Barcodes'}
-            </button>
-          </div>
-
-          {/* Stock Audit */}
-          <div className="bg-blue-50/40 dark:bg-blue-950/10 p-5 rounded-[2rem] border border-blue-100 dark:border-blue-950/20 shadow-sm flex flex-col justify-between space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center shrink-0">
-                <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h3 className="text-xs font-black text-blue-950 dark:text-blue-300 uppercase tracking-tight">Integrity Audit</h3>
-                <p className="text-blue-800/60 dark:text-blue-400/50 text-[9px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
-                  Check Rule F8 parity across products & FIFO batches.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleAuditStock}
-              disabled={isAuditing}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
-            >
-              {isAuditing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
-              {isAuditing ? 'Auditing...' : 'Run Stock Audit'}
             </button>
           </div>
 

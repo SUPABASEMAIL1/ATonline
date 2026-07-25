@@ -6,7 +6,7 @@ import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { useAuth } from '../../context/AuthContext';
 import { KOTPrint } from './KOTPrint';
 import { ReceiptPrint } from './ReceiptPrint';
-import { salesService, generateId, getCustomerCreditStatus, toRemoteSale } from '../../lib/services';
+import { salesService, storeOrdersService, generateId, getCustomerCreditStatus, toRemoteSale } from '../../lib/services';
 import { localDb, queueOp } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
@@ -111,6 +111,11 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     return state.sales.find(s => s.id === state.editingSaleId) || null;
   }, [state.editingSaleId, state.sales]);
 
+  const editingStoreOrder = useMemo(() => {
+    if (!state.editingStoreOrderId) return null;
+    return state.storeOrders.find(o => o.id === state.editingStoreOrderId) || null;
+  }, [state.editingStoreOrderId, state.storeOrders]);
+
   useEffect(() => {
     // If a sale has been completed, do not reset the state or form fields
     if (completedSale || showReceipt) return;
@@ -150,10 +155,17 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
   // Auto-populate DC amount from Delivery Fee setting when E-Store selected (new sales only)
   useEffect(() => {
-    if (saleType === 'estore' && state.settings.estoreDeliveryFee && !state.editingSaleId) {
-      setExtraCharges([{ name: 'DC', amount: String(state.settings.estoreDeliveryFee) }]);
+    if (saleType === 'estore') {
+      if (state.editingStoreOrderId) {
+        const storeOrder = state.storeOrders.find(o => o.id === state.editingStoreOrderId);
+        if (storeOrder?.deliveryFee) {
+          setExtraCharges([{ name: 'DC', amount: String(storeOrder.deliveryFee) }]);
+        }
+      } else if (state.settings.estoreDeliveryFee && !state.editingSaleId) {
+        setExtraCharges([{ name: 'DC', amount: String(state.settings.estoreDeliveryFee) }]);
+      }
     }
-  }, [saleType, state.settings.estoreDeliveryFee, state.editingSaleId]);
+  }, [saleType, state.settings.estoreDeliveryFee, state.editingSaleId, state.editingStoreOrderId, state.storeOrders]);
 
   // canProcessPayment is declared below — usePOSKeyboard is called after it
 
@@ -267,16 +279,17 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
         receivedAmount: paymentMethod === 'cash' ? parseFloat(amountPaid) || undefined : undefined,
         changeAmount: paymentMethod === 'cash' ? change || undefined : undefined,
-        saleType: (editingSale?.saleType as any) || saleType,
+        saleType: (editingStoreOrder ? 'estore' : (editingSale?.saleType as any) || saleType),
+        sourceOrderId: state.editingStoreOrderId || undefined,
         saleDate: new Date().toLocaleDateString('en-CA'),
         extraCharges: extraCharges.filter(c => parseFloat(c.amount) > 0),
-        deliveryFee: saleType === 'estore' ? (parseFloat(extraCharges.find(c => parseFloat(c.amount) > 0)?.amount || '0') || 0) : undefined,
+        deliveryFee: editingStoreOrder?.deliveryFee ?? (saleType === 'estore' ? (parseFloat(extraCharges.find(c => parseFloat(c.amount) > 0)?.amount || '0') || 0) : undefined),
         splitPayments: paymentMethod === 'split' ? splitPayments : [],
-        estoreStatus: (editingSale?.saleType === 'estore' || editingSale?.estoreStatus) ? 'out_for_delivery' : undefined,
-        deliveryAddress: editingSale?.deliveryAddress || undefined,
-        deliveryLocationLat: editingSale?.deliveryLocationLat || undefined,
-        deliveryLocationLng: editingSale?.deliveryLocationLng || undefined,
-        customerNotes: editingSale?.customerNotes || undefined,
+        estoreStatus: (editingStoreOrder || editingSale?.saleType === 'estore' || editingSale?.estoreStatus) ? 'out_for_delivery' : undefined,
+        deliveryAddress: editingStoreOrder?.deliveryAddress || editingSale?.deliveryAddress || undefined,
+        deliveryLocationLat: editingStoreOrder?.deliveryLocationLat || editingSale?.deliveryLocationLat || undefined,
+        deliveryLocationLng: editingStoreOrder?.deliveryLocationLng || editingSale?.deliveryLocationLng || undefined,
+        customerNotes: editingStoreOrder?.customerNotes || editingSale?.customerNotes || undefined,
       };
 
       let savedSale;
@@ -335,6 +348,25 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
           'Stock Oversold',
           'Some items were sold beyond available stock. Inventory may show negative quantities.'
         );
+      }
+
+      if (state.editingStoreOrderId) {
+        try {
+          await storeOrdersService.update(state.editingStoreOrderId, {
+            status: 'converted',
+            fulfilledSaleId: savedSale.id,
+          });
+          const fulfilledOrder = state.storeOrders.find(o => o.id === state.editingStoreOrderId);
+          if (fulfilledOrder) {
+            dispatch({
+              type: 'UPDATE_STORE_ORDER',
+              payload: { ...fulfilledOrder, status: 'converted', fulfilledSaleId: savedSale.id, updatedAt: new Date() }
+            });
+          }
+        } catch (e) {
+          console.error('Failed to fulfill store order:', e);
+        }
+        dispatch({ type: 'SET_EDITING_STORE_ORDER_ID', payload: null });
       }
 
       dispatch({ type: 'ADD_SALE', payload: savedSale });
