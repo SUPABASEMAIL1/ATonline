@@ -4,9 +4,6 @@ const { execSync } = require('child_process');
 
 const envBackupsDir = path.join(__dirname, '../env_backups');
 const envFiles = [
-  '.env.local.pizza-milano.20260708_202548',
-  'ATOLINE-ENV',
-  'jeanzone.env.local',
   'minimahal-pos.env.local'
 ];
 
