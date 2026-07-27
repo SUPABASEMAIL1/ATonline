@@ -887,6 +887,39 @@ async function pruneExpiredCancelledOrders() {
     }
 }
 
+/**
+ * Removes "ghost" sales from local IndexedDB that have no items and no total.
+ * These can be created by interrupted checkout flows or partial sync failures.
+ * Without this cleanup, ghost sales inflate local sale counts and confuse reports.
+ */
+async function pruneGhostSales() {
+    try {
+        const allSales = await localDb.sales.toArray();
+        const ghostSales = allSales.filter(s => {
+            // A ghost sale has no items, zero total, and is older than 1 hour
+            const hasNoItems = !s.items || s.items.length === 0;
+            const hasZeroTotal = !s.total || s.total === 0;
+            const ts = s.updatedAt || s.createdAt || s.timestamp;
+            const isOldEnough = ts && (Date.now() - new Date(ts).getTime()) > 60 * 60 * 1000;
+            return hasNoItems && hasZeroTotal && isOldEnough;
+        });
+
+        if (ghostSales.length > 0) {
+            // Only delete if they don't have pending ops
+            const pendingOps = await localDb.pendingOps.where('entity').equals('sales').toArray();
+            const pendingIds = new Set(pendingOps.map(op => op.entityId));
+            const safeToDelete = ghostSales.filter(s => !pendingIds.has(s.id));
+
+            if (safeToDelete.length > 0) {
+                await localDb.sales.bulkDelete(safeToDelete.map(s => s.id));
+                console.log(`[POS MAINT] Pruned ${safeToDelete.length} ghost sales (empty items, zero total).`);
+            }
+        }
+    } catch (err) {
+        console.error('[POS MAINT] Error pruning ghost sales:', err);
+    }
+}
+
 export function startSyncEngine() {
     clearBlacklist();
     pruneStaleOps();

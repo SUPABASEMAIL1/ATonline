@@ -1542,13 +1542,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (localProducts.length > 0) dispatch({ type: 'SET_PRODUCTS', payload: localProducts });
 
-      if (localProducts.length > 0 || localSettingsArr.length > 0) {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      } else if (!navigator.onLine) {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
+      // CRITICAL FIX: ALWAYS set loading=false after local IndexedDB read.
+      // Previously, loading stayed true until ALL cloud fetches completed (30-40 sec)
+      // when IndexedDB was empty (fresh install or cache clear).
+      // Now the UI renders immediately — either with cached data or "No products found".
+      // Cloud data will populate the UI progressively in the background.
+      dispatch({ type: 'SET_LOADING', payload: false });
     } catch (localErr) {
       console.warn('Local DB read failed:', localErr);
+      // Even if local DB read fails, show the UI immediately
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
 
     if (!navigator.onLine) {
@@ -1867,7 +1870,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             products, customers, sales, discounts, users: usersList,
             salesTabs: salesTabs as SalesTab[], settings,
             expenses, purchaseRecords, categories: categoriesData,
-            suppliers: suppliersData, productBatches: allBatches,
+            suppliers: suppliersData, productBatches: [],
             supplierTransactions: supplierTxData,
             bundles: remoteBundles,
             bundleItems: remoteBundles.reduce((acc: any[], b: Bundle) => {
