@@ -9,7 +9,7 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#10b981" />
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Zaynahs POS</title>
   <meta name="description" content="Zaynahs POS - A modern point of sale system" />
   <meta name="robots" content="index, follow" />
@@ -28,8 +28,11 @@
   <meta name="twitter:creator" content="@iamchandira" />
   <script>
     // Apply theme immediately to prevent flashing
-    var _theme = localStorage.getItem('theme') || 'dark'; // Always default to dark
-    var _isDark = _theme !== 'light';
+    var _settingsStr = localStorage.getItem('pos_settings');
+    var _settings = {};
+    try { if (_settingsStr) _settings = JSON.parse(_settingsStr); } catch (e) {}
+    var _theme = _settings.theme || localStorage.getItem('theme') || 'dark';
+    var _isDark = _theme === 'dark';
 
     // ─── Apply background color IMMEDIATELY (before CSS loads) ───
     // This is the root cause fix for iOS PWA black screen on launch/refresh.
@@ -55,7 +58,7 @@
     }
     var _appleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
     if (_appleStatus) {
-      _appleStatus.setAttribute('content', _isDark ? 'black-translucent' : 'default');
+      _appleStatus.setAttribute('content', 'default');
     }
 
     // Also apply to body once available (covers PWA splash to first paint gap)

@@ -5,6 +5,21 @@
 
 ---
 
+## 🚀 CI/CD Deploy Rules (GitHub Actions + Cloudflare Pages)
+
+- **NEVER** use `${{ github.event.repository.name | lower }}` (or any `| filter` expression) inside a workflow `command:` field — it silently breaks GitHub Actions parsing (runs fail with 0 jobs, workflow name shows as file path, NO deploy happens).
+- Always compute dynamic values in a shell step first, then pass via output:
+  ```yaml
+  - name: Set Cloudflare project name
+    id: cfname
+    run: echo "name=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+  # ...then use: command: pages deploy dist --project-name ${{ steps.cfname.outputs.name }}
+  ```
+- After ANY `.github/workflows/*` change: push to ALL 4 repos, then verify the run shows the REAL workflow name (not the file path) and jobs > 0 before assuming it works.
+- Full Cloudflare Pages + Vercel deploy setup/verify guide: [docs/setup.md](docs/setup.md) → "Deploy Guide (Cloudflare Pages + Vercel)" section. Har shop ka apna CF account + token hai — `env_backups/` folder dekho, kabhi galat account par project mat banao.
+
+---
+
 ## 📌 Core DB Operations (Management API)
 
 | Operation | Method |

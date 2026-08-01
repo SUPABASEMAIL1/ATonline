@@ -23,6 +23,7 @@
 14. [Migration Workflow](#-migration-workflow)
 15. [Troubleshooting](#-troubleshooting)
 16. [Development Workflow](#-development-workflow)
+17. [Deploy Guide (Cloudflare Pages + Vercel)](#-deploy-guide-cloudflare-pages--vercel)
 
 ---
 
@@ -876,10 +877,13 @@ curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query"
 ### Push Code to All Repos
 
 ```bash
-git push jeanzone main
-git push minimahalpos main
-git push pizzamilano main
+git push origin main        # jeanzone (zposdb1-crypto)
+git push atonline main      # SUPABASEMAIL1/ATonline
+git push minimahalpos main  # infominimahal-bit/mini-mahal-pos
+git push pizzamilano main   # dispacher-zaynahspos/Pizza-Milano
 ```
+
+> ⚠️ Har push ke baad GitHub Actions runs check karo: workflow naam sahi dikhna chahiye (sirf file path nahi) aur jobs > 0 honi chahiye.
 
 ### Check a Column in Production DB
 
@@ -889,6 +893,190 @@ curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/que
   -H "Content-Type: application/json" \
   -d '{"query": "SELECT column_name FROM information_schema.columns WHERE table_name = '\''app_settings'\'' AND column_name = '\''enable_kot_printer'\''"}'
 ```
+
+---
+
+## 🚀 Deploy Guide (Cloudflare Pages + Vercel)
+
+> Har shop ka apna deploy setup hai. Ye guide agent ke liye hai — naya project/feature deploy karte waqt ya deploy issue debug karte waqt yahi follow karo.
+
+### 1. Current Deploy Map (4 Shops)
+
+| Shop | Repo | Deploy Platform | Domain | Status |
+|------|------|-----------------|--------|--------|
+| jeanzone | `zposdb1-crypto/jeanzone` | **CF Pages + Vercel** (GH Actions) | jeanzone.zaynahspos.com, jeanzone.pages.dev, jeanzone.vercel.app | ✅ Auto |
+| atonline | `SUPABASEMAIL1/ATonline` | **CF Pages** (GH Actions) | atonline.zaynahspos.com, atonline.pages.dev | ✅ Auto |
+| minimahal | `infominimahal-bit/mini-mahal-pos` | ⚠️ NONE | — | ❌ Fix pending |
+| pizza | `dispacher-zaynahspos/Pizza-Milano` | **Vercel** (git integration) | pizza-milano.vercel.app | ✅ Auto |
+
+**Credentials:** `env_backups/` folder — har shop ka apna file: `JEANZONE-ENV`, `ATOLINE-ENV`, `minimahal-pos.env.local`, `.env.local.pizza-milano.20260708_202548`, `jeanzone.env.local`. Agent kabhi bhi in files ke bina deploy nahi kar sakta.
+
+### 2. Cloudflare Pages Setup (Naya Project ke liye)
+
+#### 2a. Token + Account ID
+
+```bash
+# Token verify
+curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+
+# Account ID
+curl -s "https://api.cloudflare.com/client/v4/accounts" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+- Token permissions chahiye: `Account > Cloudflare Pages > Edit` + `Account Settings > Edit`
+- ⚠️ **Har shop ka apna CF account hai!** jeanzone = `Zposdb1@gmail.com's Account` (`f61ce1b3c9f0a819714df802366c7248`), atonline = `Supabasemail1@proton.me's Account` (`43039ad79a149f127dc1c61725163ca6`). Galat account par project banao to `jeanzone-18k.pages.dev` jaisa suffixed subdomain milta hai — matlab galat account par ho!
+
+#### 2b. Project List / Create
+
+```bash
+# List projects
+curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+
+# Create project
+curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"<shop-name>","production_branch":"main"}'
+```
+
+#### 2c. GitHub Actions Workflow (Deploy Trigger)
+
+Har repo mein `.github/workflows/deploy-cloudflare.yml` hai — ye hi CF deploy karta hai:
+
+```yaml
+name: Deploy to Cloudflare Pages
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.VITE_SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Set Cloudflare project name
+        id: cfname
+        run: echo "name=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name ${{ steps.cfname.outputs.name }} --branch main
+      - name: Trigger Vercel deploy
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
+          else
+            echo "no Vercel deploy hook configured - skipping"
+          fi
+```
+
+**🚨 CRITICAL RULES (broken hui thi — dobara mat todna):**
+1. **NEVER** `${{ github.event.repository.name | lower }}` workflow ke `command:` field mein — GitHub Actions parser toot jata hai (0 jobs, workflow naam file path ban jata hai, NO deploy). Project name hamesha shell step se compute karo (`tr '[:upper:]' '[:lower:]'`).
+2. **NEVER** `if: secrets.X != ''` — secrets step `if:` mein use nahi hote. Hamesha `env:` mapping + shell check.
+3. `.github/workflows/*` change ke baad: **sab 4 repos push karo** + run verify karo (real workflow naam + jobs > 0) pehle hi.
+
+#### 2d. GitHub Secrets (Repo ke liye)
+
+```bash
+# Public key lo
+PUBKEY=$(curl -s "https://api.github.com/repos/$OWNER/$REPO/actions/secrets/public-key" \
+  -H "Authorization: Bearer $GITHUB_PAT" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['key_id']+' '+d['key'])")
+KEYID=$(echo $PUBKEY | cut -d' ' -f1); KEY=$(echo $PUBKEY | cut -d' ' -f2)
+
+# Secret set karo (PyNaCl encrypted)
+pip3 install pynacl
+ENC=$(python3 -c "
+import base64
+from nacl import encoding, public
+pub = public.PublicKey('$KEY', encoding.Base64Encoder())
+sealed = public.SealedBox(pub).encrypt('$VALUE'.encode())
+print(base64.b64encode(sealed).decode())")
+curl -X PUT "https://api.github.com/repos/$OWNER/$REPO/actions/secrets/$NAME" \
+  -H "Authorization: Bearer $GITHUB_PAT" -H "Accept: application/vnd.github+json" \
+  -H "Content-Type: application/json" \
+  -d "{\"encrypted_value\":\"$ENC\",\"key_id\":\"$KEYID\"}"
+```
+
+Required secrets (har CF repo): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_SERVICE_ROLE_KEY`, optional: `VERCEL_DEPLOY_HOOK`.
+
+#### 2e. Deploy Verify (Workflow + CF)
+
+```bash
+# Workflow runs
+curl -s "https://api.github.com/repos/$OWNER/$REPO/actions/runs?per_page=3" -H "Authorization: Bearer $GITHUB_PAT"
+
+# CF deployments
+curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT/deployments?per_page=1" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+### 3. Vercel Setup (Naya Project ke liye)
+
+#### 3a. Token + Project
+
+```bash
+# Token verify
+curl -s "https://api.vercel.com/v2/user" -H "Authorization: Bearer $VERCEL_TOKEN"
+
+# Projects list (name + git link dekhne ke liye)
+curl -s "https://api.vercel.com/v9/projects?limit=100" -H "Authorization: Bearer $VERCEL_TOKEN"
+```
+
+#### 3b. Vercel Deploy Hook (GH Actions se trigger hone ke liye)
+
+```bash
+# Deploy hook banao (ref = branch)
+curl -s -X POST "https://api.vercel.com/v1/projects/$PROJECT_ID/deploy-hooks" \
+  -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"gh-actions","ref":"main"}'
+```
+
+- Hook URL output: `https://api.vercel.com/v1/integrations/deploy/$PROJECT_ID/$HOOK_ID` — isko repo secret `VERCEL_DEPLOY_HOOK` mein daalo (upar 2d wala method).
+- Hook list: `GET /v1/projects/{id}/deploy-hooks` se nahi aata — `GET /v9/projects/{id}` ke response ke `link.deployHooks[]` se milta hai.
+
+#### 3c. Vercel Git Integration (Relink)
+
+```bash
+# Project ka link dekho
+curl -s "https://api.vercel.com/v9/projects/$PROJECT_ID" -H "Authorization: Bearer $VERCEL_TOKEN"
+
+# Relink (agar galat repo se linked ho)
+curl -s -X POST "https://api.vercel.com/v9/projects/$PROJECT_ID/link" \
+  -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+  -d '{"type":"github","repo":"$OWNER/$REPO"}'
+```
+
+> ⚠️ `repo_no_access` error = Vercel GitHub App us org par installed nahi. Fix: Vercel dashboard → Settings → Git → reconnect, ya Deploy Hook approach use karo (3b) jo git integration ki zaroorat nahi rakhta.
+
+#### 3d. Vercel Deploy Verify
+
+```bash
+curl -s "https://api.vercel.com/v6/deployments?projectId=$PROJECT_ID&limit=3" -H "Authorization: Bearer $VERCEL_TOKEN"
+# readyState: READY = success | BLOCKED = commit author bot hai (COMMIT_AUTHOR_REQUIRED)
+```
+
+> ⚠️ **BLOCKED fix:** Vercel hobby plan bot-authored commits block karta hai. Fix: `git commit --amend --author="name <email>"` kar ke real author lagao + force-push.
+
+### 4. Deploy Issue Checklist (Jab deploy nahi hota)
+
+1. **GH Actions run dekho** — workflow naam path hai? jobs 0? → workflow YAML broken (rule 2c check)
+2. **Secrets set hain?** — `GET /repos/{owner}/{repo}/actions/secrets`
+3. **CF project sahi account par hai?** — pages.dev subdomain mein suffix (`jeanzone-18k`) = galat account
+4. **CF project source kya hai?** — `source: null` = git integration nahi, sirf GH Actions/wrangler se deploy hoga
+5. **Vercel BLOCKED?** — commit author fix karo (3d)
+6. **Vercel repo_no_access?** — Deploy Hook use karo (3b)
+7. **Purana repo transfer?** — CF/Vercel git integration toot jata hai jab repo owner change hota hai → relink (2c/3c)
 
 ---
 

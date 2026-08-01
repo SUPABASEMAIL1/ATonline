@@ -35,7 +35,7 @@ import { OfflineBanner } from './components/OfflineBadge';
 
 const LoadingView = () => {
   return (
-    <div className="flex-1 p-4 sm:p-6 space-y-6 bg-gray-50/50 dark:bg-app w-full overflow-hidden animate-pulse">
+    <div className="h-[100dvh] p-4 sm:p-6 space-y-6 bg-gray-50/50 dark:bg-app w-full overflow-hidden animate-pulse">
       {/* Header Row Skeleton */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="space-y-2">
@@ -299,7 +299,7 @@ function AppContent() {
       }
       const appleStatus = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
       if (appleStatus) {
-        appleStatus.setAttribute('content', isDark ? 'black-translucent' : 'default');
+        appleStatus.setAttribute('content', 'default');
       }
     };
 
