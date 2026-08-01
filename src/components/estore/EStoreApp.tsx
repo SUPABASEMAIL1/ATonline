@@ -111,7 +111,7 @@ export function EStoreApp() {
         }
 
         // Geolocation pre-checking
-        if (activeSettings && activeSettings.estoreDeliveryEnabled !== false && activeSettings.estoreLocationLat && activeSettings.estoreLocationLng && activeSettings.estoreDeliveryRadius) {
+        if (activeSettings && activeSettings.estoreDeliveryEnabled !== false && activeSettings.storeLatitude && activeSettings.storeLongitude && activeSettings.estoreDeliveryRadius) {
           if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
               (pos) => {
@@ -120,8 +120,8 @@ export function EStoreApp() {
                 setCustomerPosition([lat, lng]);
                 
                 const distance = getDistanceFromLatLonInKm(
-                  activeSettings!.estoreLocationLat!,
-                  activeSettings!.estoreLocationLng!,
+                  activeSettings!.storeLatitude!,
+                  activeSettings!.storeLongitude!,
                   lat,
                   lng
                 );

@@ -153,8 +153,8 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         (err) => {
           console.warn("Geolocation failed on mount", err);
           if (isMounted) {
-            if (settings?.estoreLocationLat && settings?.estoreLocationLng) {
-              setPosition([settings.estoreLocationLat, settings.estoreLocationLng]);
+            if (settings?.storeLatitude && settings?.storeLongitude) {
+              setPosition([settings.storeLatitude, settings.storeLongitude]);
             } else {
               setPosition([31.5204, 74.3587]); // Lahore roughly
             }
@@ -163,8 +163,8 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
     } else if (!position) {
-      if (settings?.estoreLocationLat && settings?.estoreLocationLng) {
-        setPosition([settings.estoreLocationLat, settings.estoreLocationLng]);
+      if (settings?.storeLatitude && settings?.storeLongitude) {
+        setPosition([settings.storeLatitude, settings.storeLongitude]);
       } else {
         setPosition([31.5204, 74.3587]);
       }
@@ -198,12 +198,12 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
   
   const isDeliveryAllowed = (): boolean => {
     if (fulfillmentMode === 'pickup') return true; // self-pickup is always allowed
-    if (!settings?.estoreLocationLat || !settings?.estoreLocationLng || !settings?.estoreDeliveryRadius) return true; // No restriction if not set
+    if (!settings?.storeLatitude || !settings?.storeLongitude || !settings?.estoreDeliveryRadius) return true; // No restriction if not set
     if (!position) return false;
     
     const distance = getDistanceFromLatLonInKm(
-      settings.estoreLocationLat,
-      settings.estoreLocationLng,
+      settings.storeLatitude,
+      settings.storeLongitude,
       position[0],
       position[1]
     );
