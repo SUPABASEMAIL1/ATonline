@@ -210,7 +210,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
     );
   }, [ledger, searchTerm, dateFilter, startDate, endDate]);
 
-  const { page, totalPages, pageItems, goToPage } = usePagination(filteredLedger, ITEMS_PER_PAGE);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredLedger, ITEMS_PER_PAGE);
 
   const getBadge = (type: string, sourceType?: string) => {
     // Use sourceType for more granular distinction
@@ -474,7 +474,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
           )}
         </div>
 
-        {totalPages > 1 && (
+        
           <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center">
             <Pagination
               page={page}
@@ -482,9 +482,12 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
               onPageChange={goToPage}
               totalItems={filteredLedger.length}
               mode="prevNext"
+            
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           </div>
-        )}
+        
       </div>
 
       {/* Payment Modal */}

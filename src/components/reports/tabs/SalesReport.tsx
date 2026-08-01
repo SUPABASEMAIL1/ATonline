@@ -57,7 +57,7 @@ export function SalesReport({
   creditSalesTotal = 0, creditSalesCount = 0, creditCollectedTotal = 0, creditCollectedCount = 0
 }: SalesReportProps) {
   const { t } = useTranslation();
-  const { page, totalPages, pageItems, goToPage } = usePagination(filteredSales, 50);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredSales, 50);
 
   const tooltipStyle = {
     backgroundColor: theme === 'dark' ? '#171717' : 'white',
@@ -517,7 +517,7 @@ export function SalesReport({
           ))}
         </div>
 
-        {totalPages > 1 && (
+        
           <div className="bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-center">
             <Pagination
               page={page}
@@ -525,9 +525,12 @@ export function SalesReport({
               onPageChange={goToPage}
               totalItems={filteredSales.length}
               mode="numbered"
+            
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           </div>
-        )}
+        
       </div>
 
       {/* Top Selling Products */}

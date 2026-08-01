@@ -501,14 +501,14 @@ export function PurchaseHistory() {
         </div>
       </div>
       {/* Top Pagination Controls */}
-      {totalPages > 1 && (
+      
         <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-surface rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-sm">
           <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest">
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
           <Pagination mode="numbered" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </div>
-      )}
+      
 
       {/* Enhanced Records Table - Logic moved to inline for simplicity but with memoized list rendering inside if needed */}
       <div className="bg-white dark:bg-surface rounded-[2.5rem] border border-gray-200 dark:border-white/5 overflow-hidden shadow-2xl">
@@ -705,7 +705,7 @@ export function PurchaseHistory() {
         </div>
 
         {/* Modern Pagination */}
-        {totalPages > 1 && (
+        
           <div className="p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
             <div className="hidden sm:flex items-center gap-2">
               <div className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
@@ -713,7 +713,7 @@ export function PurchaseHistory() {
             </div>
             <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
           </div>
-        )}
+        
       </div>
 
 

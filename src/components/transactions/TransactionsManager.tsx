@@ -160,7 +160,7 @@ export function TransactionsManager() {
     }
   }, [state.pendingReturnSaleId, state.sales, dispatch]);
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 15;
+  const [ITEMS_PER_PAGE, setPageSize] = useState(15);
 
   // Listen for cross-component navigation search
   React.useEffect(() => {
@@ -802,7 +802,9 @@ export function TransactionsManager() {
             totalItems={filteredTransactions.length}
             mode="prevNext"
             className="w-full"
-          />
+              pageSize={ITEMS_PER_PAGE}
+              onPageSizeChange={setPageSize}
+            />
         </div>
       </div>
 

@@ -27,7 +27,7 @@ export function ExpensesReport({
   totalExpenseAmount, currency, theme, country
 }: ExpensesReportProps) {
   const { t } = useTranslation();
-  const { page, totalPages, pageItems, goToPage } = usePagination(filteredExpenses, 50);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredExpenses, 50);
   const tooltipStyle = {
     backgroundColor: theme === 'dark' ? '#171717' : 'white',
     border: theme === 'dark' ? '1px solid #333' : '1px solid #e5e7eb',
@@ -213,7 +213,7 @@ export function ExpensesReport({
           ))}
         </div>
 
-        {totalPages > 1 && (
+        
           <div className="bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-center">
             <Pagination
               page={page}
@@ -221,9 +221,12 @@ export function ExpensesReport({
               onPageChange={goToPage}
               totalItems={filteredExpenses.length}
               mode="numbered"
+            
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           </div>
-        )}
+        
       </div>
     </>
   );

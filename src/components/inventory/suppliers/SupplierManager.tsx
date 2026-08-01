@@ -60,7 +60,7 @@ export function SupplierManager() {
     ).sort((a, b) => a.name.localeCompare(b.name));
   }, [state.suppliers, searchTerm]);
 
-  const { page, totalPages, pageItems, goToPage } = usePagination(filteredSuppliers, 24);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredSuppliers, 24);
 
   const handleAddEdit = (supplier?: Supplier) => {
     setEditingSupplier(supplier || null);
@@ -349,17 +349,20 @@ export function SupplierManager() {
         )}
       </div>
 
-      {totalPages > 1 && (
+      
         <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center mt-4 rounded-3xl">
           <Pagination
-            page={page}
+              page={page}
             totalPages={totalPages}
             onPageChange={goToPage}
             totalItems={filteredSuppliers.length}
             mode="numbered"
-          />
+          
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+            />
         </div>
-      )}
+      
     </>
   );
 

@@ -24,7 +24,7 @@ export function CustomerManager() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 20;
+  const [ITEMS_PER_PAGE, setPageSize] = useState(25);
 
   // validStartDate/validEndDate MUST be computed before filteredCustomers uses them
   const { validStartDate, validEndDate } = useMemo(() => {
@@ -520,18 +520,22 @@ export function CustomerManager() {
         </div>
 
         {/* Premium Pagination Footer */}
-        {totalPages > 1 && (
+        
           <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
-            <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredCustomers.length)} {t("of", "of")} {filteredCustomers.length}</p>
+            <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, filteredCustomers.length)} {t("of", "of")} {filteredCustomers.length}</p>
             <div className="mx-auto sm:mx-0">
               <Pagination
                 page={currentPage}
                 totalPages={totalPages}
+                totalItems={filteredCustomers.length}
                 onPageChange={setCurrentPage}
+                siblingCount={1}
+                pageSize={pageSize}
+                onPageSizeChange={setPageSize}
               />
             </div>
           </div>
-        )}
+        
       </div>
 
       <CustomerModal

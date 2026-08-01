@@ -355,12 +355,15 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   {creditTotalPages > 1 && (
                     <div className="pt-2 flex justify-center">
                       <Pagination
-                        page={creditPage}
+              page={creditPage}
                         totalPages={creditTotalPages}
                         onPageChange={goToCreditPage}
                         totalItems={creditSales.length}
                         mode="numbered"
-                      />
+                      
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+            />
                     </div>
                   )}
                 </div>
@@ -397,12 +400,15 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   {paidTotalPages > 1 && (
                     <div className="pt-2 flex justify-center">
                       <Pagination
-                        page={paidPage}
+              page={paidPage}
                         totalPages={paidTotalPages}
                         onPageChange={goToPaidPage}
                         totalItems={paidSales.length}
                         mode="numbered"
-                      />
+                      
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+            />
                     </div>
                   )}
                 </div>
@@ -508,12 +514,15 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   {paymentTotalPages > 1 && (
                     <div className="pt-4 flex justify-center border-t border-gray-100 dark:border-white/5 mt-4">
                       <Pagination
-                        page={paymentPage}
+              page={paymentPage}
                         totalPages={paymentTotalPages}
                         onPageChange={goToPaymentPage}
                         totalItems={paymentHistory.length}
                         mode="numbered"
-                      />
+                      
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+            />
                     </div>
                   )}
                 </div>

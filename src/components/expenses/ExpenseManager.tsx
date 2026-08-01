@@ -34,7 +34,7 @@ export function ExpenseManager() {
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 20;
+  const [ITEMS_PER_PAGE, setPageSize] = useState(20);
 
   const paymentMethodScrollRef = useRef<HTMLDivElement>(null);
   const categoryScrollRef = useRef<HTMLDivElement>(null);
@@ -476,7 +476,7 @@ export function ExpenseManager() {
         </div>
 
         {/* Premium Pagination Footer */}
-        {totalPages > 1 && (
+        
           <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
             <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredExpenses.length)} {t("of", "of")} {filteredExpenses.length}</p>
             <div className="mx-auto sm:mx-0">
@@ -484,10 +484,12 @@ export function ExpenseManager() {
                 page={currentPage}
                 totalPages={totalPages}
                 onPageChange={setCurrentPage}
-              />
+              pageSize={ITEMS_PER_PAGE}
+              onPageSizeChange={setPageSize}
+            />
             </div>
           </div>
-        )}
+        
       </div>
 
       <ExpenseModal

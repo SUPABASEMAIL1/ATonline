@@ -215,14 +215,14 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
       </div>
 
       {/* Top Pagination — shared Pagination */}
-      {totalPages > 1 && (
+      
         <div className="flex items-center justify-between px-5 py-3 border border-gray-200 dark:border-white/5 bg-white/50 dark:bg-black/20 rounded-2xl shadow-sm">
           <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
           <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </div>
-      )}
+      
 
       {/* List */}
       <div className="bg-white/50 dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
@@ -292,14 +292,14 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
       </div>
 
       {/* Pagination — shared Pagination */}
-      {totalPages > 1 && (
+      
         <div className="flex items-center justify-between p-2">
           <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest italic">
             Page {currentPage} / {totalPages}
           </p>
           <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </div>
-      )}
+      
     </div>
   );
 }

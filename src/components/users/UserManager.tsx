@@ -26,7 +26,7 @@ export function UserManager() {
     user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const { page, totalPages, pageItems, goToPage } = usePagination(filteredUsers, 50);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredUsers, 50);
 
 
   const handleEditUser = (user: UserType) => {
@@ -344,7 +344,7 @@ export function UserManager() {
           </table>
         </div>
         
-        {totalPages > 1 && (
+        
           <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center">
             <Pagination
               page={page}
@@ -352,9 +352,12 @@ export function UserManager() {
               onPageChange={goToPage}
               totalItems={filteredUsers.length}
               mode="numbered"
+            
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           </div>
-        )}
+        
       </div>
 
 

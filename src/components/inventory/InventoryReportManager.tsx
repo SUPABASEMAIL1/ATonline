@@ -528,17 +528,20 @@ export default function InventoryReportManager({
       </div>
 
       {/* Pagination Desktop */}
-      {totalPages > 1 && (
+      
         <div className="hidden lg:flex justify-center pt-4">
           <Pagination
-            page={page}
+              page={page}
             totalPages={totalPages}
             onPageChange={goToPage}
             totalItems={inventoryData.length}
             mode="numbered"
-          />
+          
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+            />
         </div>
-      )}
+      
 
       {/* Mobile Card View */}
       <div className="lg:hidden space-y-4">
@@ -666,7 +669,7 @@ export default function InventoryReportManager({
         </div>
 
         {/* Pagination Mobile */}
-        {totalPages > 1 && (
+        
           <div className="flex justify-center pt-4">
             <Pagination
               page={page}
@@ -674,9 +677,12 @@ export default function InventoryReportManager({
               onPageChange={goToPage}
               totalItems={inventoryData.length}
               mode="numbered"
+            
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           </div>
-        )}
+        
       </div>
     </div>
   );

@@ -21,7 +21,7 @@ export function DiscountManager() {
     discount?.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const { page, totalPages, pageItems, goToPage } = usePagination(filteredDiscounts, 20);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredDiscounts, 20);
 
 
   const handleEditDiscount = (discount: Discount) => {
@@ -271,7 +271,7 @@ export function DiscountManager() {
           </table>
         </div>
 
-        {totalPages > 1 && (
+        
           <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center">
             <Pagination
               page={page}
@@ -279,9 +279,12 @@ export function DiscountManager() {
               onPageChange={goToPage}
               totalItems={filteredDiscounts.length}
               mode="numbered"
+            
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
             />
           </div>
-        )}
+        
       </div>
 
       <DiscountModal
