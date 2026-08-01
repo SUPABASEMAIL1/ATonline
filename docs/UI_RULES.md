@@ -20,7 +20,7 @@
 | Toggle | `ToggleSwitch` | `w-9 h-5` switch markup |
 | Tabs | `SegmentedControl` / `SubTabBar` | Chip tab markup |
 | Avatar | `Avatar` | Gradient-initials divs |
-| Pager | `Pagination` + `usePagination` / `LoadMoreButton` | Prev/Next copies |
+| Pager | `Pagination` + `usePagination` | Prev/Next copies |
 | Date range | `DateRangePicker` | Date filter rows |
 | Empty state | `EmptyState` | Empty divs |
 | Select | `Select` (or `SearchableSelect` common primitive) | Native `<select>` |

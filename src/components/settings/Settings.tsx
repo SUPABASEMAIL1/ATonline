@@ -642,8 +642,8 @@ export function Settings() {
                   variant="ghost"
                   onClick={() => navigate('/settings/' + tab.id)}
                   className={`!min-h-0 !flex !justify-start !gap-3 !px-6 !py-4 !rounded-[1.5rem] !text-[10px] !tracking-widest !duration-300 !whitespace-nowrap !shadow-none ${isActive
-                      ? `${activeColor} !text-white !shadow-lg !shadow-emerald-500/20 translate-x-1`
-                      : `!text-gray-600 hover:!text-gray-900 dark:hover:!text-white hover:!bg-gray-50 dark:hover:!bg-white/5`
+                    ? `${activeColor} !text-white !shadow-lg !shadow-emerald-500/20 translate-x-1`
+                    : `!text-gray-600 hover:!text-gray-900 dark:hover:!text-white hover:!bg-gray-50 dark:hover:!bg-white/5`
                     }`}
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-600'}`} />
@@ -1828,17 +1828,17 @@ export function Settings() {
                         />
                       </div>
                       {formData.estorePickupEnabled !== false && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 animate-in fade-in duration-200">
+                        <div className="grid grid-cols-2 gap-3 pt-2 animate-in fade-in duration-200">
                           <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">PICKUP START</label>
-                            <Select name="pickupStartTime" value={formData.pickupStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupStartTime', e.target.value); }}>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">PICKUP START</label>
+                            <Select name="pickupStartTime" fullWidth value={formData.pickupStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupStartTime', e.target.value); }} className="!py-2 !text-xs">
                               <option value="">Any Time</option>
                               {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </Select>
                           </div>
                           <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">PICKUP END</label>
-                            <Select name="pickupEndTime" value={formData.pickupEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupEndTime', e.target.value); }}>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">PICKUP END</label>
+                            <Select name="pickupEndTime" fullWidth value={formData.pickupEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupEndTime', e.target.value); }} className="!py-2 !text-xs">
                               <option value="">Any Time</option>
                               {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </Select>
@@ -1848,24 +1848,6 @@ export function Settings() {
                     </div>
                   </div>
 
-                  {/* Store Type Selector */}
-                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
-                    <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                      <Store className="w-4 h-4 text-emerald-500" /> Store Type
-                    </h4>
-                    <SegmentedControl
-                      options={[
-                        { value: 'physical', label: 'Physical (Walk-in only)' },
-                        { value: 'online', label: 'Online (Delivery & pickup only)' },
-                        { value: 'both', label: 'Both (Physical + Online)' },
-                      ]}
-                      value={formData.storeType || 'both'}
-                      onChange={(val) => {
-                        setFormData(p => ({ ...p, storeType: val as any }));
-                        handleInstantUpdate('storeType', val);
-                      }}
-                    />
-                  </div>
 
                   {/* Shop Location & Delivery Area */}
                   <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
@@ -2006,7 +1988,7 @@ export function Settings() {
                               <span className="text-xs text-gray-700 dark:text-gray-300 font-mono font-medium">{formData.estoreThemeColor || '#10b981'}</span>
                             </div>
                           </div>
-                          
+
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Btn Hover</label>
                             <div className="flex items-center gap-2">

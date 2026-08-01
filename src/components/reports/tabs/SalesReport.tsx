@@ -5,12 +5,11 @@ import { formatCurrency, getCurrencySymbol } from '../../../lib/currencies';
 import { formatAppDateTime } from '../../../lib/dateUtils';
 import { Sale } from '../../../types';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { LoadMoreButton } from '../../../shared/ui';
+import { Pagination, usePagination } from '../../../shared/ui';
 import { ExportButton } from '../../../shared/export';
 
 interface SalesReportProps {
   filteredSales: Sale[];
-  paginatedSales: Sale[];
   salesData: { date: string; sales: number; transactions: number }[];
   categoryData: { name: string; value: number }[];
   saleTypeData: { name: string; value: number }[];
@@ -45,7 +44,6 @@ interface SalesReportProps {
   retailEnabled?: boolean;
   wholesaleEnabled: boolean;
   estoreEnabled: boolean;
-  onLoadMore: () => void;
   creditSalesTotal?: number;
   creditSalesCount?: number;
   creditCollectedTotal?: number;
@@ -55,13 +53,12 @@ interface SalesReportProps {
 const COLORS = ['#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#EC4899'];
 
 export function SalesReport({
-  filteredSales, paginatedSales, salesData, categoryData, saleTypeData, topProducts, featureAnalytics,
-  totalRevenue, totalTransactions, averageTransaction, totalCostOfGoods, grossProfit,
-  totalExpenseAmount, netProfit, walletStats, currency, theme, country, users,
-  retailEnabled = true, wholesaleEnabled, estoreEnabled, onLoadMore,
+  filteredSales, salesData, categoryData, saleTypeData, topProducts, featureAnalytics, totalRevenue, totalTransactions, averageTransaction, totalCostOfGoods, grossProfit, totalExpenseAmount, netProfit, walletStats, currency, theme, country, users, retailEnabled = true, wholesaleEnabled, estoreEnabled,
   creditSalesTotal = 0, creditSalesCount = 0, creditCollectedTotal = 0, creditCollectedCount = 0
 }: SalesReportProps) {
   const { t } = useTranslation();
+  const { page, totalPages, pageItems, goToPage } = usePagination(filteredSales, 50);
+
   const tooltipStyle = {
     backgroundColor: theme === 'dark' ? '#171717' : 'white',
     border: theme === 'dark' ? '1px solid #333' : '1px solid #e5e7eb',
@@ -472,7 +469,7 @@ export function SalesReport({
             <tbody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
               {filteredSales.length === 0 ? (
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-600 font-bold uppercase tracking-widest text-xs">{t("no_transactions_found_period", "No transactions found for the selected period.")}</td></tr>
-              ) : paginatedSales.map(sale => (
+              ) : pageItems.map(sale => (
                 <tr key={sale.id} className="group hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                   <td className="px-6 py-4"><span className="text-sm font-black text-primary dark:text-emerald-400 uppercase tracking-tighter">{sale.invoiceNumber}</span></td>
                   <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400 font-bold">{formatAppDateTime(sale.timestamp, country)}</td>
@@ -496,7 +493,7 @@ export function SalesReport({
         <div className="lg:hidden divide-y divide-gray-100 dark:divide-white/[0.05]">
           {filteredSales.length === 0 ? (
             <div className="px-6 py-12 text-center text-gray-600 font-bold uppercase tracking-widest text-[10px]">{t("no_transactions_found_period", "No transactions found")}</div>
-          ) : paginatedSales.map(sale => (
+          ) : pageItems.map(sale => (
             <div key={sale.id} className="p-4 active:bg-gray-50 dark:active:bg-white/5 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div>
@@ -520,14 +517,14 @@ export function SalesReport({
           ))}
         </div>
 
-        {filteredSales.length > paginatedSales.length && (
-          <div className="bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/10 px-6 py-6 flex items-center justify-center">
-            <LoadMoreButton
-              visibleCount={paginatedSales.length}
-              totalCount={filteredSales.length}
-              onClick={onLoadMore}
-              label={t("load_more_transactions", "Load More Transactions")}
-              className="btn-md !bg-primary hover:!bg-primary-hover !text-white !shadow-lg"
+        {totalPages > 1 && (
+          <div className="bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-center">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              totalItems={filteredSales.length}
+              mode="numbered"
             />
           </div>
         )}

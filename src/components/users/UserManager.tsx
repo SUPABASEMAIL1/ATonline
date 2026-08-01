@@ -4,7 +4,7 @@ import { User as UserType } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { SharedSearchBar } from '../../shared/modules/search-and-list';
-import { Avatar, Badge, Button, EmptyState } from '../../shared/ui';
+import { Avatar, Badge, Button, EmptyState, Pagination, usePagination } from '../../shared/ui';
 import { usersService } from '../../lib/services';
 import { UserModal } from './UserModal';
 import { formatAppDate, formatAppTime, formatAppDateTime } from '../../lib/dateUtils';
@@ -213,11 +213,14 @@ export function UserManager() {
       </div>
 
       {/* Main Table View */}
-      <div className="bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
-        <div className="overflow-x-auto scrollbar-hide">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50/50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/5">
+      {(() => {
+        const { page, totalPages, pageItems, goToPage } = usePagination(filteredUsers, 50);
+        return (
+          <div className="bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
+            <div className="overflow-x-auto scrollbar-hide">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/5">
                 <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest">{t('user_details', 'User Details')}</th>
                 <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center">{t('role', 'Role')}</th>
                 <th className="p-4 text-[10px] font-black uppercase text-gray-700 dark:text-gray-400 tracking-widest text-center">{t('price_override', 'Price Override')}</th>
@@ -239,7 +242,7 @@ export function UserManager() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
+                pageItems.map((user) => (
                   <tr key={user.id} className={`group hover:bg-gray-50 dark:hover:bg-white/[0.01] transition-colors ${!user.active ? 'opacity-40 grayscale-[0.5]' : ''}`}>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
@@ -340,7 +343,21 @@ export function UserManager() {
             </tbody>
           </table>
         </div>
+        
+        {totalPages > 1 && (
+          <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              totalItems={filteredUsers.length}
+              mode="numbered"
+            />
+          </div>
+        )}
       </div>
+      );
+      })()}
 
       <UserModal
         isOpen={showUserModal}

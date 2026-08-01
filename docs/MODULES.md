@@ -20,7 +20,7 @@ Import from barrel: `import { Button, Badge, Select } from '../../shared/ui';`
 | `SubTabBar` | `tabs: {id,label,icon?}[]`, `value`, `onChange` | Chip tab bars |
 | `Avatar` | `src`, `name`, `size: sm\|md\|lg\|xl`, `shape: circle\|square` | Gradient-initials thumbnails |
 | `Pagination` + `usePagination` | `page`, `totalPages`, `onPageChange`, `mode: numbered\|prevNext` | All pager copies |
-| `LoadMoreButton` | `visibleCount`, `totalCount`, `onClick`, `loading` | All "Load More" buttons |
+
 | `DateRangePicker` | `preset`, `presets`, `startDate`, `endDate`, `onStartDateChange`, `onEndDateChange`, `label`, `icon` | Duplicate date-range filter rows |
 | `EmptyState` | `icon`, `title`, `subtext`, `action`, `compact` | Bespoke empty states |
 | `BottomSheet` | `open`, `onClose`, `title`, `subtitle`, `maxWidth`, `footer`, `snapPoints` | Mobile-native sheets (slides up mobile / centered desktop) |

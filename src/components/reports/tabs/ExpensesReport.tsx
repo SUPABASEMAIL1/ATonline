@@ -5,7 +5,7 @@ import { formatAppDate } from '../../../lib/dateUtils';
 import { EXPENSE_CATEGORIES } from '../../../types';
 import { Expense } from '../../../types';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { LoadMoreButton } from '../../../shared/ui';
+import { Pagination, usePagination } from '../../../shared/ui';
 import { ExportButton } from '../../../shared/export';
 import { useMemo } from 'react';
 
@@ -20,19 +20,14 @@ interface ExpensesReportProps {
   expensesTrendData: { date: string; amount: number; count: number }[];
   expenseCategoryData: { name: string; value: number }[];
   totalExpenseAmount: number;
-  currentPage: number;
-  itemsPerPage: number;
-  currency: string;
-  theme: string;
-  country: string;
-  onLoadMore: () => void;
 }
 
 export function ExpensesReport({
   filteredExpenses, expensesTrendData, expenseCategoryData,
-  totalExpenseAmount, currentPage, itemsPerPage, currency, theme, country, onLoadMore
+  totalExpenseAmount, currency, theme, country
 }: ExpensesReportProps) {
   const { t } = useTranslation();
+  const { page, totalPages, pageItems, goToPage } = usePagination(filteredExpenses, 50);
   const tooltipStyle = {
     backgroundColor: theme === 'dark' ? '#171717' : 'white',
     border: theme === 'dark' ? '1px solid #333' : '1px solid #e5e7eb',
@@ -155,7 +150,7 @@ export function ExpensesReport({
             <tbody className="divide-y divide-gray-100 dark:divide-white/5">
               {filteredExpenses.length === 0 ? (
                 <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-600 text-xs">{t('no_expenses_period', 'No expenses in this period')}</td></tr>
-              ) : [...filteredExpenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, currentPage * itemsPerPage).map((expense, idx) => (
+              ) : pageItems.map((expense, idx) => (
                 <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                   <td className="px-4 py-3 text-xs text-gray-600 font-bold">{formatAppDate(expense.date, country)}</td>
                   <td className="px-4 py-3">
@@ -193,7 +188,7 @@ export function ExpensesReport({
         <div className="lg:hidden divide-y divide-gray-100 dark:divide-white/[0.05]">
           {filteredExpenses.length === 0 ? (
             <div className="px-6 py-12 text-center text-gray-600 font-bold uppercase tracking-widest text-[10px]">{t('no_expenses_found', 'No expenses found')}</div>
-          ) : [...filteredExpenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, currentPage * itemsPerPage).map((expense, idx) => (
+          ) : pageItems.map((expense, idx) => (
             <div key={idx} className="p-4 active:bg-gray-50 dark:active:bg-white/5 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-3">
@@ -218,14 +213,14 @@ export function ExpensesReport({
           ))}
         </div>
 
-        {filteredExpenses.length > currentPage * itemsPerPage && (
+        {totalPages > 1 && (
           <div className="bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-center">
-            <LoadMoreButton
-              visibleCount={currentPage * itemsPerPage}
-              totalCount={filteredExpenses.length}
-              onClick={onLoadMore}
-              label={t('load_more', 'Load More')}
-              className="!text-[10px] !text-gray-600 dark:!text-gray-400 hover:!text-primary hover:!border-primary/30 hover:!bg-white dark:hover:!bg-white/5"
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              totalItems={filteredExpenses.length}
+              mode="numbered"
             />
           </div>
         )}

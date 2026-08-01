@@ -11,7 +11,7 @@ import { formatAppDate } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { productsService } from '../../lib/services';
 import { SharedSearchBar } from '../../shared/modules/search-and-list';
-import { Badge, LoadMoreButton, Button } from '../../shared/ui';
+import { Badge, Pagination, usePagination, Button } from '../../shared/ui';
 import { ExportButton } from '../../shared/export';
 import { localDb } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
@@ -45,7 +45,7 @@ export default function InventoryReportManager({
   const [sortField, setSortField] = useState<SortField>('status');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [displayLimit, setDisplayLimit] = useState(25);
+
   // Integrity checks removed as batch system is deprecated
 
   const toggleRow = (id: string) => {
@@ -237,7 +237,7 @@ export default function InventoryReportManager({
     return filtered;
   }, [state.products, state.sales, sales, search, statusFilter, categoryFilter, supplierFilter, globalCategory, globalSupplier, globalStore, startDate, endDate, sortField, sortDir]);
 
-  const displayedData = useMemo(() => inventoryData.slice(0, displayLimit), [inventoryData, displayLimit]);
+  const { page, totalPages, pageItems: displayedData, goToPage } = usePagination(inventoryData, 25);
 
   // Summary Metrics
   const totalStockValue = inventoryData.reduce((s, p) => s + p.stockValue, 0);
@@ -527,15 +527,15 @@ export default function InventoryReportManager({
         </div>
       </div>
 
-      {/* Load More Desktop */}
-      {inventoryData.length > displayLimit && (
+      {/* Pagination Desktop */}
+      {totalPages > 1 && (
         <div className="hidden lg:flex justify-center pt-4">
-          <LoadMoreButton
-            visibleCount={displayLimit}
-            totalCount={inventoryData.length}
-            onClick={() => setDisplayLimit(prev => prev + 25)}
-            label="LOAD MORE PRODUCTS"
-            className="!px-8 !py-3 !rounded-2xl !text-[10px] !text-gray-600 !bg-white dark:!bg-zinc-900/60 !border-gray-200 dark:!border-white/5 hover:!text-primary hover:!border-primary/50 !shadow-sm"
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={goToPage}
+            totalItems={inventoryData.length}
+            mode="numbered"
           />
         </div>
       )}
@@ -665,15 +665,15 @@ export default function InventoryReportManager({
           </div>
         </div>
 
-        {/* Load More Mobile */}
-        {inventoryData.length > displayLimit && (
-          <div className="flex justify-center pt-2">
-            <LoadMoreButton
-              visibleCount={displayLimit}
-              totalCount={inventoryData.length}
-              onClick={() => setDisplayLimit(prev => prev + 25)}
-              label="LOAD MORE PRODUCTS"
-              className="!py-4 !rounded-[2rem] !text-[10px] !text-gray-600 !bg-white dark:!bg-zinc-900/60 !border-gray-200 dark:!border-white/5 !shadow-sm"
+        {/* Pagination Mobile */}
+        {totalPages > 1 && (
+          <div className="flex justify-center pt-4">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              totalItems={inventoryData.length}
+              mode="numbered"
             />
           </div>
         )}

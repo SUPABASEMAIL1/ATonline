@@ -7,7 +7,7 @@ import { sonner } from '../../lib/sonner';
 import { formatAppDate } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { SharedSearchBar } from '../../shared/modules/search-and-list';
-import { Button, Badge, EmptyState } from '../../shared/ui';
+import { Button, Badge, EmptyState, Pagination, usePagination } from '../../shared/ui';
 
 export function DiscountManager() {
   const { state, dispatch } = useApp();
@@ -179,10 +179,13 @@ export function DiscountManager() {
       </div>
 
       {/* Discounts Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead className="table-header">
+      {(() => {
+        const { page, totalPages, pageItems, goToPage } = usePagination(filteredDiscounts, 20);
+        return (
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead className="table-header">
               <tr>
                 <th className="table-header-cell">{t("discount", "Discount")}</th>
                 <th className="table-header-cell hidden sm:table-cell">{t("type", "Type")}</th>
@@ -205,7 +208,7 @@ export function DiscountManager() {
                   </td>
                 </tr>
               )}
-              {filteredDiscounts.map((discount) => (
+              {pageItems.map((discount) => (
                 <tr key={discount.id} className="table-row">
                   <td className="table-cell" data-label="Discount">
                     <div>
@@ -267,7 +270,21 @@ export function DiscountManager() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              totalItems={filteredDiscounts.length}
+              mode="numbered"
+            />
+          </div>
+        )}
       </div>
+      );
+      })()}
 
       <DiscountModal
         isOpen={showDiscountModal}

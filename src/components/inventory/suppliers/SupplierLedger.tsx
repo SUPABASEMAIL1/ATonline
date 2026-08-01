@@ -9,7 +9,7 @@ import { useApp } from '../../../context/SupabaseAppContext';
 import { sonner } from '../../../lib/sonner';
 import { X } from 'lucide-react';
 import { Modal } from '../../common/Modal';
-import { Button, ToggleSwitch, Badge, EmptyState, LoadMoreButton, Select } from '../../../shared/ui';
+import { Button, ToggleSwitch, Badge, EmptyState, Pagination, usePagination, Select } from '../../../shared/ui';
 import { useTranslation } from '../../../hooks/useTranslation';
 
 interface SupplierLedgerProps {
@@ -27,9 +27,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
   const [balance, setBalance] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const LIMIT = 50;
+  const ITEMS_PER_PAGE = 50;
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showBillModal, setShowBillModal] = useState(false);
@@ -43,22 +41,12 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
   const [billNote, setBillNote] = useState('');
   const [isPaymentManualOverride, setIsPaymentManualOverride] = useState(false);
   const [isBillManualOverride, setIsBillManualOverride] = useState(false);
-  const loadLedger = async (isInitial = true) => {
+  const loadLedger = async () => {
     try {
       setLoading(true);
-      const newOffset = isInitial ? 0 : offset;
-      // manualOnly = true (default) — excludes inventory-auto-generated transactions
-      const data = await suppliersService.getLedger(supplier.id, LIMIT, newOffset, false);
-
-      if (isInitial) {
-        setLedger(data);
-        setOffset(LIMIT);
-      } else {
-        setLedger(prev => [...prev, ...data]);
-        setOffset(newOffset + LIMIT);
-      }
-
-      setHasMore(data.length === LIMIT);
+      // Fetch all transactions for client-side pagination
+      const data = await suppliersService.getLedger(supplier.id, 999999, 0, false);
+      setLedger(data);
 
       const bal = await suppliersService.getBalance(supplier.id);
       setBalance(bal);
@@ -222,6 +210,8 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
     );
   }, [ledger, searchTerm, dateFilter, startDate, endDate]);
 
+  const { page, totalPages, pageItems, goToPage } = usePagination(filteredLedger, ITEMS_PER_PAGE);
+
   const getBadge = (type: string, sourceType?: string) => {
     // Use sourceType for more granular distinction
     if (sourceType === 'auto_purchase') {
@@ -373,7 +363,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                   </td>
                 </tr>
               ) : (
-                filteredLedger.map((tx, idx) => {
+                pageItems.map((tx, idx) => {
                   const badge = getBadge(tx.type, tx.sourceType);
                   return (
                     <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-white/[0.01] transition-colors">
@@ -429,7 +419,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
               className="p-10"
             />
           ) : (
-            filteredLedger.map((tx, idx) => {
+            pageItems.map((tx, idx) => {
               const badge = getBadge(tx.type, tx.sourceType);
               return (
                 <div key={idx} className="p-4 flex flex-col gap-2 hover:bg-gray-50 dark:hover:bg-white/[0.01]">
@@ -484,15 +474,14 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
           )}
         </div>
 
-        {hasMore && !searchTerm && (
-          <div className="p-6 border-t border-gray-200 dark:border-white/5 bg-gray-50/30 dark:bg-white/[0.01] flex justify-center">
-            <LoadMoreButton
-              visibleCount={ledger.length}
-              totalCount={hasMore ? ledger.length + LIMIT : ledger.length}
-              onClick={() => loadLedger(false)}
-              loading={loading}
-              label={t('load_more', 'Load More')}
-              className="!px-8 !py-3 !rounded-2xl !bg-white dark:!bg-zinc-800 !border-gray-200 dark:!border-white/10 !text-[10px] !font-black !tracking-[0.2em] !shadow-sm hover:!scale-105 !text-gray-600 hover:!text-primary !gap-3 !w-auto"
+        {totalPages > 1 && (
+          <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              totalItems={filteredLedger.length}
+              mode="prevNext"
             />
           </div>
         )}

@@ -16,9 +16,7 @@ export { Avatar, type AvatarProps, type AvatarSize, type AvatarShape } from './A
 export {
   usePagination,
   Pagination,
-  LoadMoreButton,
   type PaginationProps,
-  type LoadMoreButtonProps,
 } from './Pagination';
 export {
   DateRangePicker,

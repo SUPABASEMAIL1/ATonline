@@ -10,7 +10,7 @@ import { sonner } from '../../../lib/sonner';
 import { formatCurrency } from '../../../lib/currencies';
 import { SupplierLedger } from './SupplierLedger';
 import { SupplierModal } from './SupplierModal';
-import { Button, EmptyState, DateRangePicker } from '../../../shared/ui';
+import { Button, EmptyState, DateRangePicker, Pagination, usePagination } from '../../../shared/ui';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { formatAppDate, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../../lib/dateUtils';
 
@@ -267,17 +267,21 @@ export function SupplierManager() {
       </div>
 
       {/* Main Grid View */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6 mt-2">
-        {filteredSuppliers.length === 0 ? (
-          <div className="col-span-full bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5">
-            <EmptyState
-              icon={<Briefcase className="h-full w-full text-gray-600" />}
-              title={t('no_partners_found', 'No partners found')}
-              className="p-20 opacity-20"
-            />
-          </div>
-        ) : (
-          filteredSuppliers.map((supplier) => (
+      {(() => {
+        const { page, totalPages, pageItems, goToPage } = usePagination(filteredSuppliers, 24);
+        return (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6 mt-2">
+              {filteredSuppliers.length === 0 ? (
+                <div className="col-span-full bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5">
+                  <EmptyState
+                    icon={<Briefcase className="h-full w-full text-gray-600" />}
+                    title={t('no_partners_found', 'No partners found')}
+                    className="p-20 opacity-20"
+                  />
+                </div>
+              ) : (
+                pageItems.map((supplier) => (
             <div key={supplier.id} className="bg-white dark:bg-surface p-4 rounded-3xl border border-gray-200 dark:border-white/5 shadow-xl hover:scale-[1.02] transition-all group flex flex-col">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
@@ -345,6 +349,21 @@ export function SupplierManager() {
           ))
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex justify-center mt-4 rounded-3xl">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={goToPage}
+            totalItems={filteredSuppliers.length}
+            mode="numbered"
+          />
+        </div>
+      )}
+    </>
+  );
+})()}
 
       <SupplierModal
           isOpen={isModalOpen}

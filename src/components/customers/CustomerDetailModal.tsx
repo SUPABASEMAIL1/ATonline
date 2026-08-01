@@ -10,7 +10,7 @@ import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { TransactionDetailModal } from '../transactions/TransactionDetailModal';
-import { Badge, Button, EmptyState, ToggleSwitch } from '../../shared/ui';
+import { Badge, Button, EmptyState, ToggleSwitch, Pagination, usePagination } from '../../shared/ui';
 
 interface CustomerDetailModalProps {
   customer: Customer;
@@ -74,7 +74,11 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
   const totalSpent = customerTransactions.reduce((sum, sale) => sum + sale.total, 0);
   const averageTransaction = totalTransactions > 0 ? totalSpent / totalTransactions : 0;
   const creditAvailable = Math.max(0, customer.creditLimit - customer.creditUsed);
-  const totalCollected = paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const { page: creditPage, totalPages: creditTotalPages, pageItems: creditPageItems, goToPage: goToCreditPage } = usePagination(creditSales, 10);
+  const { page: paidPage, totalPages: paidTotalPages, pageItems: paidPageItems, goToPage: goToPaidPage } = usePagination(paidSales, 10);
+  const { page: paymentPage, totalPages: paymentTotalPages, pageItems: paymentPageItems, goToPage: goToPaymentPage } = usePagination(paymentHistory, 10);
+
+  const totalCollected = useMemo(() => paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0), [paymentHistory]);
 
   const handleAddPayment = async () => {
     const amt = parseFloat(paymentAmount);
@@ -322,7 +326,7 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                     Unpaid Credit Sales ({creditSales.length})
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {creditSales.map((tx) => (
+                    {creditPageItems.map((tx) => (
                       <div key={tx.id} onClick={() => setViewingTransaction(tx)} className="p-5 bg-rose-500/5 border border-rose-500/20 rounded-[20px] space-y-3 cursor-pointer hover:bg-rose-500/10 transition-all active:scale-[0.98]">
                         <div className="flex justify-between items-start">
                           <div>
@@ -348,6 +352,17 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                       </div>
                     ))}
                   </div>
+                  {creditTotalPages > 1 && (
+                    <div className="pt-2 flex justify-center">
+                      <Pagination
+                        page={creditPage}
+                        totalPages={creditTotalPages}
+                        onPageChange={goToCreditPage}
+                        totalItems={creditSales.length}
+                        mode="numbered"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -360,7 +375,7 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                     </h4>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {paidSales.map((tx) => (
+                    {paidPageItems.map((tx) => (
                       <div key={tx.id} onClick={() => setViewingTransaction(tx)} className="p-5 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-[20px] space-y-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 transition-all active:scale-[0.98]">
                         <div className="flex justify-between items-start">
                           <div>
@@ -379,6 +394,17 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                       </div>
                     ))}
                   </div>
+                  {paidTotalPages > 1 && (
+                    <div className="pt-2 flex justify-center">
+                      <Pagination
+                        page={paidPage}
+                        totalPages={paidTotalPages}
+                        onPageChange={goToPaidPage}
+                        totalItems={paidSales.length}
+                        mode="numbered"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -430,7 +456,7 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                 />
               ) : (
                 <div className="space-y-3">
-                  {paymentHistory.map((payment) => (
+                  {paymentPageItems.map((payment) => (
                     <div key={payment.id} className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl hover:border-primary/20 transition-all group">
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
@@ -478,6 +504,18 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                       </div>
                     </div>
                   ))}
+                  
+                  {paymentTotalPages > 1 && (
+                    <div className="pt-4 flex justify-center border-t border-gray-100 dark:border-white/5 mt-4">
+                      <Pagination
+                        page={paymentPage}
+                        totalPages={paymentTotalPages}
+                        onPageChange={goToPaymentPage}
+                        totalItems={paymentHistory.length}
+                        mode="numbered"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -170,9 +170,6 @@ export function ReportsManager() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedCashier, setSelectedCashier] = useState('All');
 
-
-  const [currentPageReport, setCurrentPageReport] = useState(1);
-  const ITEMS_PER_PAGE_REPORT = 10;
   const [selectedSaleType, setSelectedSaleType] = useState<'all' | 'retail' | 'wholesale' | 'estore'>('all');
   const [selectedPayment, setSelectedPayment] = useState('All');
 
@@ -826,10 +823,6 @@ export function ReportsManager() {
     return Object.values(customerStats).sort((a, b) => b.totalSpent - a.totalSpent);
   }, [filteredSales, state.customers]);
 
-  const paginatedSales = useMemo(() => {
-    return filteredSales.slice(0, currentPageReport * ITEMS_PER_PAGE_REPORT);
-  }, [filteredSales, currentPageReport]);
-  const totalSalesPages = Math.ceil(filteredSales.length / ITEMS_PER_PAGE_REPORT);
 
 
 
@@ -1114,7 +1107,6 @@ export function ReportsManager() {
         <div className="relative z-20 mt-2 sm:mt-4">
         <SalesReport
             filteredSales={filteredSales}
-            paginatedSales={paginatedSales}
             salesData={salesData}
             categoryData={categoryData}
             saleTypeData={saleTypeData}
@@ -1135,7 +1127,6 @@ export function ReportsManager() {
             retailEnabled={state.settings.retailEnabled ?? true}
             wholesaleEnabled={state.settings.wholesaleEnabled}
             estoreEnabled={state.settings.estoreEnabled}
-            onLoadMore={() => setCurrentPageReport(p => p + 1)}
             creditSalesTotal={creditSalesTotal}
             creditSalesCount={creditSalesCount}
             creditCollectedTotal={creditCollectedTotal}
@@ -1164,12 +1155,9 @@ export function ReportsManager() {
             expensesTrendData={expensesTrendData}
             expenseCategoryData={expenseCategoryData}
             totalExpenseAmount={totalExpenseAmount}
-            currentPage={currentPageReport}
-            itemsPerPage={ITEMS_PER_PAGE_REPORT}
             currency={state.settings.currency}
             theme={state.settings.theme}
             country={state.settings.country}
-            onLoadMore={() => setCurrentPageReport(p => p + 1)}
           />
         </div>
       )}
