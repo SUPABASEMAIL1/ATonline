@@ -34,5 +34,12 @@ jobs:
           command: pages deploy dist --project-name ${{ steps.cfname.outputs.name }} --branch main
 
       - name: Trigger Vercel deploy
-        if: secrets.VERCEL_DEPLOY_HOOK != ''
-        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
+            echo "Vercel deploy triggered"
+          else
+            echo "no Vercel deploy hook configured - skipping"
+          fi
