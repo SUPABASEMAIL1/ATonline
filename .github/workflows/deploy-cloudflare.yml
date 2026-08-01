@@ -32,3 +32,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name ${{ steps.cfname.outputs.name }} --branch main
+
+      - name: Trigger Vercel deploy
+        if: secrets.VERCEL_DEPLOY_HOOK != ''
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
