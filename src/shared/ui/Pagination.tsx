@@ -160,10 +160,13 @@ export function Pagination({
           <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Per Page:</span>
           <Select
             value={pageSize.toString()}
-            onChange={(val) => onPageSizeChange(Number(val))}
-            options={pageSizeOptions.map(sz => ({ value: sz.toString(), label: sz.toString() }))}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
             className="w-20 !h-8 !min-h-0 !text-[11px] !py-0"
-          />
+          >
+            {pageSizeOptions.map(sz => (
+              <option key={sz} value={sz.toString()}>{sz}</option>
+            ))}
+          </Select>
         </div>
       )}
     </div>
