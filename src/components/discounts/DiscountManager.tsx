@@ -21,6 +21,9 @@ export function DiscountManager() {
     discount?.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const { page, totalPages, pageItems, goToPage } = usePagination(filteredDiscounts, 20);
+
+
   const handleEditDiscount = (discount: Discount) => {
     setEditingDiscount(discount);
     setShowDiscountModal(true);
@@ -179,9 +182,6 @@ export function DiscountManager() {
       </div>
 
       {/* Discounts Table */}
-      {(() => {
-        const { page, totalPages, pageItems, goToPage } = usePagination(filteredDiscounts, 20);
-        return (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="table">
@@ -283,8 +283,6 @@ export function DiscountManager() {
           </div>
         )}
       </div>
-      );
-      })()}
 
       <DiscountModal
         isOpen={showDiscountModal}

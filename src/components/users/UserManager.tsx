@@ -26,6 +26,9 @@ export function UserManager() {
     user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const { page, totalPages, pageItems, goToPage } = usePagination(filteredUsers, 50);
+
+
   const handleEditUser = (user: UserType) => {
     setEditingUser(user);
     setShowUserModal(true);
@@ -213,9 +216,6 @@ export function UserManager() {
       </div>
 
       {/* Main Table View */}
-      {(() => {
-        const { page, totalPages, pageItems, goToPage } = usePagination(filteredUsers, 50);
-        return (
           <div className="bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
             <div className="overflow-x-auto scrollbar-hide">
               <table className="w-full text-left border-collapse">
@@ -356,8 +356,7 @@ export function UserManager() {
           </div>
         )}
       </div>
-      );
-      })()}
+
 
       <UserModal
         isOpen={showUserModal}

@@ -60,6 +60,8 @@ export function SupplierManager() {
     ).sort((a, b) => a.name.localeCompare(b.name));
   }, [state.suppliers, searchTerm]);
 
+  const { page, totalPages, pageItems, goToPage } = usePagination(filteredSuppliers, 24);
+
   const handleAddEdit = (supplier?: Supplier) => {
     setEditingSupplier(supplier || null);
     setIsModalOpen(true);
@@ -267,9 +269,6 @@ export function SupplierManager() {
       </div>
 
       {/* Main Grid View */}
-      {(() => {
-        const { page, totalPages, pageItems, goToPage } = usePagination(filteredSuppliers, 24);
-        return (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6 mt-2">
               {filteredSuppliers.length === 0 ? (
@@ -363,7 +362,7 @@ export function SupplierManager() {
       )}
     </>
   );
-})()}
+
 
       <SupplierModal
           isOpen={isModalOpen}
