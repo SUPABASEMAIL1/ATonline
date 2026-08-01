@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, Wallet, TrendingUp, TrendingDown, Clock, Search, Plus, Check, FileText, Trash2, Phone } from 'lucide-react';
+import { ChevronLeft, Wallet, TrendingUp, TrendingDown, Clock, Plus, Check, FileText, Trash2, Phone } from 'lucide-react';
+import { SharedSearchBar } from '../../../shared/modules/search-and-list';
 import { Supplier } from '../../../types';
 import { suppliersService, expensesService, generateId } from '../../../lib/services';
 import { formatAppDate, formatAppTime } from '../../../lib/dateUtils';
@@ -8,6 +9,7 @@ import { useApp } from '../../../context/SupabaseAppContext';
 import { sonner } from '../../../lib/sonner';
 import { X } from 'lucide-react';
 import { Modal } from '../../common/Modal';
+import { Button, ToggleSwitch, Badge, EmptyState, LoadMoreButton, Select } from '../../../shared/ui';
 import { useTranslation } from '../../../hooks/useTranslation';
 
 interface SupplierLedgerProps {
@@ -223,15 +225,15 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
   const getBadge = (type: string, sourceType?: string) => {
     // Use sourceType for more granular distinction
     if (sourceType === 'auto_purchase') {
-      return { label: t('auto_purchase', 'AUTO-PURCHASE'), cls: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' };
+      return { label: t('auto_purchase', 'AUTO-PURCHASE'), tone: 'info' as const, cls: '!bg-blue-500/10 !text-blue-400 !border-blue-500/20' };
     }
     switch (type) {
       case 'payment':
-        return { label: t('paid', 'PAID'), cls: 'bg-primary/10 text-emerald-400 border border-primary/20' };
+        return { label: t('paid', 'PAID'), tone: 'success' as const, cls: '!bg-primary/10 !text-emerald-400 !border-primary/20' };
       case 'opening_balance':
-        return { label: t('opening_debt', 'OPENING'), cls: 'bg-violet-500/10 text-violet-400 border border-violet-500/20' };
+        return { label: t('opening_debt', 'OPENING'), tone: 'info' as const, cls: '!bg-violet-500/10 !text-violet-400 !border-violet-500/20' };
       default:
-        return { label: t('manual_bill', 'MANUAL BILL'), cls: 'bg-red-500/10 text-red-400 border border-red-500/20' };
+        return { label: t('manual_bill', 'MANUAL BILL'), tone: 'danger' as const, cls: '!bg-red-500/10 !text-red-400 !border-red-500/20' };
     }
   };
 
@@ -240,25 +242,28 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <button
+        <Button
+          variant="secondary"
           onClick={onBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors bg-white dark:bg-zinc-900 px-4 py-2.5 rounded-xl shadow-sm border border-gray-200 dark:border-white/5 font-black uppercase text-[10px] tracking-widest w-full sm:w-auto justify-center"
+          className="!bg-white dark:!bg-zinc-900 !px-4 !py-2.5 !rounded-xl !shadow-sm !border-gray-200 dark:!border-white/5 !font-black !text-[10px] !text-gray-600 hover:!text-gray-900 dark:hover:!text-white w-full sm:w-auto"
         >
           <ChevronLeft className="h-4 w-4" /> {t('back_to_suppliers', 'Back to Suppliers')}
-        </button>
+        </Button>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
+          <Button
+            variant="danger"
             onClick={handleRecordBill}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-5 py-2.5 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+            className="flex-1 sm:flex-none !px-5 !py-2.5 !rounded-xl !font-black !text-[11px] !bg-rose-500 hover:!bg-rose-600 !shadow-lg !shadow-rose-500/20"
           >
             <FileText className="h-4 w-4" /> {t('bill', 'Bill')}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleMakePayment}
-            className="btn btn-md btn-primary flex-1"
+            className="flex-1"
           >
             <Plus className="h-4 w-4" /> {t('payment', 'Payment')}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -330,14 +335,11 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
       <div className="bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden border border-gray-200 dark:border-white/5 shadow-sm">
         <div className="p-4 border-b border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
           <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">{t('manual_ledger_only', 'Manual Ledger (Bills & Payments Only)')}</p>
-          <div className="relative w-full max-w-xs group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 group-focus-within:text-primary transition-colors" />
-            <input
-              type="text"
-              className="w-full bg-gray-50 dark:bg-black/30 border-none pl-11 pr-4 py-2.5 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600 focus:bg-white dark:focus:bg-black/75"
-              placeholder={t('filter_transactions', 'Filter transactions...')}
+          <div className="w-full max-w-xs">
+            <SharedSearchBar
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={setSearchTerm}
+              placeholder={t('filter_transactions', 'Filter transactions...')}
             />
           </div>
         </div>
@@ -363,10 +365,11 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
               ) : filteredLedger.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <Clock className="h-10 w-10 text-gray-600 dark:text-gray-500 mb-3" />
-                      <p className="text-gray-600 font-bold text-sm">{t('no_transactions_yet', 'No transactions yet')}</p>
-                    </div>
+                    <EmptyState
+                      icon={<Clock className="h-10 w-10 text-gray-600 dark:text-gray-500" />}
+                      title={t('no_transactions_yet', 'No transactions yet')}
+                      className="py-6"
+                    />
                   </td>
                 </tr>
               ) : (
@@ -379,9 +382,9 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                         <p className="text-[9px] uppercase font-bold tracking-widest text-gray-600 mt-0.5">{formatAppTime(tx.date, state.settings.country)}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${badge.cls}`}>
+                        <Badge tone={badge.tone} size="sm" className={`${badge.cls} !text-[8px] !px-2 !py-1 !rounded-md`}>
                           {badge.label}
-                        </span>
+                        </Badge>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-[11px] font-bold text-gray-900 dark:text-white truncate max-w-[200px]" title={tx.detail}>{tx.detail}</p>
@@ -402,9 +405,9 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                       </td>
                       <td className="px-6 py-4 text-center">
                         {state.currentUser?.role === 'admin' && (
-                          <button onClick={() => handleDeleteTransaction(tx.id)} className="p-1.5 text-gray-600 hover:text-red-500 rounded-lg transition-all active:scale-90">
+                          <Button variant="ghost" onClick={() => handleDeleteTransaction(tx.id)} className="!min-h-0 !p-1.5 !rounded-lg !text-gray-600 hover:!text-red-500 active:scale-90">
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </Button>
                         )}
                       </td>
                     </tr>
@@ -420,7 +423,11 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
           {loading ? (
             <div className="p-8 text-center text-gray-600 font-bold animate-pulse uppercase text-[10px] tracking-widest">{t('loading_ledger_data', 'Loading transactions...')}</div>
           ) : filteredLedger.length === 0 ? (
-            <div className="p-12 text-center text-gray-600 font-bold uppercase text-[10px] tracking-widest">{t('no_transactions_yet', 'No entries found')}</div>
+            <EmptyState
+              icon={<Clock className="h-8 w-8 text-gray-600 dark:text-gray-500" />}
+              title={t('no_transactions_yet', 'No entries found')}
+              className="p-10"
+            />
           ) : (
             filteredLedger.map((tx, idx) => {
               const badge = getBadge(tx.type, tx.sourceType);
@@ -435,9 +442,9 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                         {formatAppTime(tx.date, state.settings.country)}
                       </span>
                     </div>
-                    <span className={`text-[8px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-md ${badge.cls}`}>
+                    <Badge tone={badge.tone} size="sm" className={`${badge.cls} !text-[8px] !px-2 !py-0.5 !rounded-md`}>
                       {badge.label}
-                    </span>
+                    </Badge>
                   </div>
 
                   <div className="flex justify-between items-center bg-gray-50 dark:bg-white/5 p-2.5 rounded-xl border border-gray-200 dark:border-white/5">
@@ -462,12 +469,13 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
 
                   {state.currentUser?.role === 'admin' && (
                     <div className="flex justify-end pt-1">
-                      <button
+                      <Button
+                        variant="danger"
                         onClick={() => handleDeleteTransaction(tx.id)}
-                        className="flex items-center gap-1.5 text-rose-500 bg-rose-500/10 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                        className="!min-h-0 !bg-rose-500/10 !text-rose-500 hover:!bg-rose-500/10 !px-3 !py-1.5 !rounded-lg !text-[9px] !font-black"
                       >
                         <Trash2 className="w-3 h-3" /> {t('delete_entry', 'Delete Entry')}
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -478,14 +486,14 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
 
         {hasMore && !searchTerm && (
           <div className="p-6 border-t border-gray-200 dark:border-white/5 bg-gray-50/30 dark:bg-white/[0.01] flex justify-center">
-            <button
+            <LoadMoreButton
+              visibleCount={ledger.length}
+              totalCount={hasMore ? ledger.length + LIMIT : ledger.length}
               onClick={() => loadLedger(false)}
-              disabled={loading}
-              className="px-8 py-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-sm hover:scale-105 active:scale-95 transition-all text-gray-600 hover:text-primary flex items-center gap-3"
-            >
-              {loading ? <Clock className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-              {loading ? t('processing', 'Loading...') : t('load_more', 'Load More')}
-            </button>
+              loading={loading}
+              label={t('load_more', 'Load More')}
+              className="!px-8 !py-3 !rounded-2xl !bg-white dark:!bg-zinc-800 !border-gray-200 dark:!border-white/10 !text-[10px] !font-black !tracking-[0.2em] !shadow-sm hover:!scale-105 !text-gray-600 hover:!text-primary !gap-3 !w-auto"
+            />
           </div>
         )}
       </div>
@@ -499,19 +507,21 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
         maxWidth="sm"
         footer={
           <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-            <button
+            <Button
+              variant="danger"
               onClick={() => setShowPaymentModal(false)}
-              className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-100 dark:border-rose-900/30 text-rose-500 font-black uppercase text-[9px] sm:text-[10px] tracking-widest rounded-2xl hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all active:scale-95 shrink-0"
+              className="flex-1 sm:flex-none !bg-transparent !border-rose-100 dark:!border-rose-900/30 !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[10px] !font-black !rounded-2xl shrink-0"
             >
               {t('cancel', 'Cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={submitPayment}
               disabled={formLoading}
-              className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[200px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+              className="flex-1 sm:flex-none sm:min-w-[200px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
             >
               {formLoading ? t('processing', 'Recording...') : t('confirm_payment', 'Confirm Payment')}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -535,15 +545,15 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
             </div>
             <div>
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">{t('payment_method', 'Payment Method *')}</label>
-              <select
-                className="w-full bg-gray-50 dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-5 py-3.5 focus:ring-2 focus:ring-emerald-500 outline-none font-bold animate-none"
+              <Select
+                className="!bg-gray-50 dark:!bg-black/75 !border-none !text-sm !rounded-xl !px-5 !text-gray-900 dark:!text-white !font-bold"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
                 <option value="cash">{t('cash', 'Cash')}</option>
                 <option value="card">{t('card', 'Credit/Debit Card')}</option>
                 <option value="digital">{t('digital', 'Digital Transfer')}</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest mb-1.5 block ml-1">{t('note_reference', 'Note / Reference')}</label>
@@ -562,13 +572,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                 <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{t('manual_override', 'Manual Override')}</p>
                 <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">{t('override_desc', 'Admin amount correction — logged')}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsPaymentManualOverride(prev => !prev)}
-                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${isPaymentManualOverride ? 'bg-amber-500' : 'bg-gray-300 dark:bg-white/10'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${isPaymentManualOverride ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+              <ToggleSwitch checked={isPaymentManualOverride} onChange={setIsPaymentManualOverride} color="bg-amber-500" />
             </div>
           </div>
         </div>
@@ -583,19 +587,21 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
         maxWidth="sm"
         footer={
           <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => setShowBillModal(false)}
-              className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3.5 border border-gray-200 dark:border-white/10 text-gray-600 font-black uppercase text-[9px] sm:text-[10px] tracking-widest rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all active:scale-95 shrink-0"
+              className="flex-1 sm:flex-none !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[10px] !font-black !rounded-2xl !text-gray-600 !border-gray-200 dark:!border-white/10 shrink-0"
             >
               {t('cancel', 'Cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="danger"
               onClick={submitBill}
               disabled={formLoading}
-              className="flex-1 sm:flex-none sm:min-w-[200px] px-4 sm:px-6 py-2.5 sm:py-3.5 bg-rose-500 hover:bg-rose-600 text-white font-black uppercase text-[9px] sm:text-[11px] tracking-widest rounded-2xl shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+              className="flex-1 sm:flex-none sm:min-w-[200px] !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !bg-rose-500 hover:!bg-rose-600 !text-[9px] sm:!text-[11px] !font-black !rounded-2xl !shadow-lg !shadow-rose-500/20"
             >
               {formLoading ? t('processing', 'Recording...') : t('record_bill', 'Record Bill')}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -633,13 +639,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                 <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{t('manual_override', 'Manual Override')}</p>
                 <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">{t('override_desc', 'Admin amount correction — logged')}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsBillManualOverride(prev => !prev)}
-                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${isBillManualOverride ? 'bg-amber-500' : 'bg-gray-300 dark:bg-white/10'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${isBillManualOverride ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+              <ToggleSwitch checked={isBillManualOverride} onChange={setIsBillManualOverride} color="bg-amber-500" />
             </div>
           </div>
         </div>

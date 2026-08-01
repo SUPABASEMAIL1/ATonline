@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Calendar, Tag, CreditCard, FileText, ShoppingBag, RefreshCw, Save } from 'lucide-react';
+import { CreditCard, ShoppingBag, RefreshCw, Save } from 'lucide-react';
 import { format } from 'date-fns';
 import { Expense, EXPENSE_CATEGORIES } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button, ToggleSwitch, Select } from '../../shared/ui';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -81,28 +82,23 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
 
   const footer = (
     <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="md"
         onClick={onClose}
-        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+        className="border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 shrink-0"
       >
         {t('discard')}
-      </button>
-      <button
+      </Button>
+      <Button
+        size="md"
         type="submit"
-        form="expense-form"
-        disabled={isSubmitting}
-        className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+        loading={isSubmitting}
+        icon={<Save className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
+        className="flex-1 sm:flex-none sm:min-w-[240px]"
       >
-        {isSubmitting ? (
-          <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" />
-        ) : (
-          <Save className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-        )}
-        <span className="leading-none ml-2">
-          {expense ? t('commit_changes') : t('register_expense')}
-        </span>
-      </button>
+        {expense ? t('commit_changes') : t('register_expense')}
+      </Button>
     </div>
   );
 
@@ -177,9 +173,9 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('category')} *</label>
-              <select
+              <Select
                 required
-                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all appearance-none cursor-pointer"
+                className="!bg-[#f8f9fa] dark:!bg-black/75 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white"
                 value={formData.category}
                 onChange={e => setFormData({ ...formData, category: e.target.value })}
               >
@@ -188,20 +184,20 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
                     {t('category_' + cat.toLowerCase(), cat)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('payment_method')} *</label>
-              <select
+              <Select
                 required
-                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all appearance-none cursor-pointer"
+                className="!bg-[#f8f9fa] dark:!bg-black/75 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white"
                 value={formData.paymentMethod}
                 onChange={e => setFormData({ ...formData, paymentMethod: e.target.value as any })}
               >
                 <option value="cash" className="dark:bg-surface">{t('cash_settlement')}</option>
                 <option value="card" className="dark:bg-surface">{t('card_payment')}</option>
                 <option value="digital" className="dark:bg-surface">{t('digital_transfer')}</option>
-              </select>
+              </Select>
             </div>
           </div>
         </div>
@@ -224,20 +220,21 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
                     { id: 'wholesale', label: t('wholesale'), icon: ShoppingBag, enabled: state.settings.wholesaleEnabled },
                     { id: 'estore', label: t('estore'), icon: RefreshCw, enabled: state.settings.estoreEnabled }
                   ].filter(c => c.enabled !== false).map((c) => (
-                    <button
+                    <Button
                       key={c.id ?? 'general'}
+                      variant="ghost"
                       type="button"
                       onClick={() => setFormData({ ...formData, storeType: c.id as any })}
                       className={cn(
-                        "flex flex-col items-center gap-2 p-4 rounded-xl border transition-all active:scale-95",
+                        "!min-h-0 !flex-col !gap-2 !p-4 !rounded-xl !border active:!scale-95 !normal-case !tracking-normal !font-normal",
                         formData.storeType === c.id 
-                          ? 'bg-primary border-primary text-white shadow-lg shadow-emerald-500/20' 
-                          : 'bg-[#f8f9fa] dark:bg-black/20 border-gray-200 dark:border-white/5 text-gray-600'
+                          ? '!bg-primary !border-primary !text-white !shadow-lg !shadow-emerald-500/20' 
+                          : '!bg-[#f8f9fa] dark:!bg-black/20 !border-gray-200 dark:!border-white/5 !text-gray-600'
                       )}
                     >
                       <c.icon className={cn("h-5 w-5", formData.storeType === c.id ? 'text-white' : 'text-gray-600')} />
                       <span className={cn("text-[9px] font-black uppercase tracking-widest", formData.storeType === c.id ? 'text-white' : 'text-gray-600 dark:text-gray-400')}>{c.label}</span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -259,13 +256,12 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
                 <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{t('manual_override', 'Manual Override')}</p>
                 <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">{t('override_desc', 'Admin amount correction — logged')}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsManualOverride(prev => !prev)}
-                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${isManualOverride ? 'bg-amber-500' : 'bg-gray-300 dark:bg-white/10'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${isManualOverride ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+              <ToggleSwitch
+                checked={isManualOverride}
+                onChange={setIsManualOverride}
+                color="bg-amber-500"
+                className="!shrink-0"
+              />
             </div>
           </div>
         </div>

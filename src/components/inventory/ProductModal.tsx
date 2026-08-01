@@ -5,6 +5,7 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { MediaLibrary } from './MediaLibrary';
 import { CameraScanner } from '../common/CameraScanner';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { SegmentedControl, Button, Select } from '../../shared/ui';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { sonner } from '../../lib/sonner';
 import { Modal } from '../common/Modal';
@@ -141,7 +142,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         if (typeof c.name === 'string' && c.name.trim().startsWith('{')) {
           try {
             return JSON.parse(c.name).name || c.name;
-          } catch (_) {}
+          } catch (_) { }
         }
         return c.name;
       }
@@ -149,7 +150,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
         if (c.trim().startsWith('{')) {
           try {
             return JSON.parse(c).name || c;
-          } catch (_) {}
+          } catch (_) { }
         }
         return c;
       }
@@ -162,7 +163,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       if (typeof cat === 'string' && cat.trim().startsWith('{')) {
         try {
           return JSON.parse(cat).name || cat;
-        } catch (_) {}
+        } catch (_) { }
       }
       return cat;
     }).filter(Boolean);
@@ -173,7 +174,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       if (typeof cat === 'string' && cat.trim().startsWith('{')) {
         try {
           cat = JSON.parse(cat).name || cat;
-        } catch (_) {}
+        } catch (_) { }
       }
       list.add(cat);
     }
@@ -330,7 +331,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       sonner.close();
 
       const errorMsg = error.message || '';
-      
+
       // 1. Check for custom duplicate product error from productsService.create
       if (errorMsg.toLowerCase().includes('already exists')) {
         sonner.error(errorMsg);
@@ -341,13 +342,13 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       if (error.code === '23505' || error.status === 409) {
         const details = error.details?.toLowerCase() || '';
         let errorMessage = 'A product with this SKU or Barcode already exists.';
-        
+
         if (details.includes('sku')) {
           errorMessage = 'The SKU you entered already exists. Please use a unique SKU.';
         } else if (details.includes('barcode')) {
           errorMessage = 'The Barcode you entered already exists. Please use a unique barcode.';
         }
-        
+
         sonner.error(errorMessage);
         return;
       }
@@ -427,23 +428,26 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
 
   const footer = (
     <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-      <button
+      <Button
         type="button"
+        variant="danger"
         onClick={onClose}
-        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+        className="!bg-transparent !border-rose-200 dark:!border-rose-900/30 !text-[#ff4b6e] hover:!bg-rose-50 dark:hover:!bg-rose-500/10 hover:!opacity-100 !shadow-none !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[10px] !rounded-2xl !shrink-0 !min-h-0"
       >
         {t('discard_upper')}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="primary"
+        size="md"
         onClick={handleSubmit}
-        className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] hover:shadow-emerald-500/30 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+        className="flex-1 sm:flex-none sm:!min-w-[240px] hover:!shadow-emerald-500/30 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+        icon={<Package className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
       >
-        <Package className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
         <span className="leading-none mt-[1px]">
           {product ? t('commit_changes') : t('register_product')}
         </span>
-      </button>
+      </Button>
     </div>
   );
 
@@ -463,33 +467,17 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
               <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
               {t('identity_origin')}
             </h3>
-            
-            {/* Product Type Toggle */}
-            <div className="flex bg-[#f8f9fa] dark:bg-black/75 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ ...prev, productType: 'simple' }))}
-                className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                  formData.productType !== 'variable'
-                    ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Simple Product
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ ...prev, productType: 'variable' }))}
-                className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                  formData.productType === 'variable'
-                    ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                Variable Product
-              </button>
-            </div>
-            
+
+            {/* Product Type Toggle — shared SegmentedControl */}
+            <SegmentedControl
+              options={[
+                { value: 'simple', label: 'Simple Product' },
+                { value: 'variable', label: 'Variable Product' },
+              ]}
+              value={formData.productType}
+              onChange={(v) => setFormData(prev => ({ ...prev, productType: v }))}
+            />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Product Name */}
               <div className="space-y-2 md:col-span-2">
@@ -515,19 +503,17 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                 </label>
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <select
+                    <Select
                       name="category"
                       value={formData.category}
                       onChange={handleChange}
-                      className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all appearance-none font-medium"
+                      className="!bg-[#f8f9fa] dark:!bg-black/75 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white !font-medium"
                     >
                       <option value="" disabled>{t('select_category')}</option>
                       {categories.map(c => <option key={c} value={c} className="dark:bg-surface">{c}</option>)}
-                    </select>
+                    </Select>
                   </div>
-                  <button type="button" onClick={handleAddCategory} className="w-[40px] h-[40px] flex items-center justify-center bg-[#f8f9fa] dark:bg-black/75 hover:bg-gray-200 dark:hover:bg-white/10 rounded-xl text-gray-600 dark:text-gray-400 transition-colors shrink-0">
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <Button type="button" variant="ghost" onClick={handleAddCategory} className="!min-h-0 !w-10 !h-10 !p-0 !rounded-xl !bg-[#f8f9fa] dark:!bg-black/75 hover:!bg-gray-200 dark:hover:!bg-white/10 !text-gray-600 dark:!text-gray-400 shrink-0" icon={<Plus className="w-4 h-4" />} />
                 </div>
               </div>
 
@@ -539,19 +525,17 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                 </label>
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <select
+                    <Select
                       name="supplier"
                       value={formData.supplier}
                       onChange={handleChange}
-                      className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all appearance-none font-medium"
+                      className="!bg-[#f8f9fa] dark:!bg-black/75 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white !font-medium"
                     >
                       <option value="">{t('select_supplier_optional')}</option>
                       {suppliers.map(s => <option key={s} value={s} className="dark:bg-surface">{s}</option>)}
-                    </select>
+                    </Select>
                   </div>
-                  <button type="button" onClick={handleAddSupplier} className="w-[40px] h-[40px] flex items-center justify-center bg-[#f8f9fa] dark:bg-black/75 hover:bg-gray-200 dark:hover:bg-white/10 rounded-xl text-gray-600 dark:text-gray-400 transition-colors shrink-0">
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <Button type="button" variant="ghost" onClick={handleAddSupplier} className="!min-h-0 !w-10 !h-10 !p-0 !rounded-xl !bg-[#f8f9fa] dark:!bg-black/75 hover:!bg-gray-200 dark:hover:!bg-white/10 !text-gray-600 dark:!text-gray-400 shrink-0" icon={<Plus className="w-4 h-4" />} />
                 </div>
               </div>
 
@@ -570,9 +554,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                     placeholder="Auto-generated"
                     className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all uppercase font-medium placeholder:text-gray-600 pr-12"
                   />
-                  <button type="button" onClick={generateSku} className="absolute right-1.5 top-1.5 bottom-1.5 w-8 flex items-center justify-center bg-emerald-50/80 dark:bg-zinc-900 rounded-lg text-primary">
-                    <Wand2 className="w-3.5 h-3.5" />
-                  </button>
+                  <Button type="button" variant="ghost" onClick={generateSku} className="absolute right-1.5 top-1.5 bottom-1.5 !min-h-0 !w-8 !p-0 !rounded-lg !bg-emerald-50/80 dark:!bg-zinc-900 hover:!bg-emerald-50/80 dark:hover:!bg-zinc-900 !text-primary" icon={<Wand2 className="w-3.5 h-3.5" />} />
                 </div>
               </div>
 
@@ -592,13 +574,9 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                       placeholder={t('scan_or_generate')}
                       className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all uppercase font-medium pr-12"
                     />
-                    <button type="button" onClick={generateBarcode} className="absolute right-1.5 top-1.5 bottom-1.5 w-8 flex items-center justify-center bg-emerald-50/80 dark:bg-zinc-900 rounded-lg text-primary">
-                      <Wand2 className="w-3.5 h-3.5" />
-                    </button>
+                    <Button type="button" variant="ghost" onClick={generateBarcode} className="absolute right-1.5 top-1.5 bottom-1.5 !min-h-0 !w-8 !p-0 !rounded-lg !bg-emerald-50/80 dark:!bg-zinc-900 hover:!bg-emerald-50/80 dark:hover:!bg-zinc-900 !text-primary" icon={<Wand2 className="w-3.5 h-3.5" />} />
                   </div>
-                  <button type="button" onClick={() => setShowScanner(true)} className="w-[40px] h-[40px] flex items-center justify-center bg-blue-50 dark:bg-blue-500/10 text-blue-500 rounded-xl transition-colors shrink-0">
-                    <Camera className="w-4 h-4" />
-                  </button>
+                  <Button type="button" variant="ghost" onClick={() => setShowScanner(true)} className="!min-h-0 !w-10 !h-10 !p-0 !rounded-xl !bg-blue-50 dark:!bg-blue-500/10 hover:!bg-blue-50 dark:hover:!bg-blue-500/10 !text-blue-500 shrink-0" icon={<Camera className="w-4 h-4" />} />
                 </div>
                 {formData.barcode && (
                   <BarcodePreview value={formData.barcode} />
@@ -613,7 +591,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
               <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
               E-Store Visibility & Sorting
             </h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="flex items-start gap-3 cursor-pointer group p-4 bg-emerald-50 dark:bg-primary/10 rounded-xl border border-emerald-100 dark:border-primary/20 transition-all hover:bg-emerald-100 dark:hover:bg-primary/20">
                 <input
@@ -655,7 +633,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
               <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
               {t('financials_inventory')}
             </h3>
-            
+
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
@@ -686,11 +664,10 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
             </div>
 
             <div className="space-y-4">
-              <label className={`flex items-start gap-3 cursor-pointer group p-3 rounded-xl border transition-all ${
-                formData.productType === 'variable' 
-                ? 'bg-gray-100/50 dark:bg-white/5 border-gray-200 dark:border-white/5 opacity-60 cursor-not-allowed' 
-                : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/10'
-              }`}>
+              <label className={`flex items-start gap-3 cursor-pointer group p-3 rounded-xl border transition-all ${formData.productType === 'variable'
+                  ? 'bg-gray-100/50 dark:bg-white/5 border-gray-200 dark:border-white/5 opacity-60 cursor-not-allowed'
+                  : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/10'
+                }`}>
                 <input
                   type="checkbox"
                   name="trackInventory"
@@ -745,43 +722,45 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
 
           {/* Product Media */}
           <div className="space-y-4">
-             <h3 className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
+            <h3 className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
               <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
               {t('visual_assets')}
             </h3>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 items-start">
-               <div className="w-24 h-24 rounded-2xl bg-gray-100 dark:bg-black/75 border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                  {formData.image ? (
-                    <img src={formData.image} className="w-full h-full object-cover" />
-                  ) : (
-                    <Camera className="w-6 h-6 text-gray-600" />
-                  )}
-               </div>
-               
-                <div className="flex-1 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <button 
-                      type="button" 
-                      onClick={() => setShowMediaLibrary(true)} 
-                      className="px-5 py-2.5 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
-                    >
-                      Choose / Upload Image
-                    </button>
-                    {formData.image && (
-                      <button 
-                        type="button" 
-                        onClick={() => setFormData(prev => ({ ...prev, image: '' }))} 
-                        className="px-4 py-2.5 bg-rose-500/10 text-rose-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/20 active:scale-95 transition-all"
-                      >
-                        {t('remove')}
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[8px] font-bold text-gray-600 uppercase tracking-widest">Supports WebP, JPG, PNG · Max 50KB</p>
-                </div> 
+              <div className="w-24 h-24 rounded-2xl bg-gray-100 dark:bg-black/75 border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                {formData.image ? (
+                  <img src={formData.image} className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-6 h-6 text-gray-600" />
+                )}
               </div>
-           </div>
+
+              <div className="flex-1 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => setShowMediaLibrary(true)}
+                    className="!px-5 !py-2.5 !rounded-lg !text-[9px] !font-black !shadow-lg !shadow-emerald-500/20"
+                  >
+                    Choose / Upload Image
+                  </Button>
+                  {formData.image && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setFormData(prev => ({ ...prev, image: '' }))}
+                      className="!min-h-0 !px-4 !py-2.5 !rounded-lg !text-[9px] !font-black !bg-rose-500/10 !text-rose-500 hover:!bg-rose-500/20"
+                    >
+                      {t('remove')}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[8px] font-bold text-gray-600 uppercase tracking-widest">Supports WebP, JPG, PNG · Max 50KB</p>
+              </div>
+            </div>
+          </div>
 
           {/* ADVANCED POS FEATURES */}
           <div className="space-y-6 pt-4 border-t border-gray-200 dark:border-white/5">
@@ -789,7 +768,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
               <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
               {t('universal_pos_enhancements')}
             </h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="flex items-start gap-3 cursor-pointer group p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-500/20 transition-all hover:bg-purple-100 dark:hover:bg-purple-900/20">
                 <input
@@ -832,237 +811,239 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('product_variants')}</h4>
-                  <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Size, Color, Material (e.g. Garments, Shoes)</p>
+                    <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Size, Color, Material (e.g. Garments, Shoes)</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setVariants([...variants, { name: '', options: [], optionsRaw: '' }])}
+                    className="!min-h-0 !px-3 !py-1.5 !rounded-lg !text-[10px] !font-black !bg-white dark:!bg-black !border-gray-200 dark:!border-white/10 !text-primary hover:!border-primary"
+                  >
+                    {t('add_variant_option')}
+                  </Button>
                 </div>
-                <button 
-                  type="button" 
-                  onClick={() => setVariants([...variants, { name: '', options: [], optionsRaw: '' }])}
-                  className="px-3 py-1.5 bg-white dark:bg-black text-primary dark:text-primary text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-200 dark:border-white/10 hover:border-primary shadow-sm"
-                >
-                  {t('add_variant_option')}
-                </button>
-              </div>
-              
-              {variants.map((variant, index) => {
-                const addTag = (text: string) => {
-                  const trimmed = text.trim();
-                  if (!trimmed) return;
-                  const parts = trimmed.split(/[,;]+/).map(p => p.trim()).filter(p => p && !variant.options.includes(p));
-                  if (parts.length > 0) {
-                    const newVariants = [...variants];
-                    newVariants[index].options = [...variant.options, ...parts];
-                    newVariants[index].optionsRaw = '';
-                    setVariants(newVariants);
-                  } else {
-                    const newVariants = [...variants];
-                    newVariants[index].optionsRaw = '';
-                    setVariants(newVariants);
-                  }
-                };
 
-                const removeTag = (optIndex: number) => {
-                  const newVariants = [...variants];
-                  newVariants[index].options = variant.options.filter((_, i) => i !== optIndex);
-                  setVariants(newVariants);
-                };
+                {variants.map((variant, index) => {
+                  const addTag = (text: string) => {
+                    const trimmed = text.trim();
+                    if (!trimmed) return;
+                    const parts = trimmed.split(/[,;]+/).map(p => p.trim()).filter(p => p && !variant.options.includes(p));
+                    if (parts.length > 0) {
+                      const newVariants = [...variants];
+                      newVariants[index].options = [...variant.options, ...parts];
+                      newVariants[index].optionsRaw = '';
+                      setVariants(newVariants);
+                    } else {
+                      const newVariants = [...variants];
+                      newVariants[index].optionsRaw = '';
+                      setVariants(newVariants);
+                    }
+                  };
 
-                return (
-                  <div key={index} className="flex gap-2 items-start p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
-                    <input
-                      type="text"
-                      placeholder="Variant Name (e.g. Size)"
-                      value={variant.name}
-                      onChange={(e) => {
-                        const newVariants = [...variants];
-                        newVariants[index].name = e.target.value;
-                        setVariants(newVariants);
-                      }}
-                      className="w-1/3 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-emerald-500"
-                    />
-                    
-                    <div 
-                      className="flex-1 flex flex-wrap items-center gap-1.5 min-h-[38px] bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:border-primary transition-all cursor-text"
-                      onClick={(e) => {
-                        const inputEl = e.currentTarget.querySelector('input[type="text"]');
-                        if (inputEl) (inputEl as HTMLInputElement).focus();
-                      }}
-                    >
-                      {variant.options.map((opt, optIndex) => (
-                        <span 
-                          key={optIndex} 
-                          className="bg-emerald-50 dark:bg-primary/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-primary/20 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 animate-fadeIn select-none"
-                        >
-                          {opt}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeTag(optIndex);
-                            }}
-                            className="text-primary hover:text-emerald-700 dark:hover:text-emerald-300 font-bold focus:outline-none transition-colors"
-                          >
-                            &times;
-                          </button>
-                        </span>
-                      ))}
+                  const removeTag = (optIndex: number) => {
+                    const newVariants = [...variants];
+                    newVariants[index].options = variant.options.filter((_, i) => i !== optIndex);
+                    setVariants(newVariants);
+                  };
+
+                  return (
+                    <div key={index} className="flex gap-2 items-start p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5">
                       <input
                         type="text"
-                        placeholder={variant.options.length === 0 ? "Options (Comma/Enter)" : ""}
-                        value={variant.optionsRaw || ''}
+                        placeholder="Variant Name (e.g. Size)"
+                        value={variant.name}
                         onChange={(e) => {
-                          const val = e.target.value;
-                          if (val.includes(',') || val.includes(';')) {
-                            addTag(val);
-                          } else {
-                            const newVariants = [...variants];
-                            newVariants[index].optionsRaw = val;
-                            setVariants(newVariants);
-                          }
+                          const newVariants = [...variants];
+                          newVariants[index].name = e.target.value;
+                          setVariants(newVariants);
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            addTag(e.currentTarget.value);
-                          } else if (e.key === 'Backspace' && !variant.optionsRaw && variant.options.length > 0) {
-                            removeTag(variant.options.length - 1);
-                          }
-                        }}
-                        onBlur={(e) => {
-                          addTag(e.target.value);
-                        }}
-                        className="flex-1 min-w-[60px] bg-transparent border-0 outline-none p-0 text-xs text-gray-900 dark:text-white focus:ring-0 placeholder-gray-400 dark:placeholder-gray-500 font-medium"
+                        className="w-1/3 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-emerald-500"
                       />
-                    </div>
 
-                    <button type="button" onClick={() => setVariants(variants.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })}
-              
-              {/* Matrix Generator Button */}
-              {variants.length > 0 && variants.some(v => v.options.length > 0) && (
-                <div className="pt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Simple matrix generation for up to 2 variants
-                      if (variants.length === 0) return;
-                      const newVariantData: VariantData[] = [];
-                      const v1 = variants[0];
-                      const v2 = variants.length > 1 ? variants[1] : null;
-                      
-                      v1.options.forEach(opt1 => {
-                        if (v2 && v2.options.length > 0) {
-                          v2.options.forEach(opt2 => {
+                      <div
+                        className="flex-1 flex flex-wrap items-center gap-1.5 min-h-[38px] bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:border-primary transition-all cursor-text"
+                        onClick={(e) => {
+                          const inputEl = e.currentTarget.querySelector('input[type="text"]');
+                          if (inputEl) (inputEl as HTMLInputElement).focus();
+                        }}
+                      >
+                        {variant.options.map((opt, optIndex) => (
+                          <span
+                            key={optIndex}
+                            className="bg-emerald-50 dark:bg-primary/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-primary/20 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 animate-fadeIn select-none"
+                          >
+                            {opt}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeTag(optIndex);
+                              }}
+                              className="!min-h-0 !p-0 !bg-transparent !text-primary hover:!text-emerald-700 dark:hover:!text-emerald-300 !font-bold"
+                            >
+                              &times;
+                            </Button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          placeholder={variant.options.length === 0 ? "Options (Comma/Enter)" : ""}
+                          value={variant.optionsRaw || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val.includes(',') || val.includes(';')) {
+                              addTag(val);
+                            } else {
+                              const newVariants = [...variants];
+                              newVariants[index].optionsRaw = val;
+                              setVariants(newVariants);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              addTag(e.currentTarget.value);
+                            } else if (e.key === 'Backspace' && !variant.optionsRaw && variant.options.length > 0) {
+                              removeTag(variant.options.length - 1);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            addTag(e.target.value);
+                          }}
+                          className="flex-1 min-w-[60px] bg-transparent border-0 outline-none p-0 text-xs text-gray-900 dark:text-white focus:ring-0 placeholder-gray-400 dark:placeholder-gray-500 font-medium"
+                        />
+                      </div>
+
+                      <Button type="button" variant="ghost" onClick={() => setVariants(variants.filter((_, i) => i !== index))} className="!min-h-0 !p-2 !rounded-lg !bg-transparent !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10" icon={<X className="w-4 h-4" />} />
+                    </div>
+                  );
+                })}
+
+                {/* Matrix Generator Button */}
+                {variants.length > 0 && variants.some(v => v.options.length > 0) && (
+                  <div className="pt-2 flex justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        // Simple matrix generation for up to 2 variants
+                        if (variants.length === 0) return;
+                        const newVariantData: VariantData[] = [];
+                        const v1 = variants[0];
+                        const v2 = variants.length > 1 ? variants[1] : null;
+
+                        v1.options.forEach(opt1 => {
+                          if (v2 && v2.options.length > 0) {
+                            v2.options.forEach(opt2 => {
+                              const option1Label = `${v1.name}: ${opt1}`;
+                              const option2Label = `${v2.name}: ${opt2}`;
+                              const existing = variantData.find(vd => vd.option1 === option1Label && vd.option2 === option2Label);
+                              newVariantData.push(existing || {
+                                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                                option1: option1Label,
+                                option2: option2Label
+                              });
+                            });
+                          } else {
                             const option1Label = `${v1.name}: ${opt1}`;
-                            const option2Label = `${v2.name}: ${opt2}`;
-                            const existing = variantData.find(vd => vd.option1 === option1Label && vd.option2 === option2Label);
+                            const existing = variantData.find(vd => vd.option1 === option1Label && !vd.option2);
                             newVariantData.push(existing || {
                               id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                              option1: option1Label,
-                              option2: option2Label
+                              option1: option1Label
                             });
-                          });
-                        } else {
-                          const option1Label = `${v1.name}: ${opt1}`;
-                          const existing = variantData.find(vd => vd.option1 === option1Label && !vd.option2);
-                          newVariantData.push(existing || {
-                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                            option1: option1Label
-                          });
-                        }
-                      });
-                      setVariantData(newVariantData);
-                    }}
-                    className="px-4 py-2 bg-emerald-50 dark:bg-primary/10 text-emerald-600 dark:text-primary text-[10px] font-black uppercase tracking-widest rounded-lg border border-emerald-200 dark:border-primary/20 hover:border-primary shadow-sm flex items-center gap-2"
-                  >
-                    <Wand2 className="w-3.5 h-3.5" />
-                    {t('generate_matrix', 'Generate Price/Stock Matrix')}
-                  </button>
-                </div>
-              )}
-              
-              {/* Matrix Display */}
-              {variantData.length > 0 && (
-                <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
-                  <table className="w-full text-left text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400">
-                    <thead className="bg-gray-100 dark:bg-black/60 border-b border-gray-200 dark:border-white/10">
-                      <tr>
-                        <th className="px-3 py-2">Variant</th>
-                        <th className="px-3 py-2 w-24">Cost</th>
-                        <th className="px-3 py-2 w-24">Exact Price</th>
-                        <th className="px-3 py-2 w-20">Stock</th>
-                        <th className="px-3 py-2 w-28">Barcode</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-black/20 divide-y divide-gray-100 dark:divide-white/5">
-                      {variantData.map((vd, idx) => (
-                        <tr key={vd.id}>
-                          <td className="px-3 py-2 whitespace-nowrap text-gray-900 dark:text-white">
-                            {vd.option1} {vd.option2 ? ` / ${vd.option2}` : ''}
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              value={vd.cost || ''}
-                              onChange={(e) => {
-                                const newData = [...variantData];
-                                newData[idx].cost = e.target.value ? parseFloat(e.target.value) : undefined;
-                                setVariantData(newData);
-                              }}
-                              placeholder={formData.cost}
-                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              value={vd.priceOverride || ''}
-                              onChange={(e) => {
-                                const newData = [...variantData];
-                                newData[idx].priceOverride = e.target.value ? parseFloat(e.target.value) : undefined;
-                                setVariantData(newData);
-                              }}
-                              placeholder={formData.price}
-                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              value={vd.stock || ''}
-                              onChange={(e) => {
-                                const newData = [...variantData];
-                                newData[idx].stock = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                                setVariantData(newData);
-                              }}
-                              placeholder="0"
-                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="text"
-                              value={vd.barcode || ''}
-                              onChange={(e) => {
-                                const newData = [...variantData];
-                                newData[idx].barcode = e.target.value;
-                                setVariantData(newData);
-                              }}
-                              placeholder="Auto"
-                              className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 uppercase"
-                            />
-                          </td>
+                          }
+                        });
+                        setVariantData(newVariantData);
+                      }}
+                      className="!min-h-0 !px-4 !py-2 !rounded-lg !text-[10px] !font-black !bg-emerald-50 dark:!bg-primary/10 !text-emerald-600 dark:!text-primary !border-emerald-200 dark:!border-primary/20 hover:!border-primary !shadow-sm"
+                      icon={<Wand2 className="w-3.5 h-3.5" />}
+                    >
+                      {t('generate_matrix', 'Generate Price/Stock Matrix')}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Matrix Display */}
+                {variantData.length > 0 && (
+                  <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-white/10">
+                    <table className="w-full text-left text-[10px] uppercase font-bold text-gray-600 dark:text-gray-400">
+                      <thead className="bg-gray-100 dark:bg-black/60 border-b border-gray-200 dark:border-white/10">
+                        <tr>
+                          <th className="px-3 py-2">Variant</th>
+                          <th className="px-3 py-2 w-24">Cost</th>
+                          <th className="px-3 py-2 w-24">Exact Price</th>
+                          <th className="px-3 py-2 w-20">Stock</th>
+                          <th className="px-3 py-2 w-28">Barcode</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                      </thead>
+                      <tbody className="bg-white dark:bg-black/20 divide-y divide-gray-100 dark:divide-white/5">
+                        {variantData.map((vd, idx) => (
+                          <tr key={vd.id}>
+                            <td className="px-3 py-2 whitespace-nowrap text-gray-900 dark:text-white">
+                              {vd.option1} {vd.option2 ? ` / ${vd.option2}` : ''}
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={vd.cost || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].cost = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setVariantData(newData);
+                                }}
+                                placeholder={formData.cost}
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={vd.priceOverride || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].priceOverride = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setVariantData(newData);
+                                }}
+                                placeholder={formData.price}
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                value={vd.stock || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].stock = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                                  setVariantData(newData);
+                                }}
+                                placeholder="0"
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="text"
+                                value={vd.barcode || ''}
+                                onChange={(e) => {
+                                  const newData = [...variantData];
+                                  newData[idx].barcode = e.target.value;
+                                  setVariantData(newData);
+                                }}
+                                placeholder="Auto"
+                                className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-emerald-500 uppercase"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* LINKED ADD-ONS BUILDER */}
@@ -1072,16 +1053,18 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                   <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">Linked Add-ons</h4>
                   <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Attach inventory-tracked products as extras</p>
                 </div>
-                <button 
-                  type="button" 
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setProductAddons([...productAddons, { id: '', productId: product?.id || '', addonProductId: '', name: '', price: 0, maxQty: 1, active: true, createdAt: new Date() }])}
-                  className="px-3 py-1.5 bg-white dark:bg-black text-blue-600 dark:text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-200 dark:border-white/10 hover:border-blue-500 shadow-sm"
+                  className="!min-h-0 !px-3 !py-1.5 !rounded-lg !text-[10px] !font-black !bg-white dark:!bg-black !text-blue-600 dark:!text-blue-500 !border-gray-200 dark:!border-white/10 hover:!border-blue-500"
+                  icon={<Plus className="w-3.5 h-3.5" />}
                 >
-                  <Plus className="w-3.5 h-3.5 inline mr-1" />
                   Add Link
-                </button>
+                </Button>
               </div>
-              
+
               {productAddons.map((addon, index) => (
                 <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5 items-center">
                   <div className="w-full sm:flex-1 min-w-0">
@@ -1104,18 +1087,18 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-between sm:justify-start">
                     <div className="relative flex-1 sm:flex-none w-full sm:w-24">
-                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold z-10 uppercase">Max</span>
-                       <input
-                         type="number"
-                         min="1"
-                         value={addon.maxQty || ''}
-                         onChange={(e) => {
-                           const newAddons = [...productAddons];
-                           newAddons[index].maxQty = parseInt(e.target.value) || 1;
-                           setProductAddons(newAddons);
-                         }}
-                         className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-9 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
-                       />
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold z-10 uppercase">Max</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={addon.maxQty || ''}
+                        onChange={(e) => {
+                          const newAddons = [...productAddons];
+                          newAddons[index].maxQty = parseInt(e.target.value) || 1;
+                          setProductAddons(newAddons);
+                        }}
+                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-9 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                      />
                     </div>
                     <div className="relative flex-1 sm:flex-none w-full sm:w-28">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold z-10 uppercase">Price</span>
@@ -1131,9 +1114,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                         className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
                       />
                     </div>
-                    <button type="button" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
-                      <X className="w-4 h-4" />
-                    </button>
+                    <Button type="button" variant="ghost" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="!min-h-0 !p-1.5 !rounded-lg !bg-transparent !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 shrink-0 mt-0.5" icon={<X className="w-4 h-4" />} />
                   </div>
                 </div>
               ))}
@@ -1142,20 +1123,20 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
 
           {/* Configuration */}
           <div className="pt-6 border-t border-gray-200 dark:border-white/5 flex flex-wrap gap-4 sm:gap-6">
-             {['taxable', 'active'].map((field) => (
-                <label key={field} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name={field}
-                    checked={(formData as any)[field]}
-                    onChange={handleChange}
-                    className="w-4 h-4 rounded border-gray-300 text-primary"
-                  />
-                  <span className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">
-                    {field === 'taxable' ? t('taxable') : t('active')}
-                  </span>
-                </label>
-             ))}
+            {['taxable', 'active'].map((field) => (
+              <label key={field} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name={field}
+                  checked={(formData as any)[field]}
+                  onChange={handleChange}
+                  className="w-4 h-4 rounded border-gray-300 text-primary"
+                />
+                <span className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">
+                  {field === 'taxable' ? t('taxable') : t('active')}
+                </span>
+              </label>
+            ))}
           </div>
         </div>
       </Modal>

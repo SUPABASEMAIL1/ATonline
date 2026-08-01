@@ -1,293 +1,86 @@
-# 🎨 Zaynahs POS — STRICT UI/UX DESIGN SYSTEM RULES
+# 🎨 Zaynahs POS — UI DESIGN RULES (SHORT & SHARP)
 
-**NEVER write inline hardcoded colors. NEVER create a new modal from scratch. NEVER create ad-hoc button Tailwind strings. ALWAYS use the components/classes defined here.**
-
-This file is the single source of truth for UI. Before writing or editing any UI code, read this file. If a pattern here covers your case, use it — do not invent a new one.
-
----
-
-## 1. COLORS
-
-All colors are defined as CSS variables in `src/index.css` under `:root` (and `.dark` for dark mode). Never hardcode a hex value in any `.tsx`, `.ts`, or `.css` file.
-
-### 1.1 Required CSS variables (must exist in `src/index.css`)
-
-```css
-:root {
-  --color-primary: #10b981;       /* emerald - brand color */
-  --color-primary-hover: #059669;
-  --color-bg: #ffffff;            /* app background, light mode */
-  --color-surface: #ffffff;       /* cards, modals, dropdowns */
-  --color-text: #0f172a;
-  --color-text-muted: #6b7280;
-  --color-border: #e5e7eb;
-  --color-danger: #ef4444;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-overlay: rgba(15, 23, 42, 0.5);
-}
-
-.dark {
-  --color-primary: #10b981;
-  --color-primary-hover: #059669;
-  --color-bg: #0A0A0A;
-  --color-surface: #171717;
-  --color-text: #ffffff;
-  --color-text-muted: #9ca3af;
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-danger: #ef4444;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-overlay: rgba(0, 0, 0, 0.6);
-}
-```
-
-### 1.2 Tailwind config mapping (must exist in `tailwind.config.js`)
-
-CSS variables alone do NOT create Tailwind utility classes. This mapping is required or classes like `bg-app` will not work:
-
-```js
-// tailwind.config.js
-module.exports = {
-  darkMode: 'class',
-  theme: {
-    extend: {
-      colors: {
-        primary: 'var(--color-primary)',
-        'primary-hover': 'var(--color-primary-hover)',
-        app: 'var(--color-bg)',
-        surface: 'var(--color-surface)',
-        'text-default': 'var(--color-text)',
-        'text-muted': 'var(--color-text-muted)',
-        border: 'var(--color-border)',
-        danger: 'var(--color-danger)',
-        success: 'var(--color-success)',
-        warning: 'var(--color-warning)',
-      }
-    }
-  }
-}
-```
-
-### 1.3 Token reference table
-
-| Token | CSS Variable | Tailwind Class | Usage |
-|-------|--------------|-----------------|-------|
-| Primary | `--color-primary` | `bg-primary`, `text-primary` | Brand color, primary buttons, active states |
-| Primary Hover | `--color-primary-hover` | `hover:bg-primary-hover` | Button hover state |
-| Background | `--color-bg` | `bg-app` | Page/app background |
-| Surface | `--color-surface` | `bg-surface` | Modals, cards, dropdowns |
-| Text | `--color-text` | `text-default` | Main text color |
-| Text Muted | `--color-text-muted` | `text-muted` | Secondary/helper text |
-| Border | `--color-border` | `border-default` | Dividers, card outlines |
-| Danger | `--color-danger` | `bg-danger`, `text-danger` | Delete, errors, destructive actions |
-| Success | `--color-success` | `bg-success`, `text-success` | Confirmations, positive states |
-| Warning | `--color-warning` | `bg-warning`, `text-warning` | Alerts, caution states |
-| Overlay | `--color-overlay` | (used directly in Modal component only) | Modal backdrop |
-
-**Rule:** If a color doesn't map cleanly to one of these tokens, do not guess — flag it for manual review instead of inventing a new hardcoded value.
-
----
-
-## 2. BUTTONS
-
-Always use the `.btn` base class plus one variant class. Never write long inline Tailwind strings for buttons.
-
-**Defined in `src/index.css` under `@layer components`:**
-
-```css
-.btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl font-bold
-         transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
-  min-height: 44px; /* touch target minimum */
-}
-.btn-primary  { @apply bg-primary hover:bg-primary-hover text-white; }
-.btn-secondary{ @apply bg-surface border border-default text-default; }
-.btn-danger   { @apply bg-danger text-white; }
-.btn-ghost    { @apply bg-transparent text-default hover:bg-app; }
-.btn-ghost    { @apply bg-transparent text-gray-600 hover:bg-app; }
-
-.btn-sm { @apply px-3 py-1.5 text-xs; }
-.btn-md { @apply px-4 py-2.5 text-sm; }
-.btn-lg { @apply px-6 py-3.5 text-base; }
-```
-
-**"Add [Entity]" Rule:** All entity creation buttons (e.g. Add Customer, Add Product, Add Expense, Add User) MUST use the exact same classes: `btn btn-primary btn-md`. Never vary size or casing. The uppercase and letter-spacing are baked into the base `.btn` class.
-
-**Variants:**
-- `btn btn-primary` — Save, Submit, Checkout, main action
-- `btn btn-secondary` — Cancel, Back, neutral action
-- `btn btn-danger` — Delete, Remove, destructive action
-- `btn btn-ghost` — Subtle actions, icon-only buttons
-
-**Sizes:** `btn-sm`, `btn-md` (default), `btn-lg`
-
-**Example:**
-```tsx
-// ❌ WRONG
-<button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold">Save</button>
-
-// ✅ CORRECT
-<button className="btn btn-primary btn-md">Save</button>
-<button className="btn btn-secondary btn-md" onClick={close}>Cancel</button>
-<button className="btn btn-danger btn-sm" onClick={handleDelete}>Delete</button>
-```
-
----
-
-## 3. MODALS
-
-Always use the unified `Modal` component. Never build a custom dialog wrapper, fixed-position div, or absolute-positioned popup.
-
-**Location:** `src/components/common/Modal.tsx`
-**Export type:** Named export — `export function Modal(...)`. Import as `import { Modal } from '@/components/common/Modal';` (NOT a default export).
-
-**Behavior:**
-- **Mobile (<768px):** slides up from bottom, full width, rounded top corners only, `max-height: 92dvh`, respects `env(safe-area-inset-bottom)`, body scroll locked while open
-- **Desktop (≥768px):** centered dialog, dimmed backdrop (`--color-overlay`), rounded corners, `max-height: 90vh`, scrollable body
-- Escape key closes it. Backdrop click closes it. Transition under 250ms.
-- Uses `bg-surface`, `text-default`, `border-default` tokens — supports dark mode automatically.
-- Modals MUST render via a fixed, full-viewport overlay with z-index above all navigation. On mobile, an open modal visually covers the bottom navigation.
-- **Form Layout Rule:** Multi-field forms must use `lg` or `xl` width and arrange related fields in a 2-column grid on desktop (`md:grid-cols-2`).
-
-**Props:**
-```ts
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  subtitle?: string;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | 'max' | 'full'; 
-  // sm: 480px, md: 640px, lg: 800px, xl: 1000px, full: 95vw
-  footer?: React.ReactNode;
-  children: React.ReactNode;
-}
-```
-
-**Example:**
-```tsx
-import { Modal } from '@/components/common/Modal';
-
-// ❌ WRONG — do not build a custom dialog wrapper
-// <div className="fixed inset-0 ..."><div className="absolute ...">...
-
-// ✅ CORRECT
-<Modal
-  isOpen={isOpen}
-  onClose={close}
-  title="Edit Product"
-  footer={
-    <div className="flex justify-end gap-2">
-      <button className="btn btn-secondary" onClick={close}>Cancel</button>
-      <button className="btn btn-primary" onClick={handleSave}>Save</button>
-    </div>
-  }
+> **THE ONE RULE:** Poora app — har route, har page, har component — SAME shared modules use karta hai. `src/components/pos/**` is the ONLY exemption. Page-local variants, hand-rolled markup, alag-alag lookalikes = **BANNED**.
 >
-  <div className="p-4">Content here</div>
-</Modal>
-```
+> ⚠️ **STAY UP TO DATE (MANDATORY):** Ye rules live source of truth hain — koi bhi UI pattern/rule change, ya naya shared module add, toh `docs/UI_RULES.md` AND `docs/MODULES.md` DONO ko SAME change mein update karo (see AGENTS.md rule 18 / GEMINI.md rule 11). Stale docs = violation.
 
-**Note:** `DialogProvider` (confirm/alert/prompt dialogs) is a separate, intentional system for quick confirmations and is NOT replaced by `Modal`. Keep both — `Modal` is for content dialogs and forms, `DialogProvider` is for simple confirm/alert/input prompts.
-
----
-
-## 4. GRIDS
-
-Always use the `.grid-layout` utility class for product grids, inventory lists, and report cards. Never write one-off `grid-template-columns` values inline.
-
-**Defined in `src/index.css`:**
-```css
-.grid-layout {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-  width: 100%;
-}
-.grid-layout-tight {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.5rem;
-}
-.grid-layout-wide {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-```
-
-**Example:**
-```tsx
-<div className="grid-layout">
-  <ProductCard />
-  <ProductCard />
-</div>
-
-// Denser grid (e.g. POS product tiles)
-<div className="grid-layout-tight">
-  <ProductTile />
-</div>
-```
-
-**Rule:** No grid item may have a fixed pixel width unless it is an intentional fixed-width sidebar (e.g. POS cart panel), and even then it must be hidden or converted to full-width below the `lg` breakpoint.
+## 0. MANDATORY READS BEFORE ANY UI CODE
+1. [docs/MODULES.md](MODULES.md) — complete shared module registry (props, bans, "stay up to date" rule)
+2. This file
 
 ---
 
-## 5. FILTERS / DROPDOWNS
+## 1. SHARED MODULES ONLY (100% COVERAGE, POS-exempt)
 
-- On mobile (<768px), filter panels open inside the `Modal` component (bottom-sheet), not as inline dropdowns that can overflow the screen.
-- On desktop (≥768px), filters can be inline dropdowns but must use `bg-surface`, `border-default`, and `.btn-*` classes — no custom styling.
+| What you need | Use THIS (shared) | NEVER hand-roll |
+|---------------|-------------------|-----------------|
+| Button | `Button` from `../../shared/ui` (`variant`, `size`, `icon`, `loading`, `fullWidth`) | `<button className="...">` strings |
+| Card / panel | `Card` | Bespoke card divs |
+| Status pill | `Badge` (`tone`, `size`, `variant`) | Inline pill divs |
+| Toggle | `ToggleSwitch` | `w-9 h-5` switch markup |
+| Tabs | `SegmentedControl` / `SubTabBar` | Chip tab markup |
+| Avatar | `Avatar` | Gradient-initials divs |
+| Pager | `Pagination` + `usePagination` / `LoadMoreButton` | Prev/Next copies |
+| Date range | `DateRangePicker` | Date filter rows |
+| Empty state | `EmptyState` | Empty divs |
+| Select | `Select` (or `SearchableSelect` common primitive) | Native `<select>` |
+| Search input | `SharedSearchBar` | Search inputs |
+| Product list rows | `SharedProductList` / `SharedProductListItem` | Bespoke list rows |
+| Drag reorder | `useDragDropList` + `DragHandle` | `dragIndex`/`dataTransfer`/`GripVertical` |
+| Overlay | `Modal` / `BottomSheet` | `fixed inset-0` overlays |
+| Confirm/alert | `sonner.confirm` (DialogProvider) | Custom dialogs |
+| Primary loader | `SkeletonLoader` | Generic spinners |
+| Image upload | `MediaLibrary` | Direct file inputs |
+| Icons | `AppIcons` from `src/lib/icons.ts` (fallback: Lucide) | Raw Lucide if mapped |
+| Money | `formatCurrency` from `src/lib/currencies` | Manual formatting |
+| Stock-in commit | `commitStockInToInventory` from `src/lib/stockInCommit` | Second parallel impl |
+| Export (CSV/Excel/PDF/print) | `ExportButton` + engine from `src/shared/export` | Blob + `download` attr, `window.print()`, hand-rolled CSV |
 
----
-
-## 6. ENFORCEMENT CHECKLIST
-
-Before committing any UI code, confirm:
-- [ ] No hardcoded hex/rgb/rgba colors — only tokens from Section 1
-- [ ] No `<button>` without `.btn .btn-*` classes
-- [ ] No modal markup outside the `Modal` component (except `DialogProvider` use cases)
-- [ ] No grid without `.grid-layout` (or its `-tight` / `-wide` variants)
-- [ ] Dark mode tested (colors must come from variables, not assume light mode)
-- [ ] Mobile tested at <768px width — no horizontal overflow, no cropped content
-
-*Any deviation from this file causes visual inconsistency and layout bugs, especially on mobile. Stay compliant.*
-
----
-
-## 8. CIRCULAR & CAPSULE MODERN STYLING (CAPSULE PARITY)
-
-To maintain a premium, state-of-the-art modern visual aesthetic and avoid boxy or heavy outlines, all components must follow these design standards:
-
-1. **Circular Action Buttons:**
-   - Icons such as cogs, log-out, refresh/sync, theme toggles, search-clear, edit pencils, and trash/delete buttons must be enclosed in borderless circular wrappers:
-     `rounded-full w-8 h-8 sm:w-9 sm:h-9 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 active:scale-95 transition-all flex items-center justify-center`
-   - Minimize raw, boxy outlines or heavy borders around action icons.
-
-2. **Compact Capsule Badges:**
-   - Status pills (Sync indicators, role badges, cart counts) and selection triggers (Select Customer dotted box) must be rendered as borderless, flat capsules with a 10% opacity background of their thematic color:
-     `rounded-full h-8 sm:h-9 px-3 text-[10px] font-bold flex items-center gap-1.5 border border-transparent`
-   - Use `bg-primary/10 text-primary` for positive states, `bg-amber-500/10 text-amber-600` for warning/pending, and `bg-rose-500/10 text-rose-600` for critical/danger.
-
-3. **Borderless Stepper Controls:**
-   - Quantity adjustment steppers `[- 1 +]` must use a unified, flat, borderless pill container:
-     `rounded-full bg-gray-100 dark:bg-white/5 shrink-0 flex items-center p-0.5`
-   - Stepper adjustment buttons inside must be perfectly circular:
-     `w-5.5 h-5.5 rounded-full flex items-center justify-center hover:bg-gray-250 dark:hover:bg-white/10 text-gray-500 active:scale-90 transition-all`
-
-4. **Capsule Input Fields:**
-   - Search fields, discount text inputs, and other custom POS field inputs must be styled as rounded-full capsules:
-     `rounded-full h-9 pl-4 pr-4 bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all`
-
-5. **Unified Iconography Registry (AppIcons):**
-   - **Mandatory Icon Source:** ALL icons used across page headers, sidebars, main menus, drawers, layout tabs, settings, checkout modals, and payment methods MUST be imported from the single source of truth:
-     `import { AppIcons } from '../../lib/icons';` (or equivalent relative path to `src/lib/icons.ts`).
-   - Do NOT import raw Lucide icons directly into UI components if a mapped icon exists in the `AppIcons` registry. This prevents mismatched layout icons (e.g., using `Activity` on desktop dashboard nav while using `LayoutDashboard` on mobile bottom nav).
-   - If a new icon is required, add it to `AppIcons` in `src/lib/icons.ts` first, then import it in the component.
+**Visual tweaks:** shared component par `!`-prefixed `className` overrides (`!bg-amber-500`, `!min-h-0`) — estore theme vars (`--color-primary`, `--color-card-bg`) isi tarah apply hote hain. Never new markup.
 
 ---
 
-## 7. Z-INDEX SCALE
+## 2. DESIGN TOKENS (NO HARDCODED COLORS)
 
-Always follow this global stacking order to prevent overlapping bugs:
+- Colors ONLY via CSS vars: `bg-primary`, `bg-surface`, `bg-app`, `text-default`, `text-muted`, `border-default`, `text-danger`, `text-success`, `text-warning`
+- Dark mode: single `bg-surface` token — `dark:bg-[#hex]` banned
+- Brand: `--color-primary` (emerald) — eshtore theme var se override hota hai
 
-- **Base content**: `z-index 0-10`
-- **Sticky/fixed nav** (top nav, bottom nav): `z-[40]`
-- **Dropdowns/tooltips**: `z-[60]`
-- **Modal overlay**: `z-[100]`
-- **Toast/notification**: `z-[200]`
+## 3. BUTTONS
+
+- All via shared `Button` (built on `.btn` CSS: min-height 44px, uppercase, `active:scale-95`, disabled state)
+- `size="md"` (`btn-md`) is DEFAULT — all new buttons include it unless overriding
+- Variants: `primary` (save/confirm), `secondary` (cancel/back), `danger` (delete), `ghost` (subtle)
+- Compact buttons: `!min-h-0 !p-*` overrides (e.g. chips, inline actions)
+
+## 4. MODALS & OVERLAYS
+
+- `Modal` or `BottomSheet` ONLY — hand-rolled overlays banned; one z-ladder (`Modal` z-1000, DialogProvider z-9999)
+- Mobile (<768px): Modal slides up full-width rounded-top (centered layout `items-center justify-center` — NEVER bottom-anchored sheets)
+- Desktop: centered dialog
+- **Sizing:** forms/pages use `maxWidth="lg"` or `"xl"` (never sm/md) + 2-col grid `md:grid-cols-2` on desktop
+- `BottomSheet` = Modal wrapper + drag grip; use for action panels
+
+## 5. LOADING & EMPTY
+
+- Primary/route/grid loaders: `SkeletonLoader` shimmer — spinners banned
+- `EmptyState` for no-data states; `sonner` for toasts/confirmations
+
+## 6. EXPORT & PRINT
+
+- `ExportButton` (from `src/shared/export`) on ALL report/action views — exports the **currently filtered dataset**, never full unfiltered
+- Branded header + timestamp + active-filter summary in every output (CSV/Excel/PDF/print)
+- Desktop: dropdown menu; mobile (<768px): `BottomSheet` picker
+- `compact` prop = icon-only button (fits table headers / control bars)
+- Exempt: POS receipts/KOT (`src/components/pos/**`), full DB JSON backup
+
+## 7. ENFORCEMENT CHECKLIST (before committing UI code)
+
+- [ ] `src/shared/ui` + shared modules used — zero page-local variants
+- [ ] No raw `<button>` / native `<select>` / bespoke cards-pills-toggles outside POS
+- [ ] No hardcoded hex colors; dark mode = `bg-surface`
+- [ ] Modal `lg`/`xl` + `md:grid-cols-2`; mobile centered
+- [ ] `SkeletonLoader` for primary loaders
+- [ ] Icons via `AppIcons` where mapped
+- [ ] Exports via `src/shared/export` — no Blob/window.print copies
+- [ ] New shared module? → registered in [docs/MODULES.md](MODULES.md) (SAME change)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, CartItemTopping, ProductModifier } from '../../types';
 import { X, Plus, Minus } from 'lucide-react';
+import { Button } from '../../shared/ui';
 import { formatCurrency } from '../../lib/currencies';
 import { productToppingsService } from '../../lib/services';
 import ExtraToppingSelector from '../common/ExtraToppingSelector';
@@ -113,12 +114,11 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
               <span className="font-black text-5xl text-gray-300">{product.name.charAt(0)}</span>
             </div>
           )}
-          <button 
+          <Button 
             onClick={onClose}
-            className="absolute top-4 right-4 w-10 h-10 bg-[var(--color-card-bg)]/50 backdrop-blur-md rounded-full flex items-center justify-center text-[var(--color-text)] hover:bg-[var(--color-card-bg)] transition-all shadow-sm"
-          >
-            <X className="w-5 h-5" />
-          </button>
+            className="absolute top-4 right-4 !w-10 !h-10 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)]/50 backdrop-blur-md !text-[var(--color-text)] hover:!bg-[var(--color-card-bg)] !shadow-sm !normal-case !tracking-normal"
+            icon={<X className="w-5 h-5" />}
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -138,23 +138,23 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
                       const isSelected = selectedVariants[vGroup.name] === opt;
                       const isOOS = isOptionOutOfStock(vGroup.name, opt);
                       return (
-                        <button
+                        <Button
                           key={opt}
                           onClick={() => {
                             if (isOOS) return;
                             setSelectedVariants(prev => ({ ...prev, [vGroup.name]: opt }));
                           }}
                           disabled={isOOS}
-                          className={`px-4 py-2 rounded-xl font-bold text-sm transition-all border ${
+                          className={`!min-h-0 !px-4 !py-2 !rounded-xl !font-bold !text-sm !normal-case !tracking-normal !border ${
                             isOOS
-                              ? 'bg-gray-100 border-gray-200 text-gray-400 opacity-50 cursor-not-allowed line-through'
+                              ? '!bg-gray-100 !border-gray-200 !text-gray-400 !opacity-50 !cursor-not-allowed !line-through'
                               : isSelected
-                              ? 'bg-primary border-primary text-white shadow-md'
-                              : 'bg-[var(--color-card-bg)] border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-80 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20'
+                              ? '!bg-primary !border-primary !text-white !shadow-md'
+                              : '!bg-[var(--color-card-bg)] !border-black/10 dark:!border-white/10 !text-[var(--color-text)] !opacity-80 hover:!opacity-100 hover:!border-black/20 dark:hover:!border-white/20'
                           }`}
                         >
                           {opt}{isOOS ? ' (Out of Stock)' : ''}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -181,30 +181,28 @@ export function StoreProductModal({ product, currency, isOpen, onClose, onAddToC
         {/* Footer Actions */}
         <div className="p-6 bg-[var(--color-card-bg)] border-t border-gray-100 sm:rounded-b-[2rem] flex items-center gap-4 shrink-0">
           <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-full p-1.5 w-32 shrink-0">
-            <button 
+            <Button 
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="w-10 h-10 rounded-full bg-[var(--color-card-bg)] text-[var(--color-text)] opacity-80 shadow-sm flex items-center justify-center hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 transition-all"
-            >
-              <Minus className="w-5 h-5" />
-            </button>
+              className="!w-10 !h-10 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !text-[var(--color-text)] !opacity-80 !shadow-sm hover:!opacity-100 hover:!bg-black/5 dark:hover:!bg-white/5 !normal-case !tracking-normal"
+              icon={<Minus className="w-5 h-5" />}
+            />
             <span className="font-black text-xl text-[var(--color-text)] w-10 text-center">{quantity}</span>
-            <button 
+            <Button 
               onClick={() => setQuantity(quantity + 1)}
               disabled={isCurrentVariantOutOfStock}
-              className="w-10 h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:brightness-90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
+              className="!w-10 !h-10 !min-h-0 !p-0 !rounded-full !bg-primary !text-white !shadow-sm hover:!brightness-90 !normal-case !tracking-normal"
+              icon={<Plus className="w-5 h-5" />}
+            />
           </div>
           
-          <button 
+          <Button 
             onClick={handleAdd}
             disabled={isCurrentVariantOutOfStock}
-            className="flex-1 py-4 bg-primary text-white rounded-full font-black text-lg flex items-center justify-between px-6 hover:brightness-90 active:scale-95 transition-all shadow-xl shadow-black/10 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 !py-4 !bg-primary !text-white !rounded-full !font-black !text-lg !normal-case !tracking-normal !flex !items-center !justify-between !px-6 hover:!brightness-90 !shadow-xl !shadow-black/10"
           >
             <span>{isCurrentVariantOutOfStock ? 'Out of Stock' : 'Add to Order'}</span>
             <span>{formatCurrency(totalPrice, currency)}</span>
-          </button>
+          </Button>
         </div>
       </div>
     </div>

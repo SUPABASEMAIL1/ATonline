@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import {
-  ArrowUpDown, Search, ChevronUp, ChevronDown, Package, GripVertical,
+  ArrowUpDown, ChevronUp, ChevronDown, Package,
   Check, Globe, Layers, Gift, Power, Tag, Upload, Image as ImageIcon, Trash2
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -11,21 +11,10 @@ import { formatCurrency } from '../../lib/currencies';
 import { compressImage } from '../../lib/imageCompression';
 import { HelpTooltip } from '../common/HelpTooltip';
 import { MediaLibrary } from './MediaLibrary';
+import { SharedSearchBar, useDragDropList, DragHandle } from '../../shared/modules/search-and-list';
+import { Badge, Button, EmptyState, Select } from '../../shared/ui';
 
 type SortMode = 'products_all' | 'products_category' | 'categories' | 'deals';
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   Reusable drag-and-drop list row styles helper
-───────────────────────────────────────────────────────────────────────────── */
-function rowCls(isDragging: boolean, isDragOver: boolean) {
-  return [
-    'flex items-center gap-3 px-4 py-3 transition-all cursor-grab active:cursor-grabbing select-none border-b border-gray-100 dark:border-white/[0.04] last:border-0',
-    isDragging ? 'opacity-40 scale-[0.98]' : 'opacity-100',
-    isDragOver
-      ? 'bg-teal-50 dark:bg-teal-500/10 border-t-2 border-t-teal-400'
-      : 'hover:bg-gray-50 dark:hover:bg-white/[0.02]',
-  ].join(' ');
-}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Shared "Saving / Saved" indicator
@@ -56,8 +45,6 @@ export function StoreSort() {
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedRecently, setSavedRecently] = useState(false);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [selectedBundleForImage, setSelectedBundleForImage] = useState<string | null>(null);
@@ -217,16 +204,8 @@ export function StoreSort() {
     triggerSaved();
   }, [dispatch, triggerSaved]);
 
-  /* ── Drag helpers ── */
-  const handleDragStart = (idx: number) => setDragIndex(idx);
-  const handleDragEnter = (idx: number) => setDragOverIndex(idx);
-  const handleDragEnd = () => {
-    if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
-      moveItem(dragIndex, dragOverIndex);
-    }
-    setDragIndex(null);
-    setDragOverIndex(null);
-  };
+  /* ── Drag helpers (shared module — identical behavior everywhere) ── */
+  const dnd = useDragDropList((from, to) => moveItem(from, to));
 
   /* ── Move item (arrow buttons & drag) ── */
   const moveItem = useCallback((from: number, to: number) => {
@@ -348,32 +327,27 @@ export function StoreSort() {
       <div className="flex items-center gap-3 flex-wrap">
         {/* Category dropdown — only for By Category mode */}
         {mode === 'products_category' && (
-          <select
+          <Select
             value={effectiveCategory}
             onChange={e => setSelectedCategory(e.target.value)}
-            className="input text-sm max-w-[180px]"
+            className="!text-sm !max-w-[180px]"
           >
             {categoryNames.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
-          </select>
+          </Select>
         )}
 
-        {/* Search */}
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder={
-              mode === 'categories' ? 'Search categories...' :
-              mode === 'deals' ? 'Search deals...' :
-              'Search name, SKU...'
-            }
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="input pl-8 w-full text-sm"
-          />
-        </div>
+        {/* Search — shared module */}
+        <SharedSearchBar
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder={
+            mode === 'categories' ? 'Search categories...' :
+            mode === 'deals' ? 'Search deals...' :
+            'Search name, SKU...'
+          }
+        />
       </div>
 
       {/* ─── Info Banner ─── */}
@@ -404,15 +378,12 @@ export function StoreSort() {
 
       {/* ─── List ─── */}
       {currentList.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5">
-          <div className="h-16 w-16 bg-teal-500/10 rounded-3xl flex items-center justify-center mb-4">
-            <Package className="h-8 w-8 text-teal-500" />
-          </div>
-          <p className="text-sm font-black text-gray-900 dark:text-white mb-1">Nothing Found</p>
-          <p className="text-[11px] text-gray-500">
-            {searchTerm ? 'No items match your search.' : 'Nothing to sort here yet.'}
-          </p>
-        </div>
+        <EmptyState
+          className="!py-16 bg-white dark:bg-surface !rounded-3xl border border-gray-200 dark:border-white/5"
+          icon={<Package className="h-full w-full text-teal-500" />}
+          title="Nothing Found"
+          subtext={searchTerm ? 'No items match your search.' : 'Nothing to sort here yet.'}
+        />
       ) : (
         <div className="bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
           {/* Table header */}
@@ -435,24 +406,19 @@ export function StoreSort() {
           <div>
             {/* ── PRODUCTS ── */}
             {(mode === 'products_all' || mode === 'products_category') && (sortedProducts as Product[]).map((product, idx) => {
-              const isDragging = dragIndex === idx;
-              const isDragOver = dragOverIndex === idx;
               const isVisible = product.showInEstore !== false;
               return (
                 <div
                   key={product.id}
                   draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragEnter={() => handleDragEnter(idx)}
-                  onDragOver={e => e.preventDefault()}
-                  onDragEnd={handleDragEnd}
-                  className={rowCls(isDragging, isDragOver)}
+                  onDragStart={() => dnd.handleDragStart(idx)}
+                  onDragEnter={() => dnd.handleDragEnter(idx)}
+                  onDragOver={dnd.handleDragOver}
+                  onDragEnd={dnd.handleDragEnd}
+                  className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-white/[0.04] last:border-0 ${dnd.rowCls(idx)}`}
                 >
                   {/* Drag Handle */}
-                  <div className="flex flex-col items-center gap-0.5 w-8 shrink-0">
-                    <GripVertical className="h-4 w-4 text-gray-300 dark:text-gray-600" />
-                    <span className="text-[8px] font-black text-gray-300 dark:text-gray-600">#{idx + 1}</span>
-                  </div>
+                  <DragHandle index={idx} />
 
                   {/* Product Info */}
                   <div className={`flex items-center gap-3 flex-1 min-w-0 ${!isVisible ? 'opacity-50' : ''}`}>
@@ -464,7 +430,7 @@ export function StoreSort() {
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase tracking-tight truncate">
                         {product.name}
-                        {!isVisible && <span className="ml-2 text-[8px] font-black bg-gray-200 dark:bg-white/10 text-gray-500 px-1.5 py-0.5 rounded uppercase">Hidden</span>}
+                        {!isVisible && <Badge size="sm" tone="neutral" className="ml-2 !text-[8px] !bg-gray-200 dark:!bg-white/10 !text-gray-500 !px-1.5 !py-0.5 !rounded">Hidden</Badge>}
                       </p>
                       <p className="text-[9px] text-gray-400 truncate mt-0.5">
                         {product.category}{product.sku ? ` · ${product.sku}` : ''}
@@ -479,41 +445,40 @@ export function StoreSort() {
 
                   {/* Stock */}
                   <div className="hidden md:flex justify-center w-[90px]">
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                      product.isService ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400' :
-                      product.stock > 10 ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' :
-                      product.stock > 0 ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' :
-                      'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400'
-                    }`}>
+                    <Badge size="sm" tone="neutral" className={product.isService
+                      ? '!bg-blue-100 dark:!bg-blue-500/10 !text-blue-700 dark:!text-blue-400'
+                      : product.stock > 10 ? '!bg-emerald-100 dark:!bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-400'
+                      : product.stock > 0 ? '!bg-amber-100 dark:!bg-amber-500/10 !text-amber-700 dark:!text-amber-400'
+                      : '!bg-red-100 dark:!bg-red-500/10 !text-red-700 dark:!text-red-400'}>
                       {product.isService ? 'Service' : `${product.stock}`}
-                    </span>
+                    </Badge>
                   </div>
 
                   {/* Controls */}
                   <div className="flex items-center gap-1 ml-auto md:ml-0 shrink-0">
                     {/* Visibility toggle */}
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       title={isVisible ? 'Hide from store' : 'Show on store'}
                       onClick={() => toggleProductVisibility(product)}
-                      className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
+                      className={`!min-h-0 !h-7 !w-7 !rounded-lg ${
                         isVisible
-                          ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 hover:bg-red-100 dark:hover:bg-red-500/20 hover:text-red-500'
-                          : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:text-emerald-600'
+                          ? '!bg-emerald-100 dark:!bg-emerald-500/20 !text-emerald-600 hover:!bg-red-100 dark:hover:!bg-red-500/20 hover:!text-red-500'
+                          : '!bg-gray-100 dark:!bg-white/5 !text-gray-400 hover:!bg-emerald-100 dark:hover:!bg-emerald-500/20 hover:!text-emerald-600'
                       }`}
-                    >
-                      <Power className="h-3.5 w-3.5" />
-                    </button>
+                      icon={<Power className="h-3.5 w-3.5" />}
+                    />
                     {/* Up */}
-                    <button type="button" title="Move Up" onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-teal-100 dark:hover:bg-teal-500/20 hover:text-teal-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
+                    <Button variant="ghost" size="sm" title="Move Up" onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0}
+                      className="!min-h-0 !h-7 !w-7 !rounded-lg !bg-gray-100 dark:!bg-white/5 !text-gray-500 hover:!bg-teal-100 dark:hover:!bg-teal-500/20 hover:!text-teal-600 disabled:!opacity-30"
+                      icon={<ChevronUp className="h-3.5 w-3.5" />}
+                    />
                     {/* Down */}
-                    <button type="button" title="Move Down" onClick={() => moveItem(idx, idx + 1)} disabled={idx === sortedProducts.length - 1}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-teal-100 dark:hover:bg-teal-500/20 hover:text-teal-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
+                    <Button variant="ghost" size="sm" title="Move Down" onClick={() => moveItem(idx, idx + 1)} disabled={idx === sortedProducts.length - 1}
+                      className="!min-h-0 !h-7 !w-7 !rounded-lg !bg-gray-100 dark:!bg-white/5 !text-gray-500 hover:!bg-teal-100 dark:hover:!bg-teal-500/20 hover:!text-teal-600 disabled:!opacity-30"
+                      icon={<ChevronDown className="h-3.5 w-3.5" />}
+                    />
                   </div>
                 </div>
               );
@@ -521,9 +486,6 @@ export function StoreSort() {
 
             {/* ── CATEGORIES ── */}
             {mode === 'categories' && (sortedCategories as Category[]).map((cat, idx) => {
-              const isDragging = dragIndex === idx;
-              const isDragOver = dragOverIndex === idx;
-
               // Count products in this category
               const productsInCat = state.products.filter(p => p.category === cat.name);
               const itemCount = productsInCat.length;
@@ -532,30 +494,27 @@ export function StoreSort() {
 
               // Determine status text and colors
               let statusLabel = 'Active';
-              let statusClass = 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400';
+              let statusClass = '!bg-emerald-100 dark:!bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-400';
 
               if (isAutoDisabled) {
                 statusLabel = 'Disabled (auto)';
-                statusClass = 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400';
+                statusClass = '!bg-amber-100 dark:!bg-amber-500/10 !text-amber-700 dark:!text-amber-400';
               } else if (cat.active === false) {
                 statusLabel = 'Disabled (manual)';
-                statusClass = 'bg-gray-100 dark:bg-white/5 text-gray-400';
+                statusClass = '!bg-gray-100 dark:!bg-white/5 !text-gray-400';
               }
 
               return (
                 <div
                   key={cat.id}
                   draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragEnter={() => handleDragEnter(idx)}
-                  onDragOver={e => e.preventDefault()}
-                  onDragEnd={handleDragEnd}
-                  className={rowCls(isDragging, isDragOver)}
+                  onDragStart={() => dnd.handleDragStart(idx)}
+                  onDragEnter={() => dnd.handleDragEnter(idx)}
+                  onDragOver={dnd.handleDragOver}
+                  onDragEnd={dnd.handleDragEnd}
+                  className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-white/[0.04] last:border-0 ${dnd.rowCls(idx)}`}
                 >
-                  <div className="flex flex-col items-center gap-0.5 w-8 shrink-0">
-                    <GripVertical className="h-4 w-4 text-gray-300 dark:text-gray-600" />
-                    <span className="text-[8px] font-black text-gray-300 dark:text-gray-600">#{idx + 1}</span>
-                  </div>
+                  <DragHandle index={idx} />
 
                   <div className={`flex items-center gap-3 flex-1 min-w-0 ${!isActive ? 'opacity-50' : ''}`}>
                     <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
@@ -573,14 +532,15 @@ export function StoreSort() {
                   </div>
 
                   <div className="hidden md:flex justify-center w-[120px]">
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${statusClass}`}>
+                    <Badge size="sm" tone="neutral" className={`!tracking-wider ${statusClass}`}>
                       {statusLabel}
-                    </span>
+                    </Badge>
                   </div>
 
                   <div className="flex items-center gap-1 ml-auto md:ml-0 shrink-0">
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       title={isAutoDisabled ? 'Empty category auto-disabled' : isActive ? 'Disable category' : 'Enable category'}
                       onClick={() => {
                         if (isAutoDisabled) {
@@ -589,24 +549,23 @@ export function StoreSort() {
                         }
                         toggleCategoryVisibility(cat);
                       }}
-                      className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
+                      className={`!min-h-0 !h-7 !w-7 !rounded-lg ${
                         isAutoDisabled
-                          ? 'bg-amber-100/50 dark:bg-amber-500/5 text-amber-500/50 cursor-not-allowed'
+                          ? '!bg-amber-100/50 dark:!bg-amber-500/5 !text-amber-500/50 cursor-not-allowed'
                           : isActive
-                            ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 hover:bg-red-100 dark:hover:bg-red-500/20 hover:text-red-500'
-                            : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:text-emerald-600'
+                            ? '!bg-emerald-100 dark:!bg-emerald-500/20 !text-emerald-600 hover:!bg-red-100 dark:hover:!bg-red-500/20 hover:!text-red-500'
+                            : '!bg-gray-100 dark:!bg-white/5 !text-gray-400 hover:!bg-emerald-100 dark:hover:!bg-emerald-500/20 hover:!text-emerald-600'
                       }`}
-                    >
-                      <Power className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" title="Move Up" onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" title="Move Down" onClick={() => moveItem(idx, idx + 1)} disabled={idx === sortedCategories.length - 1}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 hover:text-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
+                      icon={<Power className="h-3.5 w-3.5" />}
+                    />
+                    <Button variant="ghost" size="sm" title="Move Up" onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0}
+                      className="!min-h-0 !h-7 !w-7 !rounded-lg !bg-gray-100 dark:!bg-white/5 !text-gray-500 hover:!bg-indigo-100 dark:hover:!bg-indigo-500/20 hover:!text-indigo-600 disabled:!opacity-30"
+                      icon={<ChevronUp className="h-3.5 w-3.5" />}
+                    />
+                    <Button variant="ghost" size="sm" title="Move Down" onClick={() => moveItem(idx, idx + 1)} disabled={idx === sortedCategories.length - 1}
+                      className="!min-h-0 !h-7 !w-7 !rounded-lg !bg-gray-100 dark:!bg-white/5 !text-gray-500 hover:!bg-indigo-100 dark:hover:!bg-indigo-500/20 hover:!text-indigo-600 disabled:!opacity-30"
+                      icon={<ChevronDown className="h-3.5 w-3.5" />}
+                    />
                   </div>
                 </div>
               );
@@ -614,8 +573,6 @@ export function StoreSort() {
 
             {/* ── DEALS / BUNDLES ── */}
             {mode === 'deals' && (sortedBundles as Bundle[]).map((bundle, idx) => {
-              const isDragging = dragIndex === idx;
-              const isDragOver = dragOverIndex === idx;
               const isActive = bundle.active !== false;
               const itemCount = bundle.isCombo
                 ? (bundle.slots || []).reduce((s: number, sl: any) => s + (sl.requiredQuantity || 1), 0)
@@ -624,16 +581,13 @@ export function StoreSort() {
                 <div
                   key={bundle.id}
                   draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragEnter={() => handleDragEnter(idx)}
-                  onDragOver={e => e.preventDefault()}
-                  onDragEnd={handleDragEnd}
-                  className={rowCls(isDragging, isDragOver)}
+                  onDragStart={() => dnd.handleDragStart(idx)}
+                  onDragEnter={() => dnd.handleDragEnter(idx)}
+                  onDragOver={dnd.handleDragOver}
+                  onDragEnd={dnd.handleDragEnd}
+                  className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-white/[0.04] last:border-0 ${dnd.rowCls(idx)}`}
                 >
-                  <div className="flex flex-col items-center gap-0.5 w-8 shrink-0">
-                    <GripVertical className="h-4 w-4 text-gray-300 dark:text-gray-600" />
-                    <span className="text-[8px] font-black text-gray-300 dark:text-gray-600">#{idx + 1}</span>
-                  </div>
+                  <DragHandle index={idx} />
 
                   <div className={`flex items-center gap-3 flex-1 min-w-0 ${!isActive ? 'opacity-50' : ''}`}>
                     {/* Deal Image Uploader Thumbnail */}
@@ -663,7 +617,7 @@ export function StoreSort() {
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase tracking-tight truncate">
                         {bundle.name}
-                        {!isActive && <span className="ml-2 text-[8px] font-black bg-gray-200 dark:bg-white/10 text-gray-500 px-1.5 py-0.5 rounded uppercase">Disabled</span>}
+                        {!isActive && <Badge size="sm" tone="neutral" className="ml-2 !text-[8px] !bg-gray-200 dark:!bg-white/10 !text-gray-500 !px-1.5 !py-0.5 !rounded">Disabled</Badge>}
                       </p>
                       <p className="text-[9px] text-gray-400 mt-0.5 flex items-center gap-2">
                         <span>{bundle.isCombo ? 'Combo Deal' : 'Fixed Bundle'}</span>
@@ -682,14 +636,15 @@ export function StoreSort() {
                         {bundle.image && (
                           <>
                             <span>·</span>
-                            <button
-                              type="button"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => { e.stopPropagation(); handleRemoveImage(bundle); }}
-                              className="text-rose-500 hover:text-rose-600 font-bold hover:underline uppercase text-[8px] tracking-wider"
+                              className="!min-h-0 !p-0 !rounded-none !text-rose-500 hover:!text-rose-600 !text-[8px] !tracking-wider !bg-transparent hover:!bg-transparent hover:!underline"
                               title="Remove custom banner image"
                             >
                               Remove Image
-                            </button>
+                            </Button>
                           </>
                         )}
                       </p>
@@ -701,35 +656,35 @@ export function StoreSort() {
 
                   {/* Status */}
                   <div className="hidden md:flex justify-center w-[90px]">
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
-                      isActive ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-gray-100 dark:bg-white/5 text-gray-400'
-                    }`}>
+                    <Badge size="sm" tone="neutral" className={isActive
+                      ? '!bg-emerald-100 dark:!bg-emerald-500/10 !text-emerald-700 dark:!text-emerald-400'
+                      : '!bg-gray-100 dark:!bg-white/5 !text-gray-400'}>
                       {isActive ? 'Active' : 'Disabled'}
-                    </span>
+                    </Badge>
                   </div>
 
                   {/* Controls */}
                   <div className="flex items-center gap-1 ml-auto md:ml-0 shrink-0">
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       title={isActive ? 'Disable deal' : 'Enable deal'}
                       onClick={() => toggleBundleVisibility(bundle)}
-                      className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
+                      className={`!min-h-0 !h-7 !w-7 !rounded-lg ${
                         isActive
-                          ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 hover:bg-red-100 dark:hover:bg-red-500/20 hover:text-red-500'
-                          : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:text-emerald-600'
+                          ? '!bg-emerald-100 dark:!bg-emerald-500/20 !text-emerald-600 hover:!bg-red-100 dark:hover:!bg-red-500/20 hover:!text-red-500'
+                          : '!bg-gray-100 dark:!bg-white/5 !text-gray-400 hover:!bg-emerald-100 dark:hover:!bg-emerald-500/20 hover:!text-emerald-600'
                       }`}
-                    >
-                      <Power className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" title="Move Up" onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-violet-100 dark:hover:bg-violet-500/20 hover:text-violet-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" title="Move Down" onClick={() => moveItem(idx, idx + 1)} disabled={idx === sortedBundles.length - 1}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-violet-100 dark:hover:bg-violet-500/20 hover:text-violet-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
+                      icon={<Power className="h-3.5 w-3.5" />}
+                    />
+                    <Button variant="ghost" size="sm" title="Move Up" onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0}
+                      className="!min-h-0 !h-7 !w-7 !rounded-lg !bg-gray-100 dark:!bg-white/5 !text-gray-500 hover:!bg-violet-100 dark:hover:!bg-violet-500/20 hover:!text-violet-600 disabled:!opacity-30"
+                      icon={<ChevronUp className="h-3.5 w-3.5" />}
+                    />
+                    <Button variant="ghost" size="sm" title="Move Down" onClick={() => moveItem(idx, idx + 1)} disabled={idx === sortedBundles.length - 1}
+                      className="!min-h-0 !h-7 !w-7 !rounded-lg !bg-gray-100 dark:!bg-white/5 !text-gray-500 hover:!bg-violet-100 dark:hover:!bg-violet-500/20 hover:!text-violet-600 disabled:!opacity-30"
+                      icon={<ChevronDown className="h-3.5 w-3.5" />}
+                    />
                   </div>
                 </div>
               );

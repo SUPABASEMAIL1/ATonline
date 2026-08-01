@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface SkeletonLoaderProps {
-  type?: 'storefront' | 'grid' | 'list' | 'detail' | 'order-timer';
+  type?: 'storefront' | 'grid' | 'list' | 'detail' | 'order-timer' | 'item-rows';
   count?: number;
 }
 
@@ -121,6 +121,24 @@ export function SkeletonLoader({ type = 'grid', count = 4 }: SkeletonLoaderProps
   if (type === 'order-timer') {
     return (
       <div className={`w-24 h-5 ${shimmer} rounded-full mt-2`} />
+    );
+  }
+
+  if (type === 'item-rows') {
+    return (
+      <div className="space-y-1.5">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 p-2 rounded-xl">
+            <div className={`w-12 h-12 sm:w-16 sm:h-16 ${shimmer} shrink-0`} />
+            <div className="space-y-2 w-full">
+              <div className={`w-1/3 h-3 ${shimmer}`} />
+              <div className={`w-2/3 h-4 ${shimmer}`} />
+              <div className={`w-1/4 h-3 ${shimmer}`} />
+            </div>
+            <div className={`w-8 h-8 sm:w-9 sm:h-9 ${shimmer} rounded-lg shrink-0`} />
+          </div>
+        ))}
+      </div>
     );
   }
 

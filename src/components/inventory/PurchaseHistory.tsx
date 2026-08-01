@@ -1,18 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Search, Calendar, Download, Plus, ArrowUpRight, ArrowDownRight,
+  Calendar, Plus, ArrowUpRight, ArrowDownRight,
   Trash2, Save, X, Package, Truck, Hash, Tag, Info, AlertCircle, ShoppingCart,
-  User as UserIcon, RefreshCw, ChevronLeft, ChevronRight, CheckCircle2
+  User as UserIcon, RefreshCw, CheckCircle2
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { PurchaseRecord, Product } from '../../types';
 import { purchaseRecordsService, productsService } from '../../lib/services';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { Button, Badge, DateRangePicker, EmptyState, Pagination } from '../../shared/ui';
+import { ExportButton } from '../../shared/export';
 import { sonner } from '../../lib/sonner';
 import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
 import { formatAppDate, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
 import { BatchStockInSystem } from './BatchStockInSystem';
-import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
+import { formatCurrency, formatNumberWithPrecision, getCurrencySymbol } from '../../lib/currencies';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export function PurchaseHistory() {
@@ -382,30 +385,29 @@ export function PurchaseHistory() {
     return state.products.find((p) => p.name.toLowerCase() === name);
   }, [formData.productId, formData.productName, state.products]);
 
-  const exportToCSV = () => {
-    const currency = state.settings.currency;
-    const headerSuffix = ` (${currency})`;
-    const headers = ['Date', 'Product', 'SKU', 'Supplier', 'Quantity', `Cost Price${headerSuffix}`, `Retail Price${headerSuffix}`, `Total Cost${headerSuffix}`, 'Notes'];
-    const data = filteredRecords.map(r => [
-      new Date(r.date || Date.now()).toLocaleDateString(),
-      r.productName,
-      r.sku,
-      r.supplier,
-      r.quantity,
-      formatNumberWithPrecision(r.costPrice || 0),
-      formatNumberWithPrecision(r.retailPrice || 0),
-      formatNumberWithPrecision((r.quantity || 0) * (r.costPrice || 0)),
-      r.notes
-    ]);
+  const exportColumns = [
+    { key: 'date', label: t('date', 'Date') },
+    { key: 'productName', label: t('product', 'Product') },
+    { key: 'sku', label: t('sku', 'SKU') },
+    { key: 'supplier', label: t('supplier', 'Supplier') },
+    { key: 'quantity', label: t('quantity', 'Quantity'), format: 'number' as const },
+    { key: 'costPrice', label: 'Cost Price', format: 'currency' as const },
+    { key: 'retailPrice', label: 'Retail Price', format: 'currency' as const },
+    { key: 'totalCost', label: 'Total Cost', format: 'currency' as const },
+    { key: 'notes', label: t('notes', 'Notes') },
+  ];
 
-    const csvContent = [headers, ...data].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `purchase_history_${new Date().toLocaleDateString('en-CA')}.csv`;
-    link.click();
-  };
+  const exportRows = useMemo(() => filteredRecords.map(r => ({
+    date: new Date(r.date || Date.now()).toLocaleDateString(),
+    productName: r.productName,
+    sku: r.sku || '',
+    supplier: r.supplier || '',
+    quantity: r.quantity,
+    costPrice: r.costPrice || 0,
+    retailPrice: r.retailPrice || 0,
+    totalCost: (r.quantity || 0) * (r.costPrice || 0),
+    notes: r.notes || '',
+  })), [filteredRecords]);
 
   if (view === 'entry') {
     return <BatchStockInSystem onClose={() => setView('list')} />;
@@ -419,14 +421,11 @@ export function PurchaseHistory() {
       {/* Modern Control Bar */}
       <div className="bg-white/50 dark:bg-black/20 p-4 rounded-[1.75rem] border border-gray-200/50 dark:border-white/5 shadow-xl">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Search by Product Name, SKU, or Supplier..."
+          <div className="flex-1 min-w-[300px]">
+            <SharedSearchBar
               value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-white dark:bg-black/30 border-none pl-11 pr-4 py-3 rounded-2xl text-[13px] font-bold focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600 shadow-inner"
+              onChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+              placeholder="Search by Product Name, SKU, or Supplier..."
             />
           </div>
 
@@ -458,46 +457,45 @@ export function PurchaseHistory() {
               />
             </div>
 
-            <div className="w-full sm:w-48 shrink-0">
-              <SearchableSelect
-                label={t("range", "RANGE")}
-                options={[
-                  { id: 'today', label: t("today_caps", "TODAY") },
-                  { id: 'yesterday', label: t("yesterday_caps", "YESTERDAY") },
-                  { id: 'last7', label: t("last7_caps", "LAST 7 DAYS") },
-                  { id: 'last30', label: t("last_30_days", "LAST 30 DAYS") },
-                  { id: 'thisMonth', label: t("this_month_caps", "THIS MONTH") },
-                  { id: 'lastMonth', label: t("last_month_caps", "PREVIOUS MONTH") },
-                  { id: 'custom', label: t("custom_range_caps", "CUSTOM RANGE") },
-                  { id: 'all', label: t("all_time_caps", "ALL TIME") }
-                ]}
-                value={dateRange}
-                onChange={(val) => { setDateRange(val); setCurrentPage(1); }}
-              />
-            </div>
-
-            {dateRange === 'custom' && (
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center w-full sm:w-auto p-2 bg-white/50 dark:bg-black/20 rounded-xl animate-in slide-in-from-top-2 sm:slide-in-from-left-4 duration-300">
-                <input type="date" value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-                <span className="hidden sm:block text-gray-600 font-black text-[10px] uppercase tracking-tighter">{t("to", "TO")}</span>
-                <input type="date" value={endDateInput} onChange={(e) => setEndDateInput(e.target.value)} className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
-              </div>
-            )}
+            <DateRangePicker
+              preset={dateRange}
+              presets={[
+                { id: 'today', label: t("today_caps", "TODAY") },
+                { id: 'yesterday', label: t("yesterday_caps", "YESTERDAY") },
+                { id: 'last7', label: t("last7_caps", "LAST 7 DAYS") },
+                { id: 'last30', label: t("last_30_days", "LAST 30 DAYS") },
+                { id: 'thisMonth', label: t("this_month_caps", "THIS MONTH") },
+                { id: 'lastMonth', label: t("last_month_caps", "PREVIOUS MONTH") },
+                { id: 'custom', label: t("custom_range_caps", "CUSTOM RANGE") },
+                { id: 'all', label: t("all_time_caps", "ALL TIME") }
+              ]}
+              onPresetChange={(val) => { setDateRange(val); setCurrentPage(1); }}
+              startDate={startDateInput}
+              endDate={endDateInput}
+              onStartDateChange={setStartDateInput}
+              onEndDateChange={setEndDateInput}
+              label={t("range", "RANGE")}
+              className="w-full sm:w-48 shrink-0"
+            />
 
             <div className="flex items-center gap-2 h-full">
-              <button
+              <Button
                 onClick={() => setView('entry')}
-                className="flex items-center gap-3 bg-primary hover:bg-primary text-white px-8 py-4 rounded-[1.5rem] font-black text-xs shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
+                variant="primary"
+                className="!px-8 !py-4 !rounded-[1.5rem] !font-black !text-xs !gap-3 !shadow-xl !shadow-emerald-500/20 hover:!bg-primary"
+                icon={<Plus className="h-4 w-4" />}
               >
-                <Plus className="h-4 w-4" /> <span>{t("new_stock_in", "NEW STOCK IN")}</span>
-              </button>
+                {t("new_stock_in", "NEW STOCK IN")}
+              </Button>
 
-              <button
-                onClick={exportToCSV}
-                className="p-4 bg-white dark:bg-black/30 text-gray-700 dark:text-gray-300 rounded-[1.5rem] border border-gray-200 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/10 transition-all active:scale-95"
-              >
-                <Download className="h-4 w-4" />
-              </button>
+              <ExportButton
+                data={exportRows}
+                columns={exportColumns}
+                title="Purchase History"
+                filtersSummary={supplierFilter !== 'All' ? `Supplier: ${supplierFilter}` : undefined}
+                currencySymbol={getCurrencySymbol(state.settings.currency)}
+                compact
+              />
             </div>
           </div>
         </div>
@@ -505,47 +503,10 @@ export function PurchaseHistory() {
       {/* Top Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-surface rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-sm">
-          <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">
+          <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest">
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/5 text-gray-600 dark:text-gray-400 disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <div className="flex items-center gap-1">
-              {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                let pageNum;
-                if (totalPages <= 5) pageNum = i + 1;
-                else if (currentPage <= 3) pageNum = i + 1;
-                else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                else pageNum = currentPage - 2 + i;
-
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === pageNum
-                      ? 'bg-primary text-white shadow-lg'
-                      : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5'
-                      }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/5 text-gray-600 dark:text-gray-400 disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          <Pagination mode="numbered" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </div>
       )}
 
@@ -613,10 +574,10 @@ export function PurchaseHistory() {
                                   {displayName}
                                 </p>
                                 {record.type === 'Return' && (
-                                  <span className="text-[7px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded uppercase tracking-widest animate-pulse">{t("return", "RETURN")}</span>
+                                  <Badge tone="warning" variant="solid" size="sm" className="!text-[7px] !px-1.5 !py-0.5 !rounded animate-pulse">{t("return", "RETURN")}</Badge>
                                 )}
                                 {(record.type?.includes('Reversal') || record.type?.includes('Deletion')) && (
-                                  <span className="text-[7px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase tracking-widest">{t("deleted", "DELETED")}</span>
+                                  <Badge tone="danger" variant="solid" size="sm" className="!text-[7px] !px-1.5 !py-0.5 !rounded">{t("deleted", "DELETED")}</Badge>
                                 )}
                               </div>
                               <div className="flex items-center gap-2">
@@ -689,11 +650,12 @@ export function PurchaseHistory() {
               )) : (
                 <tr>
                   <td colSpan={4} className="p-20 text-center">
-                    <div className="flex flex-col items-center opacity-30">
-                      <Package className="h-16 w-16 text-gray-600 mb-4" />
-                      <p className="text-sm font-black text-gray-600 uppercase tracking-[0.2em]">{t("no_procurement_records_found", "No Procurement Records Found")}</p>
-                      <p className="text-xs font-bold text-gray-600 uppercase mt-2">{t("adjust_filters", "Adjust your filters or perform system actions")}</p>
-                    </div>
+                    <EmptyState
+                      className="!p-0 opacity-30"
+                      icon={<Package className="h-full w-full" />}
+                      title={t("no_procurement_records_found", "No Procurement Records Found")}
+                      subtext={t("adjust_filters", "Adjust your filters or perform system actions")}
+                    />
                   </td>
                 </tr>
               )}
@@ -738,36 +700,18 @@ export function PurchaseHistory() {
               </div>
             </div>
           )) : (
-            <div className="py-10 text-center opacity-30">
-              <Package className="h-10 w-10 mx-auto mb-2" />
-              <p className="text-[10px] font-black uppercase tracking-widest">No Records</p>
-            </div>
+            <EmptyState compact className="!py-10 opacity-30" icon={<Package className="h-full w-full" />} title="No Records" />
           )}
         </div>
 
         {/* Modern Pagination */}
         {totalPages > 1 && (
           <div className="p-6 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2">
               <div className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest italic">Page {currentPage} of {totalPages}</p>
             </div>
-            <div className="flex gap-3">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 hover:scale-105 transition-all shadow-sm"
-              >
-                Previous
-              </button>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest disabled:opacity-30 hover:scale-105 transition-all shadow-sm"
-              >
-                Next
-              </button>
-            </div>
+            <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
           </div>
         )}
       </div>

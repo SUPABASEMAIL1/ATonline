@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Plus, Search, Edit, Trash2, UserCheck, Crown, Shield, User, Users, Building2, CreditCard } from 'lucide-react';
+import { Plus, Edit, Trash2, UserCheck, Crown, Shield, User, Users, Building2, CreditCard } from 'lucide-react';
 import { User as UserType } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Avatar, Badge, Button, EmptyState } from '../../shared/ui';
 import { usersService } from '../../lib/services';
 import { UserModal } from './UserModal';
 import { formatAppDate, formatAppTime, formatAppDateTime } from '../../lib/dateUtils';
@@ -155,28 +157,24 @@ export function UserManager() {
         </div>
 
         <div className="flex items-center gap-2">
-           <button
+           <Button
+            variant="primary"
             onClick={handleAddUser}
             disabled={loading}
-            className="btn btn-md btn-primary"
+            icon={<Plus className="h-3.5 w-3.5" />}
           >
-            <Plus className="h-3.5 w-3.5" /> <span>{t('add_user', 'Add User')}</span>
-          </button>
+            {t('add_user', 'Add User')}
+          </Button>
         </div>
       </div>
 
       {/* Layer 2: Filter Toolbar */}
       <div className="relative z-30 bg-white/50 dark:bg-black/20 p-3 lg:p-4 rounded-[1.75rem] border border-gray-200/50 dark:border-white/5 shadow-xl ring-1 ring-black/5 dark:ring-white/5">
-        <div className="relative group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 group-focus-within:text-primary transition-colors" />
-          <input
-            type="text"
-            placeholder={t('search_users_placeholder', 'Search users by name, username or email...')}
-            className="w-full bg-gray-50 dark:bg-black/30 border-none pl-11 pr-4 py-2.5 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600 focus:bg-white dark:focus:bg-black/75 shadow-inner"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+        <SharedSearchBar
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder={t('search_users_placeholder', 'Search users by name, username or email...')}
+        />
       </div>
 
       {/* Layer 3: Vibrant Stats section */}
@@ -233,10 +231,11 @@ export function UserManager() {
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-20 text-center">
-                    <div className="flex flex-col items-center gap-3 opacity-20">
-                      <Users className="h-12 w-12 text-gray-600" />
-                      <p className="text-xs font-black uppercase tracking-widest">{t('no_users_found', 'No users found')}</p>
-                    </div>
+                    <EmptyState
+                      icon={<Users className="h-12 w-12 text-gray-600" />}
+                      title={t('no_users_found', 'No users found')}
+                      className="!p-0 !opacity-20"
+                    />
                   </td>
                 </tr>
               ) : (
@@ -244,13 +243,7 @@ export function UserManager() {
                   <tr key={user.id} className={`group hover:bg-gray-50 dark:hover:bg-white/[0.01] transition-colors ${!user.active ? 'opacity-40 grayscale-[0.5]' : ''}`}>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/10">
-                          {user.avatar ? (
-                            <img src={user.avatar} alt={user.name} className="h-10 w-10 rounded-xl object-cover" />
-                          ) : (
-                            <span className="text-white font-black text-sm">{user.name.split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                          )}
-                        </div>
+                        <Avatar src={user.avatar || undefined} name={user.name} size="md" shape="square" />
                         <div>
                           <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase leading-none">{user.name}</p>
                           <p className="text-[9px] text-gray-600 font-bold mt-1 uppercase tracking-widest">@{user.username}</p>
@@ -258,36 +251,42 @@ export function UserManager() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                         user.role === 'admin' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                         user.role === 'manager' ? 'bg-primary/10 text-primary border-primary/20' :
-                         'bg-gray-500/10 text-gray-600 border-gray-500/20'
-                       } border`}>
-                        {getRoleIcon(user.role)}
-                        <span>{user.role === 'admin' ? t('full_administrator', 'ADMIN') : user.role === 'manager' ? t('operations_manager', 'MANAGER') : t('terminal_operator', 'CASHIER')}</span>
-                      </span>
+                       <Badge
+                         tone={user.role === 'admin' ? 'warning' : user.role === 'manager' ? 'success' : 'neutral'}
+                         size="sm"
+                         icon={getRoleIcon(user.role)}
+                         className={`!px-3 !py-1 ${
+                           user.role === 'admin' ? '!text-amber-500 !border-amber-500/20' :
+                           user.role === 'manager' ? '!bg-primary/10 !text-primary !border-primary/20' :
+                           '!text-gray-600 !border-gray-500/20 dark:!text-gray-600'
+                         }`}
+                       >
+                        {user.role === 'admin' ? t('full_administrator', 'ADMIN') : user.role === 'manager' ? t('operations_manager', 'MANAGER') : t('terminal_operator', 'CASHIER')}
+                      </Badge>
                     </td>
                     <td className="p-4 text-center">
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={() => togglePermission(user, 'canEditPrice')}
                         disabled={loading || user.role === 'admin'}
-                        className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border transition-all ${
-                          user.canEditPrice || user.role === 'admin' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-gray-500/10 text-gray-600 border-gray-500/10'
+                        className={`!min-h-0 !text-[9px] !px-3 !py-1 !rounded-full !border ${
+                          user.canEditPrice || user.role === 'admin' ? '!bg-primary/10 !text-primary !border-primary/20' : '!bg-gray-500/10 !text-gray-600 !border-gray-500/10'
                         }`}
                       >
                         {user.canEditPrice || user.role === 'admin' ? t('allowed', 'ALLOWED') : t('locked', 'LOCKED')}
-                      </button>
+                      </Button>
                     </td>
                     <td className="p-4 text-center">
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={() => togglePermission(user, 'canGiveDiscount')}
                         disabled={loading || user.role === 'admin'}
-                        className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border transition-all ${
-                          user.canGiveDiscount || user.role === 'admin' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' : 'bg-gray-500/10 text-gray-600 border-gray-500/10'
+                        className={`!min-h-0 !text-[9px] !px-3 !py-1 !rounded-full !border ${
+                          user.canGiveDiscount || user.role === 'admin' ? '!bg-indigo-500/10 !text-indigo-500 !border-indigo-500/20' : '!bg-gray-500/10 !text-gray-600 !border-gray-500/10'
                         }`}
                       >
                         {user.canGiveDiscount || user.role === 'admin' ? t('allowed', 'ALLOWED') : t('locked', 'LOCKED')}
-                      </button>
+                      </Button>
                     </td>
                     <td className="p-4 text-center">
                       {user.lastLogin ? (
@@ -300,33 +299,38 @@ export function UserManager() {
                       )}
                     </td>
                     <td className="p-4 text-center">
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={() => toggleUserStatus(user)}
                         disabled={loading || user.id === state.currentUser?.id}
-                        className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border transition-all ${
-                          user.active ? 'bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-white' : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500 hover:text-white'
+                        className={`!min-h-0 !text-[9px] !px-3 !py-1 !rounded-full !border ${
+                          user.active ? '!bg-primary/10 !text-primary !border-primary/20 hover:!bg-primary hover:!text-white' : '!bg-red-500/10 !text-red-500 !border-red-500/20 hover:!bg-red-500 hover:!text-white'
                         }`}
                       >
                         {user.active ? t('allowed', 'ACTIVE') : t('locked', 'INACTIVE')}
-                      </button>
+                      </Button>
                     </td>
                     <td className="p-4 text-right">
                        <div className="flex justify-end items-center gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() => handleEditUser(user)}
                           disabled={loading}
-                          className="p-2 bg-emerald-50 dark:bg-primary/10 text-primary rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                          aria-label="Edit user"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-emerald-50 dark:!bg-primary/10 !text-primary hover:!scale-110 active:!scale-95"
                         >
                           <Edit className="h-3.5 w-3.5" />
-                        </button>
+                        </Button>
                         {user.id !== state.currentUser?.id && (
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={() => handleDeleteUser(user.id)}
                             disabled={loading}
-                            className="p-2 bg-red-50 dark:bg-red-500/10 text-red-600 rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                            aria-label="Delete user"
+                            className="!min-h-0 !p-2 !rounded-xl !bg-red-50 dark:!bg-red-500/10 !text-red-600 hover:!scale-110 active:!scale-95"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </td>

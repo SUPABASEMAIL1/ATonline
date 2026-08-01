@@ -5,6 +5,7 @@ import { syncNow, retrySyncAll } from '../../lib/syncEngine';
 import { localDb } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
 import { SyncQueueManager } from '../layout/SyncQueueManager';
+import { Button, ToggleSwitch } from '../../shared/ui';
 
 export function CloudSyncTab() {
   const { state, dispatch } = useApp();
@@ -134,12 +135,13 @@ export function CloudSyncTab() {
                  <p className="text-xs text-rose-400/80 font-bold">Some transactions failed after multiple attempts. Manual resolution suggested.</p>
               </div>
            </div>
-           <button 
+           <Button
+            variant="danger"
             onClick={handleForceRetry}
-            className="px-6 py-3 bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-lg shadow-rose-500/20 active:scale-95 transition-all"
+            className="!min-h-0 !px-6 !py-3 !rounded-xl !text-[10px] !font-black !shadow-rose-500/20 !hover:opacity-100"
            >
              Force Retry
-           </button>
+           </Button>
         </div>
       )}
 
@@ -237,18 +239,7 @@ export function CloudSyncTab() {
 
 function SettingSwitch({ checked, onChange }: { checked: boolean, onChange: (v: boolean) => void }) {
     return (
-        <button
-            onClick={() => onChange(!checked)}
-            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-all duration-300 focus:outline-none ${
-                checked ? 'bg-[#10B981]' : 'bg-gray-200 dark:bg-white/10'
-            }`}
-        >
-            <span
-                className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform duration-300 ${
-                    checked ? 'translate-x-7' : 'translate-x-1'
-                } shadow-md`}
-            />
-        </button>
+        <ToggleSwitch checked={checked} onChange={onChange} color="bg-[#10B981]" />
     );
 }
 

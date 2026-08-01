@@ -819,7 +819,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         </div>
       )}
       {settings.receiptShowFooter !== false && (
-        <>{settings.receiptFooter && <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>}<div style={{ marginTop: '4px' }}>WWW.ZAYNAHSPOS.COM</div></>
+        <>{settings.receiptFooter && <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>}<div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div></>
       )}
     </div>
   );
@@ -938,7 +938,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {renderPaymentSection()}
         {notesBox}
       </div>
-      <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '14px' }}>WWW.ZAYNAHSPOS.COM</div>
+      <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
     </div>
   );
 
@@ -964,7 +964,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       <div style={{ textAlign: 'left', margin: '10px 0' }}>
         <BarcodePreview value={sale.invoiceNumber} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
       </div>
-      <div style={{ textAlign: 'left', marginTop: '4px' }}>WWW.ZAYNAHSPOS.COM</div>
+      <div style={{ textAlign: 'left', marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
     </div>
   );
 
@@ -976,8 +976,11 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {renderLogo({ width: '50px', height: '50px', border: '2px solid #000', borderRadius: '8px', margin: '0 auto 5px' })}
         {settings.receiptShowStoreName && <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.shopName}px`, textTransform: 'uppercase' }}>{settings.storeName}</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '5px' }}>
-          <span>{settings.storeAddress}</span>
-          <span>{settings.receiptShowStorePhone && settings.storePhone}</span>
+          <span>{settings.receiptShowStoreAddress && settings.storeAddress}</span>
+          <span>
+            {settings.receiptShowStorePhone && settings.storePhone}
+            {settings.receiptShowStoreEmail && ` | ${settings.storeEmail}`}
+          </span>
         </div>
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
@@ -1072,7 +1075,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       <div style={{ border: '1px solid #000', padding: '10px 0', marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
         <BarcodePreview value={sale.invoiceNumber} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
       </div>
-      <div style={{ textAlign: 'center', marginTop: '8px' }}>WWW.ZAYNAHSPOS.COM</div>
+      <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
     </div>
   );
 
@@ -1083,7 +1086,11 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       <div style={{ textAlign: 'center' }}>
         {renderLogo({ width: '50px', height: '50px', border: '2px solid #000', borderRadius: '8px', margin: '0 auto 10px' })}
         {settings.receiptShowStoreName && <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.shopName}px`, textTransform: 'uppercase' }}>{settings.storeName}</div>}
-        <div>{settings.receiptShowStoreAddress && settings.storeAddress}{settings.receiptShowStorePhone && ` | ${settings.storePhone}`}</div>
+        <div>
+          {settings.receiptShowStoreAddress && settings.storeAddress}
+          {settings.receiptShowStorePhone && ` | T: ${settings.storePhone}`}
+          {settings.receiptShowStoreEmail && ` | E: ${settings.storeEmail}`}
+        </div>
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1098,7 +1105,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       {renderFooterSection()}
       <div style={{ borderTop: '2px dashed #000', marginTop: '20px', paddingTop: '15px', position: 'relative', textAlign: 'center' }}>
         <span style={{ position: 'absolute', top: '-11px', left: '50%', background: '#fff', padding: '0 5px', fontSize: '14px' }}>✂</span>
-        <div style={{ textAlign: 'center', marginTop: '4px' }}>WWW.ZAYNAHSPOS.COM</div>
+        <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
       </div>
     </div>
   );
@@ -1641,7 +1648,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               {settings.receiptFooter && (
                 <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>
               )}
-              <div style={{ marginTop: '4px' }}>WWW.ZAYNAHSPOS.COM</div>
+              <div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
             </>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { X, RefreshCw, Trash2, AlertCircle, CheckCircle2, Database, Package, Users, Receipt, Wallet, Layers, Building2, Clock, ShieldAlert, ChevronDown } from 'lucide-react';
+import { RefreshCw, Trash2, CheckCircle2, Database, Package, Users, Receipt, Wallet, Layers, Building2, Clock, ShieldAlert, ChevronDown } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { localDb } from '../../lib/localDb';
 import { retrySyncAll, clearStuckOps, syncNow } from '../../lib/syncEngine';
@@ -6,6 +6,8 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { dialog } from '../../lib/dialog';
+import { Button, Badge } from '../../shared/ui';
 
 interface SyncQueueManagerProps {
     onClose: () => void;
@@ -102,7 +104,8 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
         const all = await localDb.pendingOps.toArray();
         const stuckCount = all.filter(o => (o.retries || 0) >= 5).length;
         if (stuckCount === 0) return;
-        if (!confirm(`This will delete ${stuckCount} stuck item(s). Are you sure?`)) return;
+        const result = await dialog.deleteConfirm(`${stuckCount} stuck item(s)`);
+        if (!result.isConfirmed) return;
         await clearStuckOps();
         window.dispatchEvent(new Event('pendingops-changed'));
         refresh();
@@ -130,21 +133,21 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
         const isFailed = op.status === 'failed';
 
         if (isFailed) return (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[8px] font-black uppercase tracking-widest">
+            <Badge tone="danger" size="sm" className="!px-1.5 !py-0.5 !rounded-lg !text-[8px] !text-rose-500 !border-rose-500/20">
                 <ShieldAlert className="w-2.5 h-2.5" /> {t('stuck', 'STUCK')}
-            </span>
+            </Badge>
         );
 
         if (retries > 0) return (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[8px] font-black uppercase tracking-widest">
+            <Badge tone="warning" size="sm" className="!px-1.5 !py-0.5 !rounded-lg !text-[8px] !text-amber-500 !border-amber-500/20">
                 <RefreshCw className="w-2.5 h-2.5 animate-spin" /> {retries}
-            </span>
+            </Badge>
         );
 
         return (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 text-[8px] font-black uppercase tracking-widest">
+            <Badge tone="info" size="sm" className="!px-1.5 !py-0.5 !rounded-lg !text-[8px] !text-blue-500 !border-blue-500/20">
                 <Clock className="w-2.5 h-2.5" /> {t('pending', 'WAIT')}
-            </span>
+            </Badge>
         );
     };
 
@@ -154,19 +157,19 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
         const allPending = children.every(c => c.status === 'pending' && !c.retries);
 
         if (hasFailed) return (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[8px] font-black uppercase tracking-widest">
+            <Badge tone="danger" size="sm" className="!px-1.5 !py-0.5 !rounded-lg !text-[8px] !text-rose-500 !border-rose-500/20">
                 <ShieldAlert className="w-2.5 h-2.5" /> {t('stuck', 'STUCK')}
-            </span>
+            </Badge>
         );
         if (maxRetries > 0) return (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[8px] font-black uppercase tracking-widest">
+            <Badge tone="warning" size="sm" className="!px-1.5 !py-0.5 !rounded-lg !text-[8px] !text-amber-500 !border-amber-500/20">
                 <RefreshCw className="w-2.5 h-2.5 animate-spin" /> {maxRetries}
-            </span>
+            </Badge>
         );
         return (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 text-[8px] font-black uppercase tracking-widest">
+            <Badge tone="info" size="sm" className="!px-1.5 !py-0.5 !rounded-lg !text-[8px] !text-blue-500 !border-blue-500/20">
                 <Clock className="w-2.5 h-2.5" /> {t('pending', 'WAIT')}
-            </span>
+            </Badge>
         );
     };
 
@@ -179,22 +182,24 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
 
     const footer = (
         <div className="flex items-center gap-2 sm:gap-3 w-full">
-            <button
+            <Button
                 type="button"
+                variant="secondary"
                 onClick={onClose}
-                className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 bg-white dark:bg-transparent shrink-0"
+                className="!min-h-0 !flex-1 !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !bg-white dark:!bg-transparent !text-rose-500 !border-rose-200 dark:!border-rose-900/30 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !shrink-0"
             >
                 {t('close', 'CLOSE')}
-            </button>
-            <button
+            </Button>
+            <Button
                 type="button"
+                variant="primary"
                 onClick={handleRetry}
                 disabled={loading || ops.length === 0}
-                className="btn btn-md btn-primary flex-[2] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+                className="!flex-[2] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
             >
                 <RefreshCw className={cn("h-4 w-4 sm:h-5 sm:w-5 shrink-0", loading && "animate-spin")} />
                 <span>{loading ? t('syncing', 'SYNCING...') : t('force_resync', 'FORCE RE-SYNC')}</span>
-            </button>
+            </Button>
         </div>
     );
 
@@ -232,7 +237,7 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                                     : `${totalCount} TRANSMISSIONS PENDING`}
                             </p>
                             {ops.some(o => o.status === 'failed') && (
-                                <button onClick={handleClear} className="text-[8px] font-black text-rose-500 uppercase tracking-widest hover:underline px-2 py-1 bg-rose-500/5 rounded-lg">{t('flush_stuck', 'Flush Stuck')}</button>
+                                <Button variant="ghost" onClick={handleClear} className="!min-h-0 !px-2 !py-1 !rounded-lg !text-[8px] !text-rose-500 !bg-rose-500/5 hover:!underline">{t('flush_stuck', 'Flush Stuck')}</Button>
                             )}
                         </div>
 
@@ -240,9 +245,11 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                             const isCollapsed = collapsed.has(batchId);
                             return (
                                 <div key={batchId} className="rounded-xl border border-gray-200 dark:border-white/5 bg-[#f8f9fa] dark:bg-white/[0.02] overflow-hidden">
-                                    <button
+                                    <Button
+                                        variant="ghost"
                                         onClick={() => toggleCollapse(batchId)}
-                                        className="w-full flex items-center justify-between gap-3 p-2.5 hover:bg-white dark:hover:bg-white/5 transition-all"
+                                        aria-expanded={!isCollapsed}
+                                        className="!w-full !justify-between !gap-3 !min-h-0 !p-2.5 hover:!bg-white dark:hover:!bg-white/5 !normal-case !tracking-normal !font-normal"
                                     >
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <div className="p-2 rounded-lg bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 shrink-0 shadow-sm">
@@ -259,7 +266,7 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                                             </div>
                                         </div>
                                         <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 transition-transform shrink-0", !isCollapsed && "rotate-180")} />
-                                    </button>
+                                    </Button>
                                     {!isCollapsed && (
                                         <div className="border-t border-gray-200 dark:border-white/5">
                                             {children.map((op) => (
@@ -278,9 +285,9 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <button onClick={() => handleDeleteOp(op.id)} className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all active:scale-90 opacity-0 group-hover:opacity-100">
+                                                    <Button variant="ghost" onClick={() => handleDeleteOp(op.id)} aria-label="Delete pending operation" className="!min-h-0 !p-1.5 !rounded-lg !text-gray-400 hover:!text-rose-500 hover:!bg-rose-500/10 active:!scale-90 !opacity-0 group-hover:!opacity-100">
                                                         <Trash2 className="h-3 w-3" />
-                                                    </button>
+                                                    </Button>
                                                 </div>
                                             ))}
                                         </div>
@@ -306,9 +313,9 @@ export function SyncQueueManager({ onClose }: SyncQueueManagerProps) {
                                             </div>
                                         </div>
                                     </div>
-                                    <button onClick={() => handleDeleteOp(op.id)} className="p-2 text-gray-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all active:scale-90">
+                                    <Button variant="ghost" onClick={() => handleDeleteOp(op.id)} aria-label="Delete pending operation" className="!min-h-0 !p-2 !rounded-lg !text-gray-600 hover:!text-rose-500 hover:!bg-rose-500/10 active:!scale-90">
                                         <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                    </Button>
                                 </div>
                                 {op.lastError && (
                                     <div className="mt-1 mx-2.5 p-2 rounded-xl bg-rose-500/5 border border-rose-500/10">

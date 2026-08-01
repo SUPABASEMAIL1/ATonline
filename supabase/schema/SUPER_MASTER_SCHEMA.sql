@@ -734,7 +734,8 @@ CREATE TABLE IF NOT EXISTS supplier_transactions (
     balance_after   DECIMAL(12,2),
     is_manual_override BOOLEAN DEFAULT FALSE,
     override_by     TEXT,
-    created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+    created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 
@@ -752,7 +753,8 @@ CREATE TABLE IF NOT EXISTS payments (
     note            TEXT,
     is_manual_override BOOLEAN DEFAULT FALSE,
     override_by     TEXT,
-    created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+    created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 
@@ -778,7 +780,8 @@ CREATE TABLE IF NOT EXISTS stock_history (
     balance_after   INTEGER,
     cashier_id      UUID REFERENCES users(id) ON DELETE SET NULL,
     cashier_name    TEXT,
-    created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+    created_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at      TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 
@@ -883,7 +886,8 @@ CREATE TABLE IF NOT EXISTS variant_stock_history (
   note TEXT,
   balance_after INTEGER,
   cashier_name TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_variant_stock_history_product ON variant_stock_history(product_id);
@@ -905,6 +909,7 @@ CREATE TABLE IF NOT EXISTS product_addons (
   max_qty INTEGER NOT NULL DEFAULT 1,
   active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(product_id, addon_product_id)
 );
 
@@ -1965,7 +1970,8 @@ CREATE TABLE IF NOT EXISTS variant_stock_history (
   note TEXT,
   balance_after INTEGER,
   cashier_name TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_variant_stock_history_product ON variant_stock_history(product_id);
@@ -1983,6 +1989,7 @@ CREATE TABLE IF NOT EXISTS product_addons (
   max_qty INTEGER NOT NULL DEFAULT 1,
   active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(product_id, addon_product_id)
 );
 
@@ -2053,12 +2060,33 @@ GRANT ALL ON TABLE bundle_slot_toppings TO service_role;
 ALTER TABLE supplier_transactions
   ADD COLUMN IF NOT EXISTS source_type          TEXT DEFAULT 'manual_bill',
   ADD COLUMN IF NOT EXISTS is_manual_override   BOOLEAN DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS override_by          TEXT;
+  ADD COLUMN IF NOT EXISTS override_by          TEXT,
+  ADD COLUMN IF NOT EXISTS updated_at           TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
 
 -- POST-LAUNCH ALTER TABLE: payments — Manual Override
 ALTER TABLE payments
   ADD COLUMN IF NOT EXISTS is_manual_override   BOOLEAN DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS override_by          TEXT;
+  ADD COLUMN IF NOT EXISTS override_by          TEXT,
+  ADD COLUMN IF NOT EXISTS updated_at           TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
+
+-- POST-LAUNCH ALTER TABLE: stock_history — Delta Sync Support
+ALTER TABLE stock_history
+  ADD COLUMN IF NOT EXISTS updated_at           TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
+
+-- POST-LAUNCH ALTER TABLE: variant_stock_history — Delta Sync Support
+ALTER TABLE variant_stock_history
+  ADD COLUMN IF NOT EXISTS updated_at           TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
+
+-- POST-LAUNCH ALTER TABLE: product_addons — Delta Sync Support
+ALTER TABLE product_addons
+  ADD COLUMN IF NOT EXISTS updated_at           TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
+
+-- POST-LAUNCH TRIGGERS: updated_at for the 5 ledger/history tables
+DO $$ BEGIN CREATE TRIGGER update_supplier_transactions_updated_at BEFORE UPDATE ON supplier_transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER update_payments_updated_at              BEFORE UPDATE ON payments              FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER update_stock_history_updated_at         BEFORE UPDATE ON stock_history         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER update_variant_stock_history_updated_at BEFORE UPDATE ON variant_stock_history FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER update_product_addons_updated_at        BEFORE UPDATE ON product_addons        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- POST-LAUNCH ALTER TABLE: expenses — Manual Override
 ALTER TABLE expenses

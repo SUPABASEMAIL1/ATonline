@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, User, Mail, Lock, Shield, Crown, Loader2, Camera, Save, Tag, CreditCard, Package, Edit, Trash2, Database, ClipboardList, History, Wallet, Users, BarChart3 } from 'lucide-react';
+import { User, Lock, Shield, Crown, Loader2, Camera, Save, Tag, CreditCard, Package, Edit, Trash2, Database, ClipboardList, History, Wallet, Users, BarChart3 } from 'lucide-react';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { User as UserType } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -13,6 +13,7 @@ import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MediaLibrary } from '../inventory/MediaLibrary';
+import { Button, ToggleSwitch } from '../../shared/ui';
 
 if (typeof window !== 'undefined') {
   console.warn(
@@ -276,24 +277,26 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
 
   const footer = (
     <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={onClose}
-        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+        className="!min-h-0 !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[10px] !font-black !text-[#ff4b6e] !border !border-rose-200 dark:!border-rose-900/30 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !shrink-0"
       >
         {t('discard_upper', 'DISCARD')}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="primary"
         onClick={handleSubmit}
         disabled={loading}
-        className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+        className="!flex-1 sm:!flex-none sm:!min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
       >
         {loading ? <Loader2 className="w-4 h-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <Save className="w-4 h-4 sm:h-5 sm:w-5 shrink-0" />}
         <span className="leading-none ml-2">
           {user ? t('commit_changes', 'COMMIT CHANGES') : t('register_operator', 'REGISTER OPERATOR')}
         </span>
-      </button>
+      </Button>
     </div>
   );
 
@@ -325,13 +328,15 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
                   <User className="h-10 w-10 text-gray-600" />
                 )}
               </div>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setShowMediaLibrary(true)}
-                className="absolute -bottom-2 -right-2 bg-white dark:bg-zinc-800 text-primary p-2 rounded-xl shadow-lg border border-gray-200 dark:border-white/10 hover:scale-110 active:scale-90 transition-all"
+                aria-label="Upload avatar"
+                className="!absolute !-bottom-2 !-right-2 !min-h-0 !p-2 !rounded-xl !bg-white dark:!bg-zinc-800 !text-primary !shadow-lg !border !border-gray-200 dark:!border-white/10 hover:!scale-110 active:!scale-90"
               >
                 <Camera className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             <div className="flex-1">
               <p className="text-[12px] font-black text-gray-900 dark:text-white uppercase tracking-wider">{t('system_avatar', 'System Avatar')}</p>
@@ -442,16 +447,13 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
                       formData.role === 'admin' || (formData as any)[perm.key] ? 'text-primary dark:text-emerald-400' : 'text-gray-600'
                     )}>{perm.label}</span>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.role === 'admin' || (formData as any)[perm.key]}
-                      disabled={formData.role === 'admin'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, [perm.key]: e.target.checked }))}
-                      className="sr-only peer"
-                    />
-                    <div className="w-10 h-5 bg-gray-200 dark:bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-                  </label>
+                  <ToggleSwitch
+                    checked={formData.role === 'admin' || (formData as any)[perm.key]}
+                    onChange={(checked) => setFormData(prev => ({ ...prev, [perm.key]: checked }))}
+                    disabled={formData.role === 'admin'}
+                    size="sm"
+                    color="bg-primary"
+                  />
                 </div>
               )
             ))}
@@ -485,16 +487,13 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
                     formData.role === 'admin' || formData.permissions.includes(mod.key) ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600'
                   )}>{mod.label}</span>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.role === 'admin' || formData.permissions.includes(mod.key)}
-                    disabled={formData.role === 'admin'}
-                    onChange={(e) => toggleAccessPerm(mod.key, e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-gray-200 dark:bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
-                </label>
+                <ToggleSwitch
+                  checked={formData.role === 'admin' || formData.permissions.includes(mod.key)}
+                  onChange={(checked) => toggleAccessPerm(mod.key, checked)}
+                  disabled={formData.role === 'admin'}
+                  size="sm"
+                  color="bg-blue-500"
+                />
               </div>
             ))}
           </div>
@@ -506,18 +505,14 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
             <span className="text-[11px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-tight">{t('system_status', 'System Status')}</span>
             <span className="text-[10px] text-rose-400 font-bold uppercase tracking-widest mt-0.5">{t('authorized_locked', 'Authorized / Locked')}</span>
           </div>
-          <label className={cn(
-            "relative inline-flex items-center cursor-pointer scale-110",
-            user?.id === state.currentUser?.id && "opacity-50 pointer-events-none"
-          )}>
-            <input
-              type="checkbox"
-              checked={formData.active}
-              onChange={(e) => setFormData(prev => ({ ...prev, active: e.target.checked }))}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
-          </label>
+          <ToggleSwitch
+            checked={formData.active}
+            onChange={(checked) => setFormData(prev => ({ ...prev, active: checked }))}
+            disabled={user?.id === state.currentUser?.id}
+            size="md"
+            color="bg-rose-500"
+            className="!scale-110"
+          />
         </div>
       </div>
       {showMediaLibrary && (

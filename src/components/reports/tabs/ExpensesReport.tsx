@@ -1,10 +1,13 @@
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { TrendingDown, BarChart3, Banknote, CreditCard, Smartphone, Package } from 'lucide-react';
-import { formatCurrency } from '../../../lib/currencies';
+import { formatCurrency, getCurrencySymbol } from '../../../lib/currencies';
 import { formatAppDate } from '../../../lib/dateUtils';
 import { EXPENSE_CATEGORIES } from '../../../types';
 import { Expense } from '../../../types';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { LoadMoreButton } from '../../../shared/ui';
+import { ExportButton } from '../../../shared/export';
+import { useMemo } from 'react';
 
 const CATEGORY_ICONS: Record<string, any> = {
   'Utilities': Banknote, 'Food': Package, 'Fuel': Package, 'Rent': Package,
@@ -37,6 +40,26 @@ export function ExpensesReport({
     color: theme === 'dark' ? '#fff' : '#000'
   };
   const itemStyle = { color: theme === 'dark' ? '#e5e7eb' : '#374151' };
+
+  const exportColumns = [
+    { key: 'date', label: t('date', 'Date') },
+    { key: 'description', label: t('description', 'Description') },
+    { key: 'notes', label: t('notes', 'Notes') },
+    { key: 'category', label: t('category', 'Category') },
+    { key: 'paymentMethod', label: t('payment_method', 'Wallet') },
+    { key: 'amount', label: t('amount', 'Amount'), format: 'currency' as const },
+  ];
+
+  const exportRows = useMemo(() => [...filteredExpenses]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .map(e => ({
+      date: formatAppDate(e.date, country),
+      description: e.description,
+      notes: e.notes || '',
+      category: e.category,
+      paymentMethod: t(e.paymentMethod, e.paymentMethod),
+      amount: Number(e.amount) || 0,
+    })), [filteredExpenses, country, t]);
 
   return (
     <>
@@ -105,7 +128,16 @@ export function ExpensesReport({
           <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
             <TrendingDown className="h-4 w-4 text-rose-600" />{t('all_expenses_count', 'All Expenses — {count} Entries').replace('{count}', filteredExpenses.length.toString())}
           </h3>
-          <span className="text-xs font-black text-rose-500">{formatCurrency(totalExpenseAmount, currency)}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black text-rose-500">{formatCurrency(totalExpenseAmount, currency)}</span>
+            <ExportButton
+              data={exportRows}
+              columns={exportColumns}
+              title={t('expenses_report', 'Expenses Report')}
+              currencySymbol={getCurrencySymbol(currency)}
+              className="!min-h-0 !px-4 !py-2.5 !rounded-xl !text-[10px] !font-black !bg-gray-100 dark:!bg-white/5 !text-gray-600 dark:!text-gray-400 !border-gray-200 dark:!border-white/5 hover:!text-primary"
+            />
+          </div>
         </div>
 
         {/* Desktop Table */}
@@ -188,9 +220,13 @@ export function ExpensesReport({
 
         {filteredExpenses.length > currentPage * itemsPerPage && (
           <div className="bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-center">
-            <button onClick={onLoadMore} className="px-6 py-2.5 rounded-xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-primary hover:border-primary/30 active:scale-95 transition-all">
-              {t('load_more', 'Load More')}
-            </button>
+            <LoadMoreButton
+              visibleCount={currentPage * itemsPerPage}
+              totalCount={filteredExpenses.length}
+              onClick={onLoadMore}
+              label={t('load_more', 'Load More')}
+              className="!text-[10px] !text-gray-600 dark:!text-gray-400 hover:!text-primary hover:!border-primary/30 hover:!bg-white dark:hover:!bg-white/5"
+            />
           </div>
         )}
       </div>

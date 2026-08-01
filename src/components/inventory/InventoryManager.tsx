@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Search, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, ChevronRight, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift, Globe, ArrowUpDown, Shield } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, AlertTriangle, TrendingUp, TrendingDown, Printer, Star, CheckSquare, Square, Layers, ChevronLeft, Download, Upload, Truck, History, ClipboardList, Camera, X, Database, Tag, Power, MinusSquare, Gift, Globe, ArrowUpDown, Shield } from 'lucide-react';
 import { Product } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { ProductModal } from './ProductModal';
@@ -29,6 +29,8 @@ import { generateId, localDb, queueOp } from '../../lib/localDb';
 import { toRemoteProduct } from '../../lib/services';
 import { BundleManager } from './BundleManager';
 import { StoreSort } from './StoreSort';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Button, Badge, Pagination } from '../../shared/ui';
 
 type TabType = 'inventory' | 'purchase_orders' | 'groups' | 'media' | 'purchases' | 'bundles' | 'store_sort';
 
@@ -543,7 +545,8 @@ export function InventoryManager() {
       {showBarcodeGenerator && (
         <div className="fixed inset-0 z-[450] bg-white dark:bg-surface animate-in fade-in zoom-in-95 duration-300 flex flex-col">
           <div className="flex-shrink-0 flex items-center gap-4 px-4 py-2.5 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-app">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => {
                 setShowBarcodeGenerator(false);
                 setBarcodeProducts([]);
@@ -553,11 +556,11 @@ export function InventoryManager() {
                 localStorage.removeItem('barcode_selected_quantities');
                 localStorage.removeItem('barcode_show_generator');
               }}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1"
+              className="!min-h-0 !p-2 !rounded-xl !bg-transparent !text-gray-600 dark:!text-gray-400 hover:!bg-gray-100 dark:hover:!bg-white/5"
             >
               <ChevronLeft className="h-5 w-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">{t("back", "Back")}</span>
-            </button>
+            </Button>
             <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-1" />
             <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest opacity-60">Management / Barcode Print Engine</p>
           </div>
@@ -604,13 +607,14 @@ export function InventoryManager() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6 pb-0 sm:pb-2">
         <div className="flex flex-col md:flex-row md:items-center gap-4 sm:gap-6 xl:gap-10">
           <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'pos' }))}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1 mr-1"
+              className="!min-h-0 !p-2 !rounded-xl !bg-transparent !text-gray-600 dark:!text-gray-400 hover:!bg-gray-100 dark:hover:!bg-white/5 mr-1"
             >
               <ChevronLeft className="h-5 w-5" />
               <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">{t("back", "Back")}</span>
-            </button>
+            </Button>
             <div className="h-8 w-px bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block" />
             <div className="h-10 w-10 sm:h-12 sm:w-12 bg-primary/10 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-inner border border-primary/10">
               <Package className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
@@ -674,39 +678,33 @@ export function InventoryManager() {
               <div className="grid grid-cols-2 sm:flex items-center gap-2 order-2 lg:order-1">
                 {canManageStock && (
                   <>
-                    <button
+                    <Button
+                      variant="primary"
+                      size="md"
                       onClick={() => { setEditingProduct(null); setShowProductModal(true); }}
-                      className="col-span-2 sm:col-auto flex items-center justify-center gap-2 bg-primary text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl font-black text-[9px] sm:text-[10px] shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest"
+                      className="col-span-2 sm:col-auto !px-4 sm:!px-5 !py-2 sm:!py-2.5 !text-[9px] sm:!text-[10px] !shadow-lg !shadow-emerald-500/20 hover:!scale-[1.02]"
+                      icon={<Plus className="h-3.5 w-3.5" />}
                     >
-                      <Plus className="h-3.5 w-3.5" /> <span>{t("add_product", "Add Item")}</span>
-                    </button>
-                    <button onClick={handleImportJSON} className="flex items-center justify-center gap-2 px-4 py-2.5 text-[9px] font-black bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-all active:scale-95 uppercase tracking-widest">
-                      <Upload className="h-4 w-4" /> <span>{t("import", "Import")}</span>
-                    </button>
-                    <button onClick={handleExportSelected} className="flex items-center justify-center gap-2 px-4 py-2.5 text-[9px] font-black bg-emerald-50 dark:bg-primary/10 border border-emerald-100 dark:border-primary/20 text-primary dark:text-emerald-400 rounded-xl transition-all active:scale-95 uppercase tracking-widest">
-                      <Download className="h-4 w-4" /> <span>{t("export", "Export")}</span>
-                    </button>
+                      <span>{t("add_product", "Add Item")}</span>
+                    </Button>
+                    <Button variant="secondary" size="md" onClick={handleImportJSON} className="!px-4 !py-2.5 !text-[9px] !font-black !bg-white dark:!bg-zinc-900 !border-gray-200 dark:!border-white/10 !text-gray-700 dark:!text-gray-300 hover:!bg-gray-100 dark:hover:!bg-white/10 !rounded-xl" icon={<Upload className="h-4 w-4" />}>
+                      <span>{t("import", "Import")}</span>
+                    </Button>
+                    <Button variant="primary" size="md" onClick={handleExportSelected} className="!px-4 !py-2.5 !text-[9px] !font-black !bg-emerald-50 dark:!bg-primary/10 !border-emerald-100 dark:!border-primary/20 !text-primary dark:!text-emerald-400 hover:!bg-emerald-50 dark:hover:!bg-primary/10 !rounded-xl !shadow-none" icon={<Download className="h-4 w-4" />}>
+                      <span>{t("export", "Export")}</span>
+                    </Button>
                   </>
                 )}
               </div>
 
-              {/* Search Box */}
-              <div className="relative flex-1 order-1 lg:order-2">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-primary h-4 w-4 transition-colors" />
-                <input
-                  type="text"
-                  placeholder={t("search_products_placeholder", "Search name, barcode, SKU...")}
+              {/* Search Box — shared module (SharedSearchBar) */}
+              <div className="flex-1 order-1 lg:order-2">
+                <SharedSearchBar
                   value={searchTerm}
-                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                  className="w-full bg-gray-50 dark:bg-black/30 border-none pl-10 pr-12 py-2.5 rounded-xl sm:rounded-2xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600 focus:bg-white dark:focus:bg-black/75 shadow-inner"
+                  onChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+                  placeholder={t("search_products_placeholder", "Search name, barcode, SKU...")}
+                  onScanClick={() => setShowScannerInInventory(true)}
                 />
-                <button
-                  onClick={() => setShowScannerInInventory(true)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-primary/10 text-primary rounded-lg active:bg-primary active:text-white transition-all"
-                  title="Scan with Camera"
-                >
-                  <Camera className="h-4 w-4" />
-                </button>
               </div>
 
               {/* Filters */}
@@ -767,18 +765,18 @@ export function InventoryManager() {
                 </div>
 
                 <div className="flex items-center gap-1 p-1 pr-3">
-                  <button onClick={() => setShowBulkEditModal(true)} className="flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all active:scale-95 whitespace-nowrap">
+                  <Button variant="ghost" onClick={() => setShowBulkEditModal(true)} className="!min-h-0 !px-4 !py-2 !rounded-xl !bg-transparent !text-[10px] !font-black !text-blue-400 hover:!bg-blue-500/10 whitespace-nowrap">
                     <Layers className="h-3.5 w-3.5" /> <span className="hidden sm:inline">BULK EDIT</span><span className="sm:hidden">EDIT</span>
-                  </button>
-                  <button onClick={handleBulkDelete} className="flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase text-red-400 hover:bg-red-500/10 rounded-xl transition-all active:scale-95 whitespace-nowrap">
+                  </Button>
+                  <Button variant="ghost" onClick={handleBulkDelete} className="!min-h-0 !px-4 !py-2 !rounded-xl !bg-transparent !text-[10px] !font-black !text-red-400 hover:!bg-red-500/10 whitespace-nowrap">
                     <Trash2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">DELETE</span><span className="sm:hidden">DEL</span>
-                  </button>
-                  <button onClick={() => {
+                  </Button>
+                  <Button variant="ghost" onClick={() => {
                     setBarcodeProducts(state.products.filter(p => selectedProductIds.includes(p.id)));
                     setShowBarcodeGenerator(true);
-                  }} className="flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase text-emerald-400 hover:bg-primary/10 rounded-xl transition-all active:scale-95 whitespace-nowrap">
+                  }} className="!min-h-0 !px-4 !py-2 !rounded-xl !bg-transparent !text-[10px] !font-black !text-emerald-400 hover:!bg-primary/10 whitespace-nowrap">
                     <Printer className="h-3.5 w-3.5" /> <span className="hidden sm:inline">PRINT BARCODES</span><span className="sm:hidden">BARCODE</span>
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -823,8 +821,8 @@ export function InventoryManager() {
                             <p className="text-[10px] text-gray-600 font-bold uppercase truncate">{product.category}{product.supplier ? ` · ${product.supplier}` : ''}</p>
                             {(product.isService || product.requireSerial) && (
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {product.isService && <span className="text-[8px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded leading-none">Service</span>}
-                                {product.requireSerial && <span className="text-[8px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded leading-none">IMEI/SN Req</span>}
+                                {product.isService && <Badge tone="info" className="!bg-blue-500/10 !text-blue-500 !px-1.5 !py-0.5 !rounded !text-[8px] !leading-none">Service</Badge>}
+                                {product.requireSerial && <Badge tone="warning" className="!bg-amber-500/10 !text-amber-500 !px-1.5 !py-0.5 !rounded !text-[8px] !leading-none">IMEI/SN Req</Badge>}
                               </div>
                             )}
                           </div>
@@ -848,18 +846,19 @@ export function InventoryManager() {
                       <td className="p-4 text-center">
                         <div className="flex flex-col items-center gap-1">
                           {product.trackInventory === false || product.stock >= 990000 ? (
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400">∞</span>
+                            <Badge tone="neutral" className="!bg-violet-500/10 !text-violet-600 dark:!text-violet-400 !px-2 !py-0.5 !rounded-full !text-[10px]">∞</Badge>
                           ) : (
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${product.stock <= 0 ? 'bg-red-500 text-white shadow-sm ring-1 ring-red-600' : product.stock <= (product.minStock || 5) ? 'bg-amber-500 text-white shadow-sm ring-1 ring-amber-600' : 'bg-primary/10 text-primary dark:text-emerald-400'}`}>{product.stock}</span>
+                            <Badge variant={product.stock <= 0 ? 'solid' : product.stock <= (product.minStock || 5) ? 'solid' : 'soft'} tone={product.stock <= 0 ? 'danger' : product.stock <= (product.minStock || 5) ? 'warning' : 'success'} className={`!px-2 !py-0.5 !rounded-full !text-[10px] ${product.stock <= 0 ? '!bg-red-500 !shadow-sm !ring-1 !ring-red-600' : product.stock <= (product.minStock || 5) ? '!bg-amber-500 !shadow-sm !ring-1 !ring-amber-600' : '!bg-primary/10 !text-primary dark:!text-emerald-400'}`}>{product.stock}</Badge>
                           )}
-                          {!product.active && <span className="text-[8px] bg-gray-200 dark:bg-white/10 px-1.5 py-0.5 rounded uppercase font-bold text-gray-600 dark:text-gray-400">Disabled</span>}
+                          {!product.active && <Badge tone="neutral" className="!bg-gray-200 dark:!bg-white/10 !px-1.5 !py-0.5 !rounded !text-[8px] !text-gray-600 dark:!text-gray-400">Disabled</Badge>}
                         </div>
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex justify-end items-center gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
                           {/* Enable / Disable Toggle */}
                           {(isAdmin || profile?.canManageStock) && (
-                            <button
+                            <Button
+                              variant="ghost"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 try {
@@ -871,18 +870,14 @@ export function InventoryManager() {
                                   sonner.error('Failed to toggle product status');
                                 }
                               }}
-                              className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${
-                                product.active
-                                  ? 'bg-primary/10 text-primary'
-                                  : 'bg-gray-200 dark:bg-white/10 text-gray-500'
-                              }`}
+                              className={`!min-h-0 !p-2 !rounded-xl hover:!scale-110 ${product.active ? '!bg-primary/10 !text-primary' : '!bg-gray-200 dark:!bg-white/10 !text-gray-500'}`}
                               title={product.active ? 'Disable Product' : 'Enable Product'}
-                            >
-                              <Power className="h-3.5 w-3.5" />
-                            </button>
+                              icon={<Power className="h-3.5 w-3.5" />}
+                            />
                           )}
                           {/* Featured Toggle */}
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={async (e) => {
                               e.stopPropagation();
                               const newStatus = !product.isFeatured;
@@ -894,22 +889,21 @@ export function InventoryManager() {
                                 sonner.error('Failed to toggle featured status');
                               }
                             }}
-                            className={`p-2 rounded-xl transition-all hover:scale-110 active:scale-95 ${product.isFeatured ? 'bg-yellow-500/10 text-yellow-500 shadow-sm' : 'bg-gray-100 dark:bg-white/5 text-gray-600 hover:text-yellow-500'}`}
+                            className={`!min-h-0 !p-2 !rounded-xl hover:!scale-110 ${product.isFeatured ? '!bg-yellow-500/10 !text-yellow-500 !shadow-sm' : '!bg-gray-100 dark:!bg-white/5 !text-gray-600 hover:!text-yellow-500'}`}
                             title={product.isFeatured ? 'Unmark Featured' : 'Mark as Featured'}
-                          >
-                            <Star className={`h-3.5 w-3.5 ${product.isFeatured ? 'fill-yellow-500' : ''}`} />
-                          </button>
+                            icon={<Star className={`h-3.5 w-3.5 ${product.isFeatured ? 'fill-yellow-500' : ''}`} />}
+                          />
                           {(isAdmin || profile?.canManageStock) && (
-                            <button
+                            <Button
+                              variant="ghost"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteProduct(product.id);
                               }}
-                              className="p-2 bg-red-50 dark:bg-red-500/10 text-red-600 rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                              className="!min-h-0 !p-2 !rounded-xl !bg-red-50 dark:!bg-red-500/10 !text-red-600 hover:!scale-110"
                               title="Delete Product"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                              icon={<Trash2 className="h-3.5 w-3.5" />}
+                            />
                           )}
                         </div>
                       </td>
@@ -924,9 +918,10 @@ export function InventoryManager() {
               {/* Select All on Mobile */}
               {paginatedProducts.length > 0 && (
                 <div className="flex items-center justify-between mb-3 bg-gray-50/50 dark:bg-white/[0.02] p-2 rounded-xl">
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={handleSelectAll}
-                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 active:scale-95 transition-all"
+                    className="!min-h-0 !p-0 !bg-transparent !text-[10px] !font-black !text-gray-600 dark:!text-gray-400"
                   >
                     {selectedProductIds.length > 0 && selectedProductIds.length === filteredProducts.length
                       ? <CheckSquare className="h-4 w-4 text-primary" />
@@ -934,7 +929,7 @@ export function InventoryManager() {
                         ? <MinusSquare className="h-4 w-4 text-emerald-400" />
                         : <Square className="h-4 w-4 text-gray-600" />}
                     Select All
-                  </button>
+                  </Button>
                   <span className="text-[9px] font-bold text-gray-600 uppercase tracking-widest">{selectedProductIds.length} {t("selected", "Selected")}</span>
                 </div>
               )}
@@ -949,9 +944,10 @@ export function InventoryManager() {
                       className={`relative flex flex-col p-2.5 sm:p-4 rounded-[1.5rem] bg-white dark:bg-surface border border-gray-200 dark:border-white/5 shadow-sm active:scale-[0.98] transition-all group ${selectedProductIds.includes(product.id) ? 'ring-2 ring-emerald-500 bg-primary/5' : ''}`}
                     >
                       {/* Selection Toggle */}
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={(e) => { e.stopPropagation(); handleSelectProduct(product.id); }}
-                        className="absolute top-1.5 right-1.5 z-20"
+                        className="absolute top-1.5 right-1.5 z-20 !min-h-0 !p-0 !bg-transparent hover:!scale-100 active:!scale-100"
                       >
                         {selectedProductIds.includes(product.id) ? (
                           <div className="bg-primary rounded-lg p-1.5 shadow-lg shadow-emerald-500/30">
@@ -962,7 +958,7 @@ export function InventoryManager() {
                             <Square className="h-3.5 w-3.5 text-gray-600" />
                           </div>
                         )}
-                      </button>
+                      </Button>
 
                       <div className="flex flex-col gap-2.5">
                         <div className="aspect-square w-full bg-gray-50 dark:bg-[#0F0F0F] rounded-xl flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/5 flex-shrink-0 relative">
@@ -987,9 +983,9 @@ export function InventoryManager() {
                           </p>
                           {(product.isService || product.requireSerial || !product.active) && (
                             <div className="flex flex-wrap gap-1 mb-1.5">
-                              {product.isService && <span className="text-[7px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-500 px-1 py-0.5 rounded leading-none">Service</span>}
-                              {product.requireSerial && <span className="text-[7px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-500 px-1 py-0.5 rounded leading-none">IMEI / SN</span>}
-                              {!product.active && <span className="text-[7px] font-black uppercase tracking-widest bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400 px-1 py-0.5 rounded leading-none">Disabled</span>}
+                              {product.isService && <Badge tone="info" className="!bg-blue-500/10 !text-blue-500 !px-1 !py-0.5 !rounded !text-[7px] !leading-none">Service</Badge>}
+                              {product.requireSerial && <Badge tone="warning" className="!bg-amber-500/10 !text-amber-500 !px-1 !py-0.5 !rounded !text-[7px] !leading-none">IMEI / SN</Badge>}
+                              {!product.active && <Badge tone="neutral" className="!bg-gray-200 dark:!bg-white/10 !text-gray-600 dark:!text-gray-400 !px-1 !py-0.5 !rounded !text-[7px] !leading-none">Disabled</Badge>}
                             </div>
                           )}
 
@@ -998,9 +994,9 @@ export function InventoryManager() {
                               <p className="text-[11px] font-black text-primary">
                                 {formatCurrency(product.price, state.settings.currency)}
                               </p>
-                              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-md ${product.stock <= 0 ? 'bg-red-500 text-white' : product.stock <= (product.minStock || 5) ? 'bg-amber-500 text-white' : 'bg-primary/10 text-primary'}`}>
+                              <Badge variant={product.stock <= 0 ? 'solid' : product.stock <= (product.minStock || 5) ? 'solid' : 'soft'} tone={product.stock <= 0 ? 'danger' : product.stock <= (product.minStock || 5) ? 'warning' : 'success'} className={`!px-1.5 !py-0.5 !rounded-md !text-[8px] ${product.stock <= 0 ? '!bg-red-500 !text-white' : product.stock <= (product.minStock || 5) ? '!bg-amber-500 !text-white' : '!bg-primary/10 !text-primary'}`}>
                                 {product.trackInventory === false || product.stock >= 990000 ? '∞' : product.stock}
-                              </span>
+                              </Badge>
                             </div>
                             {(profile?.role === 'admin' || profile?.role === 'manager') && (
                               <div className="flex items-center justify-between opacity-50">
@@ -1022,32 +1018,13 @@ export function InventoryManager() {
               <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
                 <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">Items {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length}</p>
                 <div className="flex items-center gap-1.5 mx-auto sm:mx-0">
-                  <button disabled={currentPage === 1} onClick={() => { setCurrentPage(prev => Math.max(1, prev - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-xl disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"><ChevronLeft className="h-4 w-4" /></button>
-
-                  <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide max-w-[200px] sm:max-w-none py-2 px-1">
-                    {[...Array(totalPages)].map((_, i) => {
-                      const page = i + 1;
-                      const isNear = Math.abs(page - currentPage) <= 1;
-                      const isEnd = page === 1 || page === totalPages;
-
-                      if (!isNear && !isEnd) {
-                        if (page === 2 || page === totalPages - 1) return <span key={page} className="text-gray-600 px-1">...</span>;
-                        return null;
-                      }
-
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                          className={`min-w-[32px] h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === page ? 'bg-primary text-white shadow-lg scale-110 relative z-10' : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5 relative z-0'}`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <button disabled={currentPage === totalPages} onClick={() => { setCurrentPage(prev => Math.min(totalPages, prev + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-xl disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"><ChevronRight className="h-4 w-4" /></button>
+                  <Pagination
+                    page={currentPage}
+                    totalPages={totalPages}
+                    totalItems={filteredProducts.length}
+                    onPageChange={(p) => { setCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    siblingCount={1}
+                  />
                 </div>
               </div>
             )}
@@ -1096,16 +1073,17 @@ export function InventoryManager() {
                         </td>
                         <td className="p-4 text-center font-bold text-gray-700 dark:text-gray-300">{productsInCat.length} Products</td>
                         <td className="p-4 text-center">
-                          <span className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black">{stockInCat}</span>
+                          <Badge tone="info" className="!bg-blue-50 dark:!bg-blue-500/10 !text-blue-600 !px-3 !py-1 !rounded-full !text-[10px]">{stockInCat}</Badge>
                         </td>
                         <td className="p-4 text-center font-black text-gray-900 dark:text-white">{formatCurrency(valueInCat, state.settings.currency)}</td>
                         <td className="p-4 text-right">
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={() => { setSelectedCategory(cat); navigate('/inventory/products'); }}
-                            className="text-[10px] font-black uppercase text-primary hover:underline"
+                            className="!min-h-0 !p-0 !bg-transparent !text-[10px] !font-black !text-primary hover:!underline !tracking-normal"
                           >
                             View All
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     );

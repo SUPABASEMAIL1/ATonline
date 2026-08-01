@@ -1619,50 +1619,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         updateStatus('Cloud handshake complete...', (categoriesData?.length || 0) + 1);
 
-        // Phase 2: Sequential fetch from Supabase to seed local cache
-        // Metadata: Full Sync (paginated) to support hard deletes
-        const products = await productsService.fetchRemote();
-        updateStatus(`Fetched ${products.length} products...`, products.length);
-
-        const customers = await customersService.fetchRemote();
-        updateStatus(`Fetched ${customers.length} customers...`, customers.length);
-
-        // Transactional: Delta Sync to drastically improve speed
-        const sales = await fetchDeltasAndMerge(localDb.sales, salesService.fetchRemote);
-        updateStatus(`Fetched ${sales.length} sales records...`, sales.length);
-
-        const storeOrders = await fetchDeltasAndMerge(localDb.storeOrders, storeOrdersService.fetchRemote);
-        updateStatus(`Fetched ${storeOrders.length} online orders...`, storeOrders.length);
-
-        const [discounts, usersList, expenses, purchaseRecords, suppliersData] = await Promise.all([
-          discountsService.fetchRemote(), // Metadata
-          usersService.fetchRemote(), // Metadata
-          fetchDeltasAndMerge(localDb.expenses, expensesService.fetchRemote), // Transactional
-          fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
-          suppliersService.fetchRemote() // Metadata
-        ]);
-        updateStatus('Syncing marketing and procurement data...', discounts.length + usersList.length + expenses.length + purchaseRecords.length + suppliersData.length);
-
-        // Fetch sales tabs, supplier transactions, stock history, payments
-        const [salesTabsData, supplierTxData, remoteStockHistory, remotePayments] = await Promise.all([
-          supabase.from('sales_tabs').select('*').eq('user_id', user.id),
-          fetchDeltasAndMerge(localDb.supplierTransactions, supplierTransactionsService.fetchRemote).catch(() => []),
-          fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote).catch(() => []),
-          fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(() => [])
-        ]);
-        const salesTabs = (salesTabsData.data || []).map(t => ({ ...t, userId: t.user_id, editingSaleId: t.editing_sale_id ?? null }));
-
-        // Seed remote stock history
-        if (remoteStockHistory.length > 0) {
-          await localDb.stockHistory.bulkPut(remoteStockHistory).catch(() => { });
-        }
-
-        // ── FIELD-LEVEL SMART MERGE ──
-        // CRITICAL FIX: The old filterPending would completely exclude fresh remote data
-        // for any entity with ANY pending op (even unrelated fields like stock).
-        // This caused stale prices/names to persist forever.
-        //
-        // NEW: Remote data is always the BASE. Only the specific pending op fields are overlaid.
+        // ── FIELD-LEVEL SMART MERGE SETUP ──
+        // CRITICAL FIX: Moved up to allow progressive dispatch of products immediately!
+        // Remote data is always the BASE. Only the specific pending op fields are overlaid.
         // Additionally, offline-only records (created locally, not yet synced) are included.
         const allPendingOps = await localDb.pendingOps.toArray();
 
@@ -1708,190 +1667,165 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return merged;
         };
 
-        // ── PRODUCTS ──
+        const saveProgressively = async (entityName: string, localTable: any, mergedItems: any[]) => {
+          if (syncEngineWasBusy) return;
+          try {
+            await localDb.transaction('rw', localTable, localDb.pendingOps, async () => {
+              const localItems = await localTable.toArray();
+              const mergedIds = new Set(mergedItems.map((i: any) => i.id));
+              const pendingOps = await localDb.pendingOps.where('entity').equals(entityName).toArray();
+              const pendingIds = new Set(pendingOps.map((op: any) => op.entityId));
+              const now = Date.now();
+              const fiveMinutes = 5 * 60 * 1000;
+
+              const idsToDelete = localItems.filter((local: any) => {
+                const isAbsentFromRemote = !mergedIds.has(local.id);
+                const isAbsentFromPending = !pendingIds.has(local.id);
+
+                let lastModifiedTs = 0;
+                if (local.updatedAt) lastModifiedTs = new Date(local.updatedAt).getTime();
+                else if (local.createdAt) lastModifiedTs = new Date(local.createdAt).getTime();
+                else if (local.updated_at) lastModifiedTs = new Date(local.updated_at).getTime();
+                else if (local.created_at) lastModifiedTs = new Date(local.created_at).getTime();
+
+                const isOlderThan5Mins = lastModifiedTs === 0 || (now - lastModifiedTs > fiveMinutes);
+                return isAbsentFromRemote && isAbsentFromPending && isOlderThan5Mins;
+              }).map((local: any) => local.id);
+
+              if (idsToDelete.length > 0) {
+                console.log(`[loadData] Smart deleting ${idsToDelete.length} obsolete ${entityName} records`);
+                await localTable.bulkDelete(idsToDelete);
+              }
+
+              const safeItems = mergedItems.filter(item => !pendingIds.has(item.id));
+              if (safeItems.length > 0) await localTable.bulkPut(safeItems);
+            });
+          } catch (e) {
+            console.error(`[loadData] Error progressively saving ${entityName}:`, e);
+          }
+        };
+
+        // Phase 2: Sequential fetch from Supabase to seed local cache
+        // PROGRESSIVE DISPATCH: We fetch, merge, and dispatch immediately to UI.
+        
+        // ── PRODUCTS (Most important, do this first!) ──
+        const products = await productsService.fetchRemote();
         const mergedProducts = await smartMerge('products', products, localDb.products);
+        dispatch({ type: 'SET_PRODUCTS', payload: mergedProducts });
+        await saveProgressively('products', localDb.products, mergedProducts);
+        updateStatus(`Fetched ${products.length} products...`, products.length);
 
-        // ── OTHER ENTITIES ──
+        // ── CUSTOMERS ──
+        const customers = await customersService.fetchRemote();
         const mergedCustomers = await smartMerge('customers', customers, localDb.customers);
+        dispatch({ type: 'SET_CUSTOMERS', payload: mergedCustomers });
+        await saveProgressively('customers', localDb.customers, mergedCustomers);
+        updateStatus(`Fetched ${customers.length} customers...`, customers.length);
 
-        const mergedStoreOrders = (await smartMerge('store_orders', storeOrders, localDb.storeOrders))
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
+        // ── SALES ──
+        const sales = await fetchDeltasAndMerge(localDb.sales, salesService.fetchRemote);
         const allSales = await smartMerge('sales', sales, localDb.sales);
         const mergedSales = allSales
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
           .slice(0, 1000);
+        dispatch({ type: 'SET_SALES', payload: mergedSales });
+        await saveProgressively('sales', localDb.sales, mergedSales);
+        updateStatus(`Fetched ${sales.length} sales records...`, sales.length);
 
+        // ── STORE ORDERS ──
+        const storeOrders = await fetchDeltasAndMerge(localDb.storeOrders, storeOrdersService.fetchRemote);
+        const mergedStoreOrders = (await smartMerge('store_orders', storeOrders, localDb.storeOrders))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        dispatch({ type: 'SET_STORE_ORDERS', payload: mergedStoreOrders });
+        await saveProgressively('store_orders', localDb.storeOrders, mergedStoreOrders);
+        updateStatus(`Fetched ${storeOrders.length} online orders...`, storeOrders.length);
+
+        // ── OTHER METADATA ──
+        const [discounts, usersList, expenses, purchaseRecords, suppliersData] = await Promise.all([
+          discountsService.fetchRemote(), // Metadata
+          usersService.fetchRemote(), // Metadata
+          fetchDeltasAndMerge(localDb.expenses, expensesService.fetchRemote), // Transactional
+          fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
+          suppliersService.fetchRemote() // Metadata
+        ]);
+        
         const mergedDiscounts = await smartMerge('discounts', discounts, localDb.discounts);
+        dispatch({ type: 'SET_DISCOUNTS', payload: mergedDiscounts });
+        await saveProgressively('discounts', localDb.discounts, mergedDiscounts);
+        
         const mergedUsers = await smartMerge('users', usersList, localDb.users);
-        const mergedSuppliers = await smartMerge('suppliers', suppliersData, localDb.suppliers);
+        dispatch({ type: 'SET_USERS', payload: mergedUsers });
+        await saveProgressively('users', localDb.users, mergedUsers);
+        
         const mergedExpenses = (await smartMerge('expenses', expenses, localDb.expenses))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        dispatch({ type: 'SET_EXPENSES', payload: mergedExpenses });
+        await saveProgressively('expenses', localDb.expenses, mergedExpenses);
+        
         const mergedPurchaseRecords = (await smartMerge('purchase_records', purchaseRecords, localDb.purchaseRecords))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const mergedPayments = await smartMerge('payments', remotePayments, localDb.payments);
-
-        const mergedSalesTabs = (await smartMerge('sales_tabs', salesTabs as SalesTab[], localDb.salesTabs)).slice(0, 3);
-
-        dispatch({ type: 'SET_PRODUCTS', payload: mergedProducts });
-        dispatch({ type: 'SET_CUSTOMERS', payload: mergedCustomers });
-        dispatch({ type: 'SET_SALES', payload: mergedSales });
-        dispatch({ type: 'SET_STORE_ORDERS', payload: mergedStoreOrders });
-        dispatch({ type: 'SET_DISCOUNTS', payload: mergedDiscounts });
-        dispatch({ type: 'SET_USERS', payload: mergedUsers });
-        if (mergedSalesTabs.length > 0) dispatch({ type: 'SET_SALES_TABS', payload: mergedSalesTabs as SalesTab[] });
-        dispatch({ type: 'SET_SUPPLIERS', payload: mergedSuppliers });
-        dispatch({ type: 'SET_EXPENSES', payload: mergedExpenses });
         dispatch({ type: 'SET_PURCHASE_RECORDS', payload: mergedPurchaseRecords });
+        await saveProgressively('purchase_records', localDb.purchaseRecords, mergedPurchaseRecords);
+        
+        const mergedSuppliers = await smartMerge('suppliers', suppliersData, localDb.suppliers);
+        dispatch({ type: 'SET_SUPPLIERS', payload: mergedSuppliers });
+        await saveProgressively('suppliers', localDb.suppliers, mergedSuppliers);
+        
+        updateStatus('Syncing marketing and procurement data...', discounts.length + usersList.length + expenses.length + purchaseRecords.length + suppliersData.length);
+
+        // ── TABS, STOCK, PAYMENTS ──
+        const [salesTabsData, supplierTxData, remoteStockHistory, remotePayments] = await Promise.all([
+          supabase.from('sales_tabs').select('*').eq('user_id', user.id),
+          fetchDeltasAndMerge(localDb.supplierTransactions, supplierTransactionsService.fetchRemote).catch(() => []),
+          fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote).catch(() => []),
+          fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(() => [])
+        ]);
+        
+        if (supplierTxData.length > 0) {
+          dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: supplierTxData });
+          await saveProgressively('supplier_transactions', localDb.supplierTransactions, supplierTxData);
+        }
+        
+        const salesTabs = (salesTabsData.data || []).map(t => ({ ...t, userId: t.user_id, editingSaleId: t.editing_sale_id ?? null }));
+        const mergedSalesTabs = (await smartMerge('sales_tabs', salesTabs as SalesTab[], localDb.salesTabs)).slice(0, 3);
+        if (mergedSalesTabs.length > 0) {
+          dispatch({ type: 'SET_SALES_TABS', payload: mergedSalesTabs as SalesTab[] });
+          await saveProgressively('sales_tabs', localDb.salesTabs, mergedSalesTabs);
+        }
+        
+        const mergedPayments = await smartMerge('payments', remotePayments, localDb.payments);
         dispatch({ type: 'SET_PAYMENTS', payload: mergedPayments });
+        await saveProgressively('payments', localDb.payments, mergedPayments);
 
-        // ── DESTRUCTIVE LOCAL WRITE (skipped if sync engine was busy) ──
+        // Seed remote stock history
+        if (remoteStockHistory.length > 0) {
+          await saveProgressively('stock_history', localDb.stockHistory, remoteStockHistory);
+        }
+
+        // Load bundles from cloud
         let remoteBundles: Bundle[] = [];
-        if (!syncEngineWasBusy) {
-          await localDb.transaction(
-            'rw',
-            localDb.products,
-            localDb.customers,
-            localDb.sales,
-            localDb.discounts,
-            localDb.users,
-            localDb.suppliers,
-            localDb.expenses,
-            localDb.purchaseRecords,
-            localDb.storeOrders,
-            localDb.stockHistory,
-            localDb.payments,
-            localDb.salesTabs,
-            localDb.pendingOps,
-            async () => {
-              // Helper for smart deletion to prevent race condition data loss
-              const processDeletions = async (table: any, mergedItems: any[], entityName: string) => {
-                const localItems = await table.toArray();
-                const mergedIds = new Set(mergedItems.map(i => i.id));
-                const pendingOps = await localDb.pendingOps.where('entity').equals(entityName).toArray();
-                const pendingIds = new Set(pendingOps.map(op => op.entityId));
-                const now = Date.now();
-                const fiveMinutes = 5 * 60 * 1000;
-
-                const idsToDelete = localItems.filter((local: any) => {
-                  const isAbsentFromRemote = !mergedIds.has(local.id);
-                  const isAbsentFromPending = !pendingIds.has(local.id);
-
-                  // Parse createdAt / updatedAt safely
-                  let lastModifiedTs = 0;
-                  if (local.updatedAt) lastModifiedTs = new Date(local.updatedAt).getTime();
-                  else if (local.createdAt) lastModifiedTs = new Date(local.createdAt).getTime();
-                  else if (local.updated_at) lastModifiedTs = new Date(local.updated_at).getTime();
-                  else if (local.created_at) lastModifiedTs = new Date(local.created_at).getTime();
-
-                  // If it doesn't have a timestamp, assume it's old enough, or if it's strictly older than 5 mins
-                  const isOlderThan5Mins = lastModifiedTs === 0 || (now - lastModifiedTs > fiveMinutes);
-
-                  return isAbsentFromRemote && isAbsentFromPending && isOlderThan5Mins;
-                }).map((local: any) => local.id);
-
-                if (idsToDelete.length > 0) {
-                  console.log(`[loadData] Smart deleting ${idsToDelete.length} obsolete ${entityName} records`);
-                  await table.bulkDelete(idsToDelete);
-                }
-              };
-
-              const getSafeItemsToPut = async (entityName: string, mergedItems: any[]) => {
-                const pendingOps = await localDb.pendingOps.where('entity').equals(entityName).toArray();
-                const pendingIds = new Set(pendingOps.map(op => op.entityId));
-                return mergedItems.filter(item => !pendingIds.has(item.id));
-              };
-
-              await processDeletions(localDb.products, mergedProducts, 'products');
-              const safeProducts = await getSafeItemsToPut('products', mergedProducts);
-              if (safeProducts.length > 0) await localDb.products.bulkPut(safeProducts);
-
-              await processDeletions(localDb.customers, mergedCustomers, 'customers');
-              const safeCustomers = await getSafeItemsToPut('customers', mergedCustomers);
-              if (safeCustomers.length > 0) await localDb.customers.bulkPut(safeCustomers);
-
-              await processDeletions(localDb.sales, mergedSales, 'sales');
-              const safeSales = await getSafeItemsToPut('sales', mergedSales);
-              if (safeSales.length > 0) await localDb.sales.bulkPut(safeSales);
-
-              await processDeletions(localDb.discounts, mergedDiscounts, 'discounts');
-              const safeDiscounts = await getSafeItemsToPut('discounts', mergedDiscounts);
-              if (safeDiscounts.length > 0) await localDb.discounts.bulkPut(safeDiscounts);
-
-              await processDeletions(localDb.users, mergedUsers, 'users');
-              const safeUsers = await getSafeItemsToPut('users', mergedUsers);
-              if (safeUsers.length > 0) await localDb.users.bulkPut(safeUsers);
-
-              await processDeletions(localDb.suppliers, mergedSuppliers, 'suppliers');
-              const safeSuppliers = await getSafeItemsToPut('suppliers', mergedSuppliers);
-              if (safeSuppliers.length > 0) await localDb.suppliers.bulkPut(safeSuppliers);
-
-              await processDeletions(localDb.expenses, mergedExpenses, 'expenses');
-              const safeExpenses = await getSafeItemsToPut('expenses', mergedExpenses);
-              if (safeExpenses.length > 0) await localDb.expenses.bulkPut(safeExpenses);
-
-              await processDeletions(localDb.purchaseRecords, mergedPurchaseRecords, 'purchase_records');
-              const safePurchaseRecords = await getSafeItemsToPut('purchase_records', mergedPurchaseRecords);
-              if (safePurchaseRecords.length > 0) await localDb.purchaseRecords.bulkPut(safePurchaseRecords);
-
-              await processDeletions(localDb.salesTabs, mergedSalesTabs, 'sales_tabs');
-              const safeSalesTabs = await getSafeItemsToPut('sales_tabs', mergedSalesTabs);
-              if (safeSalesTabs.length > 0) await localDb.salesTabs.bulkPut(safeSalesTabs);
-
-              await processDeletions(localDb.storeOrders, mergedStoreOrders, 'store_orders');
-              const safeStoreOrders = await getSafeItemsToPut('store_orders', mergedStoreOrders);
-              if (safeStoreOrders.length > 0) await localDb.storeOrders.bulkPut(safeStoreOrders);
-
-              await processDeletions(localDb.stockHistory, remoteStockHistory, 'stock_history');
-              const safeStockHistory = await getSafeItemsToPut('stock_history', remoteStockHistory);
-              if (safeStockHistory.length > 0) await localDb.stockHistory.bulkPut(safeStockHistory);
-
-              await processDeletions(localDb.payments, mergedPayments, 'payments');
-              const safePayments = await getSafeItemsToPut('payments', mergedPayments);
-              if (safePayments.length > 0) await localDb.payments.bulkPut(safePayments);
-            }
-          );
-          if (supplierTxData.length > 0) {
-            dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: supplierTxData });
-            const safeSupplierTx = await getSafeItemsToPut('supplier_transactions', supplierTxData);
-            if (safeSupplierTx.length > 0) await localDb.supplierTransactions.bulkPut(safeSupplierTx).catch(() => { });
-          }
-
-          // Load bundles from cloud
-          try {
-            remoteBundles = await bundlesService.getAll(true);
-            dispatch({ type: 'SET_BUNDLES', payload: remoteBundles });
-            console.log(`[AppContext] Loaded ${remoteBundles.length} bundles from cloud`);
-          } catch (e) {
-            console.warn('[AppContext] Bundle cloud load failed, using local', e);
-          }
-
-          await seedLocalDb({
-            products, customers, sales, discounts, users: usersList,
-            salesTabs: salesTabs as SalesTab[], settings,
-            expenses, purchaseRecords, categories: categoriesData,
-            suppliers: suppliersData, productBatches: [],
-            supplierTransactions: supplierTxData,
-            bundles: remoteBundles,
-            bundleItems: remoteBundles.reduce((acc: any[], b: Bundle) => {
-              if (b.items) acc.push(...b.items);
-              return acc;
-            }, []),
-            bundleSlots: remoteBundles.reduce((acc: any[], b: Bundle) => {
-              if (b.slots) acc.push(...b.slots);
-              return acc;
-            }, []),
-            bundleSlotOptions: remoteBundles.reduce((acc: any[], b: Bundle) => {
-              if (b.slots) b.slots.forEach((s: any) => { if (s.options) acc.push(...s.options); });
-              return acc;
-            }, []),
-          });
-        } // end if (!syncEngineWasBusy)
+        try {
+          remoteBundles = await bundlesService.getAll(true);
+          dispatch({ type: 'SET_BUNDLES', payload: remoteBundles });
+          await saveProgressively('bundles', localDb.bundles, remoteBundles);
+          await saveProgressively('bundle_items', localDb.bundleItems, remoteBundles.reduce((acc: any[], b: Bundle) => {
+            if (b.items) acc.push(...b.items);
+            return acc;
+          }, []));
+          await saveProgressively('bundle_slots', localDb.bundleSlots, remoteBundles.reduce((acc: any[], b: Bundle) => {
+            if (b.slots) acc.push(...b.slots);
+            return acc;
+          }, []));
+          await saveProgressively('bundle_slot_options', localDb.bundleSlotOptions, remoteBundles.reduce((acc: any[], b: Bundle) => {
+            if (b.slots) b.slots.forEach((s: any) => { if (s.options) acc.push(...s.options); });
+            return acc;
+          }, []));
+          console.log(`[AppContext] Loaded ${remoteBundles.length} bundles from cloud`);
+        } catch (e) {
+          console.warn('[AppContext] Bundle cloud load failed, using local', e);
+        }
 
         // ── ADDITIVE RECONCILIATION: Only add offline-created records that weren't in the cloud set ──
-        // CRITICAL FIX: The old reconciliation re-read ALL of IndexedDB and dispatched it to React state.
-        // This OVERWROTE the fresh cloud data (just dispatched above) with stale IndexedDB data.
-        // New behavior: we only look for records in IndexedDB that are NOT in the merged sets (offline-only creates)
         // and ADD them to state without overwriting the fresh cloud data.
         try {
           const mergedProductIds = new Set(mergedProducts.map((p: any) => p.id));

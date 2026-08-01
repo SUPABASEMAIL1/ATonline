@@ -13,6 +13,7 @@ import { sonner } from '../../lib/sonner';
 import { useTranslation } from '../../hooks/useTranslation';
 import { getDealCountBreakdown, cn } from '../../lib/utils';
 import { Modal } from '../common/Modal';
+import { Badge, Button } from '../../shared/ui';
 import RefundSaleModal from './RefundSaleModal';
 
 interface TransactionDetailModalProps {
@@ -191,11 +192,11 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
     const type = transaction.saleType || 'retail';
     switch (type) {
       case 'wholesale':
-        return { label: 'WHOLESALE', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20' };
+        return { label: 'WHOLESALE', tone: 'info' as const, cls: '!bg-blue-100 dark:!bg-blue-500/10 !text-blue-700 dark:!text-blue-400 !border-blue-200 dark:!border-blue-500/20 !rounded-lg' };
       case 'estore':
-        return { label: 'ONLINE STORE', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20' };
+        return { label: 'ONLINE STORE', tone: 'info' as const, cls: '!bg-indigo-100 dark:!bg-indigo-500/10 !text-indigo-700 dark:!text-indigo-400 !border-indigo-200 dark:!border-indigo-500/20 !rounded-lg' };
       default:
-        return { label: 'RETAIL', color: 'bg-primary/10 text-primary dark:text-emerald-400 border-primary/20' };
+        return { label: 'RETAIL', tone: 'success' as const, cls: '!bg-primary/10 !text-primary dark:!text-emerald-400 !border-primary/20 !rounded-lg' };
     }
   };
 
@@ -212,40 +213,55 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
         footer={
           <div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <button onClick={handlePrev} disabled={!hasPrev} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-3 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest disabled:opacity-30 active:scale-95 transition-all">
+              <Button variant="secondary" onClick={handlePrev} disabled={!hasPrev} className="flex-1 !gap-1.5 !px-3 !py-2.5 sm:!py-3 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !text-gray-900 dark:!text-white hover:!bg-gray-200 dark:hover:!bg-white/10 disabled:!opacity-30">
                 <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span>{t("prev", "Prev")}</span>
-              </button>
-              <button onClick={handleNext} disabled={!hasNext} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 sm:py-3 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/10 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest disabled:opacity-30 active:scale-95 transition-all">
+              </Button>
+              <Button variant="secondary" onClick={handleNext} disabled={!hasNext} className="flex-1 !gap-1.5 !px-3 !py-2.5 sm:!py-3 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !text-gray-900 dark:!text-white hover:!bg-gray-200 dark:hover:!bg-white/10 disabled:!opacity-30">
                 <span>{t("next_sale", "Next Sale")}</span> <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              </button>
+              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 w-full mt-1.5 sm:mt-2">
-              <button onClick={() => onReprint(transaction)} className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-primary text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all">
+              <Button
+                variant="primary"
+                onClick={() => onReprint(transaction)}
+                className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 !gap-1.5 !px-2.5 sm:!px-3 md:!px-5 !py-2.5 sm:!py-3 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !tracking-wider md:!tracking-widest"
+              >
                 <Printer className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("print_receipt", "Print")}</span>
-              </button>
-              <button onClick={handleWhatsAppShare} className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-emerald-50 dark:bg-emerald-900/10 text-primary rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all">
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleWhatsAppShare}
+                className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 !gap-1.5 !px-2.5 sm:!px-3 md:!px-5 !py-2.5 sm:!py-3 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !tracking-wider md:!tracking-widest !bg-emerald-50 dark:!bg-emerald-900/10 !text-primary !border-transparent"
+              >
                 <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("whatsapp", "WhatsApp")}</span>
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
                 onClick={handleRefundSale}
                 disabled={isReconciling || transaction.status === 'refunded'}
-                className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-50 dark:bg-rose-900/10 text-rose-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all disabled:opacity-50"
+                className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 !gap-1.5 !px-2.5 sm:!px-3 md:!px-5 !py-2.5 sm:!py-3 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !tracking-wider md:!tracking-widest !bg-rose-50 dark:!bg-rose-900/10 !text-rose-600 !border-transparent disabled:!opacity-50"
               >
                 <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("refund", "Refund")}</span>
-              </button>
+              </Button>
               {(isAdmin || profile?.canEditSale) && (
-                <button onClick={handleEditSale} disabled={isReconciling} className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-amber-50 dark:bg-amber-900/10 text-amber-600 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all disabled:opacity-50">
+                <Button
+                  variant="secondary"
+                  onClick={handleEditSale}
+                  disabled={isReconciling}
+                  className="flex-1 min-w-[calc(50%-4px)] sm:min-w-0 sm:flex-1 !gap-1.5 !px-2.5 sm:!px-3 md:!px-5 !py-2.5 sm:!py-3 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !tracking-wider md:!tracking-widest !bg-amber-50 dark:!bg-amber-900/10 !text-amber-600 !border-transparent disabled:!opacity-50"
+                >
                   <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("edit", "Edit")}</span>
-                </button>
+                </Button>
               )}
               {isAdmin && (
-                <button
+                <Button
+                  variant="danger"
                   onClick={handleDeleteSale}
                   disabled={isReconciling}
-                  className="flex-1 min-w-full sm:min-w-0 sm:flex-1 flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-5 py-2.5 sm:py-3 bg-rose-500 text-white rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-wider md:tracking-widest active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-rose-500/20"
+                  className="flex-1 min-w-full sm:min-w-0 sm:flex-1 !gap-1.5 !px-2.5 sm:!px-3 md:!px-5 !py-2.5 sm:!py-3 !rounded-2xl !text-[9px] sm:!text-[10px] !font-black !tracking-wider md:!tracking-widest !bg-rose-500 !shadow-lg !shadow-rose-500/20 disabled:!opacity-50"
                 >
                   <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" /> <span className="truncate">{t("delete", "Delete")}</span>
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -256,17 +272,18 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
           {(onBack || transaction.saleType) && (
             <div className="flex items-center justify-between gap-2 flex-wrap">
               {onBack && (
-                <button
+                <Button
+                  variant="secondary"
                   onClick={onBack}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300 transition-all active:scale-95"
+                  className="!min-h-0 !gap-1.5 !px-3 !py-1.5 !rounded-lg !text-[9px] !font-black !text-gray-700 dark:!text-gray-300 !bg-gray-100 dark:!bg-white/5 hover:!bg-gray-200 dark:hover:!bg-white/10"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   <span>Back to Customer</span>
-                </button>
+                </Button>
               )}
-              <span className={`px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded-lg border ${sourceTag.color} ml-auto`}>
+              <Badge tone={sourceTag.tone} size="sm" className={`${sourceTag.cls} !text-[8px] !px-2 !py-0.5 ml-auto`}>
                 {sourceTag.label}
-              </span>
+              </Badge>
             </div>
           )}
 
@@ -285,9 +302,9 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
 
           {onBack && (
             <div className="flex items-center justify-center mb-0">
-              <span className="text-[9px] font-black bg-primary/10 text-primary dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest">
+              <Badge tone="success" size="sm" className="!bg-primary/10 !text-primary dark:!text-emerald-400">
                 {getDealCountBreakdown(transaction.items, state.bundles).label}
-              </span>
+              </Badge>
             </div>
           )}
 

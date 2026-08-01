@@ -1,6 +1,8 @@
 import { TrendingUp, TrendingDown, DollarSign, Wallet, Banknote, CreditCard, Smartphone, Building2, FileText } from 'lucide-react';
-import { formatCurrency } from '../../../lib/currencies';
+import { formatCurrency, getCurrencySymbol } from '../../../lib/currencies';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { ExportButton } from '../../../shared/export';
+import { useMemo } from 'react';
 
 interface WalletStat {
   method: string;
@@ -28,8 +30,37 @@ export function FinancialReport({
 }: FinancialReportProps) {
   const { t } = useTranslation();
 
+  const exportColumns = [
+    { key: 'metric', label: t('metric', 'Metric') },
+    { key: 'value', label: t('value', 'Value') },
+  ];
+
+  const exportRows = useMemo(() => {
+    const rows = [
+      { metric: t('total_revenue', 'Total Revenue'), value: totalRevenue },
+      { metric: t('total_transactions', 'Total Transactions'), value: totalTransactions },
+      { metric: t('cost_of_goods', 'Cost of Goods'), value: totalCostOfGoods },
+      { metric: t('gross_profit', 'Gross Profit'), value: grossProfit },
+      { metric: t('total_expenses', 'Total Expenses'), value: totalExpenseAmount },
+      { metric: t('net_profit', 'Net Profit'), value: netProfit },
+    ];
+    walletStats.forEach(w => {
+      rows.push({ metric: `${t('wallet_net', 'Wallet Net')} (${w.method})`, value: w.net });
+    });
+    return rows;
+  }, [t, totalRevenue, totalTransactions, totalCostOfGoods, grossProfit, totalExpenseAmount, netProfit, walletStats]);
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <ExportButton
+          data={exportRows}
+          columns={exportColumns}
+          title={t('financial_report', 'Financial Report')}
+          currencySymbol={getCurrencySymbol(currency)}
+          className="!min-h-0 !px-4 !py-2.5 !rounded-xl !text-[10px] !font-black !bg-gray-100 dark:!bg-white/5 !text-gray-600 dark:!text-gray-400 !border-gray-200 dark:!border-white/5 hover:!text-primary"
+        />
+      </div>
       {/* Main Profit Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="stat-card bg-gradient-to-br from-blue-600 to-indigo-700">

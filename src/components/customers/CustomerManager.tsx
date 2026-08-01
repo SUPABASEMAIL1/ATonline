@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Edit, Trash2, User, Mail, Phone, CreditCard, Eye, MessageCircle, Building2, Users, ChevronLeft, ChevronRight, Receipt, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, User, Mail, Phone, CreditCard, Eye, MessageCircle, Building2, Users, Receipt, AlertTriangle } from 'lucide-react';
 import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Customer } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -10,6 +10,8 @@ import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { useTranslation } from '../../hooks/useTranslation';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Badge, Button, EmptyState, Pagination } from '../../shared/ui';
 
 export function CustomerManager() {
   const { state, dispatch } = useApp();
@@ -244,28 +246,25 @@ export function CustomerManager() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="primary"
             onClick={handleAddCustomer}
-            className="btn btn-md btn-primary"
+            icon={<Plus className="h-3.5 w-3.5" />}
           >
-            <Plus className="h-3.5 w-3.5" /> <span>{t("add_customer", "Add Customer")}</span>
-          </button>
+            {t("add_customer", "Add Customer")}
+          </Button>
         </div>
       </div>
 
       {/* Layer 2: Filter Toolbar */}
       <div className="relative z-30 bg-white/50 dark:bg-black/20 p-3 lg:p-4 rounded-[1.75rem] border border-gray-200/50 dark:border-white/5 shadow-xl ring-1 ring-black/5 dark:ring-white/5">
         <div className="flex flex-col xl:flex-row gap-4">
-          <div className="relative flex-1 group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 group-focus-within:text-primary transition-colors" />
-            <input
-              type="text"
-              placeholder={t("search_customers_placeholder", "Search customers...")}
-              className="w-full bg-gray-50 dark:bg-black/30 border-none pl-11 pr-4 py-2.5 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600 focus:bg-white dark:focus:bg-black/75 shadow-inner"
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            />
-          </div>
+          {/* Search — shared module */}
+          <SharedSearchBar
+            value={searchTerm}
+            onChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+            placeholder={t("search_customers_placeholder", "Search customers...")}
+          />
 
           <div className="grid grid-cols-2 sm:flex items-center gap-2">
             <SearchableSelect
@@ -368,10 +367,11 @@ export function CustomerManager() {
               {filteredCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-20 text-center">
-                    <div className="flex flex-col items-center gap-3 opacity-20">
-                      <User className="h-12 w-12 text-gray-600" />
-                      <p className="text-xs font-black uppercase tracking-widest">{t("no_customers_found", "No customers found")}</p>
-                    </div>
+                    <EmptyState
+                      icon={<User className="h-12 w-12 text-gray-600" />}
+                      title={t("no_customers_found", "No customers found")}
+                      className="!p-0 !opacity-20"
+                    />
                   </td>
                 </tr>
               ) : (
@@ -386,10 +386,9 @@ export function CustomerManager() {
                           <div className="flex items-center gap-2">
                             <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase leading-none">{customer.name}</p>
                             {(customer.creditUsed || 0) > 0 && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[8px] font-black uppercase rounded-full border border-rose-200 dark:border-rose-500/20">
-                                <AlertTriangle className="h-2.5 w-2.5" />
+                              <Badge tone="danger" size="sm" icon={<AlertTriangle className="h-2.5 w-2.5" />}>
                                 {formatCurrency(customer.creditUsed, state.settings.currency)}
-                              </span>
+                              </Badge>
                             )}
                           </div>
                           <p className="text-[9px] text-gray-600 dark:text-gray-400 font-bold mt-1 uppercase tracking-widest">ID: {customer.id.substring(0, 8)}</p>
@@ -404,37 +403,45 @@ export function CustomerManager() {
                       {formatCurrency(getCustomerTotalPurchases(customer.id, customer.totalPurchases), state.settings.currency)}
                     </td>
                     <td className="p-4 text-center">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-gray-500/10 dark:bg-gray-400/10 text-gray-600 dark:text-gray-400 border border-gray-500/20">
+                      <Badge tone="neutral" size="sm">
                         {customer.lastPurchase ? formatAppDate(customer.lastPurchase, state.settings.country) : t("never", "NEVER")}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex justify-end items-center gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() => handleViewCustomer(customer)}
-                          className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                          aria-label="View customer"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-blue-50 dark:!bg-blue-500/10 !text-blue-600 hover:!scale-110 active:!scale-95"
                         >
                           <Eye className="h-3.5 w-3.5" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
                           onClick={() => customer.phone && handleWhatsAppRedirect(customer.phone)}
                           disabled={!customer.phone}
-                          className="p-2 bg-emerald-50 dark:bg-primary/10 text-primary rounded-xl hover:scale-110 active:scale-95 transition-transform disabled:opacity-30"
+                          aria-label="Send WhatsApp message"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-emerald-50 dark:!bg-primary/10 !text-primary hover:!scale-110 active:!scale-95 disabled:!opacity-30"
                         >
                           <MessageCircle className="h-3.5 w-3.5" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
                           onClick={() => handleEditCustomer(customer)}
-                          className="p-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                          aria-label="Edit customer"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-amber-50 dark:!bg-amber-500/10 !text-amber-600 hover:!scale-110 active:!scale-95"
                         >
                           <Edit className="h-3.5 w-3.5" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
                           onClick={() => handleDeleteCustomer(customer.id)}
-                          className="p-2 bg-red-50 dark:bg-red-500/10 text-red-600 rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                          aria-label="Delete customer"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-red-50 dark:!bg-red-500/10 !text-red-600 hover:!scale-110 active:!scale-95"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -447,10 +454,11 @@ export function CustomerManager() {
         {/* Mobile Card View (Expert Density) */}
         <div className="lg:hidden p-3 sm:p-4">
           {filteredCustomers.length === 0 ? (
-            <div className="text-center py-10">
-              <User className="h-10 w-10 mx-auto mb-3 opacity-10" />
-              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t("no_customers_found", "No customers found")}</p>
-            </div>
+            <EmptyState
+              icon={<User className="h-10 w-10 text-gray-600 opacity-10" />}
+              title={t("no_customers_found", "No customers found")}
+              className="!py-10"
+            />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
               {paginatedCustomers.map((customer: Customer) => (
@@ -465,18 +473,22 @@ export function CustomerManager() {
                         <User className="h-4 w-4 text-primary" />
                       </div>
                       <div className="flex gap-1">
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={(e) => { e.stopPropagation(); customer.phone && handleWhatsAppRedirect(customer.phone); }}
-                          className="p-1.5 bg-emerald-50 dark:bg-primary/10 text-primary rounded-lg"
+                          aria-label="Send WhatsApp message"
+                          className="!min-h-0 !p-1.5 !rounded-lg !bg-emerald-50 dark:!bg-primary/10 !text-primary"
                         >
                           <MessageCircle className="w-3 h-3" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
                           onClick={(e) => { e.stopPropagation(); handleEditCustomer(customer); }}
-                          className="p-1.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-lg"
+                          aria-label="Edit customer"
+                          className="!min-h-0 !p-1.5 !rounded-lg !bg-amber-50 dark:!bg-amber-500/10 !text-amber-600"
                         >
                           <Edit className="w-3 h-3" />
-                        </button>
+                        </Button>
                       </div>
                     </div>
 
@@ -484,10 +496,9 @@ export function CustomerManager() {
                       {customer.name}
                     </h3>
                     {(customer.creditUsed || 0) > 0 && (
-                      <span className="inline-flex items-center gap-1 mb-1 px-1.5 py-0.5 bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[7px] font-black uppercase rounded-full">
-                        <AlertTriangle className="h-2 w-2" />
+                      <Badge tone="danger" size="sm" icon={<AlertTriangle className="h-2 w-2" />}>
                         {formatCurrency(customer.creditUsed, state.settings.currency)}
-                      </span>
+                      </Badge>
                     )}
                     <p className="text-[8px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-tight mb-3 truncate">
                       {customer.phone || 'NO PHONE'}
@@ -512,14 +523,12 @@ export function CustomerManager() {
         {totalPages > 1 && (
           <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
             <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredCustomers.length)} {t("of", "of")} {filteredCustomers.length}</p>
-            <div className="flex items-center gap-1.5 mx-auto sm:mx-0">
-              <button disabled={currentPage === 1} onClick={() => { setCurrentPage(prev => Math.max(1, prev - 1)); }} className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"><ChevronLeft className="h-4 w-4" /></button>
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[150px] sm:max-w-none">
-                {[...Array(totalPages)].map((_, i) => (
-                  <button key={i + 1} onClick={() => setCurrentPage(i + 1)} className={`min-w-[32px] h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === i + 1 ? 'bg-primary text-white shadow-lg' : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5'}`}>{i + 1}</button>
-                ))}
-              </div>
-              <button disabled={currentPage === totalPages} onClick={() => { setCurrentPage(prev => Math.min(totalPages, prev + 1)); }} className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"><ChevronRight className="h-4 w-4" /></button>
+            <div className="mx-auto sm:mx-0">
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
             </div>
           </div>
         )}

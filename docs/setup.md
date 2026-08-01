@@ -173,9 +173,9 @@ v12.2/
 | 12 | `purchase_records` | Inventory ledger | `id`, `type`, `product_id`, `quantity`, `cost_price` |
 | 13 | `purchase_orders` | PO headers | `id`, `po_number`, `supplier_id`, `status`, `total_amount` |
 | 14 | `purchase_order_items` | PO line items | `id`, `po_id`, `product_id`, `quantity`, `cost_price` |
-| 15 | `supplier_transactions` | Supplier khata | `id`, `supplier_id`, `type`, `amount`, `balance_after` |
-| 16 | `payments` | Supplier payments | `id`, `supplier_id`, `amount`, `payment_type`, `direction` |
-| 17 | `stock_history` | Inventory audit trail | `id`, `product_id`, `change_qty`, `type`, `balance_after` |
+| 15 | `supplier_transactions` | Supplier khata | `id`, `supplier_id`, `type`, `amount`, `balance_after`, `updated_at` |
+| 16 | `payments` | Supplier payments | `id`, `supplier_id`, `amount`, `payment_type`, `direction`, `updated_at` |
+| 17 | `stock_history` | Inventory audit trail | `id`, `product_id`, `change_qty`, `type`, `balance_after`, `updated_at` |
 | 18 | `bundles` | Bundle/combo offers | `id`, `name`, `price`, `active` |
 | 19 | `bundle_items` | Items in bundle | `id`, `bundle_id`, `product_id`, `quantity` |
 | 20 | `bundle_slots` | Bundle slots | `id`, `bundle_id`, `label` |

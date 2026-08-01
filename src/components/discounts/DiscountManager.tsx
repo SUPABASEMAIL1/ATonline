@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Percent, Gift } from 'lucide-react';
+import { Plus, Edit, Trash2, Percent, Gift } from 'lucide-react';
 import { Discount } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { DiscountModal } from './DiscountModal';
 import { sonner } from '../../lib/sonner';
 import { formatAppDate } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Button, Badge, EmptyState } from '../../shared/ui';
 
 export function DiscountManager() {
   const { state, dispatch } = useApp();
@@ -91,6 +93,18 @@ export function DiscountManager() {
     }
   };
 
+  const getDiscountTypeTone = (type: string) => {
+    switch (type) {
+      case 'percentage':
+      case 'fixed':
+        return 'success';
+      case 'free_gift':
+        return 'info';
+      default:
+        return 'neutral';
+    }
+  };
+
   return (
     <div className="main-content-scroll p-3 sm:p-4 lg:p-6 bg-gray-50/50 dark:bg-app space-y-3 lg:space-y-6">
       {/* Header */}
@@ -107,13 +121,13 @@ export function DiscountManager() {
           </div>
         </div>
 
-        <button
+        <Button
+          variant="primary"
           onClick={handleAddDiscount}
-          className="btn btn-md btn-primary"
+          icon={<Plus className="h-3.5 w-3.5" />}
         >
-          <Plus className="h-3.5 w-3.5" />
           <span>{t("add_discount", "Add Discount")}</span>
-        </button>
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -154,14 +168,11 @@ export function DiscountManager() {
       {/* Controls */}
       <div className="card p-4 lg:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0 gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600 h-5 w-5" />
-            <input
-              type="text"
-              placeholder={t("search_discounts_placeholder", "Search discounts...")}
+          <div className="flex-1 max-w-md">
+            <SharedSearchBar
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10"
+              onChange={setSearchTerm}
+              placeholder={t("search_discounts_placeholder", "Search discounts...")}
             />
           </div>
         </div>
@@ -183,6 +194,17 @@ export function DiscountManager() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-surface divide-y divide-gray-200 dark:divide-white/5">
+              {filteredDiscounts.length === 0 && (
+                <tr>
+                  <td colSpan={7}>
+                    <EmptyState
+                      icon={<Gift className="h-12 w-12" />}
+                      title={t("no_discounts_found", "No discounts found")}
+                      subtext={t("no_discounts_subtext", "Create your first promotional offer")}
+                    />
+                  </td>
+                </tr>
+              )}
               {filteredDiscounts.map((discount) => (
                 <tr key={discount.id} className="table-row">
                   <td className="table-cell" data-label="Discount">
@@ -192,10 +214,10 @@ export function DiscountManager() {
                     </div>
                   </td>
                   <td className="table-cell hidden sm:table-cell" data-label="Type">
-                    <span className={`badge ${getDiscountTypeColor(discount.type)} flex items-center space-x-1`}>
+                    <Badge tone={getDiscountTypeTone(discount.type) as 'success' | 'info' | 'neutral'} className={`${getDiscountTypeColor(discount.type)} capitalize !text-xs !px-3 !font-medium`}>
                       {getDiscountTypeIcon(discount.type)}
-                      <span className="capitalize">{discount.type.replace('_', ' ')}</span>
-                    </span>
+                      <span>{discount.type.replace('_', ' ')}</span>
+                    </Badge>
                   </td>
                   <td className="table-cell font-semibold" data-label="Value">
                     {discount.type === 'percentage' && `${discount.value}%`}
@@ -224,18 +246,20 @@ export function DiscountManager() {
                   </td>
                   <td className="table-cell text-right">
                     <div className="flex items-center justify-end space-x-2">
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={() => handleEditDiscount(discount)}
-                        className="text-primary dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                        className="!min-h-0 !p-2 !rounded-lg !text-primary dark:!text-emerald-400 hover:!text-emerald-900 dark:hover:!text-emerald-300 hover:!bg-emerald-50 dark:hover:!bg-emerald-900/20"
                       >
                         <Edit className="h-4 w-4" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
                         onClick={() => handleDeleteDiscount(discount.id)}
-                        className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                        className="!min-h-0 !p-2 !rounded-lg !text-red-600 hover:!text-red-900 hover:!bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>

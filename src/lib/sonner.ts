@@ -1,32 +1,41 @@
 import { toast } from 'sonner';
 import { dialog } from './dialog';
 
+export interface SonnerToastOptions {
+  duration?: number;
+  id?: string | number;
+}
+
 export const sonner = {
   // Success toast (Using Sonner)
-  success: (message: string) => {
+  success: (message: string, options?: SonnerToastOptions) => {
     return toast.success(message, {
       duration: 3000,
+      ...options,
     });
   },
 
   // Error toast (Using Sonner)
-  error: (message: string) => {
+  error: (message: string, options?: SonnerToastOptions) => {
     return toast.error(message, {
       duration: 5000,
+      ...options,
     });
   },
 
   // Warning toast (Using Sonner)
-  warning: (message: string) => {
+  warning: (message: string, options?: SonnerToastOptions) => {
     return toast.warning(message, {
       duration: 4000,
+      ...options,
     });
   },
 
   // Info toast (Using Sonner)
-  info: (message: string) => {
+  info: (message: string, options?: SonnerToastOptions) => {
     return toast.info(message, {
       duration: 3000,
+      ...options,
     });
   },
 

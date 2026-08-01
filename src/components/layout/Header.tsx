@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  User, Settings, LogOut, ShoppingCart, Monitor, Smartphone, Menu, X, Percent,
-  Receipt, Package, Users, BarChart3, Sun, Moon, Wallet, RefreshCw,
-  ChevronLeft, ChevronRight, Activity, Building2, Bell, ChevronDown, MoreHorizontal
+  Settings, LogOut, X, Sun, Moon, RefreshCw,
+  ChevronLeft, ChevronRight, Bell
 } from 'lucide-react';
 import { AppIcons } from '../../lib/icons';
 import { settingsService } from '../../lib/services';
@@ -13,6 +12,7 @@ import { sonner } from '../../lib/sonner';
 import { SyncStatusBadge } from './SyncStatusBadge';
 import { formatCurrency } from '../../lib/currencies';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button, Avatar } from '../../shared/ui';
 
 interface HeaderProps {
   onShowMobileMenu?: () => void;
@@ -245,12 +245,15 @@ export function Header({
         {/* ── Scrollable Nav (Desktop & Tablet/Laptop) ── */}
         <div className="hidden md:flex items-center flex-1 min-w-0 relative">
           {canScrollLeft && (
-            <button onClick={() => scrollNav('left')}
-              className="absolute left-0 z-10 flex items-center justify-center w-8 h-full
-                         bg-gradient-to-r from-white dark:from-[#0A0A0A] to-transparent
-                         text-gray-600 hover:text-primary transition-colors">
+            <Button
+              variant="ghost"
+              onClick={() => scrollNav('left')}
+              aria-label="Scroll navigation left"
+              className="!absolute !left-0 !z-10 !w-8 !h-full !min-h-0 !p-0 !rounded-none !justify-center
+                         !bg-gradient-to-r !from-white dark:!from-[#0A0A0A] !to-transparent
+                         !text-gray-600 hover:!text-primary !transition-colors">
               <ChevronLeft className="w-4 h-4" />
-            </button>
+            </Button>
           )}
           <div ref={navRef}
             className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth w-full snap-x snap-mandatory px-4 lg:px-6"
@@ -278,12 +281,15 @@ export function Header({
             })}
           </div>
           {canScrollRight && (
-            <button onClick={() => scrollNav('right')}
-              className="absolute right-0 z-10 flex items-center justify-center w-8 h-full
-                         bg-gradient-to-l from-white dark:from-[#0A0A0A] to-transparent
-                         text-gray-600 hover:text-primary transition-colors">
+            <Button
+              variant="ghost"
+              onClick={() => scrollNav('right')}
+              aria-label="Scroll navigation right"
+              className="!absolute !right-0 !z-10 !w-8 !h-full !min-h-0 !p-0 !rounded-none !justify-center
+                         !bg-gradient-to-l !from-white dark:!from-[#0A0A0A] !to-transparent
+                         !text-gray-600 hover:!text-primary !transition-colors">
               <ChevronRight className="w-4 h-4" />
-            </button>
+            </Button>
           )}
         </div>
 
@@ -297,7 +303,8 @@ export function Header({
           <SyncStatusBadge />
 
           {/* Force Sync */}
-          <button
+          <Button
+            variant="ghost"
             onClick={async () => {
               sonner.loading(t('clear_toast', 'Force cleaning system cache & syncing...'));
               try {
@@ -317,24 +324,24 @@ export function Header({
               }
             }}
             title="Force Fresh Cloud Sync & Clear Cache"
-            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center flex-shrink-0 rounded-full text-blue-500 hover:text-blue-700 dark:hover:text-blue-300
-                       hover:bg-blue-500/10 dark:hover:bg-blue-500/15 active:scale-95 transition-all"
+            className="!min-h-0 !w-8 !h-8 sm:!w-9 sm:!h-9 !p-0 !rounded-full !text-blue-500 hover:!text-blue-700 dark:hover:!text-blue-300 hover:!bg-blue-500/10 dark:hover:!bg-blue-500/15"
           >
             <RefreshCw className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-          </button>
+          </Button>
 
           {/* Theme Toggle */}
-          <button
+          <Button
+            variant="ghost"
             onClick={toggleTheme}
             title={state.settings.theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center flex-shrink-0 rounded-full transition-all active:scale-95 ${
+            className={`!min-h-0 !w-8 !h-8 sm:!w-9 sm:!h-9 !p-0 !rounded-full ${
               state.settings.theme === 'dark'
-                ? 'text-amber-400 hover:bg-amber-400/10'
-                : 'text-blue-600 hover:bg-blue-600/10'
+                ? '!text-amber-400 hover:!bg-amber-400/10'
+                : '!text-blue-600 hover:!bg-blue-600/10'
             }`}
           >
             {state.settings.theme === 'dark' ? <Sun className="h-4.5 w-4.5 sm:h-5 sm:w-5" /> : <Moon className="h-4.5 w-4.5 sm:h-5 sm:w-5" />}
-          </button>
+          </Button>
 
           {/* ── User Section ── */}
           <div
@@ -353,25 +360,30 @@ export function Header({
               </div>
             </div>
 
-            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-emerald-500 to-blue-600
-                            flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0 transition-all active:scale-95">
-              {state.currentUser?.avatar
-                ? <img src={state.currentUser.avatar} alt="Avatar" className="h-full w-full object-cover" />
-                : <User className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-white" />}
-            </div>
+            <Avatar
+              src={state.currentUser?.avatar || undefined}
+              name={state.currentUser?.name || 'Z'}
+              size="sm"
+              className="!h-8 !w-8 sm:!h-9 sm:!w-9 !shadow-sm active:!scale-95"
+            />
 
             <div className="hidden md:flex items-center gap-0.5">
-              <button onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
-                className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white
-                           hover:bg-gray-100 dark:hover:bg-white/10 active:scale-95 transition-all">
+              <Button
+                variant="ghost"
+                onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
+                aria-label="Settings"
+                className="!min-h-0 !p-2 !rounded-full !text-gray-500 hover:!text-gray-700 dark:!text-gray-400 dark:hover:!text-white hover:!bg-gray-100 dark:hover:!bg-white/10"
+              >
                 <Settings className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 onClick={(e) => { e.stopPropagation(); handleLogout(); }}
-                className="p-2 rounded-full text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400
-                           hover:bg-red-500/10 dark:hover:bg-red-500/15 active:scale-95 transition-all">
+                aria-label="Sign out"
+                className="!min-h-0 !p-2 !rounded-full !text-gray-500 hover:!text-red-500 dark:!text-gray-400 dark:hover:!text-red-400 hover:!bg-red-500/10 dark:hover:!bg-red-500/15"
+              >
                 <LogOut className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -397,9 +409,14 @@ export function Header({
                 <div className="w-1 h-6 bg-primary rounded-full" />
                 <h2 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tighter">ZAYNAHSPOS.COM</h2>
               </div>
-              <button onClick={() => onHideMobileMenu?.()} className="p-1.5 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-all active:scale-90 text-gray-600 dark:text-gray-400">
+              <Button
+                variant="ghost"
+                onClick={() => onHideMobileMenu?.()}
+                aria-label="Close menu"
+                className="!min-h-0 !p-1.5 !rounded-xl !bg-gray-50 dark:!bg-white/5 hover:!bg-gray-100 dark:hover:!bg-white/10 !text-gray-600 dark:!text-gray-400 active:!scale-90"
+              >
                 <X className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
 
             <div 
@@ -408,11 +425,13 @@ export function Header({
             >
               {/* User card at top */}
               <div className="flex items-center gap-3 p-2 rounded-[1rem] bg-gray-50/50 dark:bg-primary/5 border border-gray-200/50 dark:border-primary/10 mb-1.5 shadow-sm mx-4">
-                <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-emerald-500 to-blue-600 flex items-center justify-center overflow-hidden shadow-lg flex-shrink-0 ring-2 ring-white dark:ring-white/5">
-                  {state.currentUser?.avatar
-                    ? <img src={state.currentUser.avatar} alt="Avatar" className="h-full w-full object-cover" />
-                    : <User className="h-8 w-8 text-white" />}
-                </div>
+                <Avatar
+                  src={state.currentUser?.avatar || undefined}
+                  name={state.currentUser?.name || 'Z'}
+                  size="sm"
+                  shape="square"
+                  className="!h-9 !w-9 !rounded-lg !ring-2 !ring-white dark:!ring-white/5 !shadow-lg"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight leading-tight truncate">
                     {state.currentUser?.name}
@@ -460,8 +479,11 @@ export function Header({
               <p className="px-6 mb-2 text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-[0.2em]">{t('system_account', 'System & Account')}</p>
 
               <div className="flex flex-col gap-2 px-4 pb-6">
-                <button onClick={toggleTheme}
-                  className="flex items-center justify-between w-full p-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-all border border-gray-200 dark:border-white/5 active:scale-95">
+                <Button
+                  variant="secondary"
+                  onClick={toggleTheme}
+                  className="!min-h-0 !justify-between !w-full !p-2.5 !rounded-xl !text-[11px] !font-black !bg-gray-50 dark:!bg-white/5 !text-gray-700 dark:!text-gray-300 hover:!bg-gray-100 dark:hover:!bg-white/10 !border-gray-200 dark:!border-white/5"
+                >
                   <div className="flex items-center gap-3">
                     {state.settings.theme === 'dark' ? <AppIcons.moon className="h-5 w-5 text-blue-400" /> : <AppIcons.sun className="h-5 w-5 text-amber-500" />}
                     <span>{state.settings.theme === 'dark' ? t('theme_dark', 'Dark Mode') : t('theme_light', 'Light Mode')}</span>
@@ -469,24 +491,29 @@ export function Header({
                   <div className={`w-10 h-5 rounded-full p-1 transition-colors ${state.settings.theme === 'dark' ? 'bg-primary' : 'bg-gray-300'}`}>
                     <div className={`w-3 h-3 bg-white rounded-full transition-transform ${state.settings.theme === 'dark' ? 'translate-x-5' : ''}`} />
                   </div>
-                </button>
+                </Button>
 
-                <button onClick={() => { navigate('/settings'); onHideMobileMenu?.(); }}
-                  className="flex items-center gap-3 p-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-all border border-gray-200 dark:border-white/5">
+                <Button
+                  variant="secondary"
+                  onClick={() => { navigate('/settings'); onHideMobileMenu?.(); }}
+                  className="!min-h-0 !justify-start !w-full !gap-3 !p-2.5 !rounded-xl !text-[11px] !font-black !bg-gray-50 dark:!bg-white/5 !text-gray-700 dark:!text-gray-300 hover:!bg-gray-100 dark:hover:!bg-white/10 !border-gray-200 dark:!border-white/5"
+                >
                   <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-500">
                     <AppIcons.settings className="w-5 h-5" />
                   </div>
                   {t('settings', 'Settings')}
-                </button>
+                </Button>
 
-                <button
+                <Button
+                  variant="danger"
                   onClick={() => { onHideMobileMenu?.(); handleLogout(); }}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-red-500/20 active:scale-95 transition-all">
+                  className="!min-h-0 !justify-start !w-full !gap-3 !px-4 !py-3.5 !bg-red-500 !rounded-2xl !font-black !shadow-xl !shadow-red-500/20 hover:!opacity-100"
+                >
                   <div className="p-2.5 rounded-2xl bg-white/20 text-white">
                     <AppIcons.logout className="h-5 w-5" />
                   </div>
                   {t('logout', 'Logout Account')}
-                </button>
+                </Button>
               </div>
 
               {/* Version / Copyright */}

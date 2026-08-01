@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { User, Phone, CreditCard, ShoppingBag, Receipt, MessageCircle, Banknote, RefreshCw, CheckCircle2, Save, AlertTriangle, ArrowDownLeft, ArrowUpRight, Wallet, Smartphone, Building2, FileText, ChevronRight } from 'lucide-react';
+import { Phone, CreditCard, ShoppingBag, Receipt, MessageCircle, Banknote, RefreshCw, CheckCircle2, AlertTriangle, ArrowDownLeft, Wallet, Smartphone, Building2, FileText, ChevronRight } from 'lucide-react';
 import { Customer, Sale } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { formatCurrency, getCurrencySymbol } from '../../lib/currencies';
@@ -10,6 +10,7 @@ import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { TransactionDetailModal } from '../transactions/TransactionDetailModal';
+import { Badge, Button, EmptyState, ToggleSwitch } from '../../shared/ui';
 
 interface CustomerDetailModalProps {
   customer: Customer;
@@ -104,41 +105,45 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
   const footer = (
     <div className="flex items-center justify-between gap-2 sm:gap-3 w-full">
       {customer.creditUsed > 0 && (
-        <button
+        <Button
+          variant="ghost"
           onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-          className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 sm:py-3 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-2xl sm:rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all active:scale-95 shrink-0"
+          className="!min-h-0 !gap-1.5 sm:!gap-2 !px-3 sm:!px-5 !py-2.5 sm:!py-3 !bg-rose-500/10 !text-rose-600 dark:!text-rose-400 !border !border-rose-500/20 !rounded-2xl sm:!rounded-full !text-[9px] sm:!text-[10px] !font-black hover:!bg-rose-500/20 !shrink-0 !justify-start"
         >
           <ArrowDownLeft className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
           <span className="hidden sm:inline">Collect Payment</span>
           <span className="sm:hidden">Collect</span>
-        </button>
+        </Button>
       )}
-      <button
+      <Button
+        variant="secondary"
         onClick={onClose}
-        className="ml-auto px-4 sm:px-8 py-2.5 sm:py-3 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl sm:rounded-full transition-all active:scale-95 shrink-0"
+        className="!min-h-0 !ml-auto !px-4 sm:!px-8 !py-2.5 sm:!py-3 !text-[9px] sm:!text-[11px] !font-black !rounded-2xl sm:!rounded-full !border-gray-200 dark:!border-white/10 !shrink-0"
       >
         {t('close')}
-      </button>
+      </Button>
     </div>
   );
 
   const paymentFooter = (
     <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setShowPaymentModal(false)}
-        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+        className="!min-h-0 !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px] !font-black !text-[#ff4b6e] !border !border-rose-200 dark:!border-rose-900/30 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !shrink-0"
       >
         {t('discard')}
-      </button>
-      <button
+      </Button>
+      <Button
+        variant="primary"
         onClick={handleAddPayment}
         disabled={isSubmitting || !paymentAmount}
-        className="btn btn-md btn-primary flex-1 hover:bg-emerald-700 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+        className="!flex-1 hover:!bg-emerald-700 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
       >
         {isSubmitting ? <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
         <span>{isSubmitting ? 'Saving...' : 'Confirm Receipt'}</span>
-      </button>
+      </Button>
     </div>
   );
 
@@ -169,13 +174,14 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   </p>
                 </div>
               </div>
-              <button
+              <Button
+                variant="primary"
                 onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-primary active:scale-95 transition-all shadow-lg shadow-emerald-500/30"
+                className="!min-h-0 !gap-2 !px-4 !py-2.5 !rounded-full !text-[10px] !font-black hover:!bg-primary !shadow-lg !shadow-emerald-500/30"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Wasool Karo
-              </button>
+              </Button>
             </div>
           )}
 
@@ -242,13 +248,15 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                         <p className="text-sm font-black text-gray-900 dark:text-white">{customer.phone || 'Not set'}</p>
                       </div>
                     </div>
-                    <button
+                    <Button
+                      variant="primary"
                       onClick={() => customer.phone && window.open(`https://wa.me/${customer.phone.replace(/\D/g, '')}`, '_blank')}
                       disabled={!customer.phone}
-                      className="p-2.5 bg-primary text-white rounded-xl shadow-lg shadow-emerald-500/20 active:scale-90 transition-all disabled:opacity-30"
+                      aria-label="Send WhatsApp message"
+                      className="!min-h-0 !p-2.5 !rounded-xl !shadow-lg !shadow-emerald-500/20 active:!scale-90 disabled:!opacity-30"
                     >
                       <MessageCircle className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </div>
                   <div className="p-4 bg-gray-50 dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5">
                     <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1">Address</p>
@@ -280,19 +288,21 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                     </div>
                     {customer.creditUsed > 0 && (
                       <div className="grid grid-cols-2 gap-2">
-                        <button
+                        <Button
+                          variant="primary"
                           onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-                          className="py-3 bg-primary text-white rounded-full font-black text-[9px] uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+                          className="!min-h-0 !gap-1.5 !py-3 !rounded-full !text-[9px] !font-black hover:!bg-emerald-700 !shadow-lg !shadow-emerald-500/20"
                         >
                           <CheckCircle2 className="h-3 w-3" />
                           Full — {formatCurrency(customer.creditUsed, state.settings.currency)}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="primary"
                           onClick={() => { setPaymentAmount(''); setShowPaymentModal(true); }}
-                          className="py-3 bg-blue-600 text-white rounded-full font-black text-[9px] uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-500/20"
+                          className="!min-h-0 !gap-1.5 !py-3 !rounded-full !text-[9px] !font-black !bg-blue-600 hover:!bg-blue-700 !shadow-lg !shadow-blue-500/20"
                         >
                           Partial Amount
-                        </button>
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -325,15 +335,16 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                           </div>
                         </div>
                         <div className="flex gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 text-[8px] font-black uppercase rounded-lg border border-rose-200 dark:border-rose-500/20">Udhaar / Credit</span>
-                          <span className="px-2 py-0.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 text-[8px] font-black uppercase rounded-lg border border-orange-200/50">Pending</span>
+                          <Badge tone="danger" size="sm" className="!rounded-lg !text-[8px] !px-2 !py-0.5 !bg-rose-100 dark:!bg-rose-500/10 !text-rose-700 dark:!text-rose-400 !border-rose-200 dark:!border-rose-500/20">Udhaar / Credit</Badge>
+                          <Badge tone="warning" size="sm" className="!rounded-lg !text-[8px] !px-2 !py-0.5 !bg-orange-50 dark:!bg-orange-500/10 !text-orange-600 !border-orange-200/50">Pending</Badge>
                         </div>
-                        <button
+                        <Button
+                          variant="secondary"
                           onClick={(e) => { e.stopPropagation(); setPaymentAmount(String(tx.total)); setShowPaymentModal(true); }}
-                          className="w-full py-2 bg-primary/10 text-emerald-700 dark:text-emerald-400 border border-primary/20 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95"
+                          className="!min-h-0 !w-full !py-2 !bg-primary/10 !text-emerald-700 dark:!text-emerald-400 !border-primary/20 hover:!bg-primary/20 !rounded-xl !text-[9px] !font-black"
                         >
                           ✓ Collect {formatCurrency(tx.total, state.settings.currency)}
-                        </button>
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -362,8 +373,8 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 text-[8px] font-black uppercase rounded-lg border border-blue-100 dark:border-blue-500/20">{tx.paymentMethod}</span>
-                          <span className="px-2 py-0.5 bg-emerald-50 dark:bg-primary/10 text-primary text-[8px] font-black uppercase rounded-lg border border-emerald-100 dark:border-primary/20">{tx.status}</span>
+                          <Badge tone="info" size="sm" className="!rounded-lg !text-[8px] !px-2 !py-0.5 !bg-blue-50 dark:!bg-blue-500/10 !text-blue-600 !border-blue-100 dark:!border-blue-500/20">{tx.paymentMethod}</Badge>
+                          <Badge tone="success" size="sm" className="!rounded-lg !text-[8px] !px-2 !py-0.5 !bg-emerald-50 dark:!bg-primary/10 !text-primary !border-emerald-100 dark:!border-primary/20">{tx.status}</Badge>
                         </div>
                       </div>
                     ))}
@@ -372,10 +383,11 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
               )}
 
               {customerTransactions.length === 0 && (
-                <div className="text-center py-16 text-gray-500">
-                  <Receipt className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p className="text-[11px] font-black uppercase tracking-widest">No transactions yet</p>
-                </div>
+                <EmptyState
+                  icon={<Receipt className="h-12 w-12 text-gray-500 opacity-20" />}
+                  title="No transactions yet"
+                  className="!py-16"
+                />
               )}
             </div>
           )}
@@ -402,18 +414,20 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   <RefreshCw className="h-6 w-6 text-blue-500 animate-spin" />
                 </div>
               ) : paymentHistory.length === 0 ? (
-                <div className="text-center py-16">
-                  <Wallet className="h-12 w-12 mx-auto mb-3 text-gray-400 opacity-30" />
-                  <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest">No payments received yet</p>
-                  {customer.creditUsed > 0 && (
-                    <button
+                <EmptyState
+                  icon={<Wallet className="h-12 w-12 text-gray-400 opacity-30" />}
+                  title="No payments received yet"
+                  className="!py-16"
+                  action={customer.creditUsed > 0 ? (
+                    <Button
+                      variant="primary"
                       onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-                      className="mt-4 px-6 py-3 bg-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-primary active:scale-95 transition-all shadow-lg"
+                      className="!min-h-0 !px-6 !py-3 !rounded-full !text-[10px] !font-black hover:!bg-primary !shadow-lg"
                     >
                       Record First Payment
-                    </button>
-                  )}
-                </div>
+                    </Button>
+                  ) : undefined}
+                />
               ) : (
                 <div className="space-y-3">
                   {paymentHistory.map((payment) => (
@@ -445,9 +459,9 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                                 }
                               })()}
                             </span>
-                            <span className="px-2 py-0.5 bg-emerald-100 dark:bg-primary/10 text-emerald-700 dark:text-emerald-400 text-[7px] font-black uppercase rounded-full">
+                            <Badge tone="success" size="sm" className="!text-[7px] !px-2 !py-0.5 !bg-emerald-100 dark:!bg-primary/10 !text-emerald-700 dark:!text-emerald-400">
                               Collected
-                            </span>
+                            </Badge>
                           </div>
                           <p className="text-[9px] text-gray-500 mt-0.5">
                             {formatAppDateTime(payment.createdAt, state.settings.country)}
@@ -504,19 +518,21 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
               </div>
               {/* Quick buttons */}
               <div className="flex gap-2 flex-wrap">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => setPaymentAmount(String(customer.creditUsed))}
-                  className="px-3 py-1.5 bg-primary/10 text-emerald-700 dark:text-emerald-400 border border-primary/20 rounded-lg text-[9px] font-black uppercase hover:bg-primary/20 transition-all"
+                  className="!min-h-0 !px-3 !py-1.5 !bg-primary/10 !text-emerald-700 dark:!text-emerald-400 !border-primary/20 hover:!bg-primary/20 !rounded-lg !text-[9px] !font-black"
                 >
                   Full Amount
-                </button>
+                </Button>
                 {customer.creditUsed >= 2 && (
-                  <button
+                  <Button
+                    variant="secondary"
                     onClick={() => setPaymentAmount(String(Math.floor(customer.creditUsed / 2)))}
-                    className="px-3 py-1.5 bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 rounded-lg text-[9px] font-black uppercase hover:bg-blue-500/20 transition-all"
+                    className="!min-h-0 !px-3 !py-1.5 !bg-blue-500/10 !text-blue-700 dark:!text-blue-400 !border-blue-500/20 hover:!bg-blue-500/20 !rounded-lg !text-[9px] !font-black"
                   >
                     Half ({formatCurrency(Math.floor(customer.creditUsed / 2), state.settings.currency)})
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -530,19 +546,21 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   { id: 'card', label: 'Card', icon: CreditCard },
                   { id: 'digital', label: 'Bank Transfer', icon: Building2 }
                 ].map((method) => (
-                  <button
+                  <Button
                     key={method.id}
+                    variant="ghost"
+                    type="button"
                     onClick={() => setPaymentMethod(method.id as any)}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all duration-200 active:scale-95",
+                      "!min-h-0 !flex-col !gap-2 !p-3 !rounded-xl !border-2 active:!scale-95 !normal-case !tracking-normal !font-normal",
                       paymentMethod === method.id
-                        ? 'border-primary bg-primary/10 text-emerald-700 dark:text-emerald-400 shadow-md'
-                        : 'border-gray-200 dark:border-white/5 bg-[#f8f9fa] dark:bg-black/20 text-gray-600'
+                        ? '!border-primary !bg-primary/10 !text-emerald-700 dark:!text-emerald-400 !shadow-md'
+                        : '!border-gray-200 dark:!border-white/5 !bg-[#f8f9fa] dark:!bg-black/20 !text-gray-600'
                     )}
                   >
                     <method.icon className="h-5 w-5" />
                     <span className="text-[9px] font-black uppercase tracking-wider">{method.label}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -564,13 +582,12 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                 <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">Manual Override</p>
                 <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">Admin amount correction — logged</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsPaymentManualOverride(prev => !prev)}
-                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${isPaymentManualOverride ? 'bg-amber-500' : 'bg-gray-300 dark:bg-white/10'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${isPaymentManualOverride ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+              <ToggleSwitch
+                checked={isPaymentManualOverride}
+                onChange={setIsPaymentManualOverride}
+                color="bg-amber-500"
+                className="!shrink-0"
+              />
             </div>
           </div>
         </div>

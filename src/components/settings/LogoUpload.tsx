@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Image as ImageIcon } from 'lucide-react';
 import { MediaLibrary } from '../inventory/MediaLibrary';
+import { Button } from '../../shared/ui';
 
 interface LogoUploadProps {
   currentLogo?: string;
@@ -29,16 +30,15 @@ export function LogoUpload({ currentLogo, onLogoChange, disabled = false }: Logo
             alt="Store Logo"
             className="h-24 w-24 object-contain border border-gray-200 dark:border-white/10 rounded-xl bg-white dark:bg-white/[0.03] p-2"
           />
-          <button
+          <Button
             onClick={removeLogo}
             disabled={disabled}
-            className={`absolute -top-2 -right-2 rounded-full p-1 transition-colors ${disabled
-              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-              : 'bg-red-500 text-white hover:bg-red-600'
+            icon={<X className="h-4 w-4" />}
+            className={`absolute -top-2 -right-2 !min-h-0 !p-1 !rounded-full !shadow-none ${disabled
+              ? '!bg-gray-300 !text-gray-600 !cursor-not-allowed'
+              : '!bg-red-500 !text-white hover:!bg-red-600'
               }`}
-          >
-            <X className="h-4 w-4" />
-          </button>
+          />
         </div>
       ) : (
         <div

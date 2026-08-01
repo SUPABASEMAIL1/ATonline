@@ -258,10 +258,6 @@
     @apply bg-white dark:bg-surface rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm;
   }
 
-  .card-hover {
-    @apply transition-all duration-200 hover:shadow-md hover:border-gray-200 dark:hover:border-white/10;
-  }
-
   .btn {
   @apply inline-flex items-center justify-center gap-2 rounded-xl font-bold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
   min-height: 44px; /* touch target minimum */
@@ -609,17 +605,6 @@
     @apply bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400;
   }
 
-  .sidebar {
-    @apply bg-white dark:bg-app border-r border-gray-100 dark:border-white/5 flex flex-col;
-  }
-
-  .nav-item {
-    @apply flex items-center space-x-3 px-4 py-3 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white transition-colors rounded-xl mx-2;
-  }
-
-  .nav-item-active {
-    @apply bg-emerald-50 dark:bg-primary text-emerald-700 dark:text-primary font-medium;
-  }
 }
 
 @layer utilities {
@@ -1127,10 +1112,6 @@ body[style*="overflow:hidden"] .md\:hidden.lg\:hidden.bg-white.dark\:bg-\[\#0A0A
 
 .animate-progress {
   animation: progress 1.2s linear forwards;
-}
-
-.glass-fancy {
-  @apply bg-gray-950/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.8)];
 }
 
 .custom-scrollbar::-webkit-scrollbar {

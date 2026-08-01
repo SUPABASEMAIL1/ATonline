@@ -1,12 +1,12 @@
 import { useState, useMemo, useRef } from 'react';
 import { 
-  Plus, Search, TrendingDown, 
+  Plus, TrendingDown, 
   Tag, CreditCard, Edit2, Trash2, 
   Download, Wallet, LayoutGrid, Zap, 
   Utensils, Fuel, Home, Users, 
   Package, Megaphone, Wrench, ShieldCheck, 
   Receipt, MoreHorizontal, ShoppingBag,
-  ChevronLeft, ChevronRight, Building2, User
+  Building2, User
 } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -18,6 +18,8 @@ import { SearchableSelect } from '../common/SearchableSelect';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
 import { useTranslation } from '../../hooks/useTranslation';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Badge, Button, DateRangePicker, EmptyState, Pagination } from '../../shared/ui';
 
 export function ExpenseManager() {
   const { state, dispatch } = useApp();
@@ -238,32 +240,28 @@ export function ExpenseManager() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="primary"
             onClick={() => {
               setEditingExpense(null);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-black text-[10px] shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest"
+            className="!min-h-0 !px-5 !py-2.5 !rounded-xl !text-[10px] !font-black !shadow-lg !shadow-emerald-500/20 hover:!scale-[1.02]"
           >
             <Plus className="h-3.5 w-3.5" /> <span>{t("add_expense", "Add Expense")}</span>
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Layer 2: Filter Toolbar (Smart Context) */}
       <div className="relative z-30 bg-white/50 dark:bg-black/20 p-3 lg:p-4 rounded-[1.75rem] border border-gray-200/50 dark:border-white/5 shadow-xl ring-1 ring-black/5 dark:ring-white/5">
         <div className="flex flex-col xl:flex-row gap-4">
-          {/* Search Box */}
-          <div className="relative flex-1 group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 group-focus-within:text-primary transition-colors" />
-            <input
-              type="text"
-              placeholder={t("search_expenses_placeholder", "Search expenses...")}
-              className="w-full bg-gray-50 dark:bg-black/30 border-none pl-11 pr-4 py-2.5 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600 focus:bg-white dark:focus:bg-black/75 shadow-inner"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          {/* Search Box — shared module */}
+          <SharedSearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={t("search_expenses_placeholder", "Search expenses...")}
+          />
 
           {/* Filters Grid */}
           <div className="grid grid-cols-2 sm:flex items-center gap-2">
@@ -296,9 +294,9 @@ export function ExpenseManager() {
               placeholder={t("users", "User")}
               icon={User}
             />
-            <SearchableSelect
-              label={t("range", "RANGE")}
-              options={[
+            <DateRangePicker
+              preset={dateRange}
+              presets={[
                 { id: 'today', label: t("today", "TODAY") },
                 { id: 'yesterday', label: t("yesterday", "YESTERDAY") },
                 { id: 'last7', label: t("last7", "LAST 7 DAYS") },
@@ -307,32 +305,15 @@ export function ExpenseManager() {
                 { id: 'custom', label: t("custom", "CUSTOM RANGE") },
                 { id: 'all', label: t("all", "ALL TIME") }
               ]}
-              value={dateRange}
-              onChange={setDateRange}
-              placeholder={t("range", "Time Range")}
+              onPresetChange={setDateRange}
+              startDate={startDateInput}
+              endDate={endDateInput}
+              onStartDateChange={setStartDateInput}
+              onEndDateChange={setEndDateInput}
               icon={Receipt}
-              align="right"
             />
           </div>
         </div>
-
-        {dateRange === 'custom' && (
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center mt-3 p-2 bg-white/50 dark:bg-black/20 rounded-xl animate-in slide-in-from-top-2 w-full">
-            <input
-              type="date"
-              value={startDateInput}
-              onChange={(e) => setStartDateInput(e.target.value)}
-              className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-            />
-            <span className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-tighter">to</span>
-            <input
-              type="date"
-              value={endDateInput}
-              onChange={(e) => setEndDateInput(e.target.value)}
-              className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-            />
-          </div>
-        )}
       </div>
 
       {/* Layer 3: Vibrant Stats section */}
@@ -384,10 +365,11 @@ export function ExpenseManager() {
               {filteredExpenses.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-20 text-center">
-                    <div className="flex flex-col items-center gap-3 opacity-20">
-                      <ShoppingBag className="h-12 w-12 text-gray-600" />
-                      <p className="text-xs font-black uppercase tracking-widest">{t("no_expenses_found", "No expenses found")}</p>
-                    </div>
+                    <EmptyState
+                      icon={<ShoppingBag className="h-12 w-12 text-gray-600" />}
+                      title={t("no_expenses_found", "No expenses found")}
+                      className="!p-0 !opacity-20"
+                    />
                   </td>
                 </tr>
               ) : (
@@ -406,32 +388,36 @@ export function ExpenseManager() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-500 border border-orange-500/20">
+                       <Badge tone="warning" size="sm">
                         {expense.category}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="p-4 text-center">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary border border-primary/20">
+                      <Badge tone="success" size="sm">
                         {expense.paymentMethod}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="p-4 text-right font-black text-rose-500 text-sm">
                       -{formatCurrency(expense.amount, state.settings.currency)}
                     </td>
                     <td className="p-4 text-right">
                        <div className="flex justify-end items-center gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() => { setEditingExpense(expense); setIsModalOpen(true); }}
-                          className="p-2 bg-emerald-50 dark:bg-primary/10 text-primary rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                          aria-label="Edit expense"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-emerald-50 dark:!bg-primary/10 !text-primary hover:!scale-110 active:!scale-95"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
                           onClick={() => handleDelete(expense.id)}
-                          className="p-2 bg-red-50 dark:bg-red-500/10 text-red-600 rounded-xl hover:scale-110 active:scale-95 transition-transform"
+                          aria-label="Delete expense"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-red-50 dark:!bg-red-500/10 !text-red-600 hover:!scale-110 active:!scale-95"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -444,10 +430,11 @@ export function ExpenseManager() {
         {/* Mobile Card View (Expert Density) */}
         <div className="lg:hidden p-3 sm:p-4">
           {filteredExpenses.length === 0 ? (
-            <div className="text-center py-10">
-              <ShoppingBag className="h-10 w-10 mx-auto mb-3 opacity-10" />
-              <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{t("no_expenses_found", "No expenses recorded")}</p>
-            </div>
+            <EmptyState
+              icon={<ShoppingBag className="h-10 w-10 text-gray-600 opacity-10" />}
+              title={t("no_expenses_found", "No expenses recorded")}
+              className="!py-10"
+            />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4">
               {paginatedExpenses.map(expense => (
@@ -461,9 +448,9 @@ export function ExpenseManager() {
                       <div className="h-8 w-8 bg-rose-500/10 rounded-lg flex items-center justify-center">
                         <TrendingDown className="h-4 w-4 text-rose-500" />
                       </div>
-                      <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-500 border border-orange-500/20 uppercase tracking-tight">
+                      <Badge tone="warning" size="sm" className="!text-[8px] !px-1.5 !py-0.5 !rounded-md !bg-orange-500/10 !text-orange-500 !border-orange-500/20 !tracking-tight">
                         {(expense.category || 'General').substring(0, 8)}
-                      </span>
+                      </Badge>
                     </div>
 
                     <h3 className="font-black text-gray-900 dark:text-white uppercase text-[10px] leading-tight truncate mb-1">
@@ -492,14 +479,12 @@ export function ExpenseManager() {
         {totalPages > 1 && (
           <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
             <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredExpenses.length)} {t("of", "of")} {filteredExpenses.length}</p>
-            <div className="flex items-center gap-1.5 mx-auto sm:mx-0">
-              <button disabled={currentPage === 1} onClick={() => { setCurrentPage(prev => Math.max(1, prev - 1)); }} className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"><ChevronLeft className="h-4 w-4" /></button>
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[150px] sm:max-w-none">
-                {[...Array(totalPages)].map((_, i) => (
-                  <button key={i+1} onClick={() => setCurrentPage(i+1)} className={`min-w-[32px] h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === i+1 ? 'bg-primary text-white shadow-lg' : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5'}`}>{i+1}</button>
-                ))}
-              </div>
-              <button disabled={currentPage === totalPages} onClick={() => { setCurrentPage(prev => Math.min(totalPages, prev + 1)); }} className="p-2 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-30 hover:bg-primary hover:text-white transition-all shadow-sm"><ChevronRight className="h-4 w-4" /></button>
+            <div className="mx-auto sm:mx-0">
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
             </div>
           </div>
         )}

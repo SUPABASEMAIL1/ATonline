@@ -61,8 +61,20 @@ import { CURRENCIES } from '../../lib/currencies';
 import { localDb } from '../../lib/localDb';
 import { useSoundFeedback } from '../../hooks/useSoundFeedback';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button, ToggleSwitch, SegmentedControl, Select } from '../../shared/ui';
 
 type TabType = 'general' | 'receipt' | 'backup' | 'security' | 'database' | 'estore';
+
+const TIME_OPTIONS = Array.from({ length: 48 }).map((_, i) => {
+  const hour = Math.floor(i / 2);
+  const min = i % 2 === 0 ? '00' : '30';
+  const val = `${hour.toString().padStart(2, '0')}:${min}`;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return { value: val, label: `${displayHour}:${min} ${ampm}` };
+});
+// Add 23:59 for end of day
+TIME_OPTIONS.push({ value: '23:59', label: '11:59 PM' });
 
 export function Settings() {
   const navigate = useNavigate();
@@ -428,10 +440,10 @@ export function Settings() {
 
     // Check if this is an instant-apply field
     const instantFields = [
-      'country', 'currency', 'receiptPrinter', 'receiptPaperSize', 'receiptTemplate', 
-      'interfaceMode', 'theme', 'receiptShowLogo', 'receiptShowFooter', 'receiptShowTax', 
-      'receiptShowDiscount', 'receiptShowStoreName', 'receiptShowStoreAddress', 
-      'receiptShowStorePhone', 'receiptShowStoreEmail', 'receiptShowCustomerName', 
+      'country', 'currency', 'receiptPrinter', 'receiptPaperSize', 'receiptTemplate',
+      'interfaceMode', 'theme', 'receiptShowLogo', 'receiptShowFooter', 'receiptShowTax',
+      'receiptShowDiscount', 'receiptShowStoreName', 'receiptShowStoreAddress',
+      'receiptShowStorePhone', 'receiptShowStoreEmail', 'receiptShowCustomerName',
       'receiptShowCustomerPhone', 'receiptShowNotes', 'receiptShowBarcode', 'receiptShowDeliveryAddress', 'receiptShowQrCode', 'receiptFontBold', 'receiptFontWeight',
       'receiptFontScale', 'language', 'estoreEnabled', 'estoreOrderTimerEnabled', 'estoreCodEnabled', 'estoreWhatsappEnabled',
       'estoreCustomPaymentEnabled'
@@ -578,14 +590,15 @@ export function Settings() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6 pb-2">
         <div className="flex items-center gap-4 shrink-0">
-          <button 
+          <Button
+            variant="ghost"
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'pos' }))}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1 mr-1"
+            icon={<ChevronLeft className="h-5 w-5" />}
+            className="!min-h-0 !p-2 !rounded-xl !gap-1 !text-gray-600 dark:!text-gray-400 mr-1 !hover:bg-gray-100 dark:!hover:bg-white/5"
           >
-            <ChevronLeft className="h-5 w-5" />
             <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">{t("back", "Back")}</span>
-          </button>
+          </Button>
           <div className="h-10 w-px bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block" />
           <div className="h-14 w-14 bg-primary/10 rounded-2xl flex items-center justify-center shadow-inner border border-primary/10">
             <Sliders className="h-7 w-7 text-primary" />
@@ -613,29 +626,29 @@ export function Settings() {
             {visibleTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
-              
+
               const tabColors: Record<string, string> = {
-                general: 'bg-primary',
-                receipt: 'bg-cyan-600',
-                security: 'bg-blue-600',
-                database: 'bg-indigo-600',
-                estore: 'bg-emerald-600'
+                general: '!bg-primary',
+                receipt: '!bg-cyan-600',
+                security: '!bg-blue-600',
+                database: '!bg-indigo-600',
+                estore: '!bg-emerald-600'
               };
-              const activeColor = tabColors[tab.id] || 'bg-primary';
+              const activeColor = tabColors[tab.id] || '!bg-primary';
 
               return (
-                <button
+                <Button
                   key={tab.id}
+                  variant="ghost"
                   onClick={() => navigate('/settings/' + tab.id)}
-                  className={`flex items-center gap-3 px-6 py-4 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap active:scale-95 ${
-                    isActive 
-                      ? `${activeColor} text-white shadow-lg shadow-emerald-500/20 translate-x-1` 
-                      : 'text-gray-600 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5'
-                  }`}
+                  className={`!min-h-0 !flex !justify-start !gap-3 !px-6 !py-4 !rounded-[1.5rem] !text-[10px] !tracking-widest !duration-300 !whitespace-nowrap !shadow-none ${isActive
+                      ? `${activeColor} !text-white !shadow-lg !shadow-emerald-500/20 translate-x-1`
+                      : `!text-gray-600 hover:!text-gray-900 dark:hover:!text-white hover:!bg-gray-50 dark:hover:!bg-white/5`
+                    }`}
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-600'}`} />
                   {t(tabKeys[tab.id], tab.label)}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -646,25 +659,26 @@ export function Settings() {
               {visibleTabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
-                
+
                 const tabColors: Record<string, string> = {
-                  general: 'bg-primary',
-                  receipt: 'bg-cyan-600',
-                  security: 'bg-blue-600',
-                  database: 'bg-indigo-600',
-                  estore: 'bg-emerald-600'
+                  general: '!bg-primary',
+                  receipt: '!bg-cyan-600',
+                  security: '!bg-blue-600',
+                  database: '!bg-indigo-600',
+                  estore: '!bg-emerald-600'
                 };
-                const activeColor = tabColors[tab.id] || 'bg-primary';
+                const activeColor = tabColors[tab.id] || '!bg-primary';
 
                 return (
-                  <button
+                  <Button
                     key={tab.id}
+                    variant="ghost"
                     onClick={() => navigate('/settings/' + tab.id)}
-                    className={`chip-nav-item ${isActive ? `${activeColor} text-white shadow-lg` : 'text-gray-600'}`}
+                    className={`chip-nav-item !min-h-0 !shadow-none ${isActive ? `${activeColor} !text-white !shadow-lg` : '!text-gray-600'}`}
                   >
                     <Icon className="w-3.5 h-3.5" />
                     {t(tabKeys[tab.id], tab.label)}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -688,7 +702,7 @@ export function Settings() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  
+
                   {/* LEFT COLUMN: Business Identity & Defaults (8 Cols) */}
                   <div className="lg:col-span-8 space-y-6">
                     {/* Store Profile & Logo */}
@@ -736,6 +750,28 @@ export function Settings() {
                             onChange={handleChange}
                             className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
                             placeholder="+94 7X XXX XXXX"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("store_email", "Store Email")}</label>
+                          <input
+                            type="email"
+                            name="storeEmail"
+                            value={formData.storeEmail}
+                            onChange={handleChange}
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
+                            placeholder="contact@zaynahspos.com"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("store_website", "Store Website")}</label>
+                          <input
+                            type="text"
+                            name="storeWebsite"
+                            value={formData.storeWebsite}
+                            onChange={handleChange}
+                            className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
+                            placeholder="www.zaynahspos.com"
                           />
                         </div>
                         <div className="md:col-span-2 space-y-1.5">
@@ -928,13 +964,13 @@ export function Settings() {
                               onChange={handleChange}
                               className="flex-1 bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-gray-900 dark:text-white font-bold"
                             />
-                            <button
+                            <Button
                               type="button"
                               onClick={handleRepairCounter}
-                              className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all active:scale-95 whitespace-nowrap"
+                              className="!min-h-0 !px-4 !py-2 !rounded-xl !text-[10px] !font-black !bg-indigo-50 dark:!bg-indigo-950/20 !text-indigo-600 dark:!text-indigo-400 !border !border-indigo-200/50 !shadow-none !hover:bg-indigo-100 dark:!hover:bg-indigo-950/20 whitespace-nowrap"
                             >
                               Repair
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -960,38 +996,39 @@ export function Settings() {
                           <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("app_theme", "App Theme")}</label>
                           <div className="grid grid-cols-3 gap-2 bg-white dark:bg-black/25 p-1 rounded-xl border border-gray-200 dark:border-white/5">
                             {(['light', 'dark', 'auto'] as const).map((tVal) => (
-                              <button
+                              <Button
                                 key={tVal}
+                                variant="ghost"
                                 type="button"
                                 onClick={() => {
                                   setFormData(prev => ({ ...prev, theme: tVal }));
                                   handleInstantUpdate('theme', tVal);
                                 }}
-                                className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${formData.theme === tVal
-                                  ? 'bg-[#10B981] text-white shadow-md'
-                                  : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                                className={`!min-h-0 !gap-0 !py-2 !text-[9px] !tracking-widest !rounded-lg !shadow-none ${formData.theme === tVal
+                                  ? '!bg-[#10B981] !text-white !shadow-md'
+                                  : '!text-gray-500 hover:!text-gray-900 dark:hover:!text-white'
                                   }`}
                               >
                                 {tVal === 'light' ? t("theme_light", "Light") : (tVal === 'dark' ? t("theme_dark", "Dark") : tVal)}
-                              </button>
+                              </Button>
                             ))}
                           </div>
                         </div>
 
                         <div className="space-y-1.5">
                           <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest ml-1">{t("interface_mode", "Interface Mode")}</label>
-                          <select
+                          <Select
                             name="interfaceMode"
                             value={formData.interfaceMode || 'touch'}
                             onChange={(e) => {
                               handleChange(e);
                               handleInstantUpdate('interfaceMode', e.target.value);
                             }}
-                            className="w-full bg-white dark:bg-black/25 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-xs font-bold text-gray-900 dark:text-white"
+                            className="!text-xs !font-bold !py-2"
                           >
                             <option value="touch">{t("touch_friendly", "Touch Friendly (POS Optimized)")}</option>
                             <option value="traditional">{t("traditional", "Traditional (Keyboard Focused)")}</option>
-                          </select>
+                          </Select>
                         </div>
                       </div>
                     </div>
@@ -1018,16 +1055,12 @@ export function Settings() {
                               <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("retail_sales_subtitle", "B2C direct sales")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              name="retailEnabled"
-                              checked={formData.retailEnabled}
-                              onChange={(e) => handleInstantUpdate('retailEnabled', e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-violet-500"
+                            checked={formData.retailEnabled}
+                            onChange={(v) => handleInstantUpdate('retailEnabled', v)}
+                          />
                         </label>
 
                         {/* Wholesale Mode Toggle */}
@@ -1039,19 +1072,15 @@ export function Settings() {
                               <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("wholesale_mode_subtitle", "Allow wholesale price tiers")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              name="wholesaleEnabled"
-                              checked={formData.wholesaleEnabled}
-                              onChange={(e) => {
-                                setFormData(p => ({ ...p, wholesaleEnabled: e.target.checked }));
-                                handleInstantUpdate('wholesaleEnabled', e.target.checked);
-                              }}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-violet-500"
+                            checked={formData.wholesaleEnabled}
+                            onChange={(v) => {
+                              setFormData(p => ({ ...p, wholesaleEnabled: v }));
+                              handleInstantUpdate('wholesaleEnabled', v);
+                            }}
+                          />
                         </label>
 
                         {/* E-Store Mode Toggle */}
@@ -1063,19 +1092,15 @@ export function Settings() {
                               <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("estore_mode_subtitle", "Allow e-store channel")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              name="estoreEnabled"
-                              checked={formData.estoreEnabled}
-                              onChange={(e) => {
-                                setFormData(p => ({ ...p, estoreEnabled: e.target.checked }));
-                                handleInstantUpdate('estoreEnabled', e.target.checked);
-                              }}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-violet-500"
+                            checked={formData.estoreEnabled}
+                            onChange={(v) => {
+                              setFormData(p => ({ ...p, estoreEnabled: v }));
+                              handleInstantUpdate('estoreEnabled', v);
+                            }}
+                          />
                         </label>
 
                         {/* Touch Keyboard Toggle */}
@@ -1087,19 +1112,15 @@ export function Settings() {
                               <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("touch_keyboard_subtitle", "On-screen layout inputs")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              name="touchKeyboardEnabled"
-                              checked={formData.touchKeyboardEnabled}
-                              onChange={(e) => {
-                                setFormData(p => ({ ...p, touchKeyboardEnabled: e.target.checked }));
-                                handleInstantUpdate('touchKeyboardEnabled', e.target.checked);
-                              }}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-violet-500"
+                            checked={formData.touchKeyboardEnabled}
+                            onChange={(v) => {
+                              setFormData(p => ({ ...p, touchKeyboardEnabled: v }));
+                              handleInstantUpdate('touchKeyboardEnabled', v);
+                            }}
+                          />
                         </label>
 
                         {/* Sound Feedback Toggle */}
@@ -1114,20 +1135,16 @@ export function Settings() {
                               <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("sound_feedback_subtitle", "Keyboard UI feedback sounds")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              name="soundEnabled"
-                              checked={formData.soundEnabled}
-                              onChange={(e) => {
-                                setFormData(p => ({ ...p, soundEnabled: e.target.checked }));
-                                handleInstantUpdate('soundEnabled', e.target.checked);
-                                if (e.target.checked) setTimeout(() => play('success'), 100);
-                              }}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-violet-500"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-violet-500"
+                            checked={formData.soundEnabled}
+                            onChange={(v) => {
+                              setFormData(p => ({ ...p, soundEnabled: v }));
+                              handleInstantUpdate('soundEnabled', v);
+                              if (v) setTimeout(() => play('success'), 100);
+                            }}
+                          />
                         </label>
 
                         {/* Split Payments Toggle */}
@@ -1139,15 +1156,12 @@ export function Settings() {
                               <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("enable_split_payments_subtitle", "Allow split payment mode")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              checked={formData.enableSplitPayment}
-                              onChange={(e) => handleInstantUpdate('enableSplitPayment', e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-[#10B981]"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-[#10B981]"
+                            checked={formData.enableSplitPayment}
+                            onChange={(v) => handleInstantUpdate('enableSplitPayment', v)}
+                          />
                         </label>
 
                         {/* Delivery Charges Toggle */}
@@ -1159,15 +1173,12 @@ export function Settings() {
                               <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("enable_dc_charges_subtitle", "Extra packaging & delivery fees")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              checked={formData.enableExtraCharges}
-                              onChange={(e) => handleInstantUpdate('enableExtraCharges', e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-[#10B981]"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-[#10B981]"
+                            checked={formData.enableExtraCharges}
+                            onChange={(v) => handleInstantUpdate('enableExtraCharges', v)}
+                          />
                         </label>
 
                         {/* Hard Block Credit Limit Toggle */}
@@ -1179,15 +1190,12 @@ export function Settings() {
                               <span className="text-[8px] text-rose-500/70 uppercase tracking-wider block mt-1">{t("hard_block_credit_limit_subtitle", "Block invoice if over limit")}</span>
                             </div>
                           </div>
-                          <div className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
-                            <input
-                              type="checkbox"
-                              checked={!formData.allowCreditOverLimit}
-                              onChange={(e) => handleInstantUpdate('allowCreditOverLimit', !e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-rose-500"></div>
-                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-rose-500"
+                            checked={!formData.allowCreditOverLimit}
+                            onChange={(v) => handleInstantUpdate('allowCreditOverLimit', !v)}
+                          />
                         </label>
                       </div>
                     </div>
@@ -1217,7 +1225,7 @@ export function Settings() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  
+
                   {/* Column 1: Layout & Templates (5 Cols) */}
                   <div className="lg:col-span-5 space-y-6">
                     <div className="p-4 sm:p-5 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-4">
@@ -1394,13 +1402,14 @@ export function Settings() {
                         <label className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-wider block">
                           🎯 Hardware Calibration (mm)
                         </label>
-                        <button
+                        <Button
+                          variant="ghost"
                           type="button"
                           onClick={handleResetCalibration}
-                          className="text-[9px] font-black uppercase tracking-widest text-primary dark:text-emerald-400 hover:text-primary transition-colors"
+                          className="!min-h-0 !p-0 !text-[9px] !font-black !text-primary dark:!text-emerald-400 hover:!text-primary !hover:bg-transparent"
                         >
                           Reset
-                        </button>
+                        </Button>
                       </div>
 
                       <div className="space-y-3">
@@ -1561,8 +1570,8 @@ export function Settings() {
                         invoiceCounter: parseInt(formData.invoiceCounter) || 1000,
                       } as unknown as AppSettings} />
                     </div>
-                    
-                    <button
+
+                    <Button
                       type="button"
                       onClick={() => {
                         const mockSale = {
@@ -1585,11 +1594,11 @@ export function Settings() {
                         setCompletedSale(mockSale as any);
                         setShowReceipt(true);
                       }}
-                      className="mt-4 w-full py-3 bg-primary hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/10 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                      icon={<Printer className="w-3.5 h-3.5" />}
+                      className="mt-4 w-full !py-3 !rounded-xl !text-[9px] !font-black !tracking-[0.2em] !gap-1.5 shadow-emerald-500/10 hover:!bg-emerald-700"
                     >
-                      <Printer className="w-3.5 h-3.5" />
                       Test Print
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </section>
@@ -1644,7 +1653,7 @@ export function Settings() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <button
+                    <Button
                       type="button"
                       onClick={async () => {
                         const url = (document.getElementById('electron-supabase-url') as HTMLInputElement)?.value;
@@ -1661,17 +1670,17 @@ export function Settings() {
                           sonner.close();
                           const res = await sonner.confirm('Connection Saved', 'Restart system now?', 'Restart App');
                           if (res.isConfirmed) (window as any).electronAPI.restartApp();
-                        } catch { 
+                        } catch {
                           sonner.close();
-                          sonner.error('Adapter rejection.'); 
+                          sonner.error('Adapter rejection.');
                         }
                       }}
-                      className="flex-1 py-4 bg-cyan-600 text-white rounded-2xl font-black text-sm hover:bg-cyan-700 transition-all flex items-center justify-center gap-2"
+                      icon={<Save className="w-5 h-5" />}
+                      className="flex-1 !py-4 !rounded-2xl !font-black !text-sm !gap-2 !bg-cyan-600 hover:!bg-cyan-700 !shadow-none"
                     >
-                      <Save className="w-5 h-5" />
                       Apply & Restart System
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
                       onClick={async () => {
                         try {
@@ -1682,10 +1691,9 @@ export function Settings() {
                           sonner.info('Configuration loaded.');
                         } catch { sonner.error('Read failure.'); }
                       }}
-                      className="p-4 bg-gray-100 dark:bg-white/5 text-gray-600 rounded-2xl hover:bg-gray-200"
-                    >
-                      <RefreshCw className="w-5 h-5" />
-                    </button>
+                      icon={<RefreshCw className="w-5 h-5" />}
+                      className="!min-h-0 !p-4 !rounded-2xl !shadow-none !bg-gray-100 dark:!bg-white/5 !text-gray-600 !hover:bg-gray-200 dark:!hover:bg-white/5"
+                    />
                   </div>
                   <p className="text-[10px] text-gray-600 font-bold text-center uppercase tracking-widest leading-relaxed">
                     Connecting to restricted infrastructure.<br />Ensure SSL/TLS endpoint is verified.
@@ -1721,29 +1729,50 @@ export function Settings() {
                   <div className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl">
                     <div>
                       <h4 className="font-bold text-gray-900 dark:text-white">Your Public Store Link</h4>
-                      <p className="text-xs text-gray-500 mt-1">Share this link with your customers to start receiving orders.</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Share this link with your customers to start receiving orders.</p>
                     </div>
-                    <a href="/store" target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      className="!bg-emerald-600 hover:!bg-emerald-700 whitespace-nowrap !normal-case !tracking-normal !px-6 !py-3 !text-sm"
+                      onClick={() => window.open('/store', '_blank')}
+                    >
                       Visit Store
-                    </a>
+                    </Button>
                   </div>
 
-                  {/* Fulfillment Methods (KFC Style) */}
+                  {/* Fulfillment Methods */}
                   <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-5">
-                    <h4 className="text-sm font-bold text-gray-800 dark:text-white">Fulfillment Methods (KFC Style)</h4>
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-white">Fulfillment Methods</h4>
 
-                    {/* Shop Hours (master boundary) */}
+                    {/* Shop Hours */}
                     <div className="bg-gray-50/50 dark:bg-white/[0.02] rounded-2xl border border-gray-200 dark:border-white/5 p-4 space-y-3">
-                      <h5 className="text-[11px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Shop Hours</h5>
-                      <p className="text-[9px] text-gray-500 -mt-2">Overall operating hours — delivery & pickup times must fall within this window</p>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-3">
                         <div>
-                          <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Open</label>
-                          <input type="time" name="shopOpenTime" value={formData.shopOpenTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('shopOpenTime', e.target.value); }} className="input w-full text-xs py-2" />
+                          <h5 className="text-[11px] font-bold text-gray-900 dark:text-white uppercase tracking-widest">Shop Hours</h5>
+                          <p className="text-[10px] text-gray-500">Overall operating hours</p>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                          <Button type="button" onClick={() => applyTimePreset('', '')} className="!text-[9px] sm:!text-[10px] !font-bold !uppercase !tracking-wider !bg-emerald-100 !text-emerald-700 dark:!bg-emerald-900/30 dark:!text-emerald-400 !px-1 !py-1.5 !rounded-lg hover:!bg-emerald-200 !min-h-0 !shadow-none">Any Time</Button>
+                          <Button type="button" onClick={() => applyTimePreset('00:00', '23:59')} className="!text-[9px] sm:!text-[10px] !font-bold !uppercase !tracking-wider !bg-emerald-100 !text-emerald-700 dark:!bg-emerald-900/30 dark:!text-emerald-400 !px-1 !py-1.5 !rounded-lg hover:!bg-emerald-200 !min-h-0 !shadow-none">24/7</Button>
+                          <Button type="button" onClick={() => applyTimePreset('09:00', '17:00')} className="!text-[9px] sm:!text-[10px] !font-bold !uppercase !tracking-wider !bg-emerald-100 !text-emerald-700 dark:!bg-emerald-900/30 dark:!text-emerald-400 !px-1 !py-1.5 !rounded-lg hover:!bg-emerald-200 !min-h-0 !shadow-none">9 to 5</Button>
+                          <Button type="button" onClick={() => applyTimePreset('10:00', '22:00')} className="!text-[9px] sm:!text-[10px] !font-bold !uppercase !tracking-wider !bg-emerald-100 !text-emerald-700 dark:!bg-emerald-900/30 dark:!text-emerald-400 !px-1 !py-1.5 !rounded-lg hover:!bg-emerald-200 !min-h-0 !shadow-none">10 to 10</Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mt-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">OPEN</label>
+                          <Select name="shopOpenTime" fullWidth value={formData.shopOpenTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('shopOpenTime', e.target.value); }} className="!py-2 !text-xs">
+                            <option value="">Any Time</option>
+                            {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                          </Select>
                         </div>
                         <div>
-                          <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Close</label>
-                          <input type="time" name="shopCloseTime" value={formData.shopCloseTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('shopCloseTime', e.target.value); }} className="input w-full text-xs py-2" />
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">CLOSE</label>
+                          <Select name="shopCloseTime" fullWidth value={formData.shopCloseTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('shopCloseTime', e.target.value); }} className="!py-2 !text-xs">
+                            <option value="">Any Time</option>
+                            {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                          </Select>
                         </div>
                       </div>
                     </div>
@@ -1755,20 +1784,29 @@ export function Settings() {
                           <h5 className="text-[11px] font-bold text-gray-900 dark:text-white">Home Delivery</h5>
                           <p className="text-[9px] text-gray-500">Allow customers to choose delivery at checkout</p>
                         </div>
-                        <label className="relative cursor-pointer">
-                          <input type="checkbox" name="estoreDeliveryEnabled" checked={formData.estoreDeliveryEnabled !== false} onChange={(e) => { handleChange(e); handleInstantUpdate('estoreDeliveryEnabled', e.target.checked); }} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500" />
-                        </label>
+                        <ToggleSwitch
+                          checked={formData.estoreDeliveryEnabled !== false}
+                          onChange={(checked) => {
+                            setFormData(p => ({ ...p, estoreDeliveryEnabled: checked }));
+                            handleInstantUpdate('estoreDeliveryEnabled', checked);
+                          }}
+                        />
                       </div>
                       {formData.estoreDeliveryEnabled !== false && (
-                        <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                        <div className="grid grid-cols-2 gap-3 pt-2 animate-in fade-in duration-200">
                           <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Delivery Start</label>
-                            <input type="time" name="deliveryStartTime" value={formData.deliveryStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('deliveryStartTime', e.target.value); }} className="input w-full text-xs py-2" />
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">START</label>
+                            <Select name="deliveryStartTime" fullWidth value={formData.deliveryStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('deliveryStartTime', e.target.value); }} className="!py-2 !text-xs">
+                              <option value="">Any Time</option>
+                              {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </Select>
                           </div>
                           <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Delivery End</label>
-                            <input type="time" name="deliveryEndTime" value={formData.deliveryEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('deliveryEndTime', e.target.value); }} className="input w-full text-xs py-2" />
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">END</label>
+                            <Select name="deliveryEndTime" fullWidth value={formData.deliveryEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('deliveryEndTime', e.target.value); }} className="!py-2 !text-xs">
+                              <option value="">Any Time</option>
+                              {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </Select>
                           </div>
                         </div>
                       )}
@@ -1781,20 +1819,29 @@ export function Settings() {
                           <h5 className="text-[11px] font-bold text-gray-900 dark:text-white">Customer Pickup</h5>
                           <p className="text-[9px] text-gray-500">Allow customers to order for self-pickup</p>
                         </div>
-                        <label className="relative cursor-pointer">
-                          <input type="checkbox" name="estorePickupEnabled" checked={formData.estorePickupEnabled !== false} onChange={(e) => { handleChange(e); handleInstantUpdate('estorePickupEnabled', e.target.checked); }} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500" />
-                        </label>
+                        <ToggleSwitch
+                          checked={formData.estorePickupEnabled !== false}
+                          onChange={(checked) => {
+                            setFormData(p => ({ ...p, estorePickupEnabled: checked }));
+                            handleInstantUpdate('estorePickupEnabled', checked);
+                          }}
+                        />
                       </div>
                       {formData.estorePickupEnabled !== false && (
-                        <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 animate-in fade-in duration-200">
                           <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Pickup Start</label>
-                            <input type="time" name="pickupStartTime" value={formData.pickupStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupStartTime', e.target.value); }} className="input w-full text-xs py-2" />
+                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">PICKUP START</label>
+                            <Select name="pickupStartTime" value={formData.pickupStartTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupStartTime', e.target.value); }}>
+                              <option value="">Any Time</option>
+                              {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </Select>
                           </div>
                           <div>
-                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Pickup End</label>
-                            <input type="time" name="pickupEndTime" value={formData.pickupEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupEndTime', e.target.value); }} className="input w-full text-xs py-2" />
+                            <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">PICKUP END</label>
+                            <Select name="pickupEndTime" value={formData.pickupEndTime || ''} onChange={(e) => { handleChange(e); handleInstantUpdate('pickupEndTime', e.target.value); }}>
+                              <option value="">Any Time</option>
+                              {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </Select>
                           </div>
                         </div>
                       )}
@@ -1806,28 +1853,18 @@ export function Settings() {
                     <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
                       <Store className="w-4 h-4 text-emerald-500" /> Store Type
                     </h4>
-                    <p className="text-[10px] text-gray-500 font-medium">Define how your store operates alongside the fulfillment toggles above</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      {[
-                        { id: 'physical', label: 'Physical', desc: 'Walk-in only' },
-                        { id: 'online', label: 'Online', desc: 'Delivery & pickup only' },
-                        { id: 'both', label: 'Both', desc: 'Physical + Online' },
-                      ].map(opt => (
-                        <label key={opt.id} className={`relative flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.storeType === opt.id ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/10' : 'border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02] hover:border-emerald-300'}`}>
-                          <input type="radio" name="storeType" value={opt.id} checked={formData.storeType === opt.id} onChange={(e) => {
-                            setFormData(p => ({ ...p, storeType: e.target.value as any }));
-                            handleInstantUpdate('storeType', e.target.value);
-                          }} className="sr-only" />
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${formData.storeType === opt.id ? 'border-emerald-500' : 'border-gray-300'}`}>
-                            {formData.storeType === opt.id && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-                          </div>
-                          <div>
-                            <span className="text-xs font-bold text-gray-800 dark:text-white block">{opt.label}</span>
-                            <span className="text-[9px] text-gray-500 font-medium">{opt.desc}</span>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      options={[
+                        { value: 'physical', label: 'Physical (Walk-in only)' },
+                        { value: 'online', label: 'Online (Delivery & pickup only)' },
+                        { value: 'both', label: 'Both (Physical + Online)' },
+                      ]}
+                      value={formData.storeType || 'both'}
+                      onChange={(val) => {
+                        setFormData(p => ({ ...p, storeType: val as any }));
+                        handleInstantUpdate('storeType', val);
+                      }}
+                    />
                   </div>
 
                   {/* Shop Location & Delivery Area */}
@@ -1880,7 +1917,7 @@ export function Settings() {
                         </div>
                       </div>
                     </div>
-                    <button
+                    <Button
                       type="button"
                       onClick={() => {
                         if ('geolocation' in navigator) {
@@ -1900,16 +1937,17 @@ export function Settings() {
                           sonner.error('Geolocation is not supported by your browser');
                         }
                       }}
-                      className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-emerald-100 dark:border-emerald-900/30"
+                      icon={<LocateFixed className="w-3.5 h-3.5" />}
+                      className="w-full !py-2.5 !rounded-xl !text-[10px] !font-black !gap-2 !shadow-none !bg-emerald-50 dark:!bg-emerald-900/10 !text-emerald-600 dark:!text-emerald-400 !border !border-emerald-100 dark:!border-emerald-900/30 !hover:bg-emerald-100 dark:!hover:bg-emerald-900/20"
                     >
-                      <LocateFixed className="w-3.5 h-3.5" /> Use Current Location
-                    </button>
+                      Use Current Location
+                    </Button>
                     <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-r-xl text-sm">
                       <p className="font-bold text-blue-800 dark:text-blue-300">How to get your coordinates?</p>
                       <p className="text-blue-700 dark:text-blue-400 mt-1">
-                        1. Open <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline font-bold">Google Maps</a><br/>
-                        2. Search for your store location.<br/>
-                        3. Right-click the red pin and click the numbers (e.g. 31.5204, 74.3587) to copy them.<br/>
+                        1. Open <a href="https://maps.google.com" target="_blank" rel="noreferrer" className="underline font-bold">Google Maps</a><br />
+                        2. Search for your store location.<br />
+                        3. Right-click the red pin and click the numbers (e.g. 31.5204, 74.3587) to copy them.<br />
                         4. Paste the first number in Latitude and the second in Longitude.
                       </p>
                     </div>
@@ -1935,62 +1973,77 @@ export function Settings() {
                               { name: 'Crimson', primary: '#e11d48', hover: '#be123c', bg: '#fff1f2', text: '#881337', card: '#ffffff' },
                               { name: 'Mono', primary: '#000000', hover: '#333333', bg: '#ffffff', text: '#000000', card: '#fafafa' }
                             ].map((preset, idx) => (
-                              <button
+                              <Button
                                 key={idx}
+                                variant="ghost"
                                 type="button"
                                 title={preset.name}
-                                onClick={() => setFormData(prev => ({ 
-                                  ...prev, 
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
                                   estoreThemeColor: preset.primary,
                                   estorePrimaryColorHover: preset.hover,
                                   estoreBgColor: preset.bg,
                                   estoreTextColor: preset.text,
                                   estoreCardBgColor: preset.card
                                 }))}
-                                className={`px-4 py-2 rounded-xl border-2 transition-transform hover:-translate-y-0.5 shadow-sm flex items-center gap-2 font-bold text-xs ${formData.estoreThemeColor === preset.primary && formData.estoreBgColor === preset.bg ? 'border-primary ring-2 ring-primary/20 shadow-md' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'}`}
+                                className={`!min-h-0 !normal-case !tracking-normal !px-4 !py-2 !border-2 !transition-transform hover:!-translate-y-0.5 !shadow-sm !font-bold !text-xs ${formData.estoreThemeColor === preset.primary && formData.estoreBgColor === preset.bg ? '!border-primary !ring-2 !ring-primary/20 !shadow-md' : '!border-gray-200 dark:!border-gray-700 hover:!border-gray-300'}`}
                                 style={{ backgroundColor: preset.card, color: preset.text }}
                               >
                                 <span className="w-3 h-3 rounded-full" style={{ backgroundColor: preset.primary }}></span>
                                 {preset.name}
-                              </button>
+                              </Button>
                             ))}
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase">Primary</label>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Primary</label>
                             <div className="flex items-center gap-2">
-                              <input type="color" name="estoreThemeColor" value={formData.estoreThemeColor || '#10b981'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
-                              <span className="text-xs text-gray-600 font-mono">{formData.estoreThemeColor || '#10b981'}</span>
+                              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 shrink-0 shadow-sm cursor-pointer">
+                                <input type="color" name="estoreThemeColor" value={formData.estoreThemeColor || '#10b981'} onChange={handleChange} className="absolute inset-0 w-16 h-16 -left-4 -top-4 cursor-pointer border-0 p-0" />
+                              </div>
+                              <span className="text-xs text-gray-700 dark:text-gray-300 font-mono font-medium">{formData.estoreThemeColor || '#10b981'}</span>
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase">Btn Hover</label>
+                          
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Btn Hover</label>
                             <div className="flex items-center gap-2">
-                              <input type="color" name="estorePrimaryColorHover" value={formData.estorePrimaryColorHover || '#059669'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
-                              <span className="text-xs text-gray-600 font-mono">{formData.estorePrimaryColorHover || '#059669'}</span>
+                              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 shrink-0 shadow-sm cursor-pointer">
+                                <input type="color" name="estorePrimaryColorHover" value={formData.estorePrimaryColorHover || '#059669'} onChange={handleChange} className="absolute inset-0 w-16 h-16 -left-4 -top-4 cursor-pointer border-0 p-0" />
+                              </div>
+                              <span className="text-xs text-gray-700 dark:text-gray-300 font-mono font-medium">{formData.estorePrimaryColorHover || '#059669'}</span>
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase">Page BG</label>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Page BG</label>
                             <div className="flex items-center gap-2">
-                              <input type="color" name="estoreBgColor" value={formData.estoreBgColor || '#f9fafb'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
-                              <span className="text-xs text-gray-600 font-mono">{formData.estoreBgColor || '#f9fafb'}</span>
+                              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 shrink-0 shadow-sm cursor-pointer">
+                                <input type="color" name="estoreBgColor" value={formData.estoreBgColor || '#f9fafb'} onChange={handleChange} className="absolute inset-0 w-16 h-16 -left-4 -top-4 cursor-pointer border-0 p-0" />
+                              </div>
+                              <span className="text-xs text-gray-700 dark:text-gray-300 font-mono font-medium">{formData.estoreBgColor || '#f9fafb'}</span>
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase">Card BG</label>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Card BG</label>
                             <div className="flex items-center gap-2">
-                              <input type="color" name="estoreCardBgColor" value={formData.estoreCardBgColor || '#ffffff'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
-                              <span className="text-xs text-gray-600 font-mono">{formData.estoreCardBgColor || '#ffffff'}</span>
+                              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 shrink-0 shadow-sm cursor-pointer">
+                                <input type="color" name="estoreCardBgColor" value={formData.estoreCardBgColor || '#ffffff'} onChange={handleChange} className="absolute inset-0 w-16 h-16 -left-4 -top-4 cursor-pointer border-0 p-0" />
+                              </div>
+                              <span className="text-xs text-gray-700 dark:text-gray-300 font-mono font-medium">{formData.estoreCardBgColor || '#ffffff'}</span>
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase">Text</label>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Text</label>
                             <div className="flex items-center gap-2">
-                              <input type="color" name="estoreTextColor" value={formData.estoreTextColor || '#111827'} onChange={handleChange} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
-                              <span className="text-xs text-gray-600 font-mono">{formData.estoreTextColor || '#111827'}</span>
+                              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 shrink-0 shadow-sm cursor-pointer">
+                                <input type="color" name="estoreTextColor" value={formData.estoreTextColor || '#111827'} onChange={handleChange} className="absolute inset-0 w-16 h-16 -left-4 -top-4 cursor-pointer border-0 p-0" />
+                              </div>
+                              <span className="text-xs text-gray-700 dark:text-gray-300 font-mono font-medium">{formData.estoreTextColor || '#111827'}</span>
                             </div>
                           </div>
                         </div>
@@ -2007,8 +2060,13 @@ export function Settings() {
                             <p className="text-[10px] text-gray-500 font-medium">Show live countdown on customer order screen</p>
                           </div>
                           <div className="relative">
-                            <input type="checkbox" name="estoreOrderTimerEnabled" checked={formData.estoreOrderTimerEnabled === true} onChange={handleChange} className="sr-only peer" />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                            <ToggleSwitch
+                              checked={formData.estoreOrderTimerEnabled === true}
+                              onChange={(v) => {
+                                setFormData(prev => ({ ...prev, estoreOrderTimerEnabled: v }));
+                                handleInstantUpdate('estoreOrderTimerEnabled', v);
+                              }}
+                            />
                           </div>
                         </label>
 
@@ -2030,23 +2088,33 @@ export function Settings() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <label className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl cursor-pointer">
                       <div>
                         <h4 className="font-bold text-sm text-gray-900 dark:text-white">Cash on Delivery</h4>
                         <p className="text-[10px] text-gray-500 font-medium">Allow customers to pay when order arrives</p>
                       </div>
                       <div className="relative">
-                        <input type="checkbox" name="estoreCodEnabled" checked={formData.estoreCodEnabled !== false} onChange={handleChange} className="sr-only peer" />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 dark:peer-focus:ring-primary/30 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                        <ToggleSwitch
+                          checked={formData.estoreCodEnabled !== false}
+                          onChange={(v) => {
+                            setFormData(prev => ({ ...prev, estoreCodEnabled: v }));
+                            handleInstantUpdate('estoreCodEnabled', v);
+                          }}
+                        />
                       </div>
                     </label>
-                    
+
                     <div className="pt-6 border-t border-gray-100 dark:border-white/5 space-y-4">
                       <label className="flex items-center gap-3 cursor-pointer group">
                         <div className="relative">
-                          <input type="checkbox" name="estoreCustomPaymentEnabled" checked={formData.estoreCustomPaymentEnabled || false} onChange={handleChange} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                          <ToggleSwitch
+                            checked={formData.estoreCustomPaymentEnabled || false}
+                            onChange={(v) => {
+                              setFormData(prev => ({ ...prev, estoreCustomPaymentEnabled: v }));
+                              handleInstantUpdate('estoreCustomPaymentEnabled', v);
+                            }}
+                          />
                         </div>
                         <div>
                           <span className="text-sm font-bold text-[var(--color-text)]">Enable Custom Payment Method</span>
@@ -2138,12 +2206,17 @@ export function Settings() {
                           </h4>
                           <p className="text-xs text-gray-500">Show a floating WhatsApp button on your E-Store</p>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" name="estoreWhatsappEnabled" checked={formData.estoreWhatsappEnabled || false} onChange={handleChange} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-black/40 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
-                        </label>
+                        <div className="relative inline-flex items-center">
+                          <ToggleSwitch
+                            checked={formData.estoreWhatsappEnabled || false}
+                            onChange={(v) => {
+                              setFormData(prev => ({ ...prev, estoreWhatsappEnabled: v }));
+                              handleInstantUpdate('estoreWhatsappEnabled', v);
+                            }}
+                          />
+                        </div>
                       </div>
-                      
+
                       {formData.estoreWhatsappEnabled && (
                         <div className="space-y-1.5 max-w-sm">
                           <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1 flex items-center gap-1">
@@ -2164,7 +2237,7 @@ export function Settings() {
                     </div>
 
                   </div>
-                  
+
                   <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5 mt-6">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                       Note: You can turn individual products on or off for the E-Store from the Inventory section by checking the "Show in Online Store" option when editing a product.
@@ -2211,14 +2284,14 @@ export function Settings() {
       {/* Support Footer */}
       <div className="mt-12 pb-32 text-center space-y-4">
         <div className="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8">
-          <button onClick={() => window.open('https://www.zaynahspos.com', '_blank')} className="flex items-center gap-2 text-primary hover:text-emerald-700 font-bold underline underline-offset-4 decoration-2 decoration-emerald-100 transition-all">
+          <Button variant="ghost" onClick={() => window.open('https://www.zaynahspos.com', '_blank')} className="!min-h-0 !p-0 !rounded-none !gap-2 !text-primary hover:!text-emerald-700 !font-bold underline underline-offset-4 decoration-2 decoration-emerald-100 !shadow-none !hover:bg-transparent dark:!hover:bg-transparent">
             <Globe className="w-4 h-4" />
             <span className="text-xs uppercase tracking-widest whitespace-nowrap">www.zaynahspos.com</span>
-          </button>
-          <button onClick={() => window.location.href = 'mailto:zaynahspos@gmail.com'} className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-bold underline underline-offset-4 decoration-2 decoration-blue-100 transition-all">
+          </Button>
+          <Button variant="ghost" onClick={() => window.location.href = 'mailto:zaynahspos@gmail.com'} className="!min-h-0 !p-0 !rounded-none !gap-2 !text-blue-600 hover:!text-blue-700 !font-bold underline underline-offset-4 decoration-2 decoration-blue-100 !shadow-none !hover:bg-transparent dark:!hover:bg-transparent">
             <Smartphone className="w-4 h-4" />
             <span className="text-xs uppercase tracking-widest whitespace-nowrap">zaynahspos@gmail.com</span>
-          </button>
+          </Button>
         </div>
         <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.2em]">Crafted for peak performance & enterprise reliability</p>
       </div>

@@ -26,6 +26,7 @@ import { localDb, queueOp, purgeLocalData, SETTINGS_ID } from '../../lib/localDb
 import { seedMissingBarcodes } from '../../lib/services';
 import { useApp } from '../../context/SupabaseAppContext';
 import { sonner } from '../../lib/sonner';
+import { Button } from '../../shared/ui';
 
 interface ImportSummary {
   table: string;
@@ -242,22 +243,18 @@ export function DatabaseTools() {
             summaries.push({ table: 'SETTINGS', total: 0, imported: 0, skipped: 0, failed: 0, duplicate: 0 });
           } else {
             const existing = await localDb.appSettings.get(SETTINGS_ID);
-            if (existing) {
-              summaries.push({ table: 'SETTINGS', total: 1, imported: 0, skipped: 1, failed: 0, duplicate: 1 });
-            } else {
+            try {
+              const mergedSettings = existing ? { ...existing, ...settingsData, id: SETTINGS_ID } : { ...settingsData, id: SETTINGS_ID };
+              await localDb.appSettings.put(mergedSettings);
               try {
-                await localDb.appSettings.put(settingsData);
-                try {
-                  await queueOp('settings', 'upsert', 'singleton', settingsData);
-                } catch (qErr) {
-                  console.warn('Could not queue op for settings sync:', qErr);
-                }
-                // Dispatch settings update to React state immediately
-                dispatch({ type: 'SET_SETTINGS', payload: settingsData } as any);
-                summaries.push({ table: 'SETTINGS', total: 1, imported: 1, skipped: 0, failed: 0, duplicate: 0 });
-              } catch (e) {
-                summaries.push({ table: 'SETTINGS', total: 1, imported: 0, skipped: 0, failed: 1, duplicate: 0 });
+                await queueOp('settings', 'upsert', 'singleton', mergedSettings);
+              } catch (qErr) {
+                console.warn('Could not queue op for settings sync:', qErr);
               }
+              dispatch({ type: 'SET_SETTINGS', payload: mergedSettings } as any);
+              summaries.push({ table: 'SETTINGS', total: 1, imported: 1, skipped: 0, failed: 0, duplicate: 0 });
+            } catch (e) {
+              summaries.push({ table: 'SETTINGS', total: 1, imported: 0, skipped: 0, failed: 1, duplicate: 0 });
             }
           }
           continue;
@@ -608,33 +605,34 @@ export function DatabaseTools() {
         <div className="lg:col-span-7 bg-white dark:bg-black/20 p-5 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-md space-y-4">
           <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-white/5 pb-2">
             <h3 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">Select Tables</h3>
-            <button
+            <Button
               type="button"
               onClick={toggleAll}
-              className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-primary dark:text-emerald-400 hover:underline"
+              className="!min-h-0 !p-0 !gap-1 !text-[9px] !text-primary dark:!text-emerald-400 hover:!underline !hover:bg-transparent"
             >
               {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
               {allSelected ? 'Deselect All' : 'Select All'}
-            </button>
+            </Button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {STORE_OPTIONS.map(store => {
               const Icon = store.icon;
               const isSelected = selectedStores.has(store.key);
               return (
-                <button
+                 <Button
                   type="button"
                   key={store.key}
+                  variant="ghost"
                   onClick={() => toggleStore(store.key)}
-                  className={`flex items-center gap-2 p-2 rounded-xl text-left text-[11px] font-bold transition-all border ${isSelected
-                    ? 'bg-emerald-50 dark:bg-primary/10 border-emerald-200 dark:border-primary/30 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/10'
-                    : 'bg-gray-50 dark:bg-white/[0.02] border-gray-200 dark:border-white/5 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5'
+                  className={`!min-h-0 !justify-start !normal-case !tracking-normal !p-2 !text-left !text-[11px] !font-bold !shadow-none !border ${isSelected
+                    ? '!bg-emerald-50 dark:!bg-primary/10 !border-emerald-200 dark:!border-primary/30 !text-emerald-700 dark:!text-emerald-400 !ring-1 !ring-emerald-500/10'
+                    : '!bg-gray-50 dark:!bg-white/[0.02] !border-gray-200 dark:!border-white/5 !text-gray-500 hover:!bg-gray-100 dark:hover:!bg-white/5'
                     }`}
                 >
                   <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? store.color : 'text-gray-600 dark:text-gray-500'}`} />
                   <span className="truncate">{store.label}</span>
                   {isSelected && <CheckCircle2 className="w-3 h-3 ml-auto text-primary shrink-0" />}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -655,15 +653,15 @@ export function DatabaseTools() {
                   <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">Export</h4>
                 </div>
                 <p className="text-[10px] text-gray-500 font-medium">Backup selected tables to JSON file.</p>
-                <button
+                <Button
                   type="button"
                   onClick={handleExport}
                   disabled={isExporting || selectedStores.size === 0}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                  className="w-full !py-2.5 !rounded-xl !text-[9px] !font-black !gap-1.5 !bg-blue-600 hover:!bg-blue-700 !shadow-md disabled:!opacity-40"
                 >
                   {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileJson className="h-3.5 w-3.5" />}
                   {isExporting ? 'Exporting...' : 'Export'}
-                </button>
+                </Button>
               </div>
 
               {/* Import Panel */}
@@ -691,15 +689,15 @@ export function DatabaseTools() {
                   accept=".json"
                   className="hidden"
                 />
-                <button
+                <Button
                   type="button"
                   onClick={handleImport}
                   disabled={isImporting || !selectedFile || selectedStores.size === 0}
-                  className="w-full py-2.5 bg-primary hover:bg-emerald-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                  className="w-full !py-2.5 !rounded-xl !text-[9px] !font-black !gap-1.5 !shadow-md hover:!bg-emerald-700 disabled:!opacity-40"
                 >
                   {isImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   {isImporting ? 'Importing...' : 'Import'}
-                </button>
+                </Button>
               </div>
 
             </div>
@@ -735,15 +733,15 @@ export function DatabaseTools() {
                 </p>
               </div>
             </div>
-            <button
+            <Button
               type="button"
               onClick={handleSeedBarcodes}
               disabled={isSeeding}
-              className="w-full py-2.5 bg-primary hover:bg-emerald-700 disabled:opacity-40 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+              className="w-full !py-2.5 !rounded-xl !text-[9px] !font-black !gap-1.5 !shadow-md hover:!bg-emerald-700 disabled:!opacity-40"
             >
               {isSeeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Barcode className="w-3.5 h-3.5" />}
               {isSeeding ? 'Populating...' : 'Populate Barcodes'}
-            </button>
+            </Button>
           </div>
 
         </div>
@@ -762,13 +760,14 @@ export function DatabaseTools() {
                 </p>
               </div>
             </div>
-            <button
+            <Button
               type="button"
+              variant="danger"
               onClick={handlePurgeAll}
-              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+              className="w-full !py-2.5 !rounded-xl !text-[9px] !font-black !gap-1.5 !bg-red-600 hover:!bg-red-700 !shadow-md !hover:opacity-100"
             >
               Purge Local Database
-            </button>
+            </Button>
           </div>
         </div>
 

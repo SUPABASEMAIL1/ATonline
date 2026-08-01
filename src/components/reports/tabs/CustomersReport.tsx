@@ -1,8 +1,11 @@
 import { TrendingUp, Users, DollarSign, ShoppingBag, Star, UserPlus } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
-import { formatCurrency } from '../../../lib/currencies';
+import { formatCurrency, getCurrencySymbol } from '../../../lib/currencies';
 import { formatAppDate } from '../../../lib/dateUtils';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { EmptyState, Avatar } from '../../../shared/ui';
+import { ExportButton } from '../../../shared/export';
+import { useMemo } from 'react';
 
 interface CustomerData {
   id: string;
@@ -36,13 +39,12 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
 
   if (!customerData || customerData.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] bg-white/50 dark:bg-white/5 rounded-[2.5rem] border border-dashed border-gray-200 dark:border-white/10 p-12 text-center">
-        <div className="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
-          <Users className="w-10 h-10 text-gray-600 dark:text-gray-500" />
-        </div>
-        <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tight">{t("no_insights_found", "No Insights Found")}</h3>
-        <p className="text-sm text-gray-600 font-medium max-w-[280px] mt-2">{t("no_insights_desc", "We couldn't find any customer records for the selected period.")}</p>
-      </div>
+      <EmptyState
+        icon={<Users className="h-10 w-10" />}
+        title={t("no_insights_found", "No Insights Found")}
+        subtext={t("no_insights_desc", "We couldn't find any customer records for the selected period.")}
+        className="min-h-[400px] bg-white/50 dark:bg-white/5 rounded-[2.5rem] border border-dashed border-gray-200 dark:border-white/10 p-12"
+      />
     );
   }
 
@@ -50,6 +52,26 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
   const totalSpending = customerData.reduce((sum, c) => sum + c.totalSpent, 0);
   const totalOrders = customerData.reduce((sum, c) => sum + c.totalTransactions, 0);
   const avgOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0;
+
+  const exportColumns = [
+    { key: 'name', label: t('customer', 'Customer') },
+    { key: 'totalSpent', label: t('total_spent', 'Total Spent'), format: 'currency' as const },
+    { key: 'creditUsed', label: t('credit_balance', 'Credit Balance'), format: 'currency' as const },
+    { key: 'totalTransactions', label: t('transactions', 'Transactions'), format: 'number' as const },
+    { key: 'totalItems', label: t('items_purchased', 'Items Purchased'), format: 'number' as const },
+    { key: 'avgTransactionValue', label: t('average_transaction', 'Avg. Transaction'), format: 'currency' as const },
+    { key: 'lastPurchase', label: t('last_purchase', 'Last Purchase') },
+  ];
+
+  const exportRows = useMemo(() => customerData.map(c => ({
+    name: c.name,
+    totalSpent: c.periodSpent ?? c.totalSpent,
+    creditUsed: c.creditUsed || 0,
+    totalTransactions: c.totalTransactions,
+    totalItems: c.totalItems,
+    avgTransactionValue: c.avgTransactionValue,
+    lastPurchase: c.lastPurchase ? formatAppDate(c.lastPurchase, country) : '',
+  })), [customerData, country]);
 
   return (
     <div className="space-y-6">
@@ -122,10 +144,17 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
 
       {/* Customer Analytics Table */}
       <div className="bg-white dark:bg-surface rounded-[2.5rem] border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
             <Users className="h-5 w-5 mr-2 text-primary" />{t("customer_analytics", "Customer Analytics")}
           </h3>
+          <ExportButton
+            data={exportRows}
+            columns={exportColumns}
+            title={t('customers_report', 'Customers Report')}
+            currencySymbol={getCurrencySymbol(currency)}
+            className="!min-h-0 !px-4 !py-2.5 !rounded-xl !text-[10px] !font-black !bg-gray-100 dark:!bg-white/5 !text-gray-600 dark:!text-gray-400 !border-gray-200 dark:!border-white/5 hover:!text-primary"
+          />
         </div>
 
         {/* Desktop Table */}
@@ -146,10 +175,10 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
               {customerData.slice(0, 20).map(customer => (
                 <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl font-bold text-sm mr-3 shadow-sm">{customer.name.charAt(0).toUpperCase()}</div>
-                      <span className="font-semibold text-gray-900 dark:text-white">{customer.name}</span>
-                    </div>
+                      <div className="flex items-center">
+                        <Avatar name={customer.name} size="sm" shape="square" className="font-bold text-sm rounded-xl from-emerald-500 to-teal-600 mr-3 shadow-sm" />
+                        <span className="font-semibold text-gray-900 dark:text-white">{customer.name}</span>
+                      </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex flex-col">
@@ -191,7 +220,7 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
             <div key={customer.id} className="p-4 active:bg-gray-50 dark:active:bg-white/5 transition-colors">
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-emerald-500/20">{customer.name.charAt(0).toUpperCase()}</div>
+                  <Avatar name={customer.name} size="md" shape="square" className="text-sm from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20" />
                   <div>
                     <p className="text-sm font-black text-gray-900 dark:text-white leading-tight">{customer.name}</p>
                     <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">{t("last_seen", "Last seen:")} {formatAppDate(customer.lastPurchase, country)}</p>

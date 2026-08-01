@@ -18,7 +18,7 @@
 2. **Design Parity**: Maintain "Expert Density" aesthetic and established design patterns.
 3. **Direct Action**: Find the relevant files and implement the fix directly.
 4. **DATA INTEGRITY FIRST**: Financial and stock data is NEVER approximated. If uncertain → throw error, never silently fallback to 0.
-5. **🎨 UI TASKS (MANDATORY)**: Before touching ANY UI/UX code (styling, components, layouts, responsiveness, animations), YOU MUST READ [docs/UI_RULES.md](docs/UI_RULES.md) FIRST. Failure to do so is a violation of the Prime Directive.
+5. **🎨 UI TASKS (MANDATORY)**: Before touching ANY UI/UX code (styling, components, layouts, responsiveness, animations), YOU MUST READ [docs/UI_RULES.md](docs/UI_RULES.md) AND [docs/MODULES.md](docs/MODULES.md) FIRST. Failure to do so is a violation of the Prime Directive. UI primitives, search/list/drag modules, and shared business logic MUST come from the shared modules — **always the SAME module everywhere, never page-local variants.**
 6. **📏 SIZING RULE (MANDATORY)**: For all new pages and components, Modals MUST use `maxWidth="lg"` or `"xl"` (never sm or md for forms) with a 2-column grid (`md:grid-cols-2`), and ALL buttons MUST include `.btn-md` by default unless specifically overriding.
 7. **📱 MOBILE MODAL RULE (MANDATORY)**: All Modals, Popups, and Drawers (including Cart) MUST be displayed in the center of the screen on mobile devices (`items-center justify-center`). NEVER use bottom sheets (`items-end` or `justify-end`) for modals.
 8. **STRICT DATABASE POLICY (NO PRISMA)**: Direct DB connections, Postgres connection strings (`DATABASE_URL`, `DIRECT_URL`), and Prisma ORM are completely banned. You must strictly use the Supabase Management API via HTTP/curl for all database schema and data control. Refer to [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) for the exact API specifications.
@@ -27,6 +27,7 @@
    - Update `docs/setup.md` (add column to post-launch table, update checklist if applicable)
    - Failure to keep both in sync is a violation.
 10. **💀 SKELETON LOADING RULE (MANDATORY)**: All loading states for main layout switches, routes, or grid views (storefront, product grid, list pages) MUST use the centralized `<SkeletonLoader />` component (`src/components/common/SkeletonLoader.tsx`) to provide a premium, smooth shimmer load experience. Generic spinner loaders are strictly prohibited for primary loaders.
+11. **📚 DOCS STAY CURRENT RULE (MANDATORY)**: `docs/MODULES.md` (shared module registry) and `docs/UI_RULES.md` (design rules) are the live source of truth — **always kept up to date**. Whenever you create a new shared module/component/helper, change a shared module's API, or change any UI rule/pattern, you MUST update BOTH docs in the SAME change — a stale registry is a violation. All new shared modules go under `src/shared/**` with barrel export; parallel/duplicate implementations of shared business logic are BANNED — always import the existing shared one (e.g. `commitStockInToInventory` from `src/lib/stockInCommit.ts` is the ONLY stock-in path).
 
 ---
 
@@ -340,6 +341,9 @@ Whenever ANY change to database structure is made:
 
 ### UI Components
 - **Global Dialog System**: `src/lib/dialog.tsx` & `src/components/common/DialogProvider.tsx`
+- **🧱 Shared UI Library (MANDATORY — 100% COVERAGE, POS-exempt)**: `src/shared/ui/` — `Button`, `Card`, `Badge`, `SegmentedControl`, `ToggleSwitch`, `SubTabBar`, `Avatar`, `Pagination`, `LoadMoreButton`, `DateRangePicker`, `EmptyState`, `BottomSheet`, `Select`. Import from `../../shared/ui`. **The ENTIRE project (Settings, /store estore, all admin routes, reports, inventory) uses ONLY these modules — POS (`src/components/pos/**`) is the ONLY exemption.** Native `<select>` and hand-rolled buttons are banned outside POS. Estore uses shared wrappers with `!`-prefixed className overrides for its theme-var system. **Every new page/component MUST reuse these exact modules (visual tweaks via `!`-prefixed `className` overrides only — never page-local variants).** Full registry with props + bans: [docs/MODULES.md](docs/MODULES.md) — must stay up to date.
+- **Shared Search/List/Drag Modules (MANDATORY on non-POS routes)**: `src/shared/modules/search-and-list/` — `SharedSearchBar`, `SharedProductList`/`SharedProductListItem`, `useDragDropList` + `DragHandle`.
+- **Shared Business Logic**: `src/lib/stockInCommit.ts` — `commitStockInToInventory()` is the ONLY stock-in commit path (used by PurchaseOrderSystem + ProductDetailHub Quick Restock). Never write a second implementation.
 - **Scanner**: `src/components/common/CameraScanner.tsx`
 - **POS Interface**: `src/components/pos/`
 - **Settings**: `src/components/settings/Settings.tsx`
@@ -420,7 +424,7 @@ After update: run `npm run build`, clear browser IndexedDB.
 4. **Minimal Scanning**: Only read files directly related to the task
 5. **File Verification**: Before editing a component, verify its actual usage in `App.tsx`
 6. **DATA SAFETY**: Never make changes that could corrupt financial data without explicit confirmation
-7. **🎨 STRICT UI PROTOCOL (MANDATORY)** — Before writing or editing ANY UI code (React components, Tailwind, CSS), you MUST read **[docs/UI_RULES.md](docs/UI_RULES.md)** first. Never introduce new inline styles, hardcoded colors, or one-off components when an existing pattern in docs/UI_RULES.md covers the case.
+7. **🎨 STRICT UI PROTOCOL (MANDATORY)** — Before writing or editing ANY UI code (React components, Tailwind, CSS), you MUST read **[docs/UI_RULES.md](docs/UI_RULES.md)** and **[docs/MODULES.md](docs/MODULES.md)** first. Never introduce new inline styles, hardcoded colors, or one-off components when a shared module already covers the case — always the SAME shared module everywhere.
 8. **🖼️ CENTRALIZED MEDIA SELECTOR & COMPRESSION (MANDATORY)**: All image uploads or selection workflows (products, deals, settings, logo, etc.) MUST route strictly through the centralized `MediaLibrary` component. Direct file upload triggers are banned outside the library. This enforces automatic image compression (WebP, 20-50KB target) via `compressImage` and permits image reuse across the database.
 9. **🎯 BRAND ISOLATION RULE**: Only `/store` route uses saved business name + logo from settings. All other app routes (POS, admin, reports, inventory, etc.) MUST always use hardcoded Zaynahs defaults ("Zaynahs POS" + `/zaynahs-logo.svg`). Files enforcing: `src/lib/dynamicManifest.ts`, `src/App.tsx`, `index.html`. The original gradient-Z SVG at `/zaynahs-logo.svg` is the permanent default and must never be deleted.
 
@@ -532,6 +536,15 @@ To implement similar auto-deletion models in the future:
 Whenever a database change is made, it MUST be recorded here.
 
 > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
+
+### [2026-07-31] Fix: Add updated_at to 5 ledger/history tables (Delta Sync 400s)
+**Files:** `supabase/migrations/20260731210000_add_updated_at_ledger_history_tables.sql`, `SUPER_MASTER_SCHEMA.sql`, `docs/setup.md`, `GEMINI.md`
+**Issue:** Delta sync queries `updated_at=gte.X` on `supplier_transactions`, `payments`, `stock_history`, `variant_stock_history`, `product_addons` — but these tables only had `created_at`. Supabase REST returned **400 (Bad Request)**; code fell back to full-table fetches every sync ("[stockHistory] Delta sync failed, fetching all").
+**Fixes:**
+1. **Schema Migration:** Added `updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL` to all 5 tables (ALTER TABLE ADD COLUMN IF NOT EXISTS) + `update_*_updated_at` triggers via existing `update_updated_at_column()` function + backfill `updated_at = created_at` for existing rows.
+2. **Master Schema:** Added `updated_at` to both CREATE TABLE blocks (incl. duplicate block copies) AND post-launch ALTER TABLE + trigger block in `SUPER_MASTER_SCHEMA.sql`.
+3. **Docs:** `docs/setup.md` table rows 15–17 updated.
+4. **No code change needed** — services.ts already has the correct `updated_at` delta query; the fallback catch will simply never trigger now.
 
 ### [2026-07-24] Fix: App Settings Singleton Reset Bug (Multiple DB Rows)
 **Files:** `services.ts`, `GEMINI.md`

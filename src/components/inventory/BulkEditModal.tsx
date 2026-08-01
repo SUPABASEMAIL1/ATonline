@@ -9,6 +9,7 @@ import { MediaLibrary } from './MediaLibrary';
 import { compressImage } from '../../lib/imageCompression';
 import { Modal } from '../common/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button } from '../../shared/ui';
 
 interface BulkEditModalProps {
   isOpen: boolean;
@@ -87,22 +88,23 @@ export function BulkEditModal({ isOpen, onClose, selectedIds, categories, suppli
         maxWidth="lg"
         footer={
           <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-            <button
-              type="button"
+            <Button
+              variant="danger"
               onClick={onClose}
-              className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+              className="!bg-transparent !border-rose-200 dark:!border-rose-900/30 !text-[#ff4b6e] hover:!bg-rose-50 dark:hover:!bg-rose-500/10 hover:!opacity-100 !shadow-none !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[10px] !rounded-2xl !shrink-0 !min-h-0"
             >
               {t('abort_protocol')}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
               onClick={handleApply}
               disabled={isUpdating}
-              className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+              className="flex-1 sm:flex-none sm:!min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+              icon={isUpdating ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
             >
-              {isUpdating ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
               <span>{isUpdating ? t('executing') : t('commit_protocols')}</span>
-            </button>
+            </Button>
           </div>
         }
       >
@@ -174,9 +176,9 @@ export function BulkEditModal({ isOpen, onClose, selectedIds, categories, suppli
                 {t('visual_protocol')}
               </h3>
               {updates.image && (
-                <button onClick={() => setUpdates(prev => ({ ...prev, image: undefined }))} className="text-rose-500 text-[10px] font-black uppercase tracking-widest hover:underline">
+                <Button variant="ghost" onClick={() => setUpdates(prev => ({ ...prev, image: undefined }))} className="!min-h-0 !p-0 !bg-transparent hover:!bg-transparent !text-rose-500 !text-[10px] hover:!underline">
                   {t('reset_asset')}
-                </button>
+                </Button>
               )}
             </div>
 

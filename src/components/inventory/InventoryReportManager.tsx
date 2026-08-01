@@ -2,14 +2,17 @@ import React, { useState, useMemo } from 'react';
 import { getItemCOGS, getItemRevenue } from '../reports/ReportsManager';
 import {
   Package, AlertTriangle, XCircle, CheckCircle2, TrendingUp, TrendingDown,
-  Search, Download, ArrowUpDown, Tag, DollarSign, BarChart3,
+  ArrowUpDown, Tag, DollarSign, BarChart3,
   ChevronRight, ChevronDown, Calendar, Database, Clock, Wrench
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
-import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
+import { formatCurrency, formatNumberWithPrecision, getCurrencySymbol } from '../../lib/currencies';
 import { formatAppDate } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { productsService } from '../../lib/services';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Badge, LoadMoreButton, Button } from '../../shared/ui';
+import { ExportButton } from '../../shared/export';
 import { localDb } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
 
@@ -248,26 +251,37 @@ export default function InventoryReportManager({
     else { setSortField(field); setSortDir('desc'); }
   };
 
-  const exportCSV = () => {
-    const currency = state.settings.currency;
-    const header = `Product,SKU,Category,Supplier,Stock,Status,Stock Value (${currency}),Sold Qty,Revenue (${currency}),Gross Profit (${currency})\n`;
-    const rows = inventoryData.map(p =>
-      `"${p.name}","${p.sku}","${p.category}","${p.supplier}",${p.stock},"${p.stockStatus}",${p.stockValue},${p.soldQty},${p.revenue},${p.grossProfit}`
-    ).join('\n');
-    const blob = new Blob(['\ufeff', header + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `inventory-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportColumns = [
+    { key: 'name', label: t('product', 'Product') },
+    { key: 'sku', label: t('sku', 'SKU') },
+    { key: 'category', label: t('category', 'Category') },
+    { key: 'supplier', label: t('supplier', 'Supplier') },
+    { key: 'stock', label: t('stock', 'Stock'), format: 'number' as const },
+    { key: 'stockStatus', label: t('status', 'Status') },
+    { key: 'stockValue', label: `Stock Value (${state.settings.currency})`, format: 'currency' as const },
+    { key: 'soldQty', label: t('sold_qty', 'Sold Qty'), format: 'number' as const },
+    { key: 'revenue', label: `Revenue (${state.settings.currency})`, format: 'currency' as const },
+    { key: 'grossProfit', label: `Gross Profit (${state.settings.currency})`, format: 'currency' as const },
+  ];
+
+  const exportRows = useMemo(() => inventoryData.map(p => ({
+    name: p.name,
+    sku: p.sku || '',
+    category: p.category || '',
+    supplier: p.supplier || '',
+    stock: p.stock,
+    stockStatus: p.stockStatus,
+    stockValue: p.stockValue,
+    soldQty: p.soldQty,
+    revenue: p.revenue,
+    grossProfit: p.grossProfit,
+  })), [inventoryData]);
 
   const StatusBadge = ({ status }: { status: string }) => {
-    if (status === 'Infinity Mode') return <span className="px-2 py-0.5 rounded bg-violet-500/10 text-violet-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">∞ {t('infinity_mode', 'INFINITY')}</span>;
-    if (status === 'Out of Stock') return <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 w-fit"><XCircle className="w-2.5 h-2.5" /> {t('out_of_stock', 'OUT')}</span>;
-    if (status === 'Low Stock') return <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1 w-fit"><AlertTriangle className="w-2.5 h-2.5" /> {t('low_stock', 'LOW')}</span>;
-    return <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[8px] font-black uppercase tracking-widest flex items-center gap-1 w-fit"><CheckCircle2 className="w-2.5 h-2.5" /> {t('in_stock', 'OK')}</span>;
+    if (status === 'Infinity Mode') return <Badge tone="info" size="sm" className="!rounded !text-[8px] !bg-violet-500/10 !text-violet-500 dark:!text-violet-500" icon={<span>∞</span>}>{t('infinity_mode', 'INFINITY')}</Badge>;
+    if (status === 'Out of Stock') return <Badge tone="danger" size="sm" className="!rounded !text-[8px] !bg-red-500/10 !text-red-500 dark:!text-red-500" icon={<XCircle className="w-2.5 h-2.5" />}>{t('out_of_stock', 'OUT')}</Badge>;
+    if (status === 'Low Stock') return <Badge tone="warning" size="sm" className="!rounded !text-[8px] !bg-amber-500/10 !text-amber-500 dark:!text-amber-500" icon={<AlertTriangle className="w-2.5 h-2.5" />}>{t('low_stock', 'LOW')}</Badge>;
+    return <Badge tone="success" size="sm" className="!rounded !text-[8px] !bg-primary/10 !text-primary dark:!text-primary" icon={<CheckCircle2 className="w-2.5 h-2.5" />}>{t('in_stock', 'OK')}</Badge>;
   };
 
   const SortTh = ({ field, label }: { field: SortField; label: string }) => (
@@ -350,11 +364,21 @@ export default function InventoryReportManager({
       </div>
 
       <div className="flex flex-col sm:flex-row items-center gap-3 bg-white dark:bg-zinc-900/60 p-2 rounded-2xl border border-gray-200/50">
-        <div className="relative flex-1 w-full sm:min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search_report_placeholder', 'Search jeans, shirt, SKU...')} className="w-full bg-gray-50 dark:bg-white/5 rounded-xl py-2 pl-10 pr-4 text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none" />
+        <div className="flex-1 w-full sm:min-w-[200px]">
+          <SharedSearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder={t('search_report_placeholder', 'Search name, SKU...')}
+          />
         </div>
-        <button onClick={exportCSV} className="btn btn-md btn-primary w-full sm:w-auto hover:scale-105"><Download className="w-3.5 h-3.5" /> {t('export_report', 'Export Report')}</button>
+        <ExportButton
+          data={exportRows}
+          columns={exportColumns}
+          title="Inventory Report"
+          filtersSummary={`${formatAppDate(startDate)} — ${formatAppDate(endDate)}${globalStore && globalStore !== 'all' ? ` • Store: ${globalStore}` : ''}`}
+          currencySymbol={getCurrencySymbol(state.settings.currency)}
+          className="w-full sm:w-auto hover:scale-105"
+        />
       </div>
 
       {/* Desktop Table View */}
@@ -431,7 +455,9 @@ export default function InventoryReportManager({
                                 <div key={batch.id || bIdx} className="p-3 bg-white dark:bg-zinc-800/80 rounded-2xl border border-gray-200 dark:border-white/5 shadow-sm">
                                   <div className="flex justify-between items-center mb-2">
                                     <span className="text-[9px] font-black text-primary uppercase">Batch #{batch.batchNumber || bIdx + 1}</span>
-                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${batch.qtyRemaining > 0 ? 'bg-primary/10 text-primary' : 'bg-rose-500/10 text-rose-500'}`}>{batch.qtyRemaining > 0 ? t('active', 'Active') : t('closed', 'Closed')}</span>
+                                    {batch.qtyRemaining > 0
+                                      ? <Badge size="sm" tone="success" className="!text-[8px] !px-1.5 !py-0.5 !rounded !bg-primary/10 !text-primary dark:!text-primary">{t('active', 'Active')}</Badge>
+                                      : <Badge size="sm" tone="danger" className="!text-[8px] !px-1.5 !py-0.5 !rounded !bg-rose-500/10 !text-rose-500 dark:!text-rose-500">{t('closed', 'Closed')}</Badge>}
                                   </div>
                                   <div className="space-y-1">
                                     <div className="flex justify-between text-[10px]"><span className="text-gray-600 font-bold uppercase tracking-tight">{t('acquisition', 'Acquisition')}</span><span className="text-gray-900 dark:text-white font-black">{batch.manufacturingDate ? formatAppDate(new Date(batch.manufacturingDate)) : '—'}</span></div>
@@ -455,7 +481,7 @@ export default function InventoryReportManager({
                                 <div key={sIdx} className="p-3 bg-white dark:bg-zinc-800/80 rounded-2xl border border-gray-200 dark:border-white/5 shadow-sm">
                                   <div className="flex justify-between items-center mb-2">
                                     <span className="text-[9px] font-black text-blue-500 uppercase">INV #{sale.invoiceNumber || '—'}</span>
-                                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase bg-blue-500/10 text-blue-500">{formatAppDate(new Date(sale.timestamp))}</span>
+                                    <Badge size="sm" tone="info" className="!text-[8px] !px-1.5 !py-0.5 !rounded !bg-blue-500/10 !text-blue-500 dark:!text-blue-500">{formatAppDate(new Date(sale.timestamp))}</Badge>
                                   </div>
                                   <div className="space-y-1">
                                     <div className="flex justify-between text-[10px]"><span className="text-gray-600 font-bold uppercase tracking-tight">{t('customer', 'Customer')}</span><span className="text-gray-900 dark:text-white font-black truncate max-w-[100px] text-right">{sale.customerName || t('walk_in', 'Walk-in')}</span></div>
@@ -504,13 +530,13 @@ export default function InventoryReportManager({
       {/* Load More Desktop */}
       {inventoryData.length > displayLimit && (
         <div className="hidden lg:flex justify-center pt-4">
-          <button
+          <LoadMoreButton
+            visibleCount={displayLimit}
+            totalCount={inventoryData.length}
             onClick={() => setDisplayLimit(prev => prev + 25)}
-            className="flex items-center gap-2 px-8 py-3 bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-primary hover:border-primary/50 transition-all shadow-sm active:scale-95"
-          >
-            <ChevronDown className="w-4 h-4" />
-            {t('load_more_products_count', 'Load More Products ({count} remaining)').replace('{count}', (inventoryData.length - displayLimit).toString())}
-          </button>
+            label="LOAD MORE PRODUCTS"
+            className="!px-8 !py-3 !rounded-2xl !text-[10px] !text-gray-600 !bg-white dark:!bg-zinc-900/60 !border-gray-200 dark:!border-white/5 hover:!text-primary hover:!border-primary/50 !shadow-sm"
+          />
         </div>
       )}
 
@@ -642,13 +668,13 @@ export default function InventoryReportManager({
         {/* Load More Mobile */}
         {inventoryData.length > displayLimit && (
           <div className="flex justify-center pt-2">
-            <button
+            <LoadMoreButton
+              visibleCount={displayLimit}
+              totalCount={inventoryData.length}
               onClick={() => setDisplayLimit(prev => prev + 25)}
-              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-white dark:bg-zinc-900/60 border border-gray-200 dark:border-white/5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest text-gray-600 active:scale-95 transition-all shadow-sm"
-            >
-              <ChevronDown className="w-4 h-4" />
-              {t('load_more', 'Load More')} ({inventoryData.length - displayLimit})
-            </button>
+              label="LOAD MORE PRODUCTS"
+              className="!py-4 !rounded-[2rem] !text-[10px] !text-gray-600 !bg-white dark:!bg-zinc-900/60 !border-gray-200 dark:!border-white/5 !shadow-sm"
+            />
           </div>
         )}
       </div>

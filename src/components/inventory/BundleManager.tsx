@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  Package, Plus, Edit, Trash2, Tag, Search, X, ChevronDown, ChevronUp, Check,
+  Package, Plus, Edit, Trash2, Tag, X, ChevronDown, ChevronUp, Check,
   Percent, DollarSign, ToggleLeft, ToggleRight, Gift, Info, MoreHorizontal,
-  Calendar, Clock, Repeat, GripVertical
+  Calendar, Clock, Repeat
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +12,8 @@ import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MediaLibrary } from './MediaLibrary';
+import { useDragDropList, DragHandle, SharedSearchBar, SharedProductList } from '../../shared/modules/search-and-list';
+import { Button, Badge, EmptyState } from '../../shared/ui';
 
 interface BundleFormItem {
   productId: string;
@@ -63,6 +65,54 @@ interface BundleForm {
   items: BundleFormItem[];
   slots: BundleFormSlot[];
   extraToppings: ExtraToppingForm[];
+}
+
+/**
+ * Combo slot options — reorderable via the shared drag-and-drop module.
+ * Identical drag visual feedback + handle behavior as everywhere else.
+ */
+function ComboSlotOptions({
+  slotId,
+  options,
+  products,
+  onReorder,
+  onRemove,
+}: {
+  slotId: string;
+  options: BundleFormSlotOption[];
+  products: Product[];
+  onReorder: (slotId: string, from: number, to: number) => void;
+  onRemove: (slotId: string, productId: string) => void;
+}) {
+  const dnd = useDragDropList((from, to) => onReorder(slotId, from, to));
+
+  return (
+    <div className="flex flex-col gap-1">
+      {options.map((opt, optIdx) => {
+        const product = products.find(p => p.id === opt.productId);
+        if (!product) return null;
+        return (
+          <div
+            key={opt.productId}
+            draggable
+            onDragStart={() => dnd.handleDragStart(optIdx)}
+            onDragEnter={() => dnd.handleDragEnter(optIdx)}
+            onDragOver={dnd.handleDragOver}
+            onDragEnd={dnd.handleDragEnd}
+            className={`flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 shadow-sm cursor-grab active:cursor-grabbing select-none ${dnd.rowCls(optIdx)}`}
+          >
+            <DragHandle className="w-5" />
+            <span className="text-[9px] font-black text-gray-400 min-w-[16px]">#{optIdx + 1}</span>
+            {product.image && (
+              <img src={product.image} alt={product.name} className="w-4 h-4 object-cover rounded shadow-sm" />
+            )}
+            <span className="text-[10px] font-black text-gray-800 dark:text-gray-200 truncate">{product.name}</span>
+            <Button type="button" variant="ghost" onClick={() => onRemove(slotId, opt.productId)} className="!min-h-0 !p-0 !bg-transparent !text-gray-400 hover:!text-red-500 ml-auto" icon={<X className="h-3 w-3" />} />
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 const emptyForm: BundleForm = {
@@ -471,9 +521,7 @@ export function BundleManager() {
         <div className="animate-in fade-in duration-300 space-y-4 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <button onClick={closeForm} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all">
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
+          <Button variant="ghost" onClick={closeForm} className="!min-h-0 !p-2 !rounded-xl !bg-transparent hover:!bg-gray-100 dark:hover:!bg-white/5" icon={<X className="h-4 w-4 text-gray-500" />} />
           <div>
             <h2 className="text-base font-black text-gray-900 dark:text-white uppercase tracking-tight">
               {editingBundle ? t('edit_bundle_deal', 'Edit Bundle / Deal') : t('new_bundle_deal', 'New Bundle / Deal')}
@@ -528,21 +576,21 @@ export function BundleManager() {
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
                     onClick={() => setShowMediaLibrary(true)}
-                    className="btn btn-md btn-primary !py-1.5 !px-3 !text-[9px] font-bold uppercase tracking-wider"
                   >
                     {form.image ? 'Change Image' : 'Upload / Choose Image'}
-                  </button>
+                  </Button>
                   {form.image && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => setForm(p => ({ ...p, image: '' }))}
-                      className="text-[10px] font-medium text-red-500 hover:text-red-600 transition-colors text-left"
+                      className="!min-h-0 !p-0 !bg-transparent !text-[10px] !font-medium !normal-case !tracking-normal !text-red-500 hover:!text-red-600 text-left"
                     >
                       Remove Image
-                    </button>
+                    </Button>
                   )}
                   <span className="text-[9px] text-gray-400">Recommended: 900×650px</span>
                 </div>
@@ -960,42 +1008,26 @@ export function BundleManager() {
                 </span>
               </div>
 
-              {/* Product search */}
+              {/* Product search — shared module */}
               <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder={t('product_search_placeholder', 'Search product name...')}
+                <SharedSearchBar
                   value={showProductPicker === true ? productSearch : ''}
-                  onChange={e => { setProductSearch(e.target.value); setShowProductPicker(true); }}
+                  onChange={val => { setProductSearch(val); setShowProductPicker(true); }}
                   onFocus={() => { setProductSearch(''); setShowProductPicker(true); }}
-                  className="input pl-8 w-full text-sm"
+                  placeholder={t('product_search_placeholder', 'Search product name...')}
                 />
                 {showProductPicker === true && productSearch && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1C1C1C] border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl z-50 max-h-48 overflow-y-auto">
-                    {filteredSearchProducts.length === 0 ? (
-                      <p className="p-4 text-[11px] text-gray-500 text-center">{t('no_product_found', 'No product found')}</p>
-                    ) : (
-                      filteredSearchProducts.slice(0, 8).map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => addProduct(p)}
-                          className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-left"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                              {p.image ? <img src={p.image} className="h-full w-full rounded-lg object-cover" /> : <Package className="h-4 w-4 text-primary" />}
-                            </div>
-                            <div>
-                              <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">{p.name}</p>
-                              <p className="text-[9px] text-gray-500">{p.category} · {t('stock', 'Stock')}: {p.stock}</p>
-                            </div>
-                          </div>
-                          <span className="text-[11px] font-black text-primary">{formatCurrency(p.price, state.settings.currency)}</span>
-                        </button>
-                      ))
-                    )}
+                  <div className="absolute top-full left-0 right-0 mt-1 z-50">
+                    <SharedProductList
+                      items={filteredSearchProducts.slice(0, 8)}
+                      onItemAdd={(id) => {
+                        const p = state.products.find(x => x.id === id);
+                        if (p) addProduct(p);
+                      }}
+                      emptyStateText={t('no_product_found', 'No product found')}
+                      maxHeight={192}
+                      className="rounded-2xl shadow-xl"
+                    />
                   </div>
                 )}
               </div>
@@ -1021,13 +1053,11 @@ export function BundleManager() {
                           <p className="text-[9px] text-gray-500">{formatCurrency(product.price * item.quantity, state.settings.currency)}</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button type="button" onClick={() => updateQty(item.productId, -1)} className="h-6 w-6 rounded-lg bg-gray-200 dark:bg-white/10 flex items-center justify-center text-gray-600 hover:bg-red-100 dark:hover:bg-red-500/10 transition-all text-sm font-black">−</button>
+                          <Button type="button" variant="ghost" onClick={() => updateQty(item.productId, -1)} className="!min-h-0 !w-6 !h-6 !p-0 !rounded-lg !bg-gray-200 dark:!bg-white/10 !text-gray-600 hover:!bg-red-100 dark:hover:!bg-red-500/10 hover:!text-red-500 !text-sm !font-black active:!scale-100">−</Button>
                           <span className="w-6 text-center text-[11px] font-black text-gray-900 dark:text-white">{item.quantity}</span>
-                          <button type="button" onClick={() => updateQty(item.productId, 1)} className="h-6 w-6 rounded-lg bg-gray-200 dark:bg-white/10 flex items-center justify-center text-primary hover:bg-emerald-100 dark:hover:bg-primary/10 transition-all text-sm font-black">+</button>
+                          <Button type="button" variant="ghost" onClick={() => updateQty(item.productId, 1)} className="!min-h-0 !w-6 !h-6 !p-0 !rounded-lg !bg-gray-200 dark:!bg-white/10 !text-primary hover:!bg-emerald-100 dark:hover:!bg-primary/10 !text-sm !font-black active:!scale-100">+</Button>
                         </div>
-                        <button type="button" onClick={() => removeItem(item.productId)} className="p-1 text-gray-400 hover:text-red-500 transition-all">
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                        <Button type="button" variant="ghost" onClick={() => removeItem(item.productId)} className="!min-h-0 !p-1 !bg-transparent !text-gray-400 hover:!text-red-500" icon={<X className="h-3.5 w-3.5" />} />
                       </div>
                     );
                   })}
@@ -1038,9 +1068,9 @@ export function BundleManager() {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Deal Slots *</label>
-                <button type="button" onClick={addSlot} className="flex items-center gap-1 text-[10px] font-black uppercase text-primary hover:text-primary-dark transition-all">
-                  <Plus className="h-3 w-3" /> Add Slot
-                </button>
+                <Button type="button" variant="ghost" onClick={addSlot} className="!min-h-0 !p-0 !bg-transparent !text-[10px] !font-black !uppercase !tracking-widest !text-primary hover:!text-primary-dark" icon={<Plus className="h-3 w-3" />}>
+                  Add Slot
+                </Button>
               </div>
               
               {form.slots.length === 0 ? (
@@ -1053,9 +1083,7 @@ export function BundleManager() {
                 <div className="space-y-4">
                   {form.slots.map((slot) => (
                     <div key={slot.id} className="bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/10 rounded-2xl p-4 space-y-4 relative">
-                      <button type="button" onClick={() => removeSlot(slot.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-all">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <Button type="button" variant="ghost" onClick={() => removeSlot(slot.id)} className="absolute top-4 right-4 !min-h-0 !p-1.5 !bg-transparent !text-gray-400 hover:!text-red-500" icon={<Trash2 className="h-4 w-4" />} />
                       
                       <div className="grid grid-cols-2 gap-3 pr-8">
                         <div>
@@ -1071,89 +1099,42 @@ export function BundleManager() {
                       <div>
                         <label className="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">Options for this slot</label>
                         <div className="relative mb-2">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
-                          <input
-                            type="text"
-                            placeholder="Search to add options..."
+                          <SharedSearchBar
                             value={showProductPicker === slot.id ? productSearch : ''}
-                            onChange={e => {
-                              setProductSearch(e.target.value);
+                            onChange={val => {
+                              setProductSearch(val);
                               setShowProductPicker(slot.id);
                             }}
                             onFocus={() => {
                               setProductSearch('');
                               setShowProductPicker(slot.id);
                             }}
-                            className="input pl-7 w-full text-xs py-1.5"
+                            placeholder="Search to add options..."
                           />
                           {showProductPicker === slot.id && productSearch && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1C1C1C] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto">
-                              {filteredSearchProducts.length === 0 ? (
-                                <p className="p-3 text-[10px] text-gray-500 text-center">No options found</p>
-                              ) : (
-                                filteredSearchProducts.slice(0, 8).map(p => (
-                                  <button key={p.id} type="button" onClick={() => addOptionToSlot(slot.id, p)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-white/5 text-left border-b border-gray-100 dark:border-white/5 last:border-0">
-                                    <div className="flex items-center space-x-2">
-                                      {p.image ? (
-                                        <img src={p.image} alt={p.name} className="w-6 h-6 object-cover rounded-md" />
-                                      ) : (
-                                        <div className="w-6 h-6 bg-gray-100 dark:bg-white/10 rounded-md flex items-center justify-center">
-                                          <Package className="w-3 h-3 text-gray-400" />
-                                        </div>
-                                      )}
-                                      <span className="text-[10px] font-black text-gray-900 dark:text-white truncate">{p.name}</span>
-                                    </div>
-                                    <span className="text-[9px] text-primary shrink-0">{formatCurrency(p.price, state.settings.currency)}</span>
-                                  </button>
-                                ))
-                              )}
+                            <div className="absolute top-full left-0 right-0 mt-1 z-50">
+                              <SharedProductList
+                                items={filteredSearchProducts.slice(0, 8)}
+                                onItemAdd={(id) => {
+                                  const p = state.products.find(x => x.id === id);
+                                  if (p) addOptionToSlot(slot.id, p);
+                                }}
+                                emptyStateText="No options found"
+                                maxHeight={160}
+                                className="rounded-xl shadow-xl"
+                              />
                             </div>
                           )}
                         </div>
                         
                         {slot.options.length > 0 ? (
-                          <div className="flex flex-col gap-1">
-                            {slot.options.map((opt, optIdx) => {
-                              const product = state.products.find(p => p.id === opt.productId);
-                              if (!product) return null;
-                              return (
-                                <div
-                                  key={opt.productId}
-                                  draggable
-                                  onDragStart={e => {
-                                    e.dataTransfer.setData('text/plain', JSON.stringify({ slotId: slot.id, fromIdx: optIdx }));
-                                    e.currentTarget.classList.add('opacity-40');
-                                  }}
-                                  onDragEnd={e => {
-                                    e.currentTarget.classList.remove('opacity-40');
-                                  }}
-                                  onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('ring-1', 'ring-primary'); }}
-                                  onDragLeave={e => { e.currentTarget.classList.remove('ring-1', 'ring-primary'); }}
-                                  onDrop={e => {
-                                    e.preventDefault();
-                                    e.currentTarget.classList.remove('ring-1', 'ring-primary');
-                                    try {
-                                      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                                      if (data.slotId === slot.id) {
-                                        moveOption(slot.id, data.fromIdx, optIdx);
-                                      }
-                                    } catch {}
-                                  }}
-                                  className="flex items-center gap-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 shadow-sm cursor-grab active:cursor-grabbing select-none"
-                                >
-                                  <GripVertical className="h-3 w-3 text-gray-400 shrink-0" />
-                                  <span className="text-[9px] font-black text-gray-400 min-w-[16px]">#{optIdx + 1}</span>
-                                  {product.image && (
-                                    <img src={product.image} alt={product.name} className="w-4 h-4 object-cover rounded shadow-sm" />
-                                  )}
-                                  <span className="text-[10px] font-black text-gray-800 dark:text-gray-200 truncate">{product.name}</span>
-                                  <button type="button" onClick={() => removeOptionFromSlot(slot.id, opt.productId)} className="text-gray-400 hover:text-red-500 ml-auto">
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
+                          <ComboSlotOptions
+                            slotId={slot.id}
+                            options={slot.options}
+                            products={state.products}
+                            onReorder={moveOption}
+                            onRemove={removeOptionFromSlot}
+                          />
                         ) : (
                           <p className="text-[9px] text-red-500 italic mt-1">No options added yet. Customers won't be able to select anything.</p>
                         )}
@@ -1188,14 +1169,15 @@ export function BundleManager() {
 
         {/* ─── Deal-level Extra Toppings Editor ─── */}
         <div className="border-t border-gray-200 dark:border-white/5 pt-4 mt-4">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setShowToppingEditor(!showToppingEditor)}
-            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-primary transition-colors"
+            className="!min-h-0 !p-0 !bg-transparent !text-[10px] !font-black !uppercase !tracking-widest !text-gray-600 dark:!text-gray-400 hover:!text-primary"
           >
             {showToppingEditor ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             Extra Toppings — {form.extraToppings.filter(t => t.active).length} active
-          </button>
+          </Button>
           {showToppingEditor && (
             <div className="mt-3 space-y-2">
               {form.extraToppings.length === 0 && (
@@ -1203,17 +1185,19 @@ export function BundleManager() {
               )}
               {form.extraToppings.map((t, idx) => (
                 <div key={t.id} className="flex items-center gap-2 flex-wrap">
-                  <button
+                  <Button
                     type="button"
+                    variant={t.active ? 'primary' : 'ghost'}
+                    size="sm"
                     onClick={() => setForm(prev => {
                       const updated = [...prev.extraToppings];
                       updated[idx] = { ...updated[idx], active: !updated[idx].active };
                       return { ...prev, extraToppings: updated };
                     })}
-                    className={`p-1.5 rounded-lg transition-all text-[10px] font-black ${t.active ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-500'}`}
+                    className={`!min-h-0 !rounded-lg !text-[10px] ${t.active ? '!bg-primary !text-white !shadow-none' : '!bg-gray-200 dark:!bg-white/10 !text-gray-500 hover:!bg-gray-300 dark:hover:!bg-white/20 !shadow-none'}`}
                   >
                     {t.active ? 'ON' : 'OFF'}
-                  </button>
+                  </Button>
                   <input
                     type="text"
                     value={t.name}
@@ -1237,8 +1221,9 @@ export function BundleManager() {
                     className="w-24 bg-white dark:bg-black/30 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-bold text-center"
                     placeholder="Price"
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => {
                       const result = sonner.deleteConfirm(`topping "${t.name}"`);
                       result.then(r => {
@@ -1247,14 +1232,14 @@ export function BundleManager() {
                         }
                       });
                     }}
-                    className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                    className="!min-h-0 !p-1.5 !rounded-lg !bg-transparent !text-red-500 hover:!bg-red-50 dark:hover:!bg-red-500/10"
+                    icon={<Trash2 className="h-3 w-3" />}
+                  />
                 </div>
               ))}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setForm(prev => ({
                   ...prev,
                   extraToppings: [...prev.extraToppings, {
@@ -1266,31 +1251,36 @@ export function BundleManager() {
                     active: true,
                   }]
                 }))}
-                className="flex items-center gap-1 text-[10px] font-black text-primary hover:text-emerald-600 transition-colors mt-1"
+                className="!min-h-0 !p-0 !bg-transparent !text-[10px] !font-black !uppercase !tracking-widest !text-primary hover:!text-emerald-600"
+                icon={<Plus className="h-3 w-3" />}
               >
-                <Plus className="h-3 w-3" /> Add Topping
-              </button>
+                Add Topping
+              </Button>
             </div>
           )}
         </div>
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            className="flex-1 !min-h-[48px]"
             onClick={closeForm}
-            className="btn btn-md btn-secondary flex-1 py-3.5 sm:py-4 text-[11px] font-black uppercase tracking-widest min-h-[48px]"
           >
             {t('cancel', 'Cancel')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            fullWidth
+            loading={saving}
+            className="flex-1 !min-h-[48px] hover:shadow-emerald-500/40"
             onClick={handleSave}
-            disabled={saving}
-            className="btn btn-md btn-primary btn btn-primary flex-1 active:bg-emerald-700 hover:shadow-emerald-500/40 min-h-[48px]"
           >
             {saving ? t('saving_dots', 'Saving...') : editingBundle ? t('update_bundle', 'Update Bundle') : t('create_bundle_btn', 'Create Bundle')}
-          </button>
+          </Button>
         </div>
       </div>
       )}
@@ -1307,13 +1297,13 @@ export function BundleManager() {
           </p>
         </div>
         {canManage && (
-          <button
-            type="button"
+          <Button
+            size="md"
+            icon={<Plus className="h-3.5 w-3.5" />}
             onClick={openCreate}
-            className="btn btn-md btn-primary"
           >
-            <Plus className="h-3.5 w-3.5" /> {t('create_bundle_action', 'Create Bundle')}
-          </button>
+            {t('create_bundle_action', 'Create Bundle')}
+          </Button>
         )}
       </div>
 
@@ -1327,18 +1317,17 @@ export function BundleManager() {
 
       {/* Bundle List */}
       {bundles.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5">
-          <div className="h-16 w-16 bg-primary/10 rounded-3xl flex items-center justify-center mb-4">
-            <Gift className="h-8 w-8 text-primary" />
-          </div>
-          <p className="text-sm font-black text-gray-900 dark:text-white mb-1">{t('no_bundles_title', 'No Bundles & Deals Yet')}</p>
-          <p className="text-[11px] text-gray-500 mb-4">{t('no_bundles_desc', 'Create your first bundle deal to start selling combos.')}</p>
-          {canManage && (
-            <button type="button" onClick={openCreate} className="btn btn-md btn-primary">
-              <Plus className="h-3.5 w-3.5" /> {t('create_bundle_action', 'Create Bundle')}
-            </button>
+        <EmptyState
+          icon={<Gift className="h-8 w-8 text-primary" />}
+          title={t('no_bundles_title', 'No Bundles & Deals Yet')}
+          subtext={t('no_bundles_desc', 'Create your first bundle deal to start selling combos.')}
+          className="py-16 bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5"
+          action={canManage && (
+            <Button size="md" onClick={openCreate} icon={<Plus className="h-3.5 w-3.5" />}>
+              {t('create_bundle_action', 'Create Bundle')}
+            </Button>
           )}
-        </div>
+        />
       ) : (
         <div className="space-y-6">
           {/* Category filter tabs — auto-detected from bundle dealCategory values */}
@@ -1429,9 +1418,9 @@ export function BundleManager() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-black text-gray-900 dark:text-white uppercase text-sm truncate">{bundle.name}</p>
-                      {!bundle.active && <span className="text-[8px] font-black uppercase bg-gray-200 dark:bg-white/10 text-gray-500 px-1.5 py-0.5 rounded">{t('inactive', 'Inactive')}</span>}
+                      {!bundle.active && <Badge tone="neutral" className="!bg-gray-200 dark:!bg-white/10 !text-gray-500 !px-1.5 !py-0.5 !rounded !text-[8px]">{t('inactive', 'Inactive')}</Badge>}
                       {(bundle.name?.length < 3 || (bundle.discountType === 'percentage' && bundle.discountValue > 100) || discAmt >= totalPrice) && (
-                        <span className="text-[8px] font-black uppercase bg-red-500 text-white px-1.5 py-0.5 rounded" title={t('invalid_pricing_tooltip', 'This bundle has invalid pricing — edit or delete it')}>{t('invalid', 'Invalid')}</span>
+                        <Badge tone="danger" variant="solid" className="!bg-red-500 !px-1.5 !py-0.5 !rounded !text-[8px]" title={t('invalid_pricing_tooltip', 'This bundle has invalid pricing — edit or delete it')}>{t('invalid', 'Invalid')}</Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
@@ -1443,9 +1432,9 @@ export function BundleManager() {
                       </span>
                       <span className="text-[10px] font-black text-primary">{formatCurrency(finalAmt, state.settings.currency)}</span>
                       {bundle.scheduleType === 'scheduled' && (
-                        <span className="text-[8px] font-black uppercase bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                        <Badge tone="warning" className="!bg-amber-100 dark:!bg-amber-500/10 !text-amber-700 dark:!text-amber-400 !px-1.5 !py-0.5 !rounded !text-[8px]">
                           Scheduled
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>
@@ -1476,24 +1465,18 @@ export function BundleManager() {
 
                   {/* Desktop Actions */}
                   <div className="flex items-center gap-1">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => setExpandedBundle(isExpanded ? null : bundle.id)}
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-all"
-                    >
-                      {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
-                    </button>
+                      className="!min-h-0 !p-2 !rounded-lg !bg-transparent hover:!bg-gray-100 dark:hover:!bg-white/5"
+                      icon={isExpanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+                    />
                     {canManage && (
                       <>
-                        <button type="button" onClick={() => handleToggleActive(bundle)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-all" title={bundle.active ? t('disable', 'Disable') : t('enable', 'Enable')}>
-                          {bundle.active ? <ToggleRight className="h-4 w-4 text-primary" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />}
-                        </button>
-                        <button type="button" onClick={() => openEdit(bundle)} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-all text-blue-500">
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button type="button" onClick={() => handleDelete(bundle)} className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all text-red-500">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <Button type="button" variant="ghost" onClick={() => handleToggleActive(bundle)} className="!min-h-0 !p-2 !rounded-lg !bg-transparent hover:!bg-gray-100 dark:hover:!bg-white/5" title={bundle.active ? t('disable', 'Disable') : t('enable', 'Enable')} icon={bundle.active ? <ToggleRight className="h-4 w-4 text-primary" /> : <ToggleLeft className="h-4 w-4 text-gray-400" />} />
+                        <Button type="button" variant="ghost" onClick={() => openEdit(bundle)} className="!min-h-0 !p-2 !rounded-lg !bg-transparent !text-blue-500 hover:!bg-blue-50 dark:hover:!bg-blue-500/10" icon={<Edit className="h-4 w-4" />} />
+                        <Button type="button" variant="ghost" onClick={() => handleDelete(bundle)} className="!min-h-0 !p-2 !rounded-lg !bg-transparent !text-red-500 hover:!bg-red-50 dark:hover:!bg-red-500/10" icon={<Trash2 className="h-4 w-4" />} />
                       </>
                     )}
                   </div>
@@ -1509,16 +1492,17 @@ export function BundleManager() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-black text-gray-900 dark:text-white uppercase text-sm line-clamp-2 leading-tight">{bundle.name}</p>
-                        {!bundle.active && <span className="text-[8px] font-black uppercase bg-gray-200 dark:bg-white/10 text-gray-500 px-1.5 py-0.5 rounded shrink-0">{t('inactive', 'Inactive')}</span>}
+                        {!bundle.active && <Badge tone="neutral" className="!bg-gray-200 dark:!bg-white/10 !text-gray-500 !px-1.5 !py-0.5 !rounded !text-[8px] shrink-0">{t('inactive', 'Inactive')}</Badge>}
                         {(bundle.name?.length < 3 || (bundle.discountType === 'percentage' && bundle.discountValue > 100) || discAmt >= totalPrice) && (
-                          <span className="text-[8px] font-black uppercase bg-red-500 text-white px-1.5 py-0.5 rounded shrink-0" title={t('invalid_pricing_tooltip', 'This bundle has invalid pricing — edit or delete it')}>{t('invalid', 'Invalid')}</span>
+                          <Badge tone="danger" variant="solid" className="!bg-red-500 !px-1.5 !py-0.5 !rounded !text-[8px] shrink-0" title={t('invalid_pricing_tooltip', 'This bundle has invalid pricing — edit or delete it')}>{t('invalid', 'Invalid')}</Badge>
                         )}
                       </div>
                     </div>
                     {/* Mobile actions dropdown */}
                     <div className="relative">
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={(e) => {
                           const isOpen = actionMenuBundleId === bundle.id;
                           if (!isOpen) {
@@ -1527,46 +1511,49 @@ export function BundleManager() {
                           }
                           setActionMenuBundleId(isOpen ? null : bundle.id);
                         }}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg transition-all"
-                      >
-                        <MoreHorizontal className="h-4 w-4 text-gray-500" />
-                      </button>
+                        className="!min-h-0 !p-2 !rounded-lg !bg-transparent hover:!bg-gray-100 dark:hover:!bg-white/5"
+                        icon={<MoreHorizontal className="h-4 w-4 text-gray-500" />}
+                      />
                       {actionMenuBundleId === bundle.id && (
                         <div className={`absolute right-0 ${menuUpward ? 'bottom-full mb-1' : 'top-full mt-1'} bg-white dark:bg-[#1C1C1C] border border-gray-200 dark:border-white/10 rounded-2xl shadow-xl z-[100] p-1 min-w-[160px]`} onClick={() => { setActionMenuBundleId(null); setMenuUpward(false); }}>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={() => { setExpandedBundle(isExpanded ? null : bundle.id); setActionMenuBundleId(null); setMenuUpward(false); }}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-white/5 text-[11px] font-black text-gray-700 dark:text-gray-300 uppercase rounded-lg"
+                            className="w-full !justify-start !min-h-0 !px-3 !py-2.5 !rounded-lg !bg-transparent hover:!bg-gray-50 dark:hover:!bg-white/5 !text-[11px] !font-black !text-gray-700 dark:!text-gray-300"
                           >
                             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                             {isExpanded ? t('collapse', 'Collapse') : t('expand', 'Expand')}
-                          </button>
+                          </Button>
                           {canManage && (
                             <>
-                              <button
+                              <Button
                                 type="button"
+                                variant="ghost"
                                 onClick={() => { openEdit(bundle); setActionMenuBundleId(null); setMenuUpward(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-[11px] font-black text-blue-500 uppercase rounded-lg"
+                                className="w-full !justify-start !min-h-0 !px-3 !py-2.5 !rounded-lg !bg-transparent hover:!bg-blue-50 dark:hover:!bg-blue-500/10 !text-[11px] !font-black !text-blue-500"
                               >
                                 <Edit className="h-3.5 w-3.5" />
                                 {t('edit', 'Edit')}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
+                                variant="ghost"
                                 onClick={() => { handleToggleActive(bundle); setActionMenuBundleId(null); setMenuUpward(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-white/5 text-[11px] font-black text-gray-700 dark:text-gray-300 uppercase rounded-lg"
+                                className="w-full !justify-start !min-h-0 !px-3 !py-2.5 !rounded-lg !bg-transparent hover:!bg-gray-50 dark:hover:!bg-white/5 !text-[11px] !font-black !text-gray-700 dark:!text-gray-300"
                               >
                                 {bundle.active ? <ToggleRight className="h-3.5 w-3.5 text-primary" /> : <ToggleLeft className="h-3.5 w-3.5 text-gray-400" />}
                                 {bundle.active ? t('disable', 'Disable') : t('enable', 'Enable')}
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
+                                variant="ghost"
                                 onClick={() => { handleDelete(bundle); setActionMenuBundleId(null); setMenuUpward(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-red-50 dark:hover:bg-red-500/10 text-[11px] font-black text-red-500 uppercase rounded-lg"
+                                className="w-full !justify-start !min-h-0 !px-3 !py-2.5 !rounded-lg !bg-transparent hover:!bg-red-50 dark:hover:!bg-red-500/10 !text-[11px] !font-black !text-red-500"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                                 {t('delete', 'Delete')}
-                              </button>
+                              </Button>
                             </>
                           )}
                         </div>
@@ -1584,9 +1571,9 @@ export function BundleManager() {
                         </span>
                         <span className="text-[10px] font-black text-primary whitespace-nowrap">{formatCurrency(finalAmt, state.settings.currency)}</span>
                         {bundle.scheduleType === 'scheduled' && (
-                          <span className="text-[8px] font-black uppercase bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                          <Badge tone="warning" className="!bg-amber-100 dark:!bg-amber-500/10 !text-amber-700 dark:!text-amber-400 !px-1.5 !py-0.5 !rounded !text-[8px]">
                             Scheduled
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     <div className="flex items-center gap-1.5 shrink-0">

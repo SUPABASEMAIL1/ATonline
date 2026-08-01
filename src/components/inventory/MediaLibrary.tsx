@@ -6,6 +6,7 @@ import { sonner } from '../../lib/sonner';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { compressImage } from '../../lib/imageCompression';
+import { Button, EmptyState } from '../../shared/ui';
 
 interface MediaLibraryProps {
   isOpen: boolean;
@@ -190,12 +191,13 @@ export function MediaLibrary({ isOpen, onClose, onSelect, standalone }: MediaLib
                   <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/20 flex flex-col items-center justify-center transition-all">
                     <MousePointer2 className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100" />
                     {!asset.isSystem && (
-                      <button
+                      <Button
+                        variant="danger"
+                        size="sm"
                         onClick={(e) => handleDeleteImage(e, asset.image)}
-                        className="absolute top-3 right-3 p-2 bg-red-500 text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all z-10 shadow-lg hover:scale-110"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        className="absolute top-3 right-3 !min-h-0 !p-2 !bg-red-500 opacity-0 group-hover:opacity-100 hover:!opacity-100 hover:!scale-110 z-10"
+                        icon={<Trash2 className="h-4 w-4" />}
+                      />
                     )}
                   </div>
                   {asset.isSystem && (
@@ -212,13 +214,12 @@ export function MediaLibrary({ isOpen, onClose, onSelect, standalone }: MediaLib
             ))}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-gray-600 py-20">
-            <div className="p-10 rounded-full bg-white/[0.02] mb-8 border border-white/5 animate-pulse">
-              <ImageIcon className="h-20 w-20 opacity-10" />
-            </div>
-            <p className="text-xl font-black uppercase text-white/20 tracking-[0.2em]">Repository Empty</p>
-            <p className="text-xs font-bold mt-3 text-gray-600 max-w-xs text-center">Your database is currently clean. Add products with images to see them indexed here.</p>
-          </div>
+          <EmptyState
+            icon={<ImageIcon className="h-full w-full animate-pulse opacity-30" />}
+            title="Repository Empty"
+            subtext="Your database is currently clean. Add products with images to see them indexed here."
+            className="h-full !py-20"
+          />
         )}
       </div>
     </div>

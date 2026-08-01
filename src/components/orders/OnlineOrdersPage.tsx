@@ -6,6 +6,8 @@ import { formatCurrency } from '../../lib/currencies';
 import { ShoppingBag, ChevronRight, CheckCircle2, XCircle, MapPin, Phone, FileText, Bike, Store, Home, Clock, Flame, Info } from 'lucide-react';
 import { sonner } from '../../lib/sonner';
 import { useNavigate } from 'react-router-dom';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Button, EmptyState } from '../../shared/ui';
 
 // ─── Module-level component (prevents blink from re-mounting on parent re-render) ───
 const OrderTimer = ({ order, settings, onExpire }: { order: StoreOrder, settings: any, onExpire?: (orderId: string) => void }) => {
@@ -254,6 +256,7 @@ export function OnlineOrdersPage() {
   const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+  const [orderSearch, setOrderSearch] = useState('');
   const [seenOrderIds, setSeenOrderIds] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('seen_order_ids') || '[]')); }
     catch { return new Set(); }
@@ -269,14 +272,25 @@ export function OnlineOrdersPage() {
   };
 
   const displayedOrders = activeTab === 'active' ? activeOrders : pastOrders;
+
+  // Shared search filter — order # / customer / phone
+  const searchFilteredOrders = useMemo(() => {
+    const term = orderSearch.trim().toLowerCase();
+    if (!term) return displayedOrders;
+    return displayedOrders.filter(o =>
+      String(o.invoiceNumber || '').toLowerCase().includes(term) ||
+      (o.customerName || '').toLowerCase().includes(term) ||
+      (o.customerPhone || '').toLowerCase().includes(term)
+    );
+  }, [displayedOrders, orderSearch]);
   
   // Select order ONLY if selectedOrderId is explicitly set (never auto-open first order)
   const selectedOrder = useMemo(() => {
     if (selectedOrderId) {
-      return displayedOrders.find(o => o.id === selectedOrderId) || null;
+      return searchFilteredOrders.find(o => o.id === selectedOrderId) || null;
     }
     return null;
-  }, [displayedOrders, selectedOrderId]);
+  }, [searchFilteredOrders, selectedOrderId]);
 
   // Auto-mark selected order as seen
   useEffect(() => {
@@ -368,7 +382,7 @@ export function OnlineOrdersPage() {
   return (
     <div className="flex flex-col h-full bg-gray-50 dark:bg-[#0a0a0a] overflow-hidden">
       {/* Header Tabs (Hidden on mobile if detail is open) */}
-      <div className={`flex gap-4 border-b border-gray-200 dark:border-gray-800 px-6 pt-4 shrink-0 bg-white dark:bg-[#111] ${isMobileDetailOpen ? 'hidden md:flex' : 'flex'} items-center`}>
+      <div className={`flex flex-wrap gap-4 border-b border-gray-200 dark:border-gray-800 px-6 pt-4 pb-3 shrink-0 bg-white dark:bg-[#111] ${isMobileDetailOpen ? 'hidden md:flex' : 'flex'} items-center`}>
         <button 
           onClick={() => { setActiveTab('active'); setSelectedOrderId(null); setIsMobileDetailOpen(false); }}
           className={`font-black uppercase tracking-widest text-[11px] pb-3 border-b-2 transition-colors ${activeTab === 'active' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'} flex items-center gap-2`}
@@ -385,6 +399,15 @@ export function OnlineOrdersPage() {
           Past Orders
         </button>
 
+        {/* Shared search module */}
+        <div className="w-full sm:w-72 sm:ml-auto order-last sm:order-none">
+          <SharedSearchBar
+            value={orderSearch}
+            onChange={setOrderSearch}
+            placeholder="Search order #, customer, phone..."
+          />
+        </div>
+
         <div className="ml-auto mb-3 flex items-center gap-2 text-[10px] font-bold text-gray-400 group cursor-help relative">
           <Info className="w-4 h-4 text-gray-400" />
           <span className="hidden sm:inline">How does stock work?</span>
@@ -400,13 +423,14 @@ export function OnlineOrdersPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Orders List */}
         <div className={`w-full md:w-1/3 border-r border-gray-200 dark:border-white/5 bg-white dark:bg-[#111] overflow-y-auto flex flex-col ${isMobileDetailOpen ? 'hidden md:flex' : 'flex'}`}>
-          {displayedOrders.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 p-8 text-center">
-              <ShoppingBag className="w-12 h-12 mb-4 opacity-20" />
-              <p className="font-bold tracking-wide">No orders found.</p>
-            </div>
+          {searchFilteredOrders.length === 0 ? (
+            <EmptyState
+              icon={<ShoppingBag className="w-12 h-12 opacity-20 text-gray-400" />}
+              title={orderSearch ? 'No orders match your search.' : 'No orders found.'}
+              className="h-full !p-8"
+            />
           ) : (
-            displayedOrders.map(order => {
+            searchFilteredOrders.map(order => {
               const isNew = !seenOrderIds.has(order.id);
               return (
               <button
@@ -460,12 +484,11 @@ export function OnlineOrdersPage() {
               <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/5 rounded-2xl p-4 md:p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start gap-4">
                 <div>
                   <div className="flex items-center gap-3">
-                    <button 
+                    <Button
                       onClick={() => setIsMobileDetailOpen(false)}
-                      className="md:hidden p-2 -ml-2 hover:bg-gray-100 rounded-full text-gray-500"
-                    >
-                      <ChevronRight className="w-6 h-6 rotate-180" />
-                    </button>
+                      icon={<ChevronRight className="w-6 h-6 rotate-180" />}
+                      className="md:hidden !min-h-0 !p-2 !-ml-2 !rounded-full !text-gray-500 !hover:bg-gray-100"
+                    />
                     <h2 className="text-xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">Order #{selectedOrder.invoiceNumber}</h2>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-2 md:ml-0 ml-10">
@@ -494,20 +517,21 @@ export function OnlineOrdersPage() {
                     </div>
                   ) : (
                     <>
-                      <button 
+                      <Button
                         onClick={() => handleAcceptToPOS(selectedOrder)}
-                        className="w-full sm:flex-1 py-3 bg-primary text-white rounded-xl font-black uppercase tracking-widest text-sm hover:bg-opacity-90 transition-all flex items-center justify-center gap-2"
+                        icon={<CheckCircle2 className="w-5 h-5" />}
+                        className="w-full sm:flex-1 !py-3 !rounded-xl !font-black !text-sm !gap-2 hover:!bg-emerald-700"
                       >
-                        <CheckCircle2 className="w-5 h-5" />
                         Accept & Load to POS
-                      </button>
-                      <button 
+                      </Button>
+                      <Button
+                        variant="danger"
                         onClick={() => updateStatus(selectedOrder, 'cancelled')}
-                        className="w-full sm:w-auto px-6 py-3 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
+                        icon={<XCircle className="w-4 h-4" />}
+                        className="w-full sm:w-auto !min-h-0 !px-6 !py-3 !rounded-xl !font-black !text-xs !gap-2 !shadow-none !bg-transparent !border !border-rose-200 dark:!border-rose-900/30 !text-rose-600 dark:!text-rose-400 !hover:opacity-100 hover:!bg-rose-50 dark:hover:!bg-rose-500/10"
                       >
-                        <XCircle className="w-4 h-4" />
                         Cancel
-                      </button>
+                      </Button>
                     </>
                   )}
                 </div>

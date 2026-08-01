@@ -6,6 +6,7 @@ import { calculateDiscount } from '../../lib/utils';
 import { bundlesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import ExtraToppingSelector from '../common/ExtraToppingSelector';
+import { Button } from '../../shared/ui';
 
 const Dealtimer = ({ bundle }: { bundle: Bundle }) => {
   const [display, setDisplay] = useState('');
@@ -319,12 +320,11 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
       <div className="relative w-full max-w-3xl bg-[var(--color-card-bg)] rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] animate-scale-up overflow-hidden">
         
         {/* Close button */}
-        <button 
+        <Button 
           onClick={onClose}
-          className="absolute top-4 right-4 z-50 p-2 bg-black/40 hover:bg-black/60 text-white rounded-full transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+          className="absolute top-4 right-4 z-50 !min-h-0 !p-2 !bg-black/40 hover:!bg-black/60 !text-white !rounded-full !normal-case !tracking-normal"
+          icon={<X className="w-5 h-5" />}
+        />
 
         {/* Banner with multiple images if available */}
         <div className="relative w-full aspect-[900/650] max-h-48 sm:max-h-64 bg-slate-950 shrink-0">
@@ -356,7 +356,7 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
           <div className="absolute bottom-4 left-6 right-6 text-white">
             <div className="flex items-center gap-2 mb-2">
               {bundle.overridePrice !== undefined && bundle.overridePrice !== null || bundle.discountValue === 0 ? null : (() => {
-                const di = calculateDiscount(dealCalc.totalPrice, dealCalc.dealPrice);
+                const di = calculateDiscount(totalPrice, dealPrice);
                 return di.isValid ? (
                   <span className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full inline-block shadow">
                     -{di.percent}% OFF
@@ -390,17 +390,17 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
                   <h3 className="text-xs font-black uppercase tracking-widest text-[var(--color-text)] opacity-60 mb-3">Size</h3>
                   <div className="flex gap-2">
                     {tierLabels.map((label: string, idx: number) => (
-                      <button
+                      <Button
                         key={idx}
                         onClick={() => setSelectedSizeTier(idx)}
-                        className={`px-4 py-2 rounded-xl font-bold text-sm transition-all border ${
+                        className={`!min-h-0 !px-4 !py-2 !rounded-xl !font-bold !text-sm !normal-case !tracking-normal !border ${
                           selectedSizeTier === idx
-                            ? 'bg-primary border-primary text-white shadow-md'
-                            : 'bg-[var(--color-card-bg)] border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-80 hover:opacity-100'
+                            ? '!bg-primary !border-primary !text-white !shadow-md'
+                            : '!bg-[var(--color-card-bg)] !border-black/10 dark:!border-white/10 !text-[var(--color-text)] !opacity-80 hover:!opacity-100'
                         }`}
                       >
                         {label}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -494,25 +494,23 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
                               </div>
 
                               <div className="flex items-center gap-1 shrink-0 bg-black/5 dark:bg-white/5 rounded-lg p-0.5">
-                                <button
+                                <Button
                                   type="button"
                                   onClick={() => updateSelection(slot.id, opt.productId, -1, slot.requiredQuantity)}
                                   disabled={qty === 0}
-                                  className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-[var(--color-card-bg)] text-gray-500 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-                                >
-                                  <Minus className="h-3.5 w-3.5" />
-                                </button>
+                                  className="!min-h-0 !h-7 !w-7 !p-0 !rounded-md !bg-transparent hover:!bg-[var(--color-card-bg)] !text-gray-500 disabled:!opacity-30 disabled:hover:!bg-transparent !normal-case !tracking-normal"
+                                  icon={<Minus className="h-3.5 w-3.5" />}
+                                />
                                 <span className="w-5 text-center text-xs font-black text-[var(--color-text)]">
                                   {qty}
                                 </span>
-                                <button
+                                <Button
                                   type="button"
                                   onClick={() => updateSelection(slot.id, opt.productId, 1, slot.requiredQuantity)}
                                   disabled={remaining === 0}
-                                  className="h-7 w-7 rounded-md flex items-center justify-center hover:bg-[var(--color-card-bg)] text-primary disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </button>
+                                  className="!min-h-0 !h-7 !w-7 !p-0 !rounded-md !bg-transparent hover:!bg-[var(--color-card-bg)] !text-primary disabled:!opacity-30 disabled:hover:!bg-transparent !normal-case !tracking-normal"
+                                  icon={<Plus className="h-3.5 w-3.5" />}
+                                />
                               </div>
                             </div>
                           </div>
@@ -532,17 +530,17 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
                   <h3 className="text-xs font-black uppercase tracking-widest text-[var(--color-text)] opacity-60 mb-3">Size</h3>
                   <div className="flex gap-2">
                     {tierLabels.map((label: string, idx: number) => (
-                      <button
+                      <Button
                         key={idx}
                         onClick={() => setSelectedSizeTier(idx)}
-                        className={`px-4 py-2 rounded-xl font-bold text-sm transition-all border ${
+                        className={`!min-h-0 !px-4 !py-2 !rounded-xl !font-bold !text-sm !normal-case !tracking-normal !border ${
                           selectedSizeTier === idx
-                            ? 'bg-primary border-primary text-white shadow-md'
-                            : 'bg-[var(--color-card-bg)] border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-80 hover:opacity-100'
+                            ? '!bg-primary !border-primary !text-white !shadow-md'
+                            : '!bg-[var(--color-card-bg)] !border-black/10 dark:!border-white/10 !text-[var(--color-text)] !opacity-80 hover:!opacity-100'
                         }`}
                       >
                         {label}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -630,13 +628,13 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
             )}
           </div>
 
-          <button
+          <Button
             onClick={handleAdd}
             disabled={bundle.isCombo && !isComplete}
-            className="flex-1 max-w-[200px] py-3.5 bg-primary text-white rounded-full font-black text-sm hover:brightness-95 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 shadow-md shadow-primary/20"
+            className="flex-1 !max-w-[200px] !py-3.5 !bg-primary !text-white !rounded-full !font-black !text-sm hover:!brightness-95 !normal-case !tracking-normal !shadow-md !shadow-primary/20"
           >
             Add Deal to Cart
-          </button>
+          </Button>
         </div>
 
       </div>

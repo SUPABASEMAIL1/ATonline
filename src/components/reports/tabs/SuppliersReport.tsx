@@ -1,11 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Building2, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp, Download, Search } from 'lucide-react';
-import { formatCurrency } from '../../../lib/currencies';
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
+import { Building2, TrendingUp, TrendingDown, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatCurrency, getCurrencySymbol } from '../../../lib/currencies';
 import { formatAppDate } from '../../../lib/dateUtils';
 import { useApp } from '../../../context/SupabaseAppContext';
 import { suppliersService } from '../../../lib/services';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { Supplier } from '../../../types';
+import { SharedSearchBar } from '../../../shared/modules/search-and-list';
+import { Badge } from '../../../shared/ui';
+import { ExportButton } from '../../../shared/export';
 
 interface SupplierReportRow {
   supplier: Supplier;
@@ -76,6 +79,24 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
     setExpandedLedger(ledger);
   };
 
+  const exportColumns = [
+    { key: 'name', label: t('supplier', 'Supplier') },
+    { key: 'phone', label: t('phone', 'Phone') },
+    { key: 'totalBilled', label: t('total_billed', 'Billed'), format: 'currency' as const },
+    { key: 'totalPaid', label: t('total_paid', 'Paid'), format: 'currency' as const },
+    { key: 'balance', label: t('balance', 'Balance'), format: 'currency' as const },
+    { key: 'transactionCount', label: t('transactions', 'Transactions'), format: 'number' as const },
+  ];
+
+  const exportRows = useMemo(() => filteredRows.map(r => ({
+    name: r.supplier.name,
+    phone: r.supplier.phone || '',
+    totalBilled: r.totalBilled,
+    totalPaid: r.totalPaid,
+    balance: r.balance,
+    transactionCount: r.transactionCount,
+  })), [filteredRows]);
+
   const filteredRows = useMemo(() => {
     let result = rows;
     if (searchTerm) {
@@ -122,17 +143,18 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
     URL.revokeObjectURL(url);
   };
 
+  const sourceBadgeBase = '!rounded !px-1.5 !text-[8px] !tracking-normal';
   const getSourceBadge = (sourceType: string) => {
     if (sourceType === 'auto_purchase') {
-      return <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase rounded border border-blue-500/20">AUTO</span>;
+      return <Badge className={`${sourceBadgeBase} !bg-blue-500/10 !text-blue-400 dark:!text-blue-400 !border-blue-500/20`}>AUTO</Badge>;
     }
     if (sourceType === 'payment') {
-      return <span className="px-1.5 py-0.5 bg-primary/10 text-emerald-400 text-[8px] font-black uppercase rounded border border-primary/20">PAID</span>;
+      return <Badge className={`${sourceBadgeBase} !bg-primary/10 !text-emerald-400 dark:!text-emerald-400 !border-primary/20`}>PAID</Badge>;
     }
     if (sourceType === 'opening_balance') {
-      return <span className="px-1.5 py-0.5 bg-violet-500/10 text-violet-400 text-[8px] font-black uppercase rounded border border-violet-500/20">OPENING</span>;
+      return <Badge className={`${sourceBadgeBase} !bg-violet-500/10 !text-violet-400 dark:!text-violet-400 !border-violet-500/20`}>OPENING</Badge>;
     }
-    return <span className="px-1.5 py-0.5 bg-red-500/10 text-red-400 text-[8px] font-black uppercase rounded border border-red-500/20">BILL</span>;
+    return <Badge tone="danger" className={`${sourceBadgeBase} !bg-red-500/10 !text-red-400 dark:!text-red-400 !border-red-500/20`}>BILL</Badge>;
   };
 
   if (loading) {
@@ -182,23 +204,21 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
 
       {/* Search & Export */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t('search_suppliers', 'Search suppliers...')}
+        <div className="flex-1">
+          <SharedSearchBar
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-50 dark:bg-black/75 border-none rounded-xl pl-11 pr-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-primary outline-none"
+            onChange={setSearchTerm}
+            placeholder={t('search_suppliers', 'Search suppliers...')}
           />
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 px-5 py-3 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 rounded-xl hover:text-primary transition-all border border-gray-200 dark:border-white/5 font-black text-[10px] uppercase tracking-widest"
-        >
-          <Download className="h-4 w-4" />
-          {t('export_csv', 'Export CSV')}
-        </button>
+        <ExportButton
+          data={exportRows}
+          columns={exportColumns}
+          title={t('supplier_report', 'Supplier Report')}
+          filtersSummary={searchTerm ? `${t('search', 'Search')}: ${searchTerm}` : undefined}
+          currencySymbol={getCurrencySymbol(currency)}
+          className="!min-h-0 !px-5 !py-3 !rounded-xl !text-[10px] !font-black !bg-gray-100 dark:!bg-white/5 !text-gray-600 dark:!text-gray-400 !border-gray-200 dark:!border-white/5 hover:!text-primary"
+        />
       </div>
 
       {/* Table */}
@@ -235,8 +255,8 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
                 </tr>
               ) : (
                 filteredRows.map(row => (
-                  <>
-                    <tr key={row.supplier.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.01] transition-colors">
+                  <Fragment key={row.supplier.id}>
+                    <tr className="hover:bg-gray-50 dark:hover:bg-white/[0.01] transition-colors">
                       <td className="px-6 py-4">
                         <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">{row.supplier.name}</p>
                         <p className="text-[9px] text-gray-500 mt-0.5">{row.supplier.phone || '—'}</p>
@@ -253,12 +273,12 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() => handleExpand(row.supplier.id)}
-                          className="px-3 py-1.5 bg-gray-100 dark:bg-white/5 text-gray-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:text-primary transition-all"
-                        >
-                          {expandedId === row.supplier.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        </button>
+                          icon={expandedId === row.supplier.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          className="!min-h-0 !px-3 !py-1.5 !rounded-lg !text-[9px] !font-black !bg-gray-100 dark:!bg-white/5 !text-gray-600 hover:!text-primary !hover:bg-gray-100 dark:!hover:bg-white/5"
+                        />
                       </td>
                     </tr>
                     {expandedId === row.supplier.id && (
@@ -289,7 +309,7 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))
               )}
             </tbody>

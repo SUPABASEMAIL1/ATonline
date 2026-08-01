@@ -10,6 +10,7 @@ import { useEstoreAuth } from './useEstoreAuth';
 import { formatTime12h } from '../../lib/timeFormat';
 
 import { OrderTracker } from './OrderTracker';
+import { Button } from '../../shared/ui';
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; // Radius of the earth in km
@@ -311,9 +312,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
     <div className="min-h-screen bg-[var(--color-bg)] pb-24" style={{ '--color-primary': settings?.estoreThemeColor || '#10b981' } as React.CSSProperties}>
       <header className="sticky top-0 z-50 bg-[var(--color-card-bg)] border-b border-gray-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-4">
-          <button onClick={() => navigate('/store')} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <ArrowLeft className="w-6 h-6 text-gray-700" />
-          </button>
+          <Button onClick={() => navigate('/store')} className="!min-h-0 !p-2 !bg-transparent hover:!bg-gray-100 !rounded-full !normal-case !tracking-normal" icon={<ArrowLeft className="w-6 h-6 text-gray-700" />} />
           <h1 className="font-black text-xl tracking-tight text-[var(--color-text)]">Checkout</h1>
         </div>
       </header>
@@ -324,15 +323,15 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         <div className="flex-1 space-y-6">
           {/* Fulfillment Mode Selector (KFC Style) */}
           <div className="grid grid-cols-2 gap-3 p-2 bg-[var(--color-card-bg)] rounded-[2rem] border border-gray-100 shadow-sm">
-            <button
+            <Button
               type="button"
               onClick={() => deliverySelectable && setFulfillmentMode('delivery')}
-              className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${
+              className={`!min-h-0 !py-4 !rounded-2xl !font-black !text-sm !uppercase !tracking-wider !flex !flex-col !items-center !justify-center !gap-1 ${
                 !deliverySelectable
-                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  ? '!text-gray-300 dark:!text-gray-600 !cursor-not-allowed'
                   : fulfillmentMode === 'delivery'
-                    ? 'bg-primary text-white shadow-lg'
-                    : 'text-[var(--color-text)] opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
+                    ? '!bg-primary !text-white !shadow-lg'
+                    : '!text-[var(--color-text)] !opacity-70 hover:!opacity-100 hover:!bg-black/5 dark:hover:!bg-white/5'
               }`}
               title={!deliverySelectable && settings?.deliveryStartTime && settings?.deliveryEndTime ? `Delivery available ${formatTime12h(settings.deliveryStartTime)} – ${formatTime12h(settings.deliveryEndTime)}` : ''}
             >
@@ -347,16 +346,16 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                   <Clock className="h-2.5 w-2.5" /> {formatTime12h(settings.deliveryStartTime)} – {formatTime12h(settings.deliveryEndTime)}
                 </span>
               )}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => pickupSelectable && setFulfillmentMode('pickup')}
-              className={`py-4 rounded-2xl font-black text-sm uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all ${
+              className={`!min-h-0 !py-4 !rounded-2xl !font-black !text-sm !uppercase !tracking-wider !flex !flex-col !items-center !justify-center !gap-1 ${
                 !pickupSelectable
-                  ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                  ? '!text-gray-300 dark:!text-gray-600 !cursor-not-allowed'
                   : fulfillmentMode === 'pickup'
-                    ? 'bg-primary text-white shadow-lg'
-                    : 'text-[var(--color-text)] opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
+                    ? '!bg-primary !text-white !shadow-lg'
+                    : '!text-[var(--color-text)] !opacity-70 hover:!opacity-100 hover:!bg-black/5 dark:hover:!bg-white/5'
               }`}
               title={!pickupSelectable && settings?.pickupStartTime && settings?.pickupEndTime ? `Pickup available ${formatTime12h(settings.pickupStartTime)} – ${formatTime12h(settings.pickupEndTime)}` : ''}
             >
@@ -371,7 +370,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                   <Clock className="h-2.5 w-2.5" /> {formatTime12h(settings.pickupStartTime)} – {formatTime12h(settings.pickupEndTime)}
                 </span>
               )}
-            </button>
+            </Button>
           </div>
 
           <div className="bg-[var(--color-card-bg)] rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 relative">
@@ -458,14 +457,14 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                       <label className="flex items-center gap-2 text-sm font-black text-[var(--color-text)] opacity-80">
                         <LocateFixed className="w-4 h-4 text-primary" /> Delivery Location *
                       </label>
-                      <button
+                      <Button
                         type="button"
                         onClick={handleGetCurrentLocation}
-                        className="flex items-center gap-1.5 text-sm font-bold text-primary hover:text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
+                        className="!min-h-0 !text-sm !font-bold !text-primary hover:!text-emerald-600 !bg-emerald-50 hover:!bg-emerald-100 !px-3 !py-1.5 !rounded-lg !normal-case !tracking-normal"
+                        icon={<LocateFixed className="w-4 h-4" />}
                       >
-                        <LocateFixed className="w-4 h-4" />
                         Detect Location
-                      </button>
+                      </Button>
                     </div>
                     
                     {position ? (
@@ -737,20 +736,19 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
               </div>
             </div>
 
-            <button 
+            <Button 
               type="submit"
               form="checkout-form"
               disabled={loading || !canOrder}
-              className="w-full py-4 mt-8 bg-primary text-white rounded-2xl font-black text-lg hover:brightness-90 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-lg"
+              loading={loading}
+              className="!w-full !py-4 !mt-8 !bg-primary !text-white !rounded-2xl !font-black !text-lg hover:!brightness-90 !normal-case !tracking-normal !shadow-lg"
             >
-              {loading ? (
-                <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-              ) : !canOrder ? (
+              {!canOrder ? (
                 'Currently Unavailable'
               ) : (
                 `Place Order ${selectedPaymentMethod === 'cash' ? '(COD)' : ''}`
               )}
-            </button>
+            </Button>
           </div>
         </div>
 

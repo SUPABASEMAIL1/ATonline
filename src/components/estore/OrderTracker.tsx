@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { AppSettings } from '../../types';
 import { CheckCircle, Clock, ChefHat, Truck, Package, XCircle, Receipt, MapPin, Phone } from 'lucide-react';
 import { formatCurrency } from '../../lib/currencies';
+import { Button } from '../../shared/ui';
 
 interface OrderTrackerProps {
   orderId: string; // The invoiceNumber
@@ -251,12 +252,12 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
           </div>
         )}
 
-        <button 
+        <Button 
           onClick={() => navigate('/store')}
-          className="w-full py-4 mt-8 bg-primary text-white rounded-2xl font-black text-lg hover:brightness-110 active:scale-95 transition-all shadow-md"
+          className="!w-full !py-4 !mt-8 !bg-primary !text-white !rounded-2xl !font-black !text-lg hover:!brightness-110 !normal-case !tracking-normal !shadow-md"
         >
           Continue Shopping
-        </button>
+        </Button>
       </div>
     </div>
   );

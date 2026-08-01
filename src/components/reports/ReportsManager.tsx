@@ -10,6 +10,7 @@ import { EXPENSE_CATEGORIES, Sale, Expense } from '../../types';
 import InventoryReportManager from '../inventory/InventoryReportManager';
 import { localDb } from '../../lib/localDb';
 import { supabase } from '../../lib/supabase';
+import { dialog } from '../../lib/dialog';
 import {
   salesService,
   expensesService,
@@ -26,6 +27,7 @@ import { FinancialReport } from './tabs/FinancialReport';
 import { InventoryReport } from './tabs/InventoryReport';
 import { SkeletonLoader } from '../common/SkeletonLoader';
 import { SuppliersReport } from './tabs/SuppliersReport';
+import { DateRangePicker, Button } from '../../shared/ui';
 
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -99,7 +101,6 @@ export function ReportsManager() {
   }
 
   const [dateRange, setDateRange] = useState('today');
-  const [selectedReportTab, setSelectedReportTab] = useState('summary');
   const userRole = state.currentUser?.role;
   const userPerms = state.currentUser?.permissions || [];
   const hasFullAccess = userRole === 'admin' || userRole === 'manager' || userPerms.includes('access_reports');
@@ -110,15 +111,20 @@ export function ReportsManager() {
   const [repairing, setRepairing] = useState(false);
 
   const handleRepairData = async () => {
-    if (!window.confirm('This will audit all legacy sales and backfill missing cost data for precise reporting. Proceed?')) return;
+    const confirmed = await dialog.confirm(
+      'Repair Legacy Data?',
+      'This will audit all legacy sales and backfill missing cost data for precise reporting. Proceed?',
+      'YES, REPAIR'
+    );
+    if (!confirmed.isConfirmed) return;
     setRepairing(true);
     try {
       const count = await salesService.patchLegacySales();
-      alert(`Data Audit Complete! Patched ${count} legacy sales records.`);
+      await dialog.alert('Data Audit Complete', `Patched ${count} legacy sales records.`);
       window.location.reload();
     } catch (error) {
       console.error('Repair failed:', error);
-      alert('Failed to repair data. Check console for details.');
+      await dialog.alert('Repair Failed', 'Failed to repair data. Check console for details.');
     } finally {
       setRepairing(false);
     }
@@ -922,91 +928,6 @@ export function ReportsManager() {
 
   const COLORS = ['#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#EC4899'];
 
-  const exportReport = () => {
-    const currency = state.settings.currency;
-    const headerSuffix = ` (${currency})`;
-    const isAdmin = userRole === 'admin';
-    let csvHeader = '';
-    let csvData = '';
-    let fileName = '';
-
-    const clean = (val: any) => {
-      if (val === undefined || val === null) return '';
-      return String(val).replace(/"/g, '""');
-    };
-
-    if (reportType === 'sales') {
-      csvHeader = 'Date,Time,Invoice Number,Receipt Number,Customer Name,Customer Phone,Cashier,Cashier @Username,Items List,Total Items Qty,Sale Type,Payment Method,Subtotal,Discount,Tax,Total Revenue';
-      if (isAdmin) csvHeader += `,Cost of Goods,Gross Profit`;
-      csvHeader += '\n';
-
-      csvData = filteredSales.map(sale => {
-        const customer = sale.customerId ? state.customers.find(c => c.id === sale.customerId) : null;
-        const customerName = clean(customer?.name || sale.customerName || 'Walk-in Customer');
-        const customerPhone = clean(customer?.phone || '');
-        const cashierUser = state.users.find(u => u.name === sale.cashier || u.email === sale.cashier);
-        const cashierName = clean(sale.cashier || 'System');
-        const cashierAt = cashierUser?.username ? `@${cashierUser.username}` : '';
-
-        const itemsList = sale.items.map(item => {
-          const sku = item.product?.sku ? ` [${item.product.sku}]` : '';
-          return `${item.product?.name || 'Item'}${sku} x ${item.quantity} @ ${formatNumberWithPrecision(item.product?.price || 0)}`;
-        }).join('; ');
-
-        const totalQty = sale.items.reduce((sum, item) => sum + item.quantity, 0);
-        const dateObj = new Date(sale.timestamp);
-        const formattedDate = formatAppDate(dateObj, state.settings.country);
-        const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        const totalCostLocal = sale.items.reduce((sum, item) => {
-          const { cost } = getItemCOGS(item);
-          return sum + cost;
-        }, 0);
-
-        let row = `"${formattedDate}","${formattedTime}","${clean(sale.invoiceNumber)}","${clean(sale.receiptNumber)}","${customerName}","${customerPhone}","${cashierName}","${cashierAt}","${clean(itemsList)}",${totalQty},"${clean(sale.saleType || 'retail')}","${clean(sale.paymentMethod)}",${formatNumberWithPrecision(sale.subtotal)},${formatNumberWithPrecision(sale.discountAmount)},${formatNumberWithPrecision(sale.taxAmount)},${formatNumberWithPrecision(sale.total)}`;
-
-        if (isAdmin) {
-          row += `,${formatNumberWithPrecision(totalCostLocal)},${formatNumberWithPrecision(getEffectiveTotal(sale) - totalCostLocal)}`;
-        }
-        return row;
-      }).join('\n');
-
-      fileName = `sales-detailed-report-${formatAppDate(new Date(), state.settings.country)}.csv`;
-    }
-    else if (reportType === 'inventory') {
-      csvHeader = 'Product Name,SKU,Category,Supplier,Stock,Min Stock,Status,Unit Cost,Unit Sale Price,Stock Value (at Cost),Potential Revenue,Sold Qty,Period Revenue,Period Profit,Period Margin %,Active\n';
-      csvData = inventoryData.map(item => {
-        const prod = state.products.find(p => p.id === item.id);
-        const costVal = (item.stockValue || 0);
-        const potentialRev = (item.potentialRevenue || 0);
-        return `"${clean(item.name)}","${clean(item.sku)}","${clean(item.category)}","${clean(prod?.supplier || '')}",${item.currentStock},${item.minStock},"${clean(item.stockStatus)}",${formatNumberWithPrecision(item.costPrice)},${formatNumberWithPrecision(item.sellingPrice)},${formatNumberWithPrecision(costVal)},${formatNumberWithPrecision(potentialRev)},${item.soldQuantity},${formatNumberWithPrecision(item.revenue)},${formatNumberWithPrecision(item.revenue - (item.soldQuantity * item.costPrice))},${formatNumberWithPrecision(item.profitMargin)},"${item.active ? 'Yes' : 'No'}"`;
-      }).join('\n');
-
-      fileName = `inventory-detailed-report-${formatAppDate(new Date(), state.settings.country)}.csv`;
-    }
-    else {
-      // Fallback for Financial
-      csvHeader = 'Metric,Value\n';
-      if (reportType === 'financial') {
-        const totalSalesVal = filteredSales.reduce((s, x) => s + x.total, 0);
-        const totalExpVal = filteredExpenses.reduce((s, x) => s + Number(x.amount), 0);
-        csvData = `"Total Revenue","${formatNumberWithPrecision(totalSalesVal)}"\n"Total Expenses","${formatNumberWithPrecision(totalExpVal)}"\n"Net Flow","${formatNumberWithPrecision(totalSalesVal - totalExpVal)}"`;
-      } else {
-        csvData = `"Report Type","${clean(reportType)}"\n"Status","Not directly exportable as detail grid"`;
-      }
-      fileName = `report-${clean(reportType)}-${formatAppDate(new Date(), state.settings.country)}.csv`;
-    }
-
-    const fullCsv = csvHeader + csvData;
-    const blob = new Blob(['\ufeff', fullCsv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', url);
-    linkElement.setAttribute('download', fileName);
-    linkElement.click();
-    URL.revokeObjectURL(url);
-  };
   if (!isRendered) {
     return (
       <div className="main-content-scroll p-1 lg:p-6 space-y-6 bg-gray-50/50 dark:bg-app min-h-full max-w-[1400px] mx-auto">
@@ -1030,28 +951,29 @@ export function ReportsManager() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
         <div className="flex flex-col md:flex-row md:items-center gap-4 sm:gap-6 xl:gap-10">
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <Button
+              variant="ghost"
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'pos' }))}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1 mr-1"
+              icon={<ChevronLeft className="h-4 w-4" />}
+              className="!min-h-0 !p-2 !rounded-xl !gap-1 !text-gray-600 dark:!text-gray-400 mr-1 !hover:bg-gray-100 dark:!hover:bg-white/5"
             >
-              <ChevronLeft className="h-4 w-4" />
               <span className="hidden sm:inline text-[8px] font-black uppercase tracking-widest">{t("back", "Back")}</span>
-            </button>
+            </Button>
             <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block" />
 
             {userRole === 'admin' && (
-              <button
+              <Button
                 onClick={handleRepairData}
                 disabled={repairing}
-                className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-lg border border-rose-500/20 transition-all active:scale-95 disabled:opacity-50 group"
                 title="Repair legacy sales data (Audit cost/profit)"
+                icon={<RefreshCw className={`h-3 w-3 ${repairing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />}
+                className="group !min-h-0 !px-3 !py-1.5 !rounded-lg !gap-2 !bg-rose-500/10 !hover:bg-rose-500/20 !text-rose-500 !border !border-rose-500/20 !shadow-none disabled:!opacity-50"
               >
-                <RefreshCw className={`h-3 w-3 ${repairing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
                 <span className="text-[8px] font-black uppercase tracking-widest hidden sm:inline">
                   {repairing ? 'Auditing...' : 'Repair Data'}
                 </span>
-              </button>
+              </Button>
             )}
 
             <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block" />
@@ -1110,43 +1032,25 @@ export function ReportsManager() {
       <div className="relative z-30 bg-white/50 dark:bg-black/20 p-2 lg:p-3 rounded-2xl border border-gray-200/50 dark:border-white/5 shadow-xl ring-1 ring-black/5 dark:ring-white/5">
         <div className="flex flex-col xl:flex-row gap-4">
           {/* Date Selector Row */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="flex-1 sm:flex-none min-w-[200px]">
-              <SearchableSelect
-                label={t("range", "RANGE")}
-                options={[
-                  { id: 'today', label: t("today", "TODAY") },
-                  { id: 'yesterday', label: t("yesterday", "YESTERDAY") },
-                  { id: 'last7', label: t("last7", "LAST 7 DAYS") },
-                  { id: 'thisMonth', label: t("this_month", "THIS MONTH") },
-                  { id: 'lastMonth', label: t("last_month", "PREVIOUS MONTH") },
-                  { id: 'custom', label: t("custom", "CUSTOM RANGE") },
-                  { id: 'all', label: t("all", "ALL TIME") }
-                ]}
-                value={dateRange}
-                onChange={setDateRange}
-                icon={TrendingUp}
-              />
-            </div>
-
-            {dateRange === 'custom' && (
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center w-full p-2 bg-white/30 dark:bg-black/75 rounded-xl border border-gray-200/50 dark:border-white/5 animate-in slide-in-from-top-2 sm:slide-in-from-left-4 duration-300">
-                <input
-                  type="date"
-                  value={startDateInput}
-                  onChange={(e) => setStartDateInput(e.target.value)}
-                  className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-                <span className="hidden sm:block text-gray-600 dark:text-gray-400 font-black text-[10px] uppercase tracking-tighter px-1">TO</span>
-                <input
-                  type="date"
-                  value={endDateInput}
-                  onChange={(e) => setEndDateInput(e.target.value)}
-                  className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-              </div>
-            )}
-          </div>
+          <DateRangePicker
+            preset={dateRange}
+            presets={[
+              { id: 'today', label: t("today", "TODAY") },
+              { id: 'yesterday', label: t("yesterday", "YESTERDAY") },
+              { id: 'last7', label: t("last7", "LAST 7 DAYS") },
+              { id: 'thisMonth', label: t("this_month", "THIS MONTH") },
+              { id: 'lastMonth', label: t("last_month", "PREVIOUS MONTH") },
+              { id: 'custom', label: t("custom", "CUSTOM RANGE") },
+              { id: 'all', label: t("all", "ALL TIME") }
+            ]}
+            onPresetChange={setDateRange}
+            startDate={startDateInput}
+            endDate={endDateInput}
+            onStartDateChange={setStartDateInput}
+            onEndDateChange={setEndDateInput}
+            label={t("range", "RANGE")}
+            icon={TrendingUp}
+          />
 
           <div className="hidden xl:block h-8 w-px bg-gray-200 dark:bg-white/10" />
 

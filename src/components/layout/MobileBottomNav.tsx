@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { AppIcons } from '../../lib/icons';
+import { Button } from '../../shared/ui';
 
 interface MobileBottomNavProps {
   onShowMenu: () => void;
@@ -34,13 +35,14 @@ export function MobileBottomNav({ onShowMenu }: MobileBottomNavProps) {
         {navItems.map((item) => {
           const active = location.pathname === '/' + item.id || location.pathname.startsWith('/' + item.id + '/');
           return (
-            <button
+            <Button
               key={item.id}
+              variant="ghost"
               onClick={() => navigate('/' + item.id)}
-              className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-all duration-300 min-h-[44px] ${
+              className={`!flex-1 !flex !flex-col !items-center !justify-center !py-1 !gap-0.5 !min-h-[44px] ${
                 active 
-                  ? 'text-primary' 
-                  : 'text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300'
+                  ? '!text-primary' 
+                  : '!text-gray-400 dark:!text-zinc-500 hover:!text-gray-600 dark:hover:!text-zinc-300'
               }`}
             >
               <div className={`p-1.5 rounded-full transition-all ${active ? 'bg-primary/10' : ''}`}>
@@ -50,20 +52,21 @@ export function MobileBottomNav({ onShowMenu }: MobileBottomNavProps) {
               {active && (
                 <div className="w-1 h-1 rounded-full bg-primary mt-0.5" />
               )}
-            </button>
+            </Button>
           );
         })}
         
         {/* Menu Toggle */}
-        <button
+        <Button
+          variant="ghost"
           onClick={onShowMenu}
-          className="flex flex-col items-center justify-center flex-1 py-1 gap-0.5 text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 min-h-[44px]"
+          className="!flex-1 !flex !flex-col !items-center !justify-center !py-1 !gap-0.5 !min-h-[44px] !text-gray-400 dark:!text-zinc-500 hover:!text-gray-600 dark:hover:!text-zinc-300"
         >
           <div className="p-1.5 rounded-full">
             <AppIcons.menu className="w-5 h-5" />
           </div>
           <span className="text-[8px] font-black uppercase tracking-wider">{t('more', 'More')}</span>
-        </button>
+        </Button>
       </div>
     </div>
   );

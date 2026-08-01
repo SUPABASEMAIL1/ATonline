@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Download, Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, ChevronRight, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag, MapPin } from 'lucide-react';
+import { Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag, MapPin } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
-import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
+import { formatCurrency, formatNumberWithPrecision, getCurrencySymbol } from '../../lib/currencies';
 import { Sale } from '../../types';
 import { CheckoutModal } from '../pos/CheckoutModal';
 import { ReceiptPrint } from '../pos/ReceiptPrint';
@@ -17,6 +17,9 @@ import { Modal } from '../common/Modal';
 import { TransactionDetailModal } from './TransactionDetailModal';
 import RefundSaleModal from './RefundSaleModal';
 import { RefundRequest } from '../../types';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Badge, BadgeTone, Button, DateRangePicker, Pagination } from '../../shared/ui';
+import { ExportButton } from '../../shared/export';
 
 
 const isDraftSale = (sale: Sale) =>
@@ -328,15 +331,15 @@ export function TransactionsManager() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusTone = (status: string): BadgeTone => {
     switch (status) {
-      case 'completed': return 'bg-emerald-100/80 text-emerald-700 dark:bg-primary/10 dark:text-emerald-400 border border-emerald-200/50 dark:border-primary/20';
-      case 'pending': return 'bg-amber-100/80 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200/50 dark:border-amber-500/20';
-      case 'refunded': return 'bg-rose-100/80 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border border-rose-200/50 dark:border-rose-500/20';
-      case 'partially_refunded': return 'bg-orange-100/80 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 border border-orange-200/50 dark:border-orange-500/20';
-      case 'credit': return 'bg-blue-100/80 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border border-blue-200/50 dark:border-blue-500/20';
-      case 'draft': return 'bg-emerald-100/80 text-emerald-700 dark:bg-primary/10 dark:text-emerald-400 border border-emerald-200/50 dark:border-primary/20';
-      default: return 'bg-gray-100 text-gray-700 border border-gray-200';
+      case 'completed':
+      case 'draft': return 'success';
+      case 'pending':
+      case 'partially_refunded': return 'warning';
+      case 'refunded': return 'danger';
+      case 'credit': return 'info';
+      default: return 'neutral';
     }
   };
 
@@ -348,58 +351,74 @@ export function TransactionsManager() {
     }
   };
 
-  const exportTransactions = () => {
-    const currency = state.settings.currency;
-    const isAdminRole = profile?.role === 'admin';
+  const exportColumns = useMemo(() => {
+    const cols: any[] = [
+      { key: 'date', label: t('date', 'Date') },
+      { key: 'time', label: t('time', 'Time') },
+      { key: 'invoiceNumber', label: t('invoice_number', 'Invoice Number') },
+      { key: 'receiptNumber', label: t('receipt_number', 'Receipt Number') },
+      { key: 'customerName', label: t('customer_name', 'Customer Name') },
+      { key: 'customerPhone', label: t('customer_phone', 'Customer Phone') },
+      { key: 'cashier', label: t('cashier', 'Cashier') },
+      { key: 'cashierAt', label: t('cashier_username', 'Cashier @Username') },
+      { key: 'itemsList', label: t('items_list', 'Items List') },
+      { key: 'totalItemsQty', label: t('items_qty', 'Items Qty'), format: 'number' as const },
+      { key: 'saleType', label: t('sale_type', 'Sale Type') },
+      { key: 'paymentMethod', label: t('payment_method', 'Payment Method') },
+      { key: 'subtotal', label: t('subtotal', 'Subtotal'), format: 'currency' as const },
+      { key: 'discountAmount', label: t('discount', 'Discount'), format: 'currency' as const },
+      { key: 'taxAmount', label: t('tax', 'Tax'), format: 'currency' as const },
+      { key: 'total', label: t('total_revenue', 'Total Revenue'), format: 'currency' as const },
+    ];
+    if (isAdmin) {
+      cols.push(
+        { key: 'costOfGoods', label: t('cogs', 'Cost of Goods'), format: 'currency' as const },
+        { key: 'grossProfit', label: t('gross_profit', 'Gross Profit'), format: 'currency' as const },
+      );
+    }
+    return cols;
+  }, [t, isAdmin]);
 
-    const clean = (val: any) => {
-      if (val === undefined || val === null) return '';
-      return String(val).replace(/"/g, '""');
+  const exportRows = useMemo(() => filteredTransactions.map(sale => {
+    const customer = sale.customerId ? state.customers.find(c => c.id === sale.customerId) : null;
+    const customerName = customer?.name || sale.customerName || 'Walk-in';
+    const customerPhone = customer?.phone || '';
+    const cashierUser = state.users.find(u => u.name === sale.cashier || u.email === sale.cashier);
+    const cashierName = sale.cashier || 'System';
+    const cashierAt = cashierUser?.username ? `@${cashierUser.username}` : '';
+
+    const itemsList = sale.items.map(item => {
+      const sku = item.product?.sku ? ` [${item.product.sku}]` : '';
+      return `${item.product?.name || 'Item'}${sku} x ${item.quantity} @ ${formatNumberWithPrecision(item.price || 0)}`;
+    }).join('; ');
+
+    const totalItemsQty = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+    const dateObj = new Date(sale.timestamp);
+
+    const totalCostLocal = sale.items.reduce((sum, item) => {
+      return sum + (item.purchaseCost ?? (item.product?.cost || 0) * item.quantity);
+    }, 0);
+
+    return {
+      date: formatAppDate(dateObj, state.settings.country),
+      time: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      invoiceNumber: sale.invoiceNumber || '',
+      receiptNumber: sale.receiptNumber || '',
+      customerName,
+      customerPhone,
+      cashier: cashierName,
+      cashierAt,
+      itemsList,
+      totalItemsQty,
+      saleType: getSaleTypeLabel(sale.saleType),
+      paymentMethod: sale.paymentMethod || '',
+      subtotal: sale.subtotal,
+      discountAmount: sale.discountAmount,
+      taxAmount: sale.taxAmount,
+      total: sale.total,
+      ...(isAdmin ? { costOfGoods: totalCostLocal, grossProfit: sale.total - totalCostLocal } : {}),
     };
-
-    let csvHeader = 'Date,Time,Invoice Number,Receipt Number,Customer Name,Customer Phone,Cashier,Cashier @Username,Items List,Total Items Qty,Sale Type,Payment Method,Subtotal,Discount,Tax,Total Revenue';
-    if (isAdminRole) csvHeader += `,Cost of Goods,Gross Profit`;
-    csvHeader += '\n';
-
-    const csvData = filteredTransactions.map(sale => {
-      const customer = sale.customerId ? state.customers.find(c => c.id === sale.customerId) : null;
-      const customerName = clean(customer?.name || sale.customerName || 'Walk-in');
-      const customerPhone = clean(customer?.phone || '');
-      const cashierUser = state.users.find(u => u.name === sale.cashier || u.email === sale.cashier);
-      const cashierName = clean(sale.cashier || 'System');
-      const cashierAt = cashierUser?.username ? `@${cashierUser.username}` : '';
-
-      const itemsList = sale.items.map(item => {
-        const sku = item.product?.sku ? ` [${item.product.sku}]` : '';
-        return `${item.product?.name || 'Item'}${sku} x ${item.quantity} @ ${formatNumberWithPrecision(item.price || 0)}`;
-      }).join('; ');
-
-      const totalItemsQty = sale.items.reduce((sum, item) => sum + item.quantity, 0);
-      const dateObj = new Date(sale.timestamp);
-      const formattedDate = formatAppDate(dateObj, state.settings.country);
-      const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      const totalCostLocal = sale.items.reduce((sum, item) => {
-        return sum + (item.purchaseCost ?? (item.product?.cost || 0) * item.quantity);
-      }, 0);
-
-      let row = `"${formattedDate}","${formattedTime}","${clean(sale.invoiceNumber)}","${clean(sale.receiptNumber)}","${customerName}","${customerPhone}","${cashierName}","${cashierAt}","${clean(itemsList)}",${totalItemsQty},"${clean(getSaleTypeLabel(sale.saleType))}","${clean(sale.paymentMethod)}",${formatNumberWithPrecision(sale.subtotal)},${formatNumberWithPrecision(sale.discountAmount)},${formatNumberWithPrecision(sale.taxAmount)},${formatNumberWithPrecision(sale.total)}`;
-
-      if (isAdminRole) {
-        row += `,${formatNumberWithPrecision(totalCostLocal)},${formatNumberWithPrecision(sale.total - totalCostLocal)}`;
-      }
-      return row;
-    }).join('\n');
-
-    const fullCsv = csvHeader + csvData;
-    const blob = new Blob(['\ufeff', fullCsv], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `sales-detailed-${formatAppDate(new Date(), state.settings.country)}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
+  }), [filteredTransactions, state.customers, state.users, isAdmin, state.settings.country]);
 
   const saleTypeToggles = [
     { key: 'all', label: t("all_sales", "All Sales"), icon: <LayoutGrid className="h-4 w-4" /> },
@@ -413,14 +432,14 @@ export function TransactionsManager() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-2">
         <div className="flex items-center gap-4 shrink-0">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => navigate('/pos')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-600 dark:text-gray-400 active:scale-95 transition-all flex items-center gap-1 mr-1"
+            className="!min-h-0 !p-2 !rounded-xl !text-gray-600 dark:!text-gray-400 hover:!bg-gray-100 dark:hover:!bg-white/5 !gap-1 mr-1"
           >
             <ChevronLeft className="h-5 w-5" />
             <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">{t("back", "Back")}</span>
-          </button>
+          </Button>
           <div className="h-10 w-px bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block" />
           <div className="h-14 w-14 bg-primary/10 rounded-2xl flex items-center justify-center shadow-inner border border-primary/10">
             <History className="h-7 w-7 text-primary" />
@@ -433,10 +452,14 @@ export function TransactionsManager() {
           </div>
         </div>
 
-        <button onClick={exportTransactions} className="btn btn-primary btn-md px-8 shadow-emerald-500/20">
-          <Download className="h-4 w-4 mr-2" />
-          <span>{t("export_csv", "Export CSV")}</span>
-        </button>
+        <ExportButton
+          data={exportRows}
+          columns={exportColumns}
+          title="Sales Detailed Report"
+          filtersSummary={`${state.settings.currency} • ${filteredTransactions.length} records`}
+          currencySymbol={getCurrencySymbol(state.settings.currency)}
+          className="!px-8 !shadow-emerald-500/20"
+        />
       </div>
 
       {/* Dynamic Main Stats Grid */}
@@ -564,16 +587,11 @@ export function TransactionsManager() {
       {/* Filters */}
       <div className="bg-white/50 dark:bg-black/20 p-3 lg:p-4 rounded-[1.75rem] border border-gray-200/50 dark:border-white/5 shadow-xl">
         <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 h-4 w-4" />
-            <input
-              type="text"
-              placeholder={t("search_sales_placeholder", "Search sales...")}
-              value={searchTerm}
-              onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="w-full bg-gray-50 dark:bg-black/30 border-none pl-11 pr-4 py-3 rounded-2xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all shadow-inner"
-            />
-          </div>
+          <SharedSearchBar
+            value={searchTerm}
+            onChange={val => { setSearchTerm(val); setCurrentPage(1); }}
+            placeholder={t("search_sales_placeholder", "Search sales...")}
+          />
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="grid grid-cols-2 lg:flex items-center gap-2 w-full lg:w-auto">
@@ -606,8 +624,9 @@ export function TransactionsManager() {
                 icon={User}
                 align="right"
               />
-              <SearchableSelect
-                options={[
+              <DateRangePicker
+                preset={dateFilter}
+                presets={[
                   { id: 'today', label: t("today_caps", "TODAY") },
                   { id: 'yesterday', label: t("yesterday_caps", "YESTERDAY") },
                   { id: 'last7', label: t("last7_caps", "LAST 7 DAYS") },
@@ -616,28 +635,12 @@ export function TransactionsManager() {
                   { id: 'custom', label: t("custom_range_caps", "CUSTOM RANGE") },
                   { id: 'all', label: t("all_time_caps", "ALL TIME") }
                 ]}
-                value={dateFilter}
-                onChange={val => { setDateFilter(val); setCurrentPage(1); }}
-                placeholder={t("select_date", "Select Date")}
-                align="right"
+                onPresetChange={val => { setDateFilter(val); setCurrentPage(1); }}
+                startDate={startDateInput}
+                endDate={endDateInput}
+                onStartDateChange={(v) => { setStartDateInput(v); setCurrentPage(1); }}
+                onEndDateChange={(v) => { setEndDateInput(v); setCurrentPage(1); }}
               />
-              {dateFilter === 'custom' && (
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center p-2 bg-white/50 dark:bg-black/20 rounded-xl animate-in slide-in-from-top-2 w-full lg:w-auto">
-                  <input
-                    type="date"
-                    value={startDateInput}
-                    onChange={(e) => { setStartDateInput(e.target.value); setCurrentPage(1); }}
-                    className="w-full sm:w-32 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                  />
-                  <span className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-tighter">{t("to", "to")}</span>
-                  <input
-                    type="date"
-                    value={endDateInput}
-                    onChange={(e) => { setEndDateInput(e.target.value); setCurrentPage(1); }}
-                    className="w-full sm:w-32 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                  />
-                </div>
-              )}
 
             </div>
           </div>
@@ -693,15 +696,16 @@ export function TransactionsManager() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${getStatusColor(tx.status)}`}>
+                    <Badge tone={getStatusTone(tx.status)} size="sm">
                       {tx.status || 'Ghost / Empty'}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-right flex items-center justify-end gap-2">
-                    <button onClick={() => setSelectedTransaction(tx)} className="p-1.5 text-primary hover:bg-emerald-50 dark:hover:bg-primary/10 rounded-lg transition-colors" title="View Detail"><Eye className="h-4 w-4" /></button>
-                    <button onClick={() => setReprintSale(tx)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Quick Print"><Printer className="h-4 w-4" /></button>
+                    <Button variant="ghost" onClick={() => setSelectedTransaction(tx)} className="!min-h-0 !p-1.5 !rounded-lg !text-primary hover:!bg-emerald-50 dark:hover:!bg-primary/10" title="View Detail"><Eye className="h-4 w-4" /></Button>
+                    <Button variant="ghost" onClick={() => setReprintSale(tx)} className="!min-h-0 !p-1.5 !rounded-lg !text-blue-600 hover:!bg-blue-50 dark:hover:!bg-blue-500/10" title="Quick Print"><Printer className="h-4 w-4" /></Button>
                     {canEditSale && (
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={async (e) => {
                           e.stopPropagation();
                           const res = await sonner.confirm('Edit Sale?', 'Load items and notes to cart for editing?', 'Yes');
@@ -722,14 +726,15 @@ export function TransactionsManager() {
                             } catch { sonner.error('Error.'); }
                           }
                         }}
-                        className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        className="!min-h-0 !p-1.5 !rounded-lg !text-amber-600 hover:!bg-amber-50"
                         title="Edit Sale"
                       >
                         <Edit className="h-4 w-4" />
-                      </button>
+                      </Button>
                     )}
                     {canDeleteSale && (
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={async (e) => {
                           e.stopPropagation();
                           const isGhost = !tx.items || tx.items.length === 0 || !tx.total;
@@ -744,11 +749,11 @@ export function TransactionsManager() {
                             } catch { sonner.error('Error.'); }
                           }
                         }}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        className="!min-h-0 !p-1.5 !rounded-lg !text-rose-600 hover:!bg-rose-50"
                         title="Delete Permanently"
                       >
                         <Trash2 className="h-4 w-4" />
-                      </button>
+                      </Button>
                     )}
                   </td>
                 </tr>
@@ -768,9 +773,9 @@ export function TransactionsManager() {
               <div className="flex justify-between items-start gap-1">
                 <p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase mb-1">#{tx.invoiceNumber || tx.receiptNumber}</p>
                 {tx.status !== 'completed' && tx.status !== 'credit' && (
-                  <span className={`text-[7px] font-bold px-1 py-0.5 rounded-md uppercase ${getStatusColor(tx.status)}`}>
+                  <Badge tone={getStatusTone(tx.status)} size="sm">
                     {tx.status}
-                  </span>
+                  </Badge>
                 )}
               </div>
               <h3 className="text-[10px] font-black text-gray-900 dark:text-white uppercase truncate mb-2">{tx.customerName || t("walk_in", "Walk-in")}</h3>
@@ -790,9 +795,14 @@ export function TransactionsManager() {
 
         {/* Pagination */}
         <div className="px-4 py-3 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
-          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-40 transition-colors">{t("prev", "Prev")}</button>
-          <span className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase">{t("page", "Page")} {currentPage} {t("of", "of")} {totalPages}</span>
-          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-40 transition-colors">{t("next", "Next")}</button>
+          <Pagination
+            page={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredTransactions.length}
+            mode="prevNext"
+            className="w-full"
+          />
         </div>
       </div>
 

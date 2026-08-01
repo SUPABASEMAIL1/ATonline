@@ -1,13 +1,17 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { PackageOpen, Download, Printer, TrendingDown, Building2, ChevronLeft, ChevronRight, Trash2, Filter, Settings2, Plus, User as UserIcon, X, Info, CheckCircle2, Search, Camera } from 'lucide-react';
+import { PackageOpen, TrendingDown, Building2, ChevronLeft, ChevronRight, Trash2, Filter, CheckCircle2 } from 'lucide-react';
 import { CameraScanner } from '../common/CameraScanner';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
-import { productsService, purchaseRecordsService, generateId } from '../../lib/services';
+import { commitStockInToInventory } from '../../lib/stockInCommit';
 import { sonner } from '../../lib/sonner';
-import { formatCurrency, getCurrencySymbol, formatNumberWithPrecision } from '../../lib/currencies';
+import { formatCurrency, getCurrencySymbol } from '../../lib/currencies';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { useTranslation } from '../../hooks/useTranslation';
+import { SharedSearchBar, SharedProductList } from '../../shared/modules/search-and-list';
+import { SharedItem } from '../../shared/modules/search-and-list';
+import { Button, Badge, EmptyState, ToggleSwitch } from '../../shared/ui';
+import { ExportButton } from '../../shared/export';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -125,62 +129,25 @@ export function PurchaseOrderSystem() {
 
     try {
       const now = new Date();
-      const batchId = generateId(); // Use a shared batch marker if needed
 
-      for (const item of activeList) {
-        if (!item.neededQty || item.neededQty <= 0) continue;
-
-        const qty = Number(item.neededQty);
-        const cost = Number(item.cost);
-        const retail = Number(item.price);
-
-        // 1. Create Purchase Record (handles stock update, batch creation + history internally)
-        const newRecord = await purchaseRecordsService.create({
-          id: generateId(),
-          productId: item.id,
-          productName: item.name,
+      // Shared commit path — single source of truth for stock-in (also used by ProductDetailHub Quick Restock)
+      await commitStockInToInventory({
+        items: activeList.map(item => ({
+          id: item.id,
+          name: item.name,
           sku: item.sku || '',
-          quantity: qty,
-          costPrice: cost,
-          totalAmount: qty * cost,
-          type: 'Stock IN',
+          quantity: Number(item.neededQty || 0),
+          costPrice: Number(item.cost || 0),
           supplier: item.supplier || 'PO TRANSIT',
-          date: now,
-          addedBy: profile?.email || 'System',
+          type: 'Stock IN',
           notes: `Bulk PO Restock | ${now.toLocaleDateString()}`
-        });
-
-        dispatch({ type: 'ADD_PURCHASE_RECORD', payload: newRecord });
-
-        // Record supplier ledger transaction if toggle is ON and a supplier is associated
-        const supplierName = item.supplier;
-        if (recordAsSupplierBill && supplierName && supplierName !== 'PO TRANSIT' && supplierName !== 'DIRECT ENTRY') {
-          const matchedSupplier = state.suppliers.find(
-            s => s.name.toLowerCase() === supplierName.toLowerCase()
-          );
-          if (matchedSupplier) {
-            try {
-              const { suppliersService } = await import('../../lib/services');
-              await suppliersService.recordBill({
-                supplierId: matchedSupplier.id,
-                amount: qty * cost,
-                note: `PO Stock In: ${item.name} x${qty}`,
-                referenceId: newRecord.id,
-                sourceType: 'auto_purchase',
-              });
-            } catch (ledgerErr) {
-              console.warn('[PO] Failed to record supplier ledger entry:', ledgerErr);
-            }
-          }
-        }
-
-        // Read fresh product from localDb so we get the updated stock from within the service
-        const { localDb: ldb } = await import('../../lib/localDb');
-        const freshProduct = await ldb.products.get(item.id);
-        if (freshProduct) {
-          dispatch({ type: 'UPDATE_PRODUCT', payload: freshProduct });
-        }
-      }
+        })),
+        recordAsSupplierBill,
+        suppliers: state.suppliers,
+        profile,
+        dispatch,
+        date: now
+      });
 
       sonner.success('Bulk reorder successfully added to inventory!');
       setIsGenerated(false);
@@ -192,43 +159,29 @@ export function PurchaseOrderSystem() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const exportColumns = [
+    { key: 'sku', label: t('sku', 'SKU') },
+    { key: 'name', label: t('product_name', 'Product Name') },
+    { key: 'category', label: t('category', 'Category') },
+    { key: 'supplier', label: t('supplier', 'Supplier') },
+    { key: 'stock', label: t('current', 'Current'), format: 'number' as const },
+    { key: 'targetStock', label: t('target_stock', 'Target Stock') },
+    { key: 'neededQty', label: t('qty', 'Qty'), format: 'number' as const },
+    { key: 'cost', label: `Unit Cost (${state.settings.currency})`, format: 'currency' as const },
+    { key: 'subtotal', label: `Subtotal (${state.settings.currency})`, format: 'currency' as const },
+  ];
 
-  const handleExportCSV = () => {
-    if (activeList.length === 0) {
-      sonner.error('No items to export.');
-      return;
-    }
-
-    const currency = state.settings.currency;
-    const headerSuffix = ` (${currency})`;
-    const headers = ['SKU', 'Product Name', 'Category', 'Supplier', 'Current Stock', 'Target Stock', 'Order Quantity', `Unit Cost${headerSuffix}`, `Subtotal${headerSuffix}`];
-    const csvContent = [
-      headers.join(','),
-      ...activeList.map(p => [
-        p.sku || '',
-        `"${p.name.replace(/"/g, '""')}"`,
-        `"${p.category || ''}"`,
-        `"${p.supplier || 'Unassigned'}"`,
-        p.stock,
-        p.targetStock || '-',
-        p.neededQty,
-        formatNumberWithPrecision(p.cost || 0),
-        formatNumberWithPrecision((p.neededQty || 0) * (p.cost || 0))
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    const dateLabel = new Date().toLocaleDateString('en-CA');
-    const supLabel = (poMode === 'auto' ? selectedSupplier : 'Manual_Selection').replace(/\s+/g, '_');
-    link.download = `Purchase_Order_${supLabel}_${dateLabel}.csv`;
-    link.click();
-    sonner.success('Exported to CSV successfully.');
-  };
+  const exportRows = useMemo(() => activeList.map(p => ({
+    sku: p.sku || '',
+    name: p.name,
+    category: p.category || '',
+    supplier: p.supplier || 'Unassigned',
+    stock: p.stock,
+    targetStock: p.targetStock ?? '-',
+    neededQty: p.neededQty || 0,
+    cost: Number(p.cost || 0),
+    subtotal: (p.neededQty || 0) * (p.cost || 0),
+  })), [activeList]);
 
   const updateItem = (id: string, field: string, value: any) => {
     if (poMode === 'manual') {
@@ -328,6 +281,20 @@ export function PurchaseOrderSystem() {
       .slice(0, 15);
   }, [state.products, searchQuery, selectedSupplier, selectedCategory]);
 
+  const sharedSearchResults = useMemo<SharedItem[]>(() => {
+    return searchResults.map(p => ({
+      id: p.id,
+      thumbnailUrl: p.image || undefined,
+      badgeLabel: p.category || 'GENERAL',
+      sku: p.sku || 'N/A',
+      title: p.name,
+      stock: p.stock,
+      tag: p.supplier || 'DIRECT',
+    }));
+  }, [searchResults]);
+
+  const sharedManualIds = useMemo(() => manualList.map(m => m.id), [manualList]);
+
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
 
@@ -352,7 +319,7 @@ export function PurchaseOrderSystem() {
                   {t('po_generation', 'PO Generation')}
                 </h2>
                 <div className="flex gap-2 mt-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#10B981] bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">{t('system_center', 'System Center')}</span>
+                  <Badge tone="success" size="sm" className="!bg-primary/10 !text-[#10B981] !border-primary/20 !text-[10px] !px-2 !py-0.5 !rounded-md">{t('system_center', 'System Center')}</Badge>
                 </div>
               </div>
             </div>
@@ -412,53 +379,58 @@ export function PurchaseOrderSystem() {
 
             {/* Reset PO Tool (Atomic) */}
             <div className="flex items-center gap-2 h-[54px]">
-              <button
+              <Button
                 onClick={handleReset}
-                className="flex-1 h-full flex items-center justify-center gap-2 bg-gray-50 dark:bg-black/20 text-gray-600 hover:text-rose-500 border border-gray-200 dark:border-white/5 rounded-2xl px-4 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                variant="secondary"
+                className="flex-1 h-full !bg-gray-50 dark:!bg-black/20 !text-gray-600 hover:!text-rose-500 hover:!bg-gray-50 dark:hover:!bg-black/20 !border-gray-200 dark:!border-white/5 !rounded-2xl !px-4 !text-[10px] !font-black"
+                icon={<Trash2 className="h-3.5 w-3.5" />}
               >
-                <Trash2 className="h-3.5 w-3.5" />
                 {t('reset', 'RESET')}
-              </button>
+              </Button>
             </div>
 
-            <button
+            <Button
               onClick={handleGenerate}
-              className="btn btn-md btn-primary h-[54px]"
+              variant="primary"
+              size="md"
+              className="h-[54px]"
+              icon={<TrendingDown className="h-4 w-4" />}
             >
-              <TrendingDown className="h-4 w-4" />
               {t('preview_po', 'PREVIEW PO')}
-            </button>
+            </Button>
           </div>
 
           {/* Quick Actions for Active PO */}
           {isGenerated && activeList.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-200 dark:border-white/5 animate-in slide-in-from-top-2 duration-300">
-              <button
+              <Button
                 onClick={handleBulkAdmit}
-                className="flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all"
+                variant="primary"
+                className="!bg-blue-600 hover:!bg-blue-700 !px-6 !py-3 !rounded-2xl !font-black !text-[10px] !gap-3 !shadow-xl !shadow-blue-500/20"
+                icon={<CheckCircle2 className="h-4 w-4" />}
               >
-                <CheckCircle2 className="h-4 w-4" />
-                {t('admit_all_to_stock', 'ADMIT ALL TO STOCK')}
-              </button>
+                {t('admit_all_to_stock', 'COMMIT & ADD TO STOCK')}
+              </Button>
 
               {/* Supplier Bill Toggle */}
               <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-white/5">
                 <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest whitespace-nowrap">{t('record_supplier_bill', 'Supplier Bill')}</span>
-                <button
-                  type="button"
-                  onClick={() => setRecordAsSupplierBill(prev => !prev)}
-                  className={`relative w-9 h-5 rounded-full transition-all duration-200 ${recordAsSupplierBill ? 'bg-primary' : 'bg-gray-300 dark:bg-white/20'}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${recordAsSupplierBill ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
+                <ToggleSwitch
+                  checked={recordAsSupplierBill}
+                  onChange={setRecordAsSupplierBill}
+                  size="sm"
+                  color="bg-primary"
+                />
               </div>
 
-              <button onClick={handleExportCSV} className="p-3.5 bg-gray-100 dark:bg-white/5 text-gray-600 rounded-2xl hover:text-primary transition-all border border-transparent hover:border-primary/30">
-                <Download className="h-4 w-4" />
-              </button>
-              <button onClick={handlePrint} className="p-3.5 bg-gray-100 dark:bg-white/5 text-gray-600 rounded-2xl hover:text-primary transition-all border border-transparent hover:border-primary/30">
-                <Printer className="h-4 w-4" />
-              </button>
+              <ExportButton
+                data={exportRows}
+                columns={exportColumns}
+                title="Purchase Order"
+                subtitle={`${poMode === 'auto' ? `Supplier: ${selectedSupplier}` : 'Manual Selection'} • ${activeList.length} items • Est. ${formatCurrency(estimatedCost, state.settings.currency)}`}
+                currencySymbol={getCurrencySymbol(state.settings.currency)}
+                compact
+              />
             </div>
           )}
 
@@ -467,92 +439,30 @@ export function PurchaseOrderSystem() {
             <div className="flex flex-col gap-4">
               {/* SEARCH RESULTS (Now Relative Flow - Will NOT hide header) */}
               {searchResults.length > 0 && (
-                <div className="bg-white dark:bg-[#1f1f1f] rounded-[2rem] shadow-xl border border-gray-200 dark:border-white/10 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="p-3 bg-gray-50 dark:bg-white/[0.02] border-b border-gray-200 dark:border-white/5 flex items-center justify-between">
-                    <span className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] px-2">{t('smart_match_results', 'Smart Match Results')} ({searchResults.length})</span>
-                    <button onClick={() => setSearchQuery('')} className="p-1 px-3 bg-rose-500/10 text-rose-500 text-[8px] font-black uppercase rounded-lg hover:bg-rose-500/20 transition-colors">
-                      {t('close', 'CLOSE')}
-                    </button>
-                  </div>
-                  <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-2">
-                    {searchResults.map(product => (
-                      <button
-                        key={product.id}
-                        onClick={() => addToManualList(product)}
-                        className={`w-full text-left p-2 hover:bg-emerald-50 dark:hover:bg-primary/5 rounded-xl group flex items-center justify-between transition-all hover:scale-[1.01] ${manualList.some(m => m.id === product.id) ? 'opacity-60 bg-emerald-50/50 dark:bg-primary/5' : ''}`}
-                      >
-                        <div className="flex items-center gap-3 flex-1">
-                          <div className="w-9 h-9 bg-gray-100 dark:bg-white/5 rounded-xl flex items-center justify-center border border-gray-200 dark:border-white/5 shrink-0 overflow-hidden group-hover:border-primary/20">
-                            {product.image ? (
-                              <img src={product.image} className="w-full h-full object-cover" />
-                            ) : (
-                              <PackageOpen className="h-4 w-4 text-gray-600 group-hover:text-primary transition-colors" />
-                            )}
-                          </div>
-                          <div className="flex flex-col gap-0.5 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[7px] font-black px-1.5 py-0.5 bg-primary/10 text-primary rounded uppercase tracking-widest border border-primary/10">
-                                {product.category || 'GENERAL'}
-                              </span>
-                              <span className="text-[7px] font-black text-gray-600 uppercase tracking-tighter">
-                                {product.sku || 'N/A'}
-                              </span>
-                              {manualList.some(m => m.id === product.id) && (
-                                <span className="text-[7px] font-black px-1.5 py-0.5 bg-primary text-white rounded uppercase tracking-widest animate-in fade-in zoom-in duration-300">
-                                  ADDED
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] font-black uppercase text-gray-900 dark:text-white group-hover:text-primary transition-colors leading-tight">
-                              {product.name}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[7px] font-black px-1 py-0.5 rounded uppercase border ${product.stock <= (product.targetStock || 5) ? 'bg-rose-500 text-white border-rose-500' : 'bg-primary/10 text-primary border-primary/10'}`}>
-                                STOCK: {product.stock}
-                              </span>
-                              <span className="text-[7px] font-bold text-gray-600 uppercase tracking-widest truncate">
-                                {product.supplier || 'DIRECT'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 shrink-0 ${manualList.some(m => m.id === product.id) ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-white/5 group-hover:bg-primary group-hover:text-white group-hover:rotate-90'}`}>
-                          {manualList.some(m => m.id === product.id) ? <CheckCircle2 className="h-4 w-4" /> : <Plus className="h-3.5 w-3.5" />}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <SharedProductList
+                  items={sharedSearchResults}
+                  selectedIds={sharedManualIds}
+                  onItemAdd={(item) => {
+                    const product = state.products.find(p => p.id === item.id);
+                    if (product) addToManualList(product);
+                  }}
+                  onClearSearch={() => setSearchQuery('')}
+                  headerTitle={t('smart_match_results', 'Smart Match Results')}
+                  maxHeight="350px"
+                  emptyStateText={t('no_items_selected', 'NO ITEMS SELECTED YET')}
+                />
               )}
 
               {/* SEARCH INPUT */}
-              <div className="flex items-center gap-4 bg-gray-100 dark:bg-black/75 p-4 rounded-[1.5rem] border border-gray-200 dark:border-white/5 focus-within:border-primary/50 transition-all shadow-inner group">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center group-focus-within:rotate-90 transition-transform">
-                  <Search className="h-5 w-5 text-primary" />
-                </div>
-                <input
-                  type="text"
-                  placeholder={t('type_to_search_add', 'Type to search & add...')}
+              <div className="bg-gray-100 dark:bg-black/75 p-4 rounded-[1.5rem] border border-gray-200 dark:border-white/5 focus-within:border-primary/50 transition-all shadow-inner">
+                <SharedSearchBar
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none text-sm font-black uppercase tracking-widest p-0 focus:ring-0 w-full placeholder:text-gray-600 text-gray-900 dark:text-white"
+                  onChange={setSearchQuery}
+                  placeholder={t('type_to_search_add', 'Type to search & add...')}
+                  onScanClick={() => setShowScanner(true)}
+                  onAddAll={() => addAllToManual(searchResults)}
+                  resultsCount={searchResults.length}
                 />
-
-                <button
-                  onClick={() => setShowScanner(true)}
-                  className="p-2.5 bg-primary/10 text-primary rounded-xl hover:bg-primary hover:text-white transition-all shadow-sm shrink-0"
-                >
-                  <Camera className="h-5 w-5" />
-                </button>
-
-                {searchQuery && (
-                  <button
-                    onClick={() => addAllToManual(searchResults)}
-                    className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all whitespace-nowrap"
-                  >
-                    {t('add_all_items', 'ADD ALL ITEMS')}
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -619,17 +529,14 @@ export function PurchaseOrderSystem() {
             {/* The List */}
             <div className="overflow-x-auto">
               {activeList.length === 0 ? (
-                <div className="p-20 text-center text-gray-600">
-                  <PackageOpen className="h-16 w-16 mx-auto opacity-20 mb-4 text-primary" />
-                  <p className="text-lg font-black uppercase tracking-wider text-gray-600">
-                    {poMode === 'manual' ? t('no_items_selected', 'NO ITEMS SELECTED YET') : t('inventory_healthy', 'INVENTORY IS HEALTHY')}
-                  </p>
-                  <p className="text-[10px] font-bold mt-2 uppercase tracking-[0.2em] text-gray-600">
-                    {poMode === 'manual'
-                      ? t('search_products_and_add', 'SEARCH PRODUCTS ABOVE AND CLICK THE PLUS ICON TO ADD THEM TO YOUR ORDER')
-                      : t('all_items_above_reorder', 'ALL ITEMS ARE CURRENTLY ABOVE THEIR DEFINED REORDER LEVELS')}
-                  </p>
-                </div>
+                <EmptyState
+                  icon={<PackageOpen className="h-full w-full opacity-20 text-primary" />}
+                  title={poMode === 'manual' ? t('no_items_selected', 'NO ITEMS SELECTED YET') : t('inventory_healthy', 'INVENTORY IS HEALTHY')}
+                  subtext={poMode === 'manual'
+                    ? t('search_products_and_add', 'SEARCH PRODUCTS ABOVE AND CLICK THE PLUS ICON TO ADD THEM TO YOUR ORDER')
+                    : t('all_items_above_reorder', 'ALL ITEMS ARE CURRENTLY ABOVE THEIR DEFINED REORDER LEVELS')}
+                  className="!py-20"
+                />
               ) : (
                 <table className="w-full text-left border-collapse print:text-[10px]">
                   <thead>
@@ -662,9 +569,13 @@ export function PurchaseOrderSystem() {
                           />
                         </td>
                         <td className="p-8 print:p-2 text-center">
-                          <span className={`px-3 py-1 rounded-lg text-xs font-black  ${item.stock <= 0 ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400' : 'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300'}`}>
+                          <Badge
+                            tone={item.stock <= 0 ? 'danger' : 'neutral'}
+                            size="md"
+                            className={`!px-3 !py-1 !rounded-lg !text-xs ${item.stock <= 0 ? '!bg-rose-100 !text-rose-700 dark:!bg-rose-500/20 dark:!text-rose-400' : '!bg-gray-100 !text-gray-700 dark:!bg-white/10 dark:!text-gray-300'}`}
+                          >
                             {item.stock}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="p-8 print:p-2 text-center">
                           <input
@@ -695,13 +606,13 @@ export function PurchaseOrderSystem() {
                         </td>
                         {isAdmin && (
                           <td className="p-8 print:p-2 text-right print:hidden">
-                            <button
+                            <Button
                               onClick={() => poMode === 'manual' ? removeFromManualList(item.id) : handleRemoveFromPO(item.id, item.name)}
-                              className="p-3 bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-[1.2rem] transition-all lg:opacity-0 group-hover:opacity-100 hover:bg-rose-100 dark:hover:bg-rose-500/20 hover:scale-110 shadow-sm"
+                              variant="ghost"
+                              className="!min-h-0 !p-3 !bg-rose-50 dark:!bg-rose-500/10 !text-rose-500 !rounded-[1.2rem] lg:opacity-0 group-hover:opacity-100 hover:!bg-rose-100 dark:hover:!bg-rose-500/20 hover:!scale-110 !shadow-sm"
                               title={poMode === 'manual' ? 'Remove from Selection' : 'Clear Target Level'}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                              icon={<Trash2 className="h-4 w-4" />}
+                            />
                           </td>
                         )}
                       </tr>
@@ -725,20 +636,20 @@ export function PurchaseOrderSystem() {
                   {t('showing', 'Showing')} <span className="text-primary">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> - <span className="text-primary">{Math.min(currentPage * ITEMS_PER_PAGE, activeList.length)}</span> {t('of', 'of')} <span className="text-primary">{activeList.length}</span> {t('items', 'items')}
                 </p>
                 <div className="flex gap-3">
-                  <button
+                  <Button
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(prev => prev - 1)}
-                    className="p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-[1.2rem] disabled:opacity-30 disabled:hover:scale-100 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
+                    variant="secondary"
+                    className="!min-h-0 !p-3 !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 !rounded-[1.2rem] disabled:!opacity-30 disabled:hover:!scale-100 hover:!scale-105 !shadow-sm"
+                    icon={<ChevronLeft className="h-4 w-4" />}
+                  />
+                  <Button
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => prev + 1)}
-                    className="p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-[1.2rem] disabled:opacity-30 disabled:hover:scale-100 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
+                    variant="secondary"
+                    className="!min-h-0 !p-3 !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 !rounded-[1.2rem] disabled:!opacity-30 disabled:hover:!scale-100 hover:!scale-105 !shadow-sm"
+                    icon={<ChevronRight className="h-4 w-4" />}
+                  />
                 </div>
               </div>
             )}

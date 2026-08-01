@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, Tag, AlertCircle } from 'lucide-react';
 import { Discount, DiscountCondition } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -8,6 +8,9 @@ import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MixAndMatchBuilder } from './MixAndMatchBuilder';
+import { SharedSearchBar, SharedProductList } from '../../shared/modules/search-and-list';
+import { SharedItem } from '../../shared/modules/search-and-list';
+import { Button, ToggleSwitch, Select } from '../../shared/ui';
 
 interface DiscountModalProps {
   isOpen: boolean;
@@ -33,6 +36,37 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
   const [conditions, setConditions] = useState<DiscountCondition[]>([]);
   const [freeGiftProducts, setFreeGiftProducts] = useState<string[]>([]);
   const [validDays, setValidDays] = useState<number[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+
+  // Shared module picker data — generic item mapping, no business types embedded
+  const pickerProducts = useMemo<SharedItem[]>(() => {
+    const term = productSearch.trim().toLowerCase();
+    const base = state.products.filter(p => {
+      if (!term) return true;
+      return (
+        (p.name || '').toLowerCase().includes(term) ||
+        (p.sku || '').toLowerCase().includes(term) ||
+        (p.barcode || '').toLowerCase().includes(term)
+      );
+    });
+    return base.slice(0, 40).map(p => ({
+      id: p.id,
+      thumbnailUrl: p.image || undefined,
+      badgeLabel: p.category || 'GENERAL',
+      sku: p.sku || 'N/A',
+      title: p.name,
+      stock: p.stock,
+    }));
+  }, [state.products, productSearch]);
+
+  const toggleConditionProduct = (index: number, productId: string) => {
+    const condition = conditions[index];
+    const current: string[] = Array.isArray(condition.value) ? condition.value : [];
+    const next = current.includes(productId)
+      ? current.filter(id => id !== productId)
+      : [...current, productId];
+    updateCondition(index, 'value', next);
+  };
 
   useEffect(() => {
     if (discount) {
@@ -255,21 +289,22 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
       maxWidth="lg"
       footer={
         <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="md"
             onClick={onClose}
-            className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+            className="border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 shrink-0"
           >
             {t('discard')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="md"
+            icon={<Tag className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
             onClick={handleSubmit}
-            className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+            className="flex-1 sm:flex-none sm:min-w-[240px]"
           >
-            <Tag className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-            <span className="leading-none ml-2">{discount ? t('edit_privilege') : t('register_privilege')}</span>
-          </button>
+            {discount ? t('edit_privilege') : t('register_privilege')}
+          </Button>
         </div>
       }
     >
@@ -297,18 +332,18 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
 
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('privilege_type_label')}</label>
-              <select
+              <Select
                 name="type"
                 value={formData.type}
                 onChange={handleChange}
-                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all font-medium appearance-none cursor-pointer"
+                className="!bg-[#f8f9fa] dark:!bg-black/75 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white !font-medium"
               >
                 <option value="percentage" className="dark:bg-surface">{t('percentage_off')}</option>
                 <option value="fixed" className="dark:bg-surface">{t('fixed_amount_off')}</option>
                 <option value="bogo" className="dark:bg-surface">{t('bogo_buy_1_get_1')}</option>
                 <option value="free_gift" className="dark:bg-surface">{t('gift_incentive')}</option>
                 <option value="mix_and_match" className="dark:bg-surface">Mix & Match Deal</option>
-              </select>
+              </Select>
             </div>
 
             {formData.type !== 'free_gift' && formData.type !== 'mix_and_match' && (
@@ -449,10 +484,10 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-2 block">{t('variable_label')}</label>
-                    <select
+                    <Select
                       value={condition.type}
                       onChange={(e) => updateCondition(index, 'type', e.target.value)}
-                      className="w-full bg-white dark:bg-surface border-none rounded-xl px-4 py-2.5 text-[11px] font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 transition-all appearance-none cursor-pointer"
+                      className="!bg-white dark:!bg-surface !border-none !rounded-xl !px-4 !text-[11px] !font-black !text-gray-900 dark:!text-white"
                     >
                       <option value="min_amount" className="dark:bg-surface">{t('rule_threshold_amount')}</option>
                       <option value="specific_products" className="dark:bg-surface">{t('rule_product_whitelist')}</option>
@@ -460,26 +495,29 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
                       <option value="customer_tier" className="dark:bg-surface">{t('rule_membership_tier')}</option>
                       <option value="card_type" className="dark:bg-surface">{t('rule_network')}</option>
                       <option value="bank_name" className="dark:bg-surface">{t('rule_issuing_institution')}</option>
-                    </select>
+                    </Select>
                   </div>
 
                   <div>
                     <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-2 block">{t('condition_value_label')}</label>
                     {condition.type === 'specific_products' ? (
                       <div className="space-y-3">
-                        <select
-                          multiple
-                          value={Array.isArray(condition.value) ? condition.value : []}
-                          onChange={(e) => {
-                            const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
-                            updateCondition(index, 'value', selectedOptions);
-                          }}
-                          className="w-full bg-white dark:bg-surface border-none rounded-xl px-4 py-2 text-[11px] font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 transition-all h-24 custom-scrollbar"
-                        >
-                          {state.products.map(product => (
-                            <option key={product.id} value={product.id} className="dark:bg-surface">{product.name}</option>
-                          ))}
-                        </select>
+                        {/* Shared search + product picker module */}
+                        <SharedSearchBar
+                          value={productSearch}
+                          onChange={setProductSearch}
+                          placeholder={t('search_products_to_add', 'Search products to add...')}
+                        />
+                        <SharedProductList
+                          items={pickerProducts}
+                          selectedIds={Array.isArray(condition.value) ? condition.value : []}
+                          onItemSelect={(item) => toggleConditionProduct(index, item.id)}
+                          onClearSearch={() => setProductSearch('')}
+                          headerTitle={t('matching_products', 'Matching Products')}
+                          maxHeight="220px"
+                          emptyStateText={t('no_products_found', 'NO PRODUCTS FOUND')}
+                          className="rounded-2xl shadow-none"
+                        />
                         <div className="flex items-center gap-3 p-3 bg-white dark:bg-surface rounded-xl border border-gray-50 dark:border-white/5">
                           <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest shrink-0">{t('min_quantity_label')}</span>
                           <input
@@ -492,10 +530,10 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
                         </div>
                       </div>
                     ) : condition.type === 'payment_method' || condition.type === 'customer_tier' || condition.type === 'card_type' || condition.type === 'bank_name' ? (
-                      <select
+                      <Select
                         value={condition.value}
                         onChange={(e) => updateCondition(index, 'value', e.target.value)}
-                        className="w-full bg-white dark:bg-surface border-none rounded-xl px-4 py-2.5 text-[11px] font-black text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 transition-all appearance-none cursor-pointer"
+                        className="!bg-white dark:!bg-surface !border-none !rounded-xl !px-4 !text-[11px] !font-black !text-gray-900 dark:!text-white"
                       >
                         <option value="" className="dark:bg-surface">Select...</option>
                         {condition.type === 'payment_method' && (
@@ -527,7 +565,7 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
                             <option key={bank} value={bank} className="dark:bg-surface">{bank}</option>
                           ))
                         )}
-                      </select>
+                      </Select>
                     ) : (
                       <input
                         type={condition.type === 'min_amount' ? 'number' : 'text'}
@@ -558,32 +596,14 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
             {t('status_behavior')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="flex items-center justify-between p-5 bg-[#f8f9fa] dark:bg-black/75 border border-gray-200 dark:border-white/5 rounded-[20px] cursor-pointer hover:bg-emerald-50 dark:hover:bg-primary/10 transition-all">
+            <div className="flex items-center justify-between p-5 bg-[#f8f9fa] dark:bg-black/75 border border-gray-200 dark:border-white/5 rounded-[20px] cursor-pointer hover:bg-emerald-50 dark:hover:bg-primary/10 transition-all">
               <span className="text-[11px] font-black text-gray-900 dark:text-white uppercase tracking-wider">{t('active_status_label')}</span>
-              <div className="relative inline-flex items-center cursor-pointer scale-110">
-                <input
-                  type="checkbox"
-                  name="active"
-                  checked={formData.active}
-                  onChange={handleChange}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </div>
-            </label>
-            <label className="flex items-center justify-between p-5 bg-[#f8f9fa] dark:bg-black/75 border border-gray-200 dark:border-white/5 rounded-[20px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all">
+              <ToggleSwitch checked={formData.active} onChange={(checked) => setFormData(prev => ({ ...prev, active: checked }))} color="bg-primary" className="scale-110" />
+            </div>
+            <div className="flex items-center justify-between p-5 bg-[#f8f9fa] dark:bg-black/75 border border-gray-200 dark:border-white/5 rounded-[20px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all">
               <span className="text-[11px] font-black text-gray-900 dark:text-white uppercase tracking-wider">{t('auto_apply_label')}</span>
-              <div className="relative inline-flex items-center cursor-pointer scale-110">
-                <input
-                  type="checkbox"
-                  name="isAutoApply"
-                  checked={formData.isAutoApply}
-                  onChange={handleChange}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
-              </div>
-            </label>
+              <ToggleSwitch checked={formData.isAutoApply} onChange={(checked) => setFormData(prev => ({ ...prev, isAutoApply: checked }))} color="bg-blue-500" className="scale-110" />
+            </div>
           </div>
         </div>
       </div>

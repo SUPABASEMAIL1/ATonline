@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Eye, Moon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { sonner } from '../../lib/sonner';
+import { Button } from '../../shared/ui';
 
 export function ResetPasswordPage() {
   const { updatePassword, signOut, setIsRecoveringPassword } = useAuth();
@@ -98,38 +99,35 @@ export function ResetPasswordPage() {
                   required
                   minLength={6}
                 />
-                <button
+                <Button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-600 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-600 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="!absolute !right-3 !top-1/2 !-translate-y-1/2 !min-h-0 !p-1 !text-gray-600 dark:!text-gray-500"
                 >
                   {showPassword ? <Moon className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+                </Button>
               </div>
             </div>
 
-            <button
+            <Button
               type="submit"
+              fullWidth
+              loading={loading}
               disabled={loading}
-              className="btn btn-md btn-primary w-full h-11 font-semibold shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 transform active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              className="!h-11 !font-semibold !shadow-xl !shadow-emerald-500/20 hover:!shadow-emerald-500/40 active:!scale-[0.98] disabled:!opacity-50"
             >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Saving Password...</span>
-                </>
-              ) : (
-                <span>Save Password</span>
-              )}
-            </button>
+              {loading ? <span>Saving Password...</span> : <span>Save Password</span>}
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={handleCancel}
-              className="w-full text-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors pt-2 font-medium"
+              className="!min-h-0 !w-full !pt-2 !pb-0 !text-sm !font-medium !normal-case !tracking-normal !text-gray-600 dark:!text-gray-400 hover:!text-gray-800 dark:hover:!text-gray-200"
             >
               Cancel & Log Out
-            </button>
+            </Button>
           </form>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { backupService } from '../../lib/backupService';
 import { sonner } from '../../lib/sonner';
 import { formatAppDateTime } from '../../lib/dateUtils';
+import { Button, EmptyState } from '../../shared/ui';
 
 /**
  * BackupTab - Manages both Browser Cache and Physical PC Folder backups.
@@ -175,28 +176,26 @@ export function BackupTab() {
                     <div className="flex items-center gap-3 bg-black/20 px-4 py-2 rounded-xl border border-white/10">
                        <CheckCircle2 className={`w-4 h-4 ${hasFolderPermission ? 'text-emerald-400' : 'text-amber-400 animte-pulse'}`} />
                        <span className="text-xs font-bold text-emerald-50 truncate max-w-[150px]">PC Folder: {folderHandle.name}</span>
-                       <button onClick={handleDisconnectFolder} className="p-1 hover:bg-white/10 rounded-lg transition-colors" title="Disconnect">
-                          <XCircle className="w-4 h-4 text-red-100/50 hover:text-red-400" />
-                       </button>
+                       <Button onClick={handleDisconnectFolder} icon={<XCircle className="w-4 h-4 text-red-100/50 hover:text-red-400" />} className="!min-h-0 !p-1 !rounded-lg !hover:bg-white/10" title="Disconnect" />
                     </div>
                     {!hasFolderPermission && (
-                       <button 
+                       <Button
                         onClick={handleGrantPermission}
-                        className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg animate-bounce"
+                        className="!min-h-0 !px-4 !py-2 !rounded-xl !text-[10px] !font-black !bg-amber-500 hover:!bg-amber-600 !text-white shadow-lg animate-bounce"
                        >
                          GRANT ACCESS TO SAVE
-                       </button>
+                       </Button>
                     )}
                  </div>
                ) : (
-                 <button 
+                 <Button
                   onClick={handleConnectFolder}
-                  className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border border-white/10"
+                  icon={<FolderSync className="w-4 h-4 text-emerald-400" />}
+                  className="!min-h-0 !px-6 !py-2.5 !rounded-xl !text-[10px] !font-black !tracking-[0.2em] !gap-2 !bg-white/10 !hover:bg-white/20 !text-white !border !border-white/10"
                   title="Select a folder on your computer to save automatic backups"
                  >
-                   <FolderSync className="w-4 h-4 text-emerald-400" />
                    SELECT SHOP FOLDER
-                 </button>
+                 </Button>
                )}
             </div>
             {folderHandle && (
@@ -207,14 +206,14 @@ export function BackupTab() {
             )}
           </div>
           
-          <button 
-            onClick={handleCreateSnapshot} 
+          <Button
+            onClick={handleCreateSnapshot}
             disabled={isLoading}
-            className="flex-shrink-0 flex items-center justify-center gap-3 bg-white text-emerald-700 px-8 py-5 rounded-2xl font-black shadow-2xl hover:scale-105 active:scale-95 transition-all text-sm group-hover:shadow-white/20 disabled:opacity-50"
+            className="flex-shrink-0 !min-h-0 !gap-3 !bg-white !text-emerald-700 !px-8 !py-5 !rounded-2xl !font-black !shadow-2xl hover:scale-105 group-hover:shadow-white/20 !text-sm disabled:!opacity-50 hover:!bg-white"
           >
             {isLoading ? <PlayCircle className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
             <span>CREATE SNAPSHOT NOW</span>
-          </button>
+          </Button>
         </div>
         <Database className="absolute -bottom-10 -right-10 w-64 h-64 text-white p-0 opacity-[0.05] group-hover:scale-110 transition-transform duration-700" />
       </div>
@@ -231,16 +230,15 @@ export function BackupTab() {
               <p className="text-[10px] text-gray-600 uppercase tracking-widest font-bold">Synchronized across Browser & PC</p>
             </div>
           </div>
-          <button onClick={loadBackups} className="text-xs font-bold text-primary dark:text-emerald-400 hover:underline">Refresh List</button>
+          <Button onClick={loadBackups} className="!min-h-0 !p-0 !text-xs !text-primary dark:!text-emerald-400 hover:!underline !hover:bg-transparent !normal-case !tracking-normal">Refresh List</Button>
         </div>
 
         {backups.length === 0 ? (
-          <div className="p-20 text-center space-y-4">
-             <div className="inline-flex p-4 bg-gray-50 dark:bg-white/5 rounded-full text-gray-600 dark:text-gray-500">
-                <Database className="w-10 h-10" />
-             </div>
-             <p className="text-gray-600 font-bold uppercase tracking-widest text-xs">No snapshots found yet.</p>
-          </div>
+          <EmptyState
+            icon={<Database className="h-10 w-10" />}
+            title="No snapshots found yet."
+            className="!p-20"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -279,27 +277,24 @@ export function BackupTab() {
                       {formatAppDateTime(b.created_at, state.settings.country)}
                     </td>
                     <td className="p-6 text-right space-x-3">
-                      <button 
-                        onClick={() => handleDownload(b.filename)} 
-                        className="p-2.5 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-white rounded-xl hover:bg-primary hover:text-white transition-all shadow-sm"
+                      <Button
+                        onClick={() => handleDownload(b.filename)}
+                        icon={<Download className="h-4 w-4" />}
+                        className="!min-h-0 !p-2.5 !rounded-xl !bg-gray-100 dark:!bg-white/5 !text-gray-700 dark:!text-white !hover:bg-primary hover:!text-white !shadow-sm"
                         title={b.isPCFile ? "Prepare File" : "Download to PC"}
-                      >
-                        <Download className="h-4 w-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleRestoreGuidance(b.filename)} 
-                        className="p-2.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 rounded-xl hover:bg-amber-500 hover:text-white transition-all shadow-sm"
+                      />
+                      <Button
+                        onClick={() => handleRestoreGuidance(b.filename)}
+                        icon={<RotateCcw className="h-4 w-4" />}
+                        className="!min-h-0 !p-2.5 !rounded-xl !bg-amber-50 dark:!bg-amber-500/10 !text-amber-600 !hover:bg-amber-500 hover:!text-white !shadow-sm"
                         title="Restore Snapshot"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(b.filename)} 
-                        className="p-2.5 bg-red-50 dark:bg-red-500/10 text-red-600 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                      />
+                      <Button
+                        onClick={() => handleDelete(b.filename)}
+                        icon={<Trash2 className="h-4 w-4" />}
+                        className="!min-h-0 !p-2.5 !rounded-xl !bg-red-50 dark:!bg-red-500/10 !text-red-600 !hover:bg-red-500 hover:!text-white !shadow-sm"
                         title="Delete from Everywhere"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      />
                     </td>
                   </tr>
                 ))}
@@ -312,8 +307,8 @@ export function BackupTab() {
           <div className="p-6 flex items-center justify-between border-t border-gray-200 dark:border-white/5 bg-gray-50/30 dark:bg-black/10">
             <span className="text-xs text-gray-600 font-bold uppercase tracking-widest">Page {currentPage} of {totalPages}</span>
             <div className="flex space-x-2">
-              <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-4 py-2 rounded-xl text-xs font-black bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 disabled:opacity-30 transition-all">PREV</button>
-              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="px-4 py-2 rounded-xl text-xs font-black bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 disabled:opacity-30 transition-all">NEXT</button>
+              <Button variant="secondary" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="!min-h-0 !px-4 !py-2 !rounded-xl !text-xs !font-black !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 disabled:!opacity-30 !hover:bg-white dark:!hover:bg-white/5">PREV</Button>
+              <Button variant="secondary" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="!min-h-0 !px-4 !py-2 !rounded-xl !text-xs !font-black !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 disabled:!opacity-30 !hover:bg-white dark:!hover:bg-white/5">NEXT</Button>
             </div>
           </div>
         )}

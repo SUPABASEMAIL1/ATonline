@@ -6,6 +6,7 @@ import { sonner } from '../../lib/sonner';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button, Select } from '../../shared/ui';
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -103,28 +104,23 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
 
   const footer = (
     <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="md"
         onClick={onClose}
-        className="px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+        className="border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 shrink-0"
       >
         {t('discard', 'DISCARD')}
-      </button>
-      <button
-        type="button"
+      </Button>
+      <Button
+        size="md"
+        loading={isSubmitting}
+        icon={<Save className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
         onClick={handleSubmit}
-        disabled={isSubmitting}
-        className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[240px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+        className="flex-1 sm:flex-none sm:min-w-[240px]"
       >
-        {isSubmitting ? (
-          <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" />
-        ) : (
-          <Save className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-        )}
-        <span className="leading-none ml-2">
-          {customer ? t('update_customer_btn', 'UPDATE CUSTOMER') : t('add_customer_btn', 'ADD CUSTOMER')}
-        </span>
-      </button>
+        {customer ? t('update_customer_btn', 'UPDATE CUSTOMER') : t('add_customer_btn', 'ADD CUSTOMER')}
+      </Button>
     </div>
   );
 
@@ -205,15 +201,15 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('pricing_tier_req', 'Pricing Tier *')}</label>
-              <select
+              <Select
                 name="priceTier"
                 value={formData.priceTier}
                 onChange={handleChange}
-                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all appearance-none font-medium"
+                className="!bg-[#f8f9fa] dark:!bg-black/75 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white !font-medium"
               >
                 <option value="retail" className="dark:bg-surface">{t('standard_retail', 'Standard Retail')}</option>
                 <option value="wholesale" className="dark:bg-surface">{t('wholesale_logic', 'Wholesale Logic')}</option>
-              </select>
+              </Select>
             </div>
           </div>
         </div>

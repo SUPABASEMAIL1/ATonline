@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { sonner } from '../../lib/sonner';
 import { openExternalLink, openMail } from '../../lib/urlHelper';
 import { supabase } from '../../lib/supabase';
+import { Button } from '../../shared/ui';
 
 export function LoginPage() {
   const { signIn, loading } = useAuth();
@@ -122,13 +123,13 @@ export function LoginPage() {
                     required
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => handlePaste('email')}
-                      className="px-2 py-1 text-[10px] font-bold text-gray-400 hover:text-primary dark:text-gray-500 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider"
+                      className="!min-h-0 !px-2 !py-1 !text-[10px] !tracking-wider !text-gray-400 hover:!text-primary dark:!text-gray-500 dark:hover:!text-emerald-400"
                     >
                       PASTE
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -138,13 +139,13 @@ export function LoginPage() {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
                     Password
                   </label>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setMode('forgot_password')}
-                    className="text-xs text-primary dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-medium"
+                    className="!min-h-0 !px-0 !py-0 !text-xs !font-medium !normal-case !tracking-normal !text-primary dark:!text-emerald-400 hover:!text-emerald-800 dark:hover:!text-emerald-300"
                   >
                     Forgot password?
-                  </button>
+                  </Button>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-500 h-4 w-4" />
@@ -158,39 +159,35 @@ export function LoginPage() {
                     minLength={6}
                   />
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => handlePaste('password')}
-                      className="px-2 py-1 text-[10px] font-bold text-gray-400 hover:text-primary dark:text-gray-500 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider"
+                      className="!min-h-0 !px-2 !py-1 !text-[10px] !tracking-wider !text-gray-400 hover:!text-primary dark:!text-gray-500 dark:hover:!text-emerald-400"
                     >
                       PASTE
-                    </button>
+                    </Button>
                     <div className="w-[1px] h-4 bg-gray-200 dark:bg-white/10 mx-0.5"></div>
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="!min-h-0 !p-1.5 !text-gray-500 hover:!text-gray-700 dark:!text-gray-400 dark:hover:!text-gray-200"
                     >
                       {showPassword ? <Moon className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
+                fullWidth
+                loading={loading}
                 disabled={loading}
-                className="btn btn-md btn-primary w-full h-11 font-semibold shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 transform active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                className="!h-11 !font-semibold !shadow-xl !shadow-emerald-500/20 hover:!shadow-emerald-500/40 active:!scale-[0.98] disabled:!opacity-50"
               >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <span>Sign In</span>
-                )}
-              </button>
+                {loading ? <span>Signing in...</span> : <span>Sign In</span>}
+              </Button>
             </form>
           ) : (
             <form onSubmit={handleForgotPasswordSubmit} className="space-y-5">
@@ -209,41 +206,36 @@ export function LoginPage() {
                     required
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-                    <button
+                    <Button
                       type="button"
                       onClick={handlePasteReset}
-                      className="px-2 py-1 text-[10px] font-bold text-gray-400 hover:text-primary dark:text-gray-500 dark:hover:text-emerald-400 transition-colors uppercase tracking-wider"
+                      className="!min-h-0 !px-2 !py-1 !text-[10px] !tracking-wider !text-gray-400 hover:!text-primary dark:!text-gray-500 dark:hover:!text-emerald-400"
                     >
                       PASTE
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
+                fullWidth
+                loading={resetLoading}
                 disabled={resetLoading}
-                className="btn btn-md btn-primary w-full h-11 font-semibold shadow-xl shadow-emerald-500/20 hover:shadow-emerald-500/40 transform active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                className="!h-11 !font-semibold !shadow-xl !shadow-emerald-500/20 hover:!shadow-emerald-500/40 active:!scale-[0.98] disabled:!opacity-50"
               >
-                {resetLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Sending Link...</span>
-                  </>
-                ) : (
-                  <span>Send Reset Link</span>
-                )}
-              </button>
+                {resetLoading ? <span>Sending Link...</span> : <span>Send Reset Link</span>}
+              </Button>
 
               <div className="text-center pt-2">
-                <button
+                <Button
                   type="button"
                   onClick={() => setMode('login')}
-                  className="inline-flex items-center text-sm text-primary dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 font-medium space-x-1"
+                  className="!min-h-0 !px-0 !py-0 !text-sm !font-medium !normal-case !tracking-normal !gap-1 !text-primary dark:!text-emerald-400 hover:!text-emerald-800 dark:hover:!text-emerald-300"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back to Sign In</span>
-                </button>
+                </Button>
               </div>
             </form>
           )}
@@ -251,21 +243,23 @@ export function LoginPage() {
           <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-white/5 dark:to-white/10 rounded-xl border border-gray-200 dark:border-white/5">
             <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 text-center uppercase tracking-wider">Need any help?</p>
             <div className="space-y-2">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => openMail('ZAYNAHSPOS@GMAIL.COM')}
-                className="flex items-center justify-center space-x-2 text-[10px] text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-emerald-400 transition-colors w-full"
+                className="!min-h-0 !w-full !text-[10px] !font-normal !normal-case !tracking-normal !gap-2 !text-gray-600 dark:!text-gray-400 hover:!text-primary dark:hover:!text-emerald-400"
               >
                 <Mail className="h-3 w-3" />
                 <span>ZAYNAHSPOS@GMAIL.COM</span>
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => openExternalLink('https://WWW.ZAYNAHSPOS.COM')}
-                className="flex items-center justify-center space-x-2 text-[10px] text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-emerald-400 transition-colors w-full"
+                className="!min-h-0 !w-full !text-[10px] !font-normal !normal-case !tracking-normal !gap-2 !text-gray-600 dark:!text-gray-400 hover:!text-primary dark:hover:!text-emerald-400"
               >
                 <Globe className="h-3 w-3" />
                 <span>WWW.ZAYNAHSPOS.COM</span>
-              </button>
+              </Button>
             </div>
           </div>
         </div>

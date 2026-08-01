@@ -10,6 +10,7 @@ import { Product, AppSettings } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button, Badge, EmptyState } from '../../shared/ui';
 
 interface BarcodeGeneratorProps {
     products: Product[];
@@ -571,25 +572,25 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                     <span className="text-[10px] font-black text-blue-600 min-w-[32px] text-right leading-none">{disp}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
+                    <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => handleAdjust(-1)}
-                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all active:scale-90 border border-gray-200/50 dark:border-white/5"
-                    >
-                        <Minus className="h-2.5 w-2.5" />
-                    </button>
+                        className="!min-h-0 !w-6 !h-6 !p-0 !rounded-lg !bg-gray-50 dark:!bg-white/5 !border !border-gray-200/50 dark:!border-white/5 !text-gray-500 hover:!text-gray-900 dark:hover:!text-white active:!scale-90"
+                        icon={<Minus className="h-2.5 w-2.5" />}
+                    />
 
                     <input type="range" min={min} max={max} step={step} value={val}
                         onChange={e => set(parseFloat(e.target.value))}
                         className="flex-1 h-1 bg-gray-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-600" />
 
-                    <button 
+                    <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => handleAdjust(1)}
-                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all active:scale-90 border border-gray-200/50 dark:border-white/5"
-                    >
-                        <Plus className="h-2.5 w-2.5" />
-                    </button>
+                        className="!min-h-0 !w-6 !h-6 !p-0 !rounded-lg !bg-gray-50 dark:!bg-white/5 !border !border-gray-200/50 dark:!border-white/5 !text-gray-500 hover:!text-gray-900 dark:hover:!text-white active:!scale-90"
+                        icon={<Plus className="h-2.5 w-2.5" />}
+                    />
                 </div>
             </div>
         );
@@ -611,21 +612,25 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[9px] font-bold border whitespace-nowrap
-                        ${totalLabels === 0
-                            ? 'bg-gray-50 dark:bg-white/5 text-gray-600 border-gray-200 dark:border-white/5'
-                            : 'bg-blue-50 dark:bg-blue-600/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900/30'}`}>
+                    <Badge
+                        tone={totalLabels === 0 ? 'neutral' : 'info'}
+                        size="md"
+                        className={`hidden sm:inline-flex !rounded-lg !px-2.5 !py-1 !text-[9px] !font-bold ${totalLabels === 0
+                            ? '!bg-gray-50 dark:!bg-white/5 !text-gray-600 !border-gray-200 dark:!border-white/5'
+                            : '!bg-blue-50 dark:!bg-blue-600/10 !text-blue-700 dark:!text-blue-400 !border-blue-200 dark:!border-blue-900/30'}`}
+                    >
                         {t('labels_pages_count').replace('{totalLabels}', totalLabels.toString()).replace('{pages}', pages.length.toString())}
-                    </span>
-                    <button onClick={handlePrint} disabled={totalLabels === 0}
-                        className="btn btn-md btn-primary h-9 px-4 flex items-center gap-1.5 disabled:opacity-40 text-[10px] font-black uppercase tracking-widest shadow-md shadow-blue-500/20 active:scale-95 transition-all whitespace-nowrap">
-                        <Printer className="h-3.5 w-3.5 flex-shrink-0" />
+                    </Badge>
+                    <Button
+                        onClick={handlePrint}
+                        disabled={totalLabels === 0}
+                        className="!h-9 !min-h-0 !px-4 !gap-1.5 !text-[10px] !font-black !shadow-md !shadow-blue-500/20 whitespace-nowrap"
+                        icon={<Printer className="h-3.5 w-3.5 flex-shrink-0" />}
+                    >
                         <span className="hidden xs:inline">{t('print_and_save')}</span>
                         <span className="xs:hidden">{t('print')}</span>
-                    </button>
-                    <button onClick={onClose} className="p-1.5 rounded-lg text-gray-600 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
-                        <X className="h-4.5 w-4.5" />
-                    </button>
+                    </Button>
+                    <Button variant="ghost" onClick={onClose} className="!min-h-0 !p-1.5 !rounded-lg !text-gray-600 hover:!text-gray-700 dark:hover:!text-white hover:!bg-gray-100 dark:hover:!bg-white/5" icon={<X className="h-4.5 w-4.5" />} />
                 </div>
             </div>
 
@@ -714,7 +719,7 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                             <div className="flex items-center justify-between mb-2">
                                 <SectionTitle>{t('print_quantities')}</SectionTitle>
                                 <div className="flex gap-1 -mt-2.5">
-                                    <button onClick={() => {
+                                    <Button variant="ghost" onClick={() => {
                                         // Reset Quantities
                                         const resetQties = localProducts.reduce((a, p) => ({ ...a, [p.id]: 1 }), {});
                                         setQuantities(resetQties);
@@ -741,23 +746,21 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                                         setLabelBorder(true);
                                         setBarcodeType('BARCODE');
                                     }}
-                                        className="text-[8px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 px-2 py-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">{t('reset_all')}</button>
-                                    <button onClick={() => { const v = prompt('Copies for all:', '5'); if (v) { const n = parseInt(v); if (!isNaN(n)) setGlobalQty(n); } }}
-                                        className="text-[8px] font-bold bg-blue-600 text-white px-2 py-1 rounded-lg hover:bg-blue-700 transition-colors shadow-sm active:scale-95">{t('set_all')}</button>
+                                        className="!min-h-0 !px-2 !py-1 !rounded-lg !text-[8px] !font-bold !normal-case !tracking-normal !bg-gray-100 dark:!bg-white/5 !text-gray-600 dark:!text-gray-400 hover:!bg-gray-200 dark:hover:!bg-white/10">{t('reset_all')}</Button>
+                                    <Button variant="primary" onClick={() => { const v = prompt('Copies for all:', '5'); if (v) { const n = parseInt(v); if (!isNaN(n)) setGlobalQty(n); } }}
+                                        className="!min-h-0 !px-2 !py-1 !rounded-lg !text-[8px] !font-bold !normal-case !tracking-normal !bg-blue-600 hover:!bg-blue-700 !shadow-sm">{t('set_all')}</Button>
                                 </div>
                             </div>
                             <div className="space-y-1 max-h-32 overflow-y-auto pr-0.5 custom-scrollbar">
                                 {localProducts.map(p => (
                                     <div key={p.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl border border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02] hover:bg-white dark:hover:bg-white/[0.05] transition-all group/item">
-                                        <button onClick={() => setLocalProducts(localProducts.filter(x => x.id !== p.id))} className="text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 p-1.5 rounded-lg transition-colors">
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
+                                        <Button variant="ghost" onClick={() => setLocalProducts(localProducts.filter(x => x.id !== p.id))} className="!min-h-0 !p-1.5 !rounded-lg !bg-transparent !text-gray-600 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-500/10" icon={<X className="h-3.5 w-3.5" />} />
                                         <div className="min-w-0 flex-1">
                                             <p className="text-[9px] font-bold text-gray-900 dark:text-white truncate uppercase leading-tight">{p.name}</p>
                                             <p className="text-[8px] text-gray-600 font-mono leading-tight">{p.barcodeValue || p.barcode || p.sku || 'NO-SKU'}</p>
                                         </div>
                                         <div className="flex items-center bg-white dark:bg-[#1C1C1C] rounded-lg border border-gray-200 dark:border-white/10 p-0.5 shadow-sm flex-shrink-0">
-                                            <button onClick={() => updateQty(p.id, -1)} className="w-6 h-6 rounded-md text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition-colors active:scale-90"><Minus className="h-2.5 w-2.5" /></button>
+                                            <Button variant="ghost" onClick={() => updateQty(p.id, -1)} className="!min-h-0 !w-6 !h-6 !p-0 !rounded-md !bg-transparent !text-gray-600 hover:!text-red-500 hover:!bg-red-50 dark:hover:!bg-red-900/20 active:!scale-90" icon={<Minus className="h-2.5 w-2.5" />} />
                                             <input type="text" inputMode="numeric" value={quantities[p.id] !== undefined ? quantities[p.id] : 0}
                                                 onChange={e => {
                                                     let str = e.target.value.replace(/^0+/, '');
@@ -766,7 +769,7 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                                                     setQuantities(q => ({ ...q, [p.id]: v }));
                                                 }}
                                                 className="w-14 text-center text-[11px] font-black bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white p-0 [appearance:textfield]" />
-                                            <button onClick={() => updateQty(p.id, 1)} className="w-6 h-6 rounded-md text-gray-600 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center justify-center transition-colors active:scale-90"><Plus className="h-2.5 w-2.5" /></button>
+                                            <Button variant="ghost" onClick={() => updateQty(p.id, 1)} className="!min-h-0 !w-6 !h-6 !p-0 !rounded-md !bg-transparent !text-gray-600 hover:!text-green-500 hover:!bg-green-50 dark:hover:!bg-green-900/20 active:!scale-90" icon={<Plus className="h-2.5 w-2.5" />} />
                                         </div>
                                     </div>
                                 ))}
@@ -838,13 +841,13 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
 
                     {/* ══ SAVE — always pinned at BOTTOM of sidebar ══ */}
                     <div className="flex-shrink-0 relative z-10 px-4 py-3 bg-white dark:bg-surface border-t border-gray-200 dark:border-white/5 pb-[max(env(safe-area-inset-bottom,12px),12px)] lg:pb-3 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)]">
-                        <button onClick={saveAsDefault} disabled={isSaving}
-                            className="w-full btn btn-md btn-secondary h-12 lg:h-10 flex items-center justify-center gap-2 text-[10px] lg:text-[11px] font-black uppercase tracking-widest active:scale-[0.98] transition-transform">
+                        <Button variant="secondary" size="md" onClick={saveAsDefault} disabled={isSaving}
+                            className="w-full !h-12 lg:!h-10 !text-[10px] lg:!text-[11px] !font-black !tracking-widest active:!scale-[0.98]">
                             {isSaving
                                 ? <div className="h-4 w-4 lg:h-3.5 lg:w-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                 : <Save className="h-4 w-4 lg:h-3.5 lg:w-3.5" />}
                             {isSaving ? t('saving') : t('save_settings')}
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
@@ -866,19 +869,19 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                                 <div className="h-2 w-px bg-gray-300 dark:bg-white/10" />
                                 <span className="text-[9px] font-black text-gray-600">{a4Columns}×{a4Rows}</span>
                             </div>
-                            <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[8px] font-black uppercase px-2.5 py-1 rounded-full border border-amber-500/20 whitespace-nowrap hidden sm:block">
+                            <Badge tone="warning" className="!bg-amber-500/10 !text-amber-600 dark:!text-amber-400 !text-[8px] !px-2.5 !py-1 !rounded-full !border-amber-500/20 hidden sm:inline-flex">
                                 ⚠ {t('margins_none')}
-                            </div>
+                            </Badge>
                         </div>
 
                         {/* Zoom controls */}
                         <div className="flex items-center gap-2 bg-white dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 p-1.5 px-3 shadow-sm">
-                            <button 
+                            <Button
+                                variant="ghost"
                                 onClick={() => setZoomDelta(d => Math.max(d - 0.05, -autoScale + 0.1))}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors active:scale-90"
-                            >
-                                <Minus className="h-3 w-3" />
-                            </button>
+                                className="!min-h-0 !w-6 !h-6 !p-0 !rounded-lg !bg-transparent !text-gray-500 hover:!text-gray-900 dark:hover:!text-white hover:!bg-gray-100 dark:hover:!bg-white/10 active:!scale-90"
+                                icon={<Minus className="h-3 w-3" />}
+                            />
                             
                             <input 
                                 type="range"
@@ -890,28 +893,30 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                                 className="w-20 sm:w-32 h-1 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-600"
                             />
 
-                            <button 
+                            <Button
+                                variant="ghost"
                                 onClick={() => setZoomDelta(d => Math.min(d + 0.05, 2.5 - autoScale))}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors active:scale-90"
-                            >
-                                <Plus className="h-3 w-3" />
-                            </button>
+                                className="!min-h-0 !w-6 !h-6 !p-0 !rounded-lg !bg-transparent !text-gray-500 hover:!text-gray-900 dark:hover:!text-white hover:!bg-gray-100 dark:hover:!bg-white/10 active:!scale-90"
+                                icon={<Plus className="h-3 w-3" />}
+                            />
 
                             <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
 
-                            <button 
+                            <Button
+                                variant="ghost"
                                 onClick={() => { setZoomDelta(0); }}
-                                className="px-1.5 flex items-center justify-center rounded-lg text-[9px] font-black text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-600/10 transition-colors whitespace-nowrap min-w-[32px]"
+                                className="!min-h-0 !px-1.5 !rounded-lg !bg-transparent !text-[9px] !font-black !normal-case !tracking-normal !text-blue-600 hover:!bg-blue-50 dark:hover:!bg-blue-600/10 whitespace-nowrap !min-w-[32px]"
                             >
                                 {Math.round(previewScale * 100)}%
-                            </button>
+                            </Button>
                             
                             <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
                             
-                            <button onClick={calcAutoScale} title={t('fit_to_window')}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors active:scale-90">
-                                <Maximize2 className="h-3 w-3" />
-                            </button>
+                            <Button onClick={calcAutoScale} title={t('fit_to_window')}
+                                variant="ghost"
+                                className="!min-h-0 !w-6 !h-6 !p-0 !rounded-lg !bg-transparent !text-gray-500 hover:!text-gray-900 dark:hover:!text-white hover:!bg-gray-100 dark:hover:!bg-white/10 active:!scale-90"
+                                icon={<Maximize2 className="h-3 w-3" />}
+                            />
                         </div>
                     </div>
 

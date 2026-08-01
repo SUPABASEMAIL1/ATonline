@@ -36,7 +36,11 @@ import {
   Eraser,
   Printer,
   ChevronDown,
-  Info
+  Info,
+  Download,
+  FileSpreadsheet,
+  FileDown,
+  Table2
 } from 'lucide-react';
 
 export const AppIcons = {
@@ -80,6 +84,10 @@ export const AppIcons = {
   eraser: Eraser,
   printer: Printer,
   chevronDown: ChevronDown,
+  download: Download,
+  spreadsheet: FileSpreadsheet,
+  fileDown: FileDown,
+  table: Table2,
   
   // Sale types
   retail: Store,

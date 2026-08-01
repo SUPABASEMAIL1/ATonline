@@ -7,19 +7,21 @@ import {
   ArrowLeft, Ban, Wand2, ChevronLeft, ChevronRight,
   CircleDollarSign, ShoppingBag, Percent, Folder, Building2,
   AlertTriangle, TrendingUp, Infinity, Camera, Library, Image as ImageIcon,
-  Scan, QrCode, Database, Tag
+  Scan, QrCode, Database, Tag, PackagePlus
 } from 'lucide-react';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { Modal } from '../common/Modal';
 import { CameraScanner } from '../common/CameraScanner';
 import { HelpTooltip } from '../common/HelpTooltip';
 import { StickyFormFooter } from '../common/StickyFormFooter';
+import { SegmentedControl, Button, Badge, EmptyState, Select, BottomSheet, ToggleSwitch } from '../../shared/ui';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product, PurchaseRecord, Sale } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
 import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProduct, productToppingsService } from '../../lib/services';
+import { commitStockInToInventory } from '../../lib/stockInCommit';
 import { localDb, queueOp } from '../../lib/localDb';
 import { compressImage } from '../../lib/imageCompression';
 import { sonner } from '../../lib/sonner';
@@ -44,6 +46,13 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   const [isEditMode, setIsEditMode] = useState(false);
   const [showStockIn, setShowStockIn] = useState(false);
   const [showAdjustment, setShowAdjustment] = useState(false);
+  const [showRestock, setShowRestock] = useState(false);
+  const [restockData, setRestockData] = useState({
+    quantity: '1',
+    supplier: product.supplier || '',
+    cost: product.cost?.toString() || '',
+    recordAsSupplierBill: true
+  });
   const [adjustmentData, setAdjustmentData] = useState({
     quantity: '1',
     reason: 'Correction',
@@ -262,6 +271,61 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     } catch (error) {
       console.error('Adjustment failed:', error);
       sonner.error(t('stock_adjusted_error', 'Failed to adjust stock'));
+    } finally {
+      setIsUpdating(false);
+      sonner.close();
+    }
+  };
+
+  const handleQuickRestock = async () => {
+    const qty = parseFloat(restockData.quantity);
+    if (!qty || qty <= 0) return;
+    const cost = parseFloat(restockData.cost) || product.cost || 0;
+    const supplier = restockData.supplier.trim();
+
+    if (!supplier) {
+      sonner.error(t('supplier_required', 'Select a supplier to continue'));
+      return;
+    }
+
+    const result = await sonner.confirm(
+      t('confirm_restock_title', 'Confirm Quick Restock?'),
+      t('confirm_restock_desc', 'Add <strong>{qty} units</strong> of <strong>{name}</strong> to inventory for <strong>{total}</strong>.')
+        .replace('{qty}', String(qty))
+        .replace('{name}', product.name)
+        .replace('{total}', formatCurrency(qty * cost, currency)),
+      t('yes_restock', 'Yes, Add Stock')
+    );
+
+    if (!result.isConfirmed) return;
+
+    setIsUpdating(true);
+    sonner.loading(t('restocking', 'Adding stock...'));
+
+    try {
+      // Shared commit path — same single source of truth as PurchaseOrderSystem bulk admit
+      await commitStockInToInventory({
+        items: [{
+          id: product.id,
+          name: product.name,
+          sku: product.sku || '',
+          quantity: qty,
+          costPrice: cost,
+          supplier,
+          type: 'Stock IN',
+          notes: `Quick Restock | ${new Date().toLocaleDateString()}`
+        }],
+        recordAsSupplierBill: restockData.recordAsSupplierBill,
+        suppliers: state.suppliers,
+        profile,
+        dispatch
+      });
+
+      sonner.success(t('restock_success', 'Stock added successfully'));
+      setShowRestock(false);
+    } catch (error) {
+      console.error('Quick restock failed:', error);
+      sonner.error(t('restock_error', 'Failed to add stock'));
     } finally {
       setIsUpdating(false);
       sonner.close();
@@ -488,9 +552,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none" />
 
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative">
-          <button onClick={onBack} className="absolute left-0 top-0 sm:relative p-3 bg-gray-100 dark:bg-white/5 rounded-2xl hover:bg-gray-200 dark:hover:bg-white/10 transition-all hover:scale-105 active:scale-90 z-20">
-            <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-          </button>
+          <Button variant="ghost" onClick={onBack} className="absolute left-0 top-0 sm:relative !min-h-0 !p-3 !rounded-2xl !bg-gray-100 dark:!bg-white/5 hover:!bg-gray-200 dark:hover:!bg-white/10 hover:!scale-105 active:!scale-90 z-20" icon={<ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />} />
 
           {/* Product Image Stage */}
           <div className="relative group/img mt-4 sm:mt-0">
@@ -499,20 +561,24 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
             </div>
 
             <div className="absolute -bottom-1 -right-1">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => setShowMediaLibrary(true)}
-                className={`p-3 rounded-2xl shadow-lg border-2 border-white dark:border-[#171717] transition-all active:scale-95 ${isEditMode ? 'bg-primary text-white scale-110' : 'bg-white dark:bg-[#262626] text-gray-600 scale-90'}`}
-              >
-                <Camera className="w-5 h-5" />
-              </button>
+                className={`!min-h-0 !p-3 !rounded-2xl !shadow-lg !border-2 !border-white dark:!border-[#171717] active:!scale-95 ${isEditMode ? '!bg-primary !text-white scale-110' : '!bg-white dark:!bg-[#262626] !text-gray-600 scale-90'}`}
+                icon={<Camera className="w-5 h-5" />}
+              />
             </div>
           </div>
 
           <div className="flex flex-col items-center sm:items-start text-center sm:text-left flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${isOut ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : isLow ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-primary text-white shadow-lg shadow-emerald-500/20'}`}>
+              <Badge
+                variant="solid"
+                tone={isOut ? 'danger' : isLow ? 'warning' : 'success'}
+                className={`!px-3 !py-1 !text-[10px] !shadow-lg ${isOut ? '!bg-red-500 !shadow-red-500/20' : isLow ? '!bg-amber-500 !shadow-amber-500/20' : '!bg-primary !shadow-emerald-500/20'}`}
+              >
                 {isInfinite ? t('infinity_mode', 'Infinity Mode') : isOut ? t('out_of_stock', 'Out of Stock') : isLow ? t('low_stock', 'Low Stock') : t('in_stock', 'In Stock')}
-              </span>
+              </Badge>
               {product.isFeatured && (
                 <div className="p-1.5 bg-yellow-400 text-white rounded-lg shadow-lg shadow-yellow-400/20">
                   <Star className="w-3 h-3 fill-current" />
@@ -547,12 +613,13 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
 
           {/* Header Actions */}
           <div className="flex sm:flex-col gap-2 w-full sm:w-auto mt-4 sm:mt-0">
-            <button
+            <Button
+              variant={isEditMode ? 'danger' : 'secondary'}
               onClick={() => setIsEditMode(!isEditMode)}
-              className={`flex-1 sm:flex-none p-4 sm:p-2.5 rounded-2xl transition-all text-[11px] font-black uppercase flex items-center justify-center gap-2 shadow-lg active:scale-95 ${isEditMode ? 'bg-rose-500 text-white shadow-rose-500/20' : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10'}`}
+              className={`flex-1 sm:flex-none !p-4 sm:!p-2.5 !rounded-2xl !text-[11px] !font-black !shadow-lg ${isEditMode ? '!shadow-rose-500/20' : '!bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 !shadow-none'}`}
             >
               {isEditMode ? <><X className="h-4 w-4" /> {t('stop', 'Stop')}</> : <><Edit3 className="h-4 w-4" /> {t('edit', 'Edit')}</>}
-            </button>
+            </Button>
           </div>
 
           <div className="hidden lg:flex items-center gap-6 flex-shrink-0">
@@ -616,21 +683,40 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
           </div>
 
           <div className="bg-white dark:bg-[#1C1C1C] p-6 rounded-[2.5rem] border border-gray-200 dark:border-white/5 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-500/10 text-blue-500 rounded-2xl">
+                <div className="p-2.5 bg-blue-500/10 text-blue-500 rounded-2xl shrink-0">
                   <ShieldAlert className="w-5 h-5" />
                 </div>
                 <h4 className="text-[11px] font-black text-gray-700 dark:text-white uppercase tracking-wider">{t('quick_controls', 'Quick Controls')}</h4>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {!isInfinite && (
-                  <button
-                    onClick={() => setShowAdjustment(true)}
-                    className="px-5 py-2.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-95"
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setRestockData({
+                        quantity: '1',
+                        supplier: product.supplier || '',
+                        cost: product.cost?.toString() || '',
+                        recordAsSupplierBill: true
+                      });
+                      setShowRestock(true);
+                    }}
+                    className="!px-4 !py-2 !bg-emerald-500 hover:!bg-emerald-600 !text-[10px] !font-black !rounded-xl !shadow-sm hover:!scale-[1.02]"
+                    icon={<PackagePlus className="w-3.5 h-3.5" />}
                   >
-                    {t('adjust', 'Adjust')}
-                  </button>
+                    {t('restock', 'RESTOCK')}
+                  </Button>
+                )}
+                {!isInfinite && (
+                  <Button
+                    variant="primary"
+                    onClick={() => setShowAdjustment(true)}
+                    className="!px-4 !py-2 !bg-amber-500 hover:!bg-amber-600 !text-[10px] !font-black !rounded-xl !shadow-sm hover:!scale-[1.02]"
+                  >
+                    {t('adjust', 'ADJUST')}
+                  </Button>
                 )}
               </div>
             </div>
@@ -641,7 +727,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                   <div className="flex items-center justify-between mb-1 ml-1">
                     <p className="text-[9px] text-gray-600 uppercase font-bold">{t('min_stock_alert', 'Min Stock Alert')}</p>
                     {parseInt(formData.minStock) !== (product.minStock || 0) && (
-                      <button
+                      <Button
+                        variant="ghost"
                         onClick={async () => {
                           try {
                             const newMin = parseInt(formData.minStock) || 0;
@@ -652,10 +739,10 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                             sonner.error('Failed to save min stock');
                           }
                         }}
-                        className="text-[9px] font-black text-primary uppercase hover:underline"
+                        className="!min-h-0 !p-0 !bg-transparent !text-[9px] !font-black !text-primary hover:!underline"
                       >
                         {t('save', 'Save')}
-                      </button>
+                      </Button>
                     )}
                   </div>
                   <input
@@ -673,7 +760,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                           <p className="text-[9px] text-gray-600 uppercase font-bold">{t('sale_price', 'Sale Price')}</p>
                         </div>
                         {parseFloat(formData.price) !== product.price && (
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={async () => {
                               try {
                                 const newPrice = parseFloat(formData.price) || 0;
@@ -684,10 +772,10 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                                 sonner.error('Failed to save sale price');
                               }
                             }}
-                            className="text-[9px] font-black text-primary uppercase hover:underline"
+                            className="!min-h-0 !p-0 !bg-transparent !text-[9px] !font-black !text-primary hover:!underline"
                           >
-                              {t('save', 'Save')}
-                          </button>
+                            {t('save', 'Save')}
+                          </Button>
                         )}
                       </div>
                       <input
@@ -704,7 +792,8 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                           <HelpTooltip content="Cost changes will instantly update the product's cost price for accurate profit calculations." />
                         </div>
                         {parseFloat(formData.cost) !== product.cost && (
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={async () => {
                               try {
                                 const newCost = parseFloat(formData.cost) || 0;
@@ -715,10 +804,10 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                                 sonner.error('Failed to save cost price');
                               }
                             }}
-                            className="text-[9px] font-black text-primary uppercase hover:underline"
+                            className="!min-h-0 !p-0 !bg-transparent !text-[9px] !font-black !text-primary hover:!underline"
                           >
                             {t('save', 'Save')}
-                          </button>
+                          </Button>
                         )}
                       </div>
                       <input
@@ -748,31 +837,15 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 </div>
               </div>
               <div className="space-y-6">
-                {/* Product Type Toggle */}
-                <div className="flex bg-[#f8f9fa] dark:bg-black/75 p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, productType: 'simple' }))}
-                    className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                      formData.productType !== 'variable'
-                        ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                    }`}
-                  >
-                    {t('simple_product', 'Simple Product')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, productType: 'variable' }))}
-                    className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                      formData.productType === 'variable'
-                        ? 'bg-white dark:bg-surface text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                    }`}
-                  >
-                    {t('variable_product', 'Variable Product')}
-                  </button>
-                </div>
+                {/* Product Type Toggle — shared SegmentedControl */}
+                <SegmentedControl
+                  options={[
+                    { value: 'simple', label: t('simple_product', 'Simple Product') },
+                    { value: 'variable', label: t('variable_product', 'Variable Product') },
+                  ]}
+                  value={formData.productType}
+                  onChange={(v) => setFormData(prev => ({ ...prev, productType: v }))}
+                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <SearchableSelect
@@ -804,20 +877,20 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                       />
                       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                         {formData.sku && (
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={() => setFormData({ ...formData, sku: '' })}
-                            className="p-2 text-gray-600 hover:text-rose-500 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                            className="!min-h-0 !p-2 !bg-transparent !text-gray-600 hover:!text-rose-500"
+                            icon={<X className="w-4 h-4" />}
+                          />
                         )}
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={generateSku}
-                          className="p-2.5 bg-white dark:bg-[#262626] text-primary rounded-2xl shadow-sm hover:scale-110 transition-all active:scale-95"
+                          className="!min-h-0 !p-2.5 !rounded-2xl !bg-white dark:!bg-[#262626] !text-primary !shadow-sm hover:!scale-110"
                           title={t('generate_sku_tooltip', 'Generate Smart SKU')}
-                        >
-                          <Wand2 className="w-4 h-4" />
-                        </button>
+                          icon={<Wand2 className="w-4 h-4" />}
+                        />
                       </div>
                     </div>
                   </div>
@@ -833,27 +906,27 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                       />
                       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                         {formData.barcode && (
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={() => setFormData({ ...formData, barcode: '' })}
-                            className="p-2 text-gray-600 hover:text-rose-500 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                            className="!min-h-0 !p-2 !bg-transparent !text-gray-600 hover:!text-rose-500"
+                            icon={<X className="w-4 h-4" />}
+                          />
                         )}
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={generateBarcode}
-                          className="p-2 bg-white dark:bg-[#262626] text-primary rounded-xl shadow-sm hover:scale-110 transition-all active:scale-95 border border-primary/10"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-white dark:!bg-[#262626] !text-primary !shadow-sm hover:!scale-110 !border !border-primary/10"
                           title={t('generate_barcode_tooltip', 'Generate Barcode')}
-                        >
-                          <Wand2 className="w-4 h-4" />
-                        </button>
-                        <button
+                          icon={<Wand2 className="w-4 h-4" />}
+                        />
+                        <Button
+                          variant="ghost"
                           onClick={() => { setActiveScannerField('barcode'); setShowScanner(true); }}
-                          className="p-2 bg-white dark:bg-[#262626] text-blue-500 rounded-xl shadow-sm hover:scale-110 transition-all active:scale-95 border border-blue-500/10"
+                          className="!min-h-0 !p-2 !rounded-xl !bg-white dark:!bg-[#262626] !text-blue-500 !shadow-sm hover:!scale-110 !border !border-blue-500/10"
                           title={t('scan_with_camera_tooltip', 'Scan with Camera')}
-                        >
-                          <Camera className="w-4 h-4" />
-                        </button>
+                          icon={<Camera className="w-4 h-4" />}
+                        />
                       </div>
                     </div>
                     {formData.barcode && (
@@ -866,21 +939,23 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 <div className="pt-4 border-t border-gray-200 dark:border-white/5">
                   <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-3 ml-1">{t('product_image', 'Product Image')}</p>
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="primary"
                       onClick={() => setShowMediaLibrary(true)}
-                      className="px-5 py-2.5 bg-primary text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                      className="!px-5 !py-2.5 !rounded-lg !text-[9px] !font-black !shadow-lg !shadow-emerald-500/20"
                     >
                       Choose / Upload Image
-                    </button>
+                    </Button>
                     {formData.image && (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => setFormData(prev => ({ ...prev, image: '' }))}
-                        className="px-4 py-2.5 bg-rose-500/10 text-rose-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/20 active:scale-95 transition-all"
+                        className="!min-h-0 !px-4 !py-2.5 !rounded-lg !text-[9px] !font-black !bg-rose-500/10 !text-rose-500 hover:!bg-rose-500/20"
                       >
                         {t('remove', 'Remove')}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -1056,18 +1131,20 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 {formData.productType === 'variable' && (
                   <>
                   <div className="space-y-3 animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('product_variants', 'Product Variants')}</h4>
                       <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">{t('variants_sub', 'Size, Color, Material (e.g. Garments, Shoes)')}</p>
                     </div>
-                    <button 
-                      type="button" 
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => setVariants([...variants, { name: '', options: [], optionsRaw: '' }])}
-                      className="px-3 py-1.5 bg-white dark:bg-black text-primary dark:text-primary text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-200 dark:border-white/10 hover:border-primary shadow-sm"
+                      className="!min-h-0 !px-3 !py-1.5 !rounded-lg !text-[10px] !font-black !bg-white dark:!bg-black !border-gray-200 dark:!border-white/10 !text-primary hover:!border-primary"
                     >
                       {t('add_variant_option', 'Add Variant Option')}
-                    </button>
+                    </Button>
                   </div>
                   
                   {variants.map((variant, index) => {
@@ -1120,16 +1197,17 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                               className="bg-emerald-50 dark:bg-primary/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-primary/20 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 animate-fadeIn select-none"
                             >
                               {opt}
-                              <button
+                              <Button
                                 type="button"
+                                variant="ghost"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   removeTag(optIndex);
                                 }}
-                                className="text-primary hover:text-emerald-700 dark:hover:text-emerald-300 font-bold focus:outline-none transition-colors"
+                                className="!min-h-0 !p-0 !bg-transparent !text-primary hover:!text-emerald-700 dark:hover:!text-emerald-300 !font-bold"
                               >
                                 &times;
-                              </button>
+                              </Button>
                             </span>
                           ))}
                           <input
@@ -1162,9 +1240,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                           />
                         </div>
 
-                        <button type="button" onClick={() => setVariants(variants.filter((_, i) => i !== index))} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors">
-                          <X className="w-4 h-4" />
-                        </button>
+                        <Button type="button" variant="ghost" onClick={() => setVariants(variants.filter((_, i) => i !== index))} className="!min-h-0 !p-2 !rounded-lg !bg-transparent !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10" icon={<X className="w-4 h-4" />} />
                       </div>
                     );
                   })}
@@ -1173,8 +1249,9 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 {/* Matrix Generator Button */}
                 {variants.length > 0 && variants.some(v => v.options.length > 0) && (
                   <div className="pt-2 flex justify-end">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => {
                         // Simple matrix generation for up to 2 variants
                         if (variants.length === 0) return;
@@ -1205,11 +1282,11 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                         });
                         setVariantData(newVariantData);
                       }}
-                      className="px-4 py-2 bg-emerald-50 dark:bg-primary/10 text-emerald-600 dark:text-primary text-[10px] font-black uppercase tracking-widest rounded-lg border border-emerald-200 dark:border-primary/20 hover:border-primary shadow-sm flex items-center gap-2"
+                      className="!min-h-0 !px-4 !py-2 !rounded-lg !text-[10px] !font-black !bg-emerald-50 dark:!bg-primary/10 !text-emerald-600 dark:!text-primary !border-emerald-200 dark:!border-primary/20 hover:!border-primary !shadow-sm"
+                      icon={<Wand2 className="w-3.5 h-3.5" />}
                     >
-                      <Wand2 className="w-3.5 h-3.5" />
                       {t('generate_matrix', 'Generate Price/Stock Matrix')}
-                    </button>
+                    </Button>
                   </div>
                 )}
                 
@@ -1295,11 +1372,21 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
 
                 {/* Extra Toppings */}
                 <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-white/5">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
                       <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">{t('extra_toppings', 'Extra Toppings')}</h4>
                       <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">{t('extra_toppings_sub', 'Add custom toppings with price for this product')}</p>
                     </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setModifiers([...modifiers, { name: '', price: 0 }])}
+                      className="!min-h-0 !px-3 !py-1.5 !rounded-lg !text-[10px] !font-black !bg-white dark:!bg-black !border-gray-200 dark:!border-white/10 !text-primary hover:!border-primary"
+                      icon={<Plus className="w-3.5 h-3.5" />}
+                    >
+                      {t('add_extra_topping', 'Add Topping')}
+                    </Button>
                   </div>
                   
                   {modifiers.length === 0 && (
@@ -1330,59 +1417,54 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                         className="w-24 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary font-bold text-center text-gray-900 dark:text-white text-[10px]"
                       />
                       {variants.length > 0 && variants.some(v => v.options && v.options.length > 0) && (
-                        <select
+                        <Select
                           value={modifier.variantName || ''}
                           onChange={(e) => {
                             const newModifiers = [...modifiers];
                             newModifiers[index].variantName = e.target.value || undefined;
                             setModifiers(newModifiers);
                           }}
-                          className="w-full sm:w-auto min-w-[120px] bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-primary text-[10px] font-bold"
+                          className="!bg-gray-50 dark:!bg-black/40 !border !border-gray-200 dark:!border-white/10 !text-gray-600 dark:!text-gray-400 !rounded-lg !px-2 !text-[10px] !font-bold !min-w-[120px] sm:!w-auto !w-full"
                         >
                           <option value="">All Variants</option>
                           {variants.flatMap(v => (v.options || []).map((opt: string) => `${v.name}: ${opt}`)).map(opt => (
                             <option key={opt} value={opt}>Only {opt}</option>
                           ))}
-                        </select>
+                        </Select>
                       )}
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => {
                           const newModifiers = [...modifiers];
                           newModifiers.splice(index, 1);
                           setModifiers(newModifiers);
                         }}
-                        className="p-1.5 bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg shrink-0 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        className="!min-h-0 !p-1.5 !rounded-lg !bg-red-50 dark:!bg-red-500/10 !text-red-500 hover:!bg-red-100 dark:hover:!bg-red-500/20 shrink-0"
+                        icon={<Trash2 className="w-4 h-4" />}
+                      />
                     </div>
                   ))}
 
-                  <button
-                    type="button"
-                    onClick={() => setModifiers([...modifiers, { name: '', price: 0 }])}
-                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors mt-2"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Extra Topping
-                  </button>
+
                 </div>
                 {/* LINKED ADD-ONS BUILDER */}
                 <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-white/5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h4 className="text-xs font-black text-gray-900 dark:text-white uppercase">Linked Add-ons</h4>
                       <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest">Attach inventory-tracked products as extras</p>
                     </div>
-                    <button 
-                      type="button" 
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => setProductAddons([...productAddons, { id: '', productId: product?.id || '', addonProductId: '', name: '', price: 0, maxQty: 1, active: true, createdAt: new Date() }])}
-                      className="px-3 py-1.5 bg-white dark:bg-black text-blue-600 dark:text-blue-500 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-200 dark:border-white/10 hover:border-blue-500 shadow-sm"
+                      className="!min-h-0 !px-3 !py-1.5 !rounded-lg !text-[10px] !font-black !bg-white dark:!bg-black !text-blue-600 dark:!text-blue-500 !border-gray-200 dark:!border-white/10 hover:!border-blue-500"
+                      icon={<Plus className="w-3.5 h-3.5" />}
                     >
-                      <Plus className="w-3.5 h-3.5 inline mr-1" />
                       Add Link
-                    </button>
+                    </Button>
                   </div>
                   
                   {productAddons.map((addon, index) => (
@@ -1439,9 +1521,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                             className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
                           />
                         </div>
-                        <button type="button" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg shrink-0 transition-colors mt-0.5">
-                          <X className="w-4 h-4" />
-                        </button>
+                        <Button type="button" variant="ghost" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="!min-h-0 !p-1.5 !rounded-lg !bg-transparent !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 shrink-0 mt-0.5" icon={<X className="w-4 h-4" />} />
                       </div>
                     </div>
                   ))}
@@ -1468,20 +1548,22 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
           maxWidth="lg"
           footer={
             <div className="flex items-center justify-end gap-3">
-              <button
+              <Button
+                variant="danger"
                 onClick={() => setShowAdjustment(false)}
-                className="px-6 py-3 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[10px] font-black uppercase tracking-widest rounded-full transition-all active:scale-95"
+                className="!bg-transparent !border-rose-200 dark:!border-rose-900/30 !text-[#ff4b6e] hover:!bg-rose-50 dark:hover:!bg-rose-500/10 hover:!opacity-100 !shadow-none !px-6 !py-3 !text-[10px] !rounded-full !min-h-0"
               >
                 {t('discard', 'DISCARD')}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleAdjustment}
                 disabled={isUpdating || !adjustmentData.quantity}
-                className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-full text-[11px] font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="!px-8 !py-3 !bg-amber-500 hover:!bg-amber-600 !rounded-full !text-[11px] !font-black !shadow-lg !shadow-amber-500/20"
+                icon={isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               >
-                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 <span>{t('apply_correction', 'APPLY CORRECTION')}</span>
-              </button>
+              </Button>
             </div>
           }
         >
@@ -1519,6 +1601,126 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
           </div>
         </Modal>
 
+        <BottomSheet
+          open={showRestock}
+          onClose={() => setShowRestock(false)}
+          title={t('quick_restock', 'Quick Restock')}
+          subtitle={t('quick_restock_sub', 'Add stock directly to this product — same engine as Purchase Orders')}
+          maxWidth="lg"
+          footer={
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                variant="danger"
+                onClick={() => setShowRestock(false)}
+                className="!bg-transparent !border-rose-200 dark:!border-rose-900/30 !text-[#ff4b6e] hover:!bg-rose-50 dark:hover:!bg-rose-500/10 hover:!opacity-100 !shadow-none !px-6 !py-3 !text-[10px] !rounded-full !min-h-0"
+              >
+                {t('cancel', 'CANCEL')}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleQuickRestock}
+                disabled={isUpdating || !parseFloat(restockData.quantity) || parseFloat(restockData.quantity) <= 0 || !restockData.supplier.trim()}
+                className="!px-8 !py-3 !bg-emerald-500 hover:!bg-emerald-600 !rounded-full !text-[11px] !font-black !shadow-lg !shadow-emerald-500/20"
+                icon={isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
+              >
+                <span>{t('admit_to_stock', 'ADMIT TO STOCK')}</span>
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-8">
+            {/* Product strip */}
+            <div className="flex items-center gap-4 bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 rounded-2xl p-4">
+              {product.image ? (
+                <img src={product.image} alt={product.name} className="w-14 h-14 rounded-xl object-cover bg-gray-100 dark:bg-white/5" />
+              ) : (
+                <div className="w-14 h-14 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Package className="w-6 h-6" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="font-black text-gray-900 dark:text-white text-sm uppercase tracking-tight truncate">{product.name}</p>
+                <p className="text-[10px] font-bold text-gray-600 tracking-widest mt-1 truncate">{product.sku || 'No SKU'}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <Badge
+                  tone={product.stock <= 0 ? 'danger' : 'neutral'}
+                  size="md"
+                  className={`!px-3 !py-1 !rounded-lg !text-xs ${product.stock <= 0 ? '!bg-rose-100 !text-rose-700 dark:!bg-rose-500/20 dark:!text-rose-400' : '!bg-gray-100 !text-gray-700 dark:!bg-white/10 dark:!text-gray-300'}`}
+                >
+                  {t('in_stock', 'In Stock')}: {product.stock}
+                </Badge>
+                {product.supplier && (
+                  <Badge
+                    tone="info"
+                    size="md"
+                    className="!px-3 !py-1 !rounded-lg !text-xs !bg-primary/10 !text-primary dark:!bg-primary/15 dark:!text-emerald-400"
+                  >
+                    {product.supplier}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* 2-col form */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest ml-1">{t('qty_to_add', 'Qty to Add *')}</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={restockData.quantity}
+                  onChange={(e) => setRestockData({ ...restockData, quantity: e.target.value })}
+                  className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none px-4 py-4 rounded-xl text-xl font-black outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                  placeholder="1"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest ml-1">{t('cost_price_optional', 'Cost Price')}</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={restockData.cost}
+                  onChange={(e) => setRestockData({ ...restockData, cost: e.target.value })}
+                  className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none px-4 py-4 rounded-xl text-xl font-black outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2 relative z-30 md:col-span-2">
+                <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest ml-1">{t('supplier_req', 'Supplier *')}</label>
+                <SearchableSelect
+                  options={state.suppliers.map(s => ({ id: s.id, label: s.name }))}
+                  value={restockData.supplier}
+                  onChange={(val) => setRestockData({ ...restockData, supplier: val })}
+                />
+                {!restockData.supplier.trim() && (
+                  <p className="text-[10px] font-bold text-rose-500 ml-1">{t('supplier_required_hint', 'A supplier is required to record this stock entry')}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Total + Supplier Bill toggle */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gray-50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 rounded-2xl p-4">
+              <div>
+                <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{t('estimated_total', 'Estimated Total')}</p>
+                <p className="text-xl font-black text-emerald-500 dark:text-emerald-400 tracking-tight mt-0.5">
+                  {formatCurrency((parseFloat(restockData.quantity) || 0) * (parseFloat(restockData.cost) || 0), currency)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 bg-white dark:bg-black/30 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-white/5">
+                <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest whitespace-nowrap">{t('record_supplier_bill', 'Supplier Bill')}</span>
+                <ToggleSwitch
+                  checked={restockData.recordAsSupplierBill}
+                  onChange={(v) => setRestockData({ ...restockData, recordAsSupplierBill: v })}
+                  size="sm"
+                  color="bg-primary"
+                />
+              </div>
+            </div>
+          </div>
+        </BottomSheet>
+
         <div className="bg-white dark:bg-surface rounded-[2.5rem] border border-gray-200 dark:border-white/5 overflow-hidden shadow-xl">
           <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-gray-50 dark:border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -1551,20 +1753,20 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 {t('page', 'Page')} <span className="text-primary">{historyPage}</span> {t('of', 'of')} {totalHistoryPages}
               </p>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="ghost"
                   disabled={historyPage === 1}
                   onClick={() => setHistoryPage(p => p - 1)}
-                  className="p-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-600 hover:text-primary disabled:opacity-30 transition-all shadow-sm"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                <button
+                  className="!min-h-0 !p-1.5 !rounded-lg !bg-white dark:!bg-white/5 !border !border-gray-200 dark:!border-white/10 !text-gray-600 hover:!text-primary disabled:opacity-30 !shadow-sm"
+                  icon={<ChevronLeft className="w-3.5 h-3.5" />}
+                />
+                <Button
+                  variant="ghost"
                   disabled={historyPage === totalHistoryPages}
                   onClick={() => setHistoryPage(p => p + 1)}
-                  className="p-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-gray-600 hover:text-primary disabled:opacity-30 transition-all shadow-sm"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                  className="!min-h-0 !p-1.5 !rounded-lg !bg-white dark:!bg-white/5 !border !border-gray-200 dark:!border-white/10 !text-gray-600 hover:!text-primary disabled:opacity-30 !shadow-sm"
+                  icon={<ChevronRight className="w-3.5 h-3.5" />}
+                />
               </div>
             </div>
           )}
@@ -1584,7 +1786,9 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 <tbody className="divide-y divide-gray-50 dark:divide-white/5">
                   {movementHistory.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-8 py-20 text-center text-[11px] text-gray-600 uppercase font-black italic">{t('no_records_found', 'No records found')}</td>
+                      <td colSpan={4} className="px-8">
+                        <EmptyState compact icon={<History className="h-full w-full" />} title={t('no_records_found', 'No records found')} className="!py-20" />
+                      </td>
                     </tr>
                   ) : paginatedHistory.map((h) => (
                     <tr
@@ -1625,7 +1829,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
             {/* Mobile Card View */}
             <div className="md:hidden divide-y divide-gray-50 dark:divide-white/5">
               {movementHistory.length === 0 ? (
-                <div className="py-20 text-center text-[11px] text-gray-600 uppercase font-black italic">{t('no_records_found', 'No records found')}</div>
+                <EmptyState compact icon={<History className="h-full w-full" />} title={t('no_records_found', 'No records found')} className="!py-20" />
               ) : paginatedHistory.map((h) => (
                 <div
                   key={h.id}
@@ -1671,20 +1875,24 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                 {t('showing', 'Showing')} {(historyPage - 1) * HISTORY_PER_PAGE + 1} {t('to', 'to')} {Math.min(historyPage * HISTORY_PER_PAGE, movementHistory.length)} {t('of', 'of')} {movementHistory.length}
               </p>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={historyPage === 1}
                   onClick={() => setHistoryPage(p => p - 1)}
-                  className="px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[10px] font-black uppercase tracking-tighter disabled:opacity-30 hover:scale-105 transition-all shadow-sm"
+                  className="!min-h-0 !px-3 !py-1.5 !rounded-xl !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 !text-[10px] !font-black !tracking-tighter hover:!scale-105 !shadow-sm"
                 >
                   {t('prev', 'Prev')}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={historyPage === totalHistoryPages}
                   onClick={() => setHistoryPage(p => p + 1)}
-                  className="px-3 py-1.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[10px] font-black uppercase tracking-tighter disabled:opacity-30 hover:scale-105 transition-all shadow-sm"
+                  className="!min-h-0 !px-3 !py-1.5 !rounded-xl !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 !text-[10px] !font-black !tracking-tighter hover:!scale-105 !shadow-sm"
                 >
                   {t('next', 'Next')}
-                </button>
+                </Button>
               </div>
             </div>
           )}

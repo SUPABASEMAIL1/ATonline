@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product, AppSettings, Category, CartItem, ProductModifier, Bundle, Sale } from '../../types';
-import { ShoppingCart, ShoppingBag, Search, Plus, Minus, ChevronRight, ChevronLeft, X, User, History, LogOut, Bike, Clock, Flame, CheckCircle2, Timer } from 'lucide-react';
+import { ShoppingCart, ShoppingBag, Search, Plus, Minus, ChevronRight, ChevronLeft, X, User, History, LogOut, Bike, Clock, Flame, CheckCircle2, Timer, Package, PackageOpen } from 'lucide-react';
+import { Button, EmptyState, Badge } from '../../shared/ui';
 import { useEstoreAuth } from './useEstoreAuth';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/currencies';
@@ -9,6 +10,7 @@ import { calculateDiscount } from '../../lib/utils';
 import { StoreProductModal } from './StoreProductModal';
 import { StoreDealModal } from './StoreDealModal';
 import { HighlightBadge } from '../common/HighlightBadge';
+import { sonner } from '../../lib/sonner';
 import { useScheduleStatus } from '../../hooks/useScheduleStatus';
 
 // ─── Live ticking order timer for StoreFront order history ───
@@ -166,7 +168,7 @@ const EStoreOrderProgress = ({ status }: { status: string }) => {
         {/* Road line */}
         <div className="absolute left-4 right-4 top-[14px] h-1 bg-black/5 dark:bg-white/5 rounded-full -z-0">
           <div 
-            className="h-full bg-primary transition-all duration-500 rounded-full" 
+            className="h-full       bg-[var(--color-primary)] transition-all duration-500 rounded-full" 
             style={{ width: `${(activeIndex / (steps.length - 1)) * 100}%` }}
           />
         </div>
@@ -181,9 +183,9 @@ const EStoreOrderProgress = ({ status }: { status: string }) => {
             <div key={step.key} className="flex flex-col items-center relative z-10 flex-1">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
                 isActive 
-                  ? 'bg-primary border-primary text-white scale-110 shadow-md shadow-emerald-500/20' 
+                  ? '      bg-[var(--color-primary)] border-primary text-white scale-110 shadow-md shadow-emerald-500/20' 
                   : isCompleted 
-                    ? 'bg-primary/10 border-primary text-primary' 
+                    ? '      bg-primary/10 border-primary text-primary' 
                     : 'bg-white dark:bg-[#18181b] border-gray-200 dark:border-zinc-800 text-gray-400'
               }`}>
                 <StepIcon className={`w-4 h-4 ${isActive && step.key === 'out_for_delivery' ? 'animate-bounce' : ''}`} />
@@ -276,7 +278,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
       await loginOrRegister(loginName || 'Guest', loginPhone);
       setShowLoginModal(false);
     } catch (err) {
-      alert("Failed to login.");
+      sonner.error("Failed to login.");
     } finally {
       setIsLoggingIn(false);
     }
@@ -372,22 +374,20 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
           <div className="mt-auto pt-4">
             {inCartQty > 0 ? (
               <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-full p-1">
-                <button 
+                <Button 
                   onClick={() => onUpdateCart(cartIndex, inCartQty - 1)}
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[var(--color-card-bg)] text-[var(--color-text)] opacity-80 shadow-sm flex items-center justify-center hover:opacity-100 active:scale-95 transition-all shrink-0"
-                >
-                  <Minus className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
+                  className="!w-8 !h-8 sm:!w-10 sm:!h-10 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !text-[var(--color-text)] !opacity-80 !shadow-sm !normal-case !tracking-normal hover:!opacity-100 shrink-0"
+                  icon={<Minus className="w-4 h-4 sm:w-5 sm:h-5" />}
+                />
                 <span className="font-black text-[var(--color-text)] text-sm sm:text-lg w-8 sm:w-12 text-center">{inCartQty}</span>
-                <button 
+                <Button 
                   onClick={() => onUpdateCart(cartIndex, inCartQty + 1)}
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary text-white shadow-sm flex items-center justify-center hover:brightness-90 active:scale-95 transition-all shrink-0"
-                >
-                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
+                  className="!w-8 !h-8 sm:!w-10 sm:!h-10 !min-h-0 !p-0 !rounded-full !bg-[var(--color-primary)] !text-white !shadow-sm !normal-case !tracking-normal hover:!brightness-90 shrink-0"
+                  icon={<Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
+                />
               </div>
             ) : (
-              <button 
+              <Button 
                 onClick={() => {
                   if ((product.variants && product.variants.length > 0) || (product.modifiers && product.modifiers.length > 0)) {
                     setSelectedProductForModal(product);
@@ -395,10 +395,10 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                     onAddToCart(product);
                   }
                 }}
-                className="w-full py-3.5 bg-primary text-white rounded-full font-black text-sm hover:brightness-90 active:scale-95 transition-all"
+                className="!w-full !py-3.5 !rounded-full !bg-[var(--color-primary)] !text-white !font-black !text-sm !normal-case !tracking-normal hover:!brightness-90"
               >
                 Add to Cart
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -478,7 +478,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
             {settings?.storeLogo ? (
               <img src={settings.storeLogo} alt={settings.storeName} className="h-8 w-auto rounded-lg object-contain" />
             ) : (
-              <div className="w-8 h-8 bg-primary text-white rounded-lg flex items-center justify-center font-black text-xl">
+              <div className="w-8 h-8       bg-[var(--color-primary)] text-white rounded-lg flex items-center justify-center font-black text-xl">
                 {settings?.storeName?.charAt(0) || 'Z'}
               </div>
             )}
@@ -488,35 +488,35 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
           <div className="flex items-center gap-2 sm:gap-4">
             {!isInitializing && (
               customer ? (
-                <button 
+                <Button 
                   onClick={() => setShowOrdersModal(true)}
-                  className="flex items-center gap-2 p-2 px-3 sm:px-4 text-primary bg-primary/10 hover:bg-primary/20 rounded-full font-bold text-xs sm:text-sm transition-colors"
+                  className="!min-h-0 !p-2 !px-3 sm:!px-4 !text-primary !bg-primary/10 hover:!bg-primary/20 !rounded-full !font-bold !text-xs sm:!text-sm !normal-case !tracking-normal"
+                  icon={<History className="w-4 h-4 sm:w-5 sm:h-5" />}
                 >
-                  <History className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="hidden sm:inline">My Orders</span>
-                </button>
+                </Button>
               ) : (
-                <button 
+                <Button 
                   onClick={() => setShowLoginModal(true)}
-                  className="flex items-center gap-2 p-2 px-3 sm:px-4 text-[var(--color-text)] opacity-80 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-full font-bold text-xs sm:text-sm transition-colors"
+                  className="!min-h-0 !p-2 !px-3 sm:!px-4 !text-[var(--color-text)] !opacity-80 !bg-black/5 dark:!bg-white/5 hover:!bg-black/10 dark:hover:!bg-white/10 !rounded-full !font-bold !text-xs sm:!text-sm !normal-case !tracking-normal"
+                  icon={<User className="w-4 h-4 sm:w-5 sm:h-5" />}
                 >
-                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="hidden sm:inline">Login</span>
-                </button>
+                </Button>
               )
             )}
             
-            <button 
+            <Button 
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-[var(--color-text)] opacity-80 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"
+              className="relative !min-h-0 !p-2 !bg-transparent !text-[var(--color-text)] !opacity-80 hover:!bg-black/5 dark:hover:!bg-white/5 !rounded-full !normal-case !tracking-normal"
+              icon={<ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7" />}
             >
-              <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7" />
             {cartItemsCount > 0 && (
-              <span className="absolute top-0 right-0 w-5 h-5 bg-primary text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">
+              <span className="absolute top-0 right-0 w-5 h-5       bg-[var(--color-primary)] text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">
                 {cartItemsCount}
               </span>
             )}
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -541,40 +541,38 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
       {/* Categories Strip */}
       <div className="sticky top-16 z-40 bg-[var(--color-card-bg)]/80 backdrop-blur-md border-b border-gray-100 px-4 py-3 group">
         <div className="max-w-7xl mx-auto relative flex items-center">
-          <button 
+          <Button 
             onClick={() => scrollCategories('left')}
-            className="absolute left-0 z-10 w-8 h-8 rounded-full bg-[var(--color-card-bg)] shadow border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[var(--color-text)] md:opacity-0 md:group-hover:opacity-100 transition-opacity -ml-2"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+            className="absolute left-0 z-10 !w-8 !h-8 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !shadow !border !border-gray-100 !text-gray-500 hover:!text-[var(--color-text)] md:!opacity-0 md:group-hover:!opacity-100 !transition-opacity !-ml-2 !normal-case !tracking-normal"
+            icon={<ChevronLeft className="w-5 h-5" />}
+          />
           
           <div ref={categoryScrollRef} className="flex-1 flex gap-2 overflow-x-auto scrollbar-hide snap-x relative px-10 scroll-smooth">
-            <button
+            <Button
               onClick={() => setActiveCategory('All')}
-              className={`snap-start whitespace-nowrap px-5 py-2.5 rounded-full font-black text-sm transition-all shrink-0 ${activeCategory === 'All' ? 'bg-primary text-white shadow-md' : 'bg-[var(--color-card-bg)] border border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-70 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20'}`}
+              className={`snap-start whitespace-nowrap !px-5 !py-2.5 !min-h-0 !rounded-full !font-black !text-sm !normal-case !tracking-normal !transition-all shrink-0 ${activeCategory === 'All' ? '!bg-[var(--color-primary)] !text-white !shadow-md' : '!bg-[var(--color-card-bg)] !border !border-black/10 dark:!border-white/10 !text-[var(--color-text)] !opacity-70 hover:!opacity-100 hover:!border-black/20 dark:hover:!border-white/20'}`}
             >
               All Items
-            </button>
+            </Button>
             {[...categories].filter(cat => {
               const count = products.filter(p => p.category === cat.name && p.active !== false).length;
               return cat.active !== false && count > 0;
             }).sort((a, b) => (a.estoreSortOrder ?? 0) - (b.estoreSortOrder ?? 0)).map(cat => (
-              <button
+              <Button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.name)}
-                className={`snap-start whitespace-nowrap px-5 py-2.5 rounded-full font-black text-sm transition-all shrink-0 ${activeCategory === cat.name ? 'bg-primary text-white shadow-md' : 'bg-[var(--color-card-bg)] border border-black/10 dark:border-white/10 text-[var(--color-text)] opacity-70 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20'}`}
+                className={`snap-start whitespace-nowrap !px-5 !py-2.5 !min-h-0 !rounded-full !font-black !text-sm !normal-case !tracking-normal !transition-all shrink-0 ${activeCategory === cat.name ? '!bg-[var(--color-primary)] !text-white !shadow-md' : '!bg-[var(--color-card-bg)] !border !border-black/10 dark:!border-white/10 !text-[var(--color-text)] !opacity-70 hover:!opacity-100 hover:!border-black/20 dark:hover:!border-white/20'}`}
               >
                 {cat.name}
-              </button>
+              </Button>
             ))}
           </div>
 
-          <button 
+          <Button 
             onClick={() => scrollCategories('right')}
-            className="absolute right-0 z-10 w-8 h-8 rounded-full bg-[var(--color-card-bg)] shadow border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[var(--color-text)] md:opacity-0 md:group-hover:opacity-100 transition-opacity -mr-2"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+            className="absolute right-0 z-10 !w-8 !h-8 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !shadow !border !border-gray-100 !text-gray-500 hover:!text-[var(--color-text)] md:!opacity-0 md:group-hover:!opacity-100 !transition-opacity !-mr-2 !normal-case !tracking-normal"
+            icon={<ChevronRight className="w-5 h-5" />}
+          />
         </div>
       </div>
 
@@ -595,12 +593,11 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
               </div>
             </div>
             <div className="relative group">
-              <button
+              <Button
                 onClick={() => scrollDeals('left')}
-                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-[var(--color-card-bg)] shadow border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[var(--color-text)] opacity-0 group-hover:opacity-100 transition-opacity -ml-3"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 !w-9 !h-9 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !shadow !border !border-gray-100 !text-gray-500 hover:!text-[var(--color-text)] !opacity-0 group-hover:!opacity-100 !transition-opacity !-ml-3 !normal-case !tracking-normal"
+                icon={<ChevronLeft className="w-5 h-5" />}
+              />
               <div ref={dealsScrollRef} className="flex gap-4 overflow-x-auto pb-3 no-scrollbar snap-x scroll-smooth">
                 {matchingBundles.sort((a, b) => (a.estoreSortOrder ?? 0) - (b.estoreSortOrder ?? 0)).map(bundle => {
                   let bundleTotal = 0;
@@ -791,24 +788,23 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                           <p className="text-[10px] text-[var(--color-text)] opacity-40 font-semibold truncate mt-1">
                             {bundle.isCombo ? 'Customizable Combo Deal' : previewProductsList.map(p => p.name).join(' + ')}
                           </p>
-                          <button
-                            className="w-full py-2.5 bg-primary text-white rounded-full font-black text-xs hover:brightness-95 active:scale-95 transition-all mt-3"
+                          <Button
+                            className="!w-full !py-2.5 !rounded-full !bg-[var(--color-primary)] !text-white !font-black !text-xs !normal-case !tracking-normal hover:!brightness-95 !mt-3"
                             onClick={e => { e.stopPropagation(); setSelectedBundleForModal(bundle); }}
                           >
                             {bundle.isCombo ? 'Customize Deal' : 'View Deal details'}
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <button
+              <Button
                 onClick={() => scrollDeals('right')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-[var(--color-card-bg)] shadow border border-gray-100 flex items-center justify-center text-gray-500 hover:text-[var(--color-text)] opacity-0 group-hover:opacity-100 transition-opacity -mr-3"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 !w-9 !h-9 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !shadow !border !border-gray-100 !text-gray-500 hover:!text-[var(--color-text)] !opacity-0 group-hover:!opacity-100 !transition-opacity !-mr-3 !normal-case !tracking-normal"
+                icon={<ChevronRight className="w-5 h-5" />}
+              />
             </div>
           </section>
         )}
@@ -862,9 +858,9 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
       {/* Floating Bottom Cart Button */}
       {cartItemsCount > 0 && !isCartOpen && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm z-50 animate-slide-up">
-          <button
+          <Button
             onClick={() => setIsCartOpen(true)}
-            className="w-full bg-primary text-white p-4 rounded-full shadow-2xl flex items-center justify-between hover:brightness-90 active:scale-95 transition-all"
+            className="!w-full !bg-[var(--color-primary)] !text-white !p-4 !rounded-full !shadow-2xl !normal-case !tracking-normal hover:!brightness-90 !flex !items-center !justify-between"
           >
             <div className="flex items-center gap-3">
               <div className="bg-[var(--color-card-bg)]/20 w-8 h-8 rounded-full flex items-center justify-center font-black">
@@ -875,7 +871,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
             <div className="font-black text-lg">
               {formatCurrency(cartTotal, settings?.currency)}
             </div>
-          </button>
+          </Button>
         </div>
       )}
 
@@ -886,9 +882,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
           <div className="relative w-full max-w-md bg-[var(--color-card-bg)] h-fit max-h-[85vh] md:h-full md:max-h-full rounded-[2rem] md:rounded-none shadow-2xl flex flex-col overflow-hidden animate-scale-up md:animate-slide-left">
             <div className="p-6 border-b border-black/10 dark:border-white/10 flex items-center justify-between">
               <h2 className="text-2xl font-black text-[var(--color-text)]">Your Order</h2>
-              <button onClick={() => setIsCartOpen(false)} className="w-10 h-10 bg-black/5 dark:bg-white/5 rounded-full flex items-center justify-center text-[var(--color-text)] opacity-50 hover:opacity-100">
-                <Minus className="w-6 h-6 rotate-45" /> {/* Use Minus rotated as X if Close icon missing, or just a simple X */}
-              </button>
+              <Button onClick={() => setIsCartOpen(false)} className="!w-10 !h-10 !min-h-0 !p-0 !bg-black/5 dark:!bg-white/5 !rounded-full !text-[var(--color-text)] !opacity-50 hover:!opacity-100 !normal-case !tracking-normal" icon={<Minus className="w-6 h-6 rotate-45" />} />
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -938,7 +932,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                       <div key={b.bundleId} className="bg-[var(--color-card-bg)] rounded-3xl p-5 border border-black/5 dark:border-white/5 shadow-sm">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <span className="bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">🎁 DEAL</span>
+                            <span className="      bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">🎁 DEAL</span>
                             <h4 className="font-bold text-sm text-[var(--color-text)] uppercase leading-tight">{b.bundleName}</h4>
                           </div>
                           <div className="flex items-center gap-2">
@@ -1023,9 +1017,9 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                             <p className="text-primary font-black mt-1">{formatCurrency(item.subtotal / item.quantity, settings?.currency)}</p>
                           </div>
                           <div className="flex items-center gap-3 bg-black/5 dark:bg-white/5 rounded-full p-1 border border-black/5 dark:border-white/5 shrink-0">
-                            <button onClick={() => onUpdateCart(originalIndex, item.quantity - 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">-</button>
+                            <Button onClick={() => onUpdateCart(originalIndex, item.quantity - 1)} className="!w-8 !h-8 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !font-black !text-[var(--color-text)] !opacity-80 !normal-case !tracking-normal">-</Button>
                             <span className="font-bold w-6 text-center text-[var(--color-text)]">{item.quantity}</span>
-                            <button onClick={() => onUpdateCart(originalIndex, item.quantity + 1)} className="w-8 h-8 bg-[var(--color-card-bg)] rounded-full flex items-center justify-center font-black text-[var(--color-text)] opacity-80">+</button>
+                            <Button onClick={() => onUpdateCart(originalIndex, item.quantity + 1)} className="!w-8 !h-8 !min-h-0 !p-0 !rounded-full !bg-[var(--color-card-bg)] !font-black !text-[var(--color-text)] !opacity-80 !normal-case !tracking-normal">+</Button>
                           </div>
                         </div>
                       );
@@ -1041,12 +1035,14 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                 <span className="font-bold text-[var(--color-text)] opacity-60">Total</span>
                 <span className="font-black text-2xl text-[var(--color-text)]">{formatCurrency(cartTotal, settings?.currency)}</span>
                 </div>
-                <button 
+                <Button 
                   onClick={() => navigate('/store/checkout')}
-                  className="w-full py-4 bg-primary text-white rounded-2xl font-black text-lg flex items-center justify-center gap-2 hover:brightness-90 active:scale-95 transition-all mt-6"
+                  className="!w-full !py-4 !bg-[var(--color-primary)] !text-white !rounded-2xl !font-black !text-lg !normal-case !tracking-normal hover:!brightness-90 !mt-6"
+                  iconPosition="right"
+                  icon={<ChevronRight className="w-5 h-5" />}
                 >
-                  Checkout <ChevronRight className="w-5 h-5" />
-                </button>
+                  Checkout
+                </Button>
               </div>
             )}
           </div>
@@ -1083,10 +1079,8 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowLoginModal(false)} />
           <div className="relative bg-[var(--color-card-bg)] rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 p-2 bg-black/5 dark:bg-white/5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-              <X className="w-5 h-5 text-[var(--color-text)]" />
-            </button>
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+            <Button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 !min-h-0 !p-2 !bg-black/5 dark:!bg-white/5 !rounded-full hover:!bg-black/10 dark:hover:!bg-white/10 !normal-case !tracking-normal" icon={<X className="w-5 h-5 text-[var(--color-text)]" />} />
+            <div className="w-12 h-12       bg-primary/10 rounded-full flex items-center justify-center mb-4">
               <User className="w-6 h-6 text-primary" />
             </div>
             <h2 className="text-2xl font-black text-[var(--color-text)] mb-1">Welcome</h2>
@@ -1115,13 +1109,13 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                   placeholder="0300 1234567"
                 />
               </div>
-              <button 
+              <Button 
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full bg-primary text-white font-black py-4 rounded-xl hover:brightness-90 active:scale-95 transition-all mt-4 disabled:opacity-50"
+                className="!w-full !bg-[var(--color-primary)] !text-white !font-black !py-4 !rounded-xl !normal-case !tracking-normal hover:!brightness-90 !mt-4 disabled:!opacity-50"
               >
                 {isLoggingIn ? 'Logging in...' : 'Continue'}
-              </button>
+              </Button>
             </form>
           </div>
         </div>
@@ -1134,7 +1128,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
           <div className="relative bg-[var(--color-card-bg)] w-full max-w-2xl h-fit max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-scale-up">
             <div className="p-4 sm:p-6 border-b border-gray-100 flex items-center justify-between bg-[var(--color-card-bg)] sticky top-0 z-10">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <div className="w-10 h-10       bg-primary/10 rounded-full flex items-center justify-center">
                   <History className="w-5 h-5 text-primary" />
                 </div>
                 <div>
@@ -1143,16 +1137,14 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
+                <Button 
                   onClick={() => { logout(); setShowOrdersModal(false); }}
-                  className="p-2 sm:px-4 sm:py-2 text-red-500 bg-red-50 hover:bg-red-100 rounded-full font-bold text-xs sm:text-sm flex items-center gap-2 transition-colors"
+                  className="!min-h-0 !p-2 sm:!px-4 sm:!py-2 !text-red-500 !bg-red-50 hover:!bg-red-100 !rounded-full !font-bold !text-xs sm:!text-sm !normal-case !tracking-normal"
+                  icon={<LogOut className="w-4 h-4 sm:w-5 sm:h-5" />}
                 >
-                  <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="hidden sm:inline">Logout</span>
-                </button>
-                <button onClick={() => setShowOrdersModal(false)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition-colors">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
-                </button>
+                </Button>
+                <Button onClick={() => setShowOrdersModal(false)} className="!min-h-0 !p-2 !bg-gray-100 !text-gray-500 !rounded-full hover:!bg-gray-200 !normal-case !tracking-normal" icon={<X className="w-5 h-5 sm:w-6 sm:h-6" />} />
               </div>
             </div>
 
@@ -1260,7 +1252,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                                 {item.toppings && item.toppings.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     {item.toppings.map((t: any, tIdx: number) => (
-                                      <span key={tIdx} className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                                      <span key={tIdx} className="text-[9px]       bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
                                         + {t.name} ({formatCurrency(t.price, settings?.currency)})
                                       </span>
                                     ))}
@@ -1273,13 +1265,13 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                         ))}
                       </div>
 
-                      <button 
+                      <Button 
                         onClick={() => handleOrderAgain(order)}
-                        className="w-full py-3 bg-primary text-white font-black rounded-xl hover:brightness-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="!w-full !py-3 !bg-[var(--color-primary)] !text-white !font-black !rounded-xl !normal-case !tracking-normal hover:!brightness-90"
+                        icon={<ShoppingCart className="w-4 h-4" />}
                       >
-                        <ShoppingCart className="w-4 h-4" />
                         Add to Cart Again
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>

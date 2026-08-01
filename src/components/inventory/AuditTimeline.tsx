@@ -2,12 +2,15 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   History, ShoppingCart, ArrowDownLeft, ArrowUpRight, 
   Settings, User, Clock, Package, Eye, Receipt,
-  ChevronLeft, ChevronRight, Search, Filter,
+  Filter,
   ArrowRightLeft, Database
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { formatAppDate, formatAppTime } from '../../lib/dateUtils';
 import { localDb } from '../../lib/localDb';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { Badge, Button, EmptyState, Pagination } from '../../shared/ui';
+import { ExportButton } from '../../shared/export';
 
 interface AuditTimelineProps {
   onViewProduct: (productId: string) => void;
@@ -118,6 +121,26 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
     return fallback;
   };
 
+  const exportColumns = [
+    { key: 'date', label: 'Date' },
+    { key: 'product', label: 'Product' },
+    { key: 'type', label: 'Type' },
+    { key: 'qty', label: 'Qty', format: 'number' as const },
+    { key: 'user', label: 'User' },
+    { key: 'reference', label: 'Reference' },
+    { key: 'note', label: 'Notes' },
+  ];
+
+  const exportRows = useMemo(() => filteredHistory.map(entry => ({
+    date: entry.date.toLocaleString(),
+    product: resolveProductName(entry.productId, entry.productName),
+    type: entry.type,
+    qty: entry.qty,
+    user: entry.user,
+    reference: entry.reference || '',
+    note: entry.note || '',
+  })), [filteredHistory, state.products]);
+
   const getEventConfig = (type: string, qty: number) => {
     switch (type) {
       case 'sale':
@@ -173,40 +196,31 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
           <div className="absolute right-0 top-0 w-8 h-full bg-gradient-to-l from-gray-100 dark:from-black/20 to-transparent pointer-events-none sm:hidden rounded-r-xl" />
         </div>
 
-        <div className="relative w-full sm:w-64 px-2">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-600" />
-          <input 
-            type="text" 
-            placeholder="Search within tab..." 
+        <div className="w-full sm:w-64 px-2">
+          <SharedSearchBar
             value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-            className="w-full bg-gray-100/50 dark:bg-white/5 border-none pl-9 pr-4 py-2 text-[10px] font-bold focus:ring-1 focus:ring-emerald-500 rounded-lg placeholder:text-gray-600 dark:text-white"
+            onChange={(val) => { setSearchTerm(val); setCurrentPage(1); }}
+            placeholder="Search within tab..."
+          />
+        </div>
+
+        <div className="px-2">
+          <ExportButton
+            data={exportRows}
+            columns={exportColumns}
+            title="Audit Timeline"
+            compact
           />
         </div>
       </div>
 
-      {/* Top Pagination */}
+      {/* Top Pagination — shared Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-5 py-3 border border-gray-200 dark:border-white/5 bg-white/50 dark:bg-black/20 rounded-2xl shadow-sm">
           <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-600 hover:text-primary disabled:opacity-30 transition-all shadow-sm"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-600 hover:text-primary disabled:opacity-30 transition-all shadow-sm"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </div>
       )}
 
@@ -231,9 +245,9 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
                         {realName}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-[8px] font-black uppercase px-1.5 py-px rounded bg-opacity-10 ${config.bg} ${config.color}`}>
+                        <Badge size="sm" tone="neutral" className={`!text-[8px] !px-1.5 !py-px !rounded !${config.bg} !${config.color}`}>
                           {config.label}
-                        </span>
+                        </Badge>
                         <span className="text-[9px] font-bold text-gray-600 flex items-center gap-1">
                           <Clock className="h-2.5 w-2.5" />
                           {formatAppTime(entry.date)}
@@ -251,19 +265,19 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
                       </span>
                       
                       <div className="flex items-center gap-1 lg:sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
+                        <Button
                           onClick={() => onViewProduct(entry.productId)}
-                          className="p-1.5 hover:bg-blue-500 hover:text-white text-gray-600 rounded-lg transition-all"
-                        >
-                          <Eye className="h-3 w-3" />
-                        </button>
+                          variant="ghost"
+                          className="!min-h-0 !p-1.5 !rounded-lg !text-gray-600 hover:!bg-blue-500 hover:!text-white"
+                          icon={<Eye className="h-3 w-3" />}
+                        />
                         {isSale && entry.reference && (
-                          <button 
+                          <Button
                             onClick={() => onViewBill(entry.reference)}
-                            className="p-1.5 hover:bg-primary hover:text-white text-gray-600 rounded-lg transition-all"
-                          >
-                            <Receipt className="h-3 w-3" />
-                          </button>
+                            variant="ghost"
+                            className="!min-h-0 !p-1.5 !rounded-lg !text-gray-600 hover:!bg-primary hover:!text-white"
+                            icon={<Receipt className="h-3 w-3" />}
+                          />
                         )}
                       </div>
                     </div>
@@ -272,36 +286,18 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
               </div>
             );
           }) : (
-            <div className="py-20 text-center opacity-30">
-               <History className="h-10 w-10 mx-auto mb-3" />
-               <p className="text-[10px] font-black uppercase tracking-[0.2em]">No Activity in {activeTab}</p>
-            </div>
+            <EmptyState compact className="!py-20 opacity-30" icon={<History className="h-full w-full" />} title={`No Activity in ${activeTab}`} />
           )}
         </div>
       </div>
 
-      {/* Pagination */}
+      {/* Pagination — shared Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between p-2">
           <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest italic">
             Page {currentPage} / {totalPages}
           </p>
-          <div className="flex gap-2">
-            <button 
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(p => p - 1)}
-              className="p-2 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-20 hover:scale-105 active:scale-95 transition-all"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button 
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(p => p + 1)}
-              className="p-2 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-20 hover:scale-105 active:scale-95 transition-all"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </div>
       )}
     </div>

@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { DiscountCondition } from '../../types';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useApp } from '../../context/SupabaseAppContext';
 import { HelpTooltip } from '../common/HelpTooltip';
+import { SharedSearchBar, SharedProductList } from '../../shared/modules/search-and-list';
+import { SharedItem } from '../../shared/modules/search-and-list';
+import { Select } from '../../shared/ui';
 
 interface MixAndMatchBuilderProps {
   conditions: DiscountCondition[];
@@ -13,6 +16,7 @@ interface MixAndMatchBuilderProps {
 export function MixAndMatchBuilder({ conditions, onChange, currency }: MixAndMatchBuilderProps) {
   const { state } = useApp();
   const { t } = useTranslation();
+  const [pickerSearch, setPickerSearch] = useState('');
 
   // Find the primary mix and match condition, or create a default one
   const mmCondition = conditions.find(c => c.type === 'specific_products' || c.type === 'category') || {
@@ -30,8 +34,53 @@ export function MixAndMatchBuilder({ conditions, onChange, currency }: MixAndMat
     onChange([newCondition]);
   };
 
+  const toggleValue = (value: string) => {
+    const current: string[] = Array.isArray(mmCondition.value) ? mmCondition.value : [];
+    const next = current.includes(value)
+      ? current.filter(v => v !== value)
+      : [...current, value];
+    updateCondition({ value: next });
+  };
+
   // Get unique categories from products
-  const categories = Array.from(new Set(state.products.map(p => p.category))).filter(Boolean);
+  const categories = useMemo(
+    () => Array.from(new Set(state.products.map(p => p.category))).filter(Boolean) as string[],
+    [state.products]
+  );
+
+  // Shared module picker data — generic item mapping (no niche types hardcoded)
+  const pickerItems = useMemo<SharedItem[]>(() => {
+    const term = pickerSearch.trim().toLowerCase();
+    if (mmCondition.type === 'category') {
+      return categories
+        .filter(c => !term || c.toLowerCase().includes(term))
+        .slice(0, 40)
+        .map(c => ({
+          id: c,
+          badgeLabel: t('category', 'CATEGORY'),
+          title: c,
+          sku: '',
+        }));
+    }
+    return state.products
+      .filter(p => {
+        if (!term) return true;
+        return (
+          (p.name || '').toLowerCase().includes(term) ||
+          (p.sku || '').toLowerCase().includes(term) ||
+          (p.barcode || '').toLowerCase().includes(term)
+        );
+      })
+      .slice(0, 40)
+      .map(p => ({
+        id: p.id,
+        thumbnailUrl: p.image || undefined,
+        badgeLabel: p.category || 'GENERAL',
+        sku: p.sku || 'N/A',
+        title: p.name,
+        stock: p.stock,
+      }));
+  }, [mmCondition.type, categories, state.products, pickerSearch, t]);
 
   return (
     <div className="space-y-6 bg-violet-50 dark:bg-violet-900/10 p-5 rounded-[20px] border border-violet-200 dark:border-violet-500/20">
@@ -56,14 +105,14 @@ export function MixAndMatchBuilder({ conditions, onChange, currency }: MixAndMat
 
         <div className="space-y-2">
           <label className="text-[10px] font-black text-violet-700 dark:text-violet-400 uppercase tracking-wider">Target Type</label>
-          <select
+          <Select
             value={mmCondition.type}
-            onChange={(e) => updateCondition({ type: e.target.value as 'specific_products' | 'category', value: [] })}
-            className="w-full bg-white dark:bg-black/40 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-violet-500 transition-all font-medium appearance-none cursor-pointer"
+            onChange={(e) => { updateCondition({ type: e.target.value as 'specific_products' | 'category', value: [] }); setPickerSearch(''); }}
+            className="!bg-white dark:!bg-black/40 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white !font-medium"
           >
             <option value="category">Any items from Category</option>
             <option value="specific_products">Specific Products Only</option>
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -71,35 +120,42 @@ export function MixAndMatchBuilder({ conditions, onChange, currency }: MixAndMat
         <label className="text-[10px] font-black text-violet-700 dark:text-violet-400 uppercase tracking-wider">
           {mmCondition.type === 'category' ? 'Select Categories' : 'Select Specific Products'}
         </label>
-        <select
-          multiple
-          value={Array.isArray(mmCondition.value) ? mmCondition.value : []}
-          onChange={(e) => {
-            const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
-            updateCondition({ value: selectedOptions });
-          }}
-          className="w-full bg-white dark:bg-black/40 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-violet-500 transition-all h-32 custom-scrollbar"
-        >
-          {mmCondition.type === 'category'
-            ? categories.map(cat => <option key={cat} value={cat}>{cat}</option>)
-            : state.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+
+        {/* Shared search + picker module (same component used across all non-POS routes) */}
+        <SharedSearchBar
+          value={pickerSearch}
+          onChange={setPickerSearch}
+          placeholder={
+            mmCondition.type === 'category'
+              ? t('search_categories', 'Search categories...')
+              : t('search_products_to_add', 'Search products...')
           }
-        </select>
-        <p className="text-[9px] font-bold text-violet-600/70 uppercase tracking-widest">Hold Cmd/Ctrl to select multiple</p>
+        />
+        <SharedProductList
+          items={pickerItems}
+          selectedIds={Array.isArray(mmCondition.value) ? mmCondition.value : []}
+          onItemSelect={(item) => toggleValue(item.id)}
+          onClearSearch={() => setPickerSearch('')}
+          headerTitle={mmCondition.type === 'category' ? t('matching_categories', 'Matching Categories') : t('matching_products', 'Matching Products')}
+          maxHeight="220px"
+          emptyStateText={t('nothing_found', 'NOTHING FOUND')}
+          className="rounded-2xl shadow-none"
+        />
+        <p className="text-[9px] font-bold text-violet-600/70 uppercase tracking-widest">Tap items to toggle them on / off</p>
       </div>
 
       <div className="pt-4 border-t border-violet-200 dark:border-violet-500/20 grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-2">
           <label className="text-[10px] font-black text-violet-700 dark:text-violet-400 uppercase tracking-wider">Deal Reward Type</label>
-          <select
+          <Select
             value={mmCondition.rewardType || 'fixed_total'}
             onChange={(e) => updateCondition({ rewardType: e.target.value as any })}
-            className="w-full bg-white dark:bg-black/40 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-violet-500 transition-all font-medium appearance-none cursor-pointer"
+            className="!bg-white dark:!bg-black/40 !border-none !text-sm !rounded-xl !px-4 !text-gray-900 dark:!text-white !font-medium"
           >
             <option value="fixed_total">Fixed Deal Price (e.g. 2 for $30)</option>
             <option value="percentage_off_all">Percentage Off Deal Items</option>
             <option value="cheapest_free">Cheapest Item Free (Buy X Get Y Free)</option>
-          </select>
+          </Select>
         </div>
 
         {mmCondition.rewardType !== 'cheapest_free' && (

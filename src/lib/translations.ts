@@ -335,7 +335,7 @@ export const translations: Record<string, Record<string, string>> = {
     all_suppliers: "All Suppliers",
     reset: "RESET",
     preview_po: "PREVIEW PO",
-    admit_all_to_stock: "ADMIT ALL TO STOCK",
+    admit_all_to_stock: "COMMIT & ADD TO STOCK",
     smart_match_results: "Smart Match Results",
     type_to_search_add: "Type to search & add...",
     add_all_items: "ADD ALL ITEMS",

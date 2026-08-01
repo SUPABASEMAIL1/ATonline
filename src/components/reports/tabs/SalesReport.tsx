@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { TrendingUp, ShoppingCart, DollarSign, BarChart3, Wallet, ShoppingBag, Receipt, PieChart as PieIcon } from 'lucide-react';
-import { formatCurrency } from '../../../lib/currencies';
+import { formatCurrency, getCurrencySymbol } from '../../../lib/currencies';
 import { formatAppDateTime } from '../../../lib/dateUtils';
 import { Sale } from '../../../types';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { LoadMoreButton } from '../../../shared/ui';
+import { ExportButton } from '../../../shared/export';
 
 interface SalesReportProps {
   filteredSales: Sale[];
@@ -68,6 +70,26 @@ export function SalesReport({
     color: theme === 'dark' ? '#fff' : '#000'
   };
   const itemStyle = { color: theme === 'dark' ? '#e5e7eb' : '#374151' };
+
+  const exportColumns = [
+    { key: 'invoiceNumber', label: t('invoice_number', 'Invoice Number') },
+    { key: 'dateTime', label: t('date_time', 'Date & Time') },
+    { key: 'customer', label: t('customer', 'Customer') },
+    { key: 'paymentMethod', label: t('payment_method', 'Payment Method') },
+    { key: 'cashier', label: t('cashier', 'Cashier') },
+    { key: 'revenue', label: t('revenue', 'Revenue'), format: 'currency' as const },
+    { key: 'status', label: t('status', 'Status') },
+  ];
+
+  const exportRows = useMemo(() => filteredSales.map(sale => ({
+    invoiceNumber: sale.invoiceNumber || '',
+    dateTime: formatAppDateTime(sale.timestamp, country),
+    customer: sale.customerName || t('walk_in_customer', 'Walk-in Customer'),
+    paymentMethod: t(sale.paymentMethod, sale.paymentMethod),
+    cashier: sale.cashier || 'System',
+    revenue: sale.total,
+    status: t('completed', 'Completed'),
+  })), [filteredSales, country, t]);
 
   const { retailVol, retailCount, wholesaleVol, wholesaleCount, estoreVol, estoreCount } = useMemo(() => {
     let rVol = 0, rCount = 0;
@@ -420,9 +442,18 @@ export function SalesReport({
           <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center">
             <Receipt className="h-5 w-5 mr-3 text-primary" />{t("detailed_sales_history", "Detailed Sales History")}
           </h3>
-          <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest bg-gray-50 dark:bg-black/75 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5">
-            {filteredSales.length} {t("total_sales", "Total Records")}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest bg-gray-50 dark:bg-black/75 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/5">
+              {filteredSales.length} {t("total_sales", "Total Records")}
+            </span>
+            <ExportButton
+              data={exportRows}
+              columns={exportColumns}
+              title={t('sales_report', 'Sales Report')}
+              currencySymbol={getCurrencySymbol(currency)}
+              className="!min-h-0 !px-4 !py-2.5 !rounded-xl !text-[10px] !font-black !bg-gray-100 dark:!bg-white/5 !text-gray-600 dark:!text-gray-400 !border-gray-200 dark:!border-white/5 hover:!text-primary"
+            />
+          </div>
         </div>
 
         {/* Desktop Table */}
@@ -491,9 +522,13 @@ export function SalesReport({
 
         {filteredSales.length > paginatedSales.length && (
           <div className="bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/10 px-6 py-6 flex items-center justify-center">
-            <button onClick={onLoadMore} className="btn btn-md btn-primary w-full sm:w-auto">
-              {t("load_more_transactions", "Load More Transactions")}
-            </button>
+            <LoadMoreButton
+              visibleCount={paginatedSales.length}
+              totalCount={filteredSales.length}
+              onClick={onLoadMore}
+              label={t("load_more_transactions", "Load More Transactions")}
+              className="btn-md !bg-primary hover:!bg-primary-hover !text-white !shadow-lg"
+            />
           </div>
         )}
       </div>

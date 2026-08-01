@@ -21,6 +21,7 @@ import { formatCurrency } from '../../lib/currencies';
 import { getAmountByMethod } from '../../lib/services';
 import { getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, formatInTimeZone } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Button } from '../../shared/ui';
 
 export function DashboardManager() {
   const navigate = useNavigate();
@@ -177,18 +178,19 @@ export function DashboardManager() {
           </div>
 
           <div className="relative z-10 mt-2 sm:mt-3 flex items-center gap-2">
-            <button
+            <Button
               onClick={() => navigate('/pos')}
-              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl text-[8px] sm:text-[9px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/10 active:scale-95 transition-all flex items-center gap-1.5"
+              icon={<ArrowRight className="w-3 h-3" />}
+              className="!min-h-0 !px-4 sm:!px-5 !py-2 sm:!py-2.5 !rounded-xl !text-[8px] sm:!text-[9px] !font-black !gap-1.5 !shadow-xl !shadow-emerald-500/10 !bg-gradient-to-r !from-emerald-500 !to-teal-600 !text-white !hover:bg-transparent"
             >
-              {t("launch_pos", "Launch POS")} <ArrowRight className="w-3 h-3" />
-            </button>
-            <button
+              {t("launch_pos", "Launch POS")}
+            </Button>
+            <Button
               onClick={() => navigate('/inventory')}
-              className="px-4 sm:px-5 py-2 sm:py-2.5 bg-white/5 text-white border border-white/10 rounded-xl text-[8px] sm:text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+              className="!min-h-0 !px-4 sm:!px-5 !py-2 sm:!py-2.5 !rounded-xl !text-[8px] sm:!text-[9px] !font-black !bg-white/5 !text-white !border !border-white/10 !hover:bg-white/10"
             >
               {t("manage_stock", "Manage Stock")}
-            </button>
+            </Button>
           </div>
         </div>
 

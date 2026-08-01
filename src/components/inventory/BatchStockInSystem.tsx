@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
 import {
   Loader2, Plus, ChevronLeft, ArrowUpRight, TrendingUp, Building2, CheckCircle2, X,
-  ShoppingCart, Search, Calendar, Info, Package, Save, Trash2, RefreshCw
+  ShoppingCart, Calendar, Info, Package, Save, Trash2, RefreshCw
 } from 'lucide-react';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { Button, ToggleSwitch } from '../../shared/ui';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
+import { SharedSearchBar, SharedProductList } from '../../shared/modules/search-and-list';
 import {
   productsService,
   suppliersService,
@@ -238,16 +240,19 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
       </div>
 
       <div className="flex items-center justify-end gap-2 sm:gap-3 flex-1">
-        <button
+        <Button
           onClick={onClose}
-          className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3.5 border border-rose-200 dark:border-rose-900/30 text-[#ff4b6e] hover:bg-rose-50 dark:hover:bg-rose-500/10 text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 shrink-0"
+          variant="danger"
+          className="flex-1 sm:flex-none !min-h-0 !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !rounded-2xl !bg-transparent !text-[#ff4b6e] hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !text-[9px] sm:!text-[11px] !font-black !shadow-none hover:!opacity-100 shrink-0 !border !border-rose-200 dark:!border-rose-900/30"
         >
           {t('abort_inflow')}
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={handleCommit}
           disabled={selectedItems.length === 0 || isCommitting}
-          className="btn btn-md btn-primary flex-1 sm:flex-none sm:min-w-[280px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
+          variant="primary"
+          size="md"
+          className="flex-1 sm:flex-none sm:min-w-[280px] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
         >
           {isCommitting ? (
             <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
@@ -255,7 +260,7 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
             <Save className="h-4 w-4 sm:h-5 sm:w-5" />
           )}
           <span>{t('commit_inventory')}</span>
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -276,40 +281,24 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
               <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
               {t('identity_matching_buffer')}
             </h3>
-            <div className="relative group">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-600 group-focus-within:text-primary transition-colors" />
-              <input
-                type="text"
-                placeholder={t('scan_or_type_product_identity')}
+            <div className="relative">
+              <SharedSearchBar
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none rounded-2xl pl-16 pr-6 py-5 text-sm font-black uppercase tracking-widest text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600"
+                onChange={setSearchQuery}
+                placeholder={t('scan_or_type_product_identity')}
               />
               {searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-surface rounded-2xl shadow-2xl border border-gray-200 dark:border-white/5 overflow-hidden z-50">
-                  <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    {searchResults.map(product => (
-                      <button
-                        key={product.id}
-                        onClick={() => addToBatch(product)}
-                        className={cn(
-                          "w-full text-left p-3 hover:bg-primary/10 rounded-xl flex items-center justify-between transition-all group",
-                          selectedItems.some(m => m.id === product.id) && 'opacity-50'
-                        )}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-gray-100 dark:bg-white/5 rounded-lg flex items-center justify-center shrink-0">
-                            {product.image ? <img src={product.image} className="w-full h-full object-cover rounded-lg" /> : <Package className="h-5 w-5 text-gray-600" />}
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-black uppercase text-gray-900 dark:text-white leading-tight">{product.name}</p>
-                            <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest mt-0.5">{product.sku || 'NO_SKU'}</p>
-                          </div>
-                        </div>
-                        <Plus className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-all" />
-                      </button>
-                    ))}
-                  </div>
+                <div className="absolute top-full left-0 right-0 mt-3 z-50">
+                  <SharedProductList
+                    items={searchResults}
+                    selectedIds={selectedItems.map(m => m.id)}
+                    onItemAdd={(id) => {
+                      const p = searchResults.find(x => x.id === id);
+                      if (p) addToBatch(p);
+                    }}
+                    maxHeight={300}
+                    className="rounded-2xl shadow-2xl"
+                  />
                 </div>
               )}
             </div>
@@ -347,13 +336,12 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
                 <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest">{t('record_supplier_bill', 'Record as Supplier Bill')}</p>
                 <p className="text-[9px] text-gray-500 dark:text-gray-500 mt-0.5">{t('supplier_bill_desc', 'Creates payable in supplier ledger')}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setRecordAsSupplierBill(prev => !prev)}
-                className={`relative w-11 h-6 rounded-full transition-all duration-200 ${recordAsSupplierBill ? 'bg-primary' : 'bg-gray-300 dark:bg-white/10'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${recordAsSupplierBill ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
+              <ToggleSwitch
+                checked={recordAsSupplierBill}
+                onChange={setRecordAsSupplierBill}
+                size="md"
+                color="bg-primary"
+              />
             </div>
           </div>
         </div>
@@ -418,7 +406,7 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
                         />
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button onClick={() => removeItem(item.id)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"><Trash2 className="h-4 w-4" /></button>
+                        <Button onClick={() => removeItem(item.id)} variant="ghost" className="!min-h-0 !p-2 !text-rose-500 hover:!bg-rose-500/10 !rounded-lg" icon={<Trash2 className="h-4 w-4" />} />
                       </td>
                     </tr>
                   ))}

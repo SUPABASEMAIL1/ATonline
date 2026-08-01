@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Shield, Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { sonner } from '../../lib/sonner';
+import { Button } from '../../shared/ui';
 
 export function PasswordChange() {
   const { updatePassword } = useAuth();
@@ -59,13 +60,12 @@ export function PasswordChange() {
               className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-2xl py-4 px-5 pr-12 focus:ring-4 focus:ring-emerald-500/10 focus:border-primary transition-all font-bold text-gray-900 dark:text-white"
               placeholder="••••••••"
             />
-            <button
+            <Button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-primary transition-colors"
-            >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
+              icon={showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              className="absolute right-4 top-1/2 -translate-y-1/2 !min-h-0 !p-0 !rounded-lg !bg-transparent !text-gray-600 hover:!text-primary !hover:bg-transparent"
+            />
           </div>
         </div>
 
@@ -95,11 +95,11 @@ export function PasswordChange() {
           ))}
         </div>
 
-        <button
+        <Button
           type="button"
           disabled={isUpdating || !newPassword || newPassword !== confirmPassword || newPassword.length < 6}
           onClick={handleUpdate}
-          className="btn btn-md btn-primary w-full hover:bg-emerald-700 disabled:bg-gray-200 dark:disabled:bg-white/5 disabled:text-gray-600 mt-4"
+          className="w-full hover:bg-emerald-700 disabled:bg-gray-200 dark:disabled:bg-white/5 disabled:text-gray-600 disabled:!opacity-100 mt-4"
         >
           {isUpdating ? (
             <>
@@ -112,7 +112,7 @@ export function PasswordChange() {
               <span>Update Password</span>
             </>
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );

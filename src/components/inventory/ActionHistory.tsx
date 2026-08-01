@@ -1,13 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  ArrowUpRight, ArrowDownLeft, Search, Filter, Hash, Clock, User as UserIcon,
+  ArrowUpRight, ArrowDownLeft, Filter, Hash, Clock, User as UserIcon,
   Eye, Package, AlertCircle, ShoppingCart, ArrowLeftRight
 } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { stockHistoryService } from '../../lib/services';
 import { formatAppTime, formatAppDate } from '../../lib/dateUtils';
 import { SearchableSelect } from '../common/SearchableSelect';
+import { Badge, DateRangePicker, EmptyState } from '../../shared/ui';
 import { useTranslation } from '../../hooks/useTranslation';
+import { SharedSearchBar } from '../../shared/modules/search-and-list';
+import { ExportButton } from '../../shared/export';
 
 /**
  * @deprecated Use AuditTimeline instead. AuditTimeline unifies stockHistory + purchaseRecords
@@ -114,6 +117,28 @@ export function ActionHistory({ onViewProduct }: ActionHistoryProps) {
     }).sort((a, b) => new Date(b.createdAt || b.created_at).getTime() - new Date(a.createdAt || a.created_at).getTime());
   }, [history, activeTab, searchTerm, dateFilter, selectedUser, startDateInput, endDateInput, state.products]);
 
+  const exportColumns = [
+    { key: 'date', label: t('date', 'Date') },
+    { key: 'product', label: t('product', 'Product') },
+    { key: 'type', label: t('movement', 'Movement') },
+    { key: 'changeQty', label: t('quantity', 'Qty'), format: 'number' as const },
+    { key: 'balanceAfter', label: t('balance_after', 'Balance After'), format: 'number' as const },
+    { key: 'referenceId', label: t('reference', 'Reference') },
+    { key: 'cashier', label: t('user_info', 'User') },
+    { key: 'note', label: t('notes', 'Notes') },
+  ];
+
+  const exportRows = useMemo(() => filteredHistory.map(entry => ({
+    date: new Date(entry.createdAt || entry.created_at).toLocaleString(),
+    product: entry.productName || entry.product_name || (entry.productId && state.products.find(p => p.id === entry.productId)?.name) || 'System Action',
+    type: entry.type || '',
+    changeQty: entry.changeQty !== undefined ? entry.changeQty : (entry.change_qty || 0),
+    balanceAfter: entry.balanceAfter !== undefined ? entry.balanceAfter : (entry.balance_after || 0),
+    referenceId: entry.referenceId || entry.reference_id || '',
+    cashier: entry.cashierName || entry.cashier_name || entry.user || 'System',
+    note: entry.note || entry.notes || '',
+  })), [filteredHistory, state.products]);
+
   const getEventConfig = (type: string, qty: number) => {
     if (type === 'purchase' || type === 'initial' || type === 'stock_in' || (type === 'adjustment' && qty > 0) || type === 'return') {
       return {
@@ -163,14 +188,11 @@ export function ActionHistory({ onViewProduct }: ActionHistoryProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-600" />
-            <input
-              type="text"
-              placeholder={t("filter_by_product", "Filter by product...")}
+          <div className="w-full md:w-64">
+            <SharedSearchBar
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white dark:bg-black/75 border-none pl-9 pr-4 py-2.5 rounded-xl text-[11px] font-bold focus:ring-2 focus:ring-emerald-500 shadow-sm"
+              onChange={setSearchTerm}
+              placeholder={t("filter_by_product", "Filter by product...")}
             />
           </div>
 
@@ -183,36 +205,29 @@ export function ActionHistory({ onViewProduct }: ActionHistoryProps) {
               icon={UserIcon}
             />
 
-            <SearchableSelect
-              options={[
+            <DateRangePicker
+              preset={dateFilter}
+              presets={[
                 { id: 'today', label: t("today", "TODAY") },
                 { id: 'week', label: t("this_week", "THIS WEEK") },
                 { id: 'month', label: t("this_month", "THIS MONTH") },
                 { id: 'custom', label: t("date_range", "DATE RANGE") }
               ]}
-              value={dateFilter}
-              onChange={(val) => setDateFilter(val)}
-              placeholder={t("select_date", "Select Date")}
+              onPresetChange={setDateFilter}
+              startDate={startDateInput}
+              endDate={endDateInput}
+              onStartDateChange={setStartDateInput}
+              onEndDateChange={setEndDateInput}
+              label=""
               icon={Filter}
             />
 
-            {dateFilter === 'custom' && (
-              <div className="flex items-center gap-2 p-1.5 bg-white/50 dark:bg-black/20 rounded-xl border border-white/10 animate-in slide-in-from-top-1">
-                <input
-                  type="date"
-                  value={startDateInput}
-                  onChange={(e) => setStartDateInput(e.target.value)}
-                  className="bg-transparent border-none text-[10px] font-black text-gray-900 dark:text-white uppercase focus:ring-0 w-28"
-                />
-                <span className="text-[10px] font-black text-gray-600 uppercase tracking-tighter">{t("to", "to")}</span>
-                <input
-                  type="date"
-                  value={endDateInput}
-                  onChange={(e) => setEndDateInput(e.target.value)}
-                  className="bg-transparent border-none text-[10px] font-black text-gray-900 dark:text-white uppercase focus:ring-0 w-28"
-                />
-              </div>
-            )}
+            <ExportButton
+              data={exportRows}
+              columns={exportColumns}
+              title={t('action_history', 'Action History')}
+              compact
+            />
           </div>
         </div>
       </div>
@@ -253,9 +268,9 @@ export function ActionHistory({ onViewProduct }: ActionHistoryProps) {
                         <div>
                           <p className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-tight group-hover:text-primary transition-colors">{productNameVal}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${config.bg} ${config.color}`}>
+                            <Badge size="sm" tone="neutral" className={`!text-[9px] !px-1.5 !py-0.5 !rounded !${config.bg} !${config.color}`}>
                               {config.label}
-                            </span>
+                            </Badge>
                             <span className="text-[9px] font-bold text-gray-600 inline-flex items-center gap-1">
                               <Clock className="h-2.5 w-2.5" /> {formatAppTime(createdAt)}
                             </span>
@@ -284,11 +299,12 @@ export function ActionHistory({ onViewProduct }: ActionHistoryProps) {
               }) : (
                 <tr>
                   <td colSpan={4} className="p-20 text-center">
-                    <div className="flex flex-col items-center opacity-30">
-                      <Package className="h-16 w-16 text-gray-600 mb-4" />
-                      <p className="text-sm font-black text-gray-600 uppercase tracking-[0.2em]">{t("no_actions_registered", "No Actions Registered")}</p>
-                      <p className="text-xs font-bold text-gray-600 uppercase mt-2">{t("adjust_filters", "Adjust your filters or perform system actions")}</p>
-                    </div>
+                    <EmptyState
+                      className="!p-0 opacity-30"
+                      icon={<Package className="h-full w-full" />}
+                      title={t("no_actions_registered", "No Actions Registered")}
+                      subtext={t("adjust_filters", "Adjust your filters or perform system actions")}
+                    />
                   </td>
                 </tr>
               )}

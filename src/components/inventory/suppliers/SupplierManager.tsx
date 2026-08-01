@@ -1,15 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../../context/SupabaseAppContext';
 import { useAuth } from '../../../context/AuthContext';
-import { Search, Plus, Edit, Trash2, Phone, Mail, MapPin, Briefcase, FileText, Wallet, ArrowRight, User, Truck, Building2, Users, CreditCard, Receipt } from 'lucide-react';
+import { Plus, Edit, Trash2, Phone, Mail, MapPin, Briefcase, FileText, Wallet, ArrowRight, User, Truck, Building2, Users, CreditCard, Receipt } from 'lucide-react';
+import { SharedSearchBar } from '../../../shared/modules/search-and-list';
 import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Supplier } from '../../../types';
 import { suppliersService } from '../../../lib/services';
 import { sonner } from '../../../lib/sonner';
 import { formatCurrency } from '../../../lib/currencies';
 import { SupplierLedger } from './SupplierLedger';
-import { SearchableSelect } from '../../common/SearchableSelect';
 import { SupplierModal } from './SupplierModal';
+import { Button, EmptyState, DateRangePicker } from '../../../shared/ui';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { formatAppDate, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../../lib/dateUtils';
 
@@ -200,32 +201,30 @@ export function SupplierManager() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="primary"
             onClick={() => handleAddEdit()}
-            className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-black text-[10px] shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest"
+            className="!px-5 !py-2.5 !text-[10px] !font-black !rounded-xl !shadow-lg !shadow-emerald-500/20 hover:scale-[1.02]"
           >
             <Plus className="h-3.5 w-3.5" /> <span>{t('add_supplier', 'Add Supplier')}</span>
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="relative z-30 bg-white/50 dark:bg-black/20 p-3 lg:p-4 rounded-[1.75rem] border border-gray-200/50 dark:border-white/5 shadow-xl ring-1 ring-black/5 dark:ring-white/5">
         <div className="flex flex-col xl:flex-row gap-4">
-          <div className="relative flex-1 group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 group-focus-within:text-primary transition-colors" />
-            <input
-              type="text"
-              placeholder={t('search_partners', 'Search partners...')}
-              className="w-full bg-gray-50 dark:bg-black/30 border-none pl-11 pr-4 py-2.5 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-gray-600 focus:bg-white dark:focus:bg-black/75 shadow-inner"
+          <div className="flex-1">
+            <SharedSearchBar
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={setSearchTerm}
+              placeholder={t('search_partners', 'Search partners...')}
             />
           </div>
 
           <div className="grid grid-cols-2 sm:flex items-center gap-2">
-            <SearchableSelect
-              label={t('range', 'RANGE')}
-              options={[
+            <DateRangePicker
+              preset={dateFilter}
+              presets={[
                 { id: 'all', label: t('all_time', 'ALL TIME') },
                 { id: 'today', label: t('today', 'TODAY') },
                 { id: 'yesterday', label: t('yesterday', 'YESTERDAY') },
@@ -234,30 +233,16 @@ export function SupplierManager() {
                 { id: 'lastMonth', label: t('previous_month', 'PREVIOUS MONTH') },
                 { id: 'custom', label: t('custom_range', 'CUSTOM RANGE') }
               ]}
-              value={dateFilter}
-              onChange={setDateFilter}
+              onPresetChange={setDateFilter}
+              startDate={startDateInput}
+              endDate={endDateInput}
+              onStartDateChange={setStartDateInput}
+              onEndDateChange={setEndDateInput}
+              label={t('range', 'RANGE')}
               icon={Receipt}
             />
           </div>
         </div>
-
-        {dateFilter === 'custom' && (
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center mt-3 p-2 bg-white/50 dark:bg-black/20 rounded-xl animate-in slide-in-from-top-2">
-            <input
-              type="date"
-              value={startDateInput}
-              onChange={(e) => setStartDateInput(e.target.value)}
-              className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-            />
-            <span className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-tighter">to</span>
-            <input
-              type="date"
-              value={endDateInput}
-              onChange={(e) => setEndDateInput(e.target.value)}
-              className="w-full sm:flex-1 px-3 py-2 text-[10px] font-black bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-gray-900 dark:text-white uppercase shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-            />
-          </div>
-        )}
       </div>
 
       {/* Layer 3: Vibrant Stats section */}
@@ -284,11 +269,12 @@ export function SupplierManager() {
       {/* Main Grid View */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6 mt-2">
         {filteredSuppliers.length === 0 ? (
-          <div className="col-span-full p-20 text-center bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5">
-            <div className="flex flex-col items-center gap-3 opacity-20">
-              <Briefcase className="h-12 w-12 text-gray-600" />
-              <p className="text-xs font-black uppercase tracking-widest">{t('no_partners_found', 'No partners found')}</p>
-            </div>
+          <div className="col-span-full bg-white dark:bg-surface rounded-3xl border border-gray-200 dark:border-white/5">
+            <EmptyState
+              icon={<Briefcase className="h-full w-full text-gray-600" />}
+              title={t('no_partners_found', 'No partners found')}
+              className="p-20 opacity-20"
+            />
           </div>
         ) : (
           filteredSuppliers.map((supplier) => (
@@ -308,13 +294,13 @@ export function SupplierManager() {
 
                 {canManage && (
                   <div className="flex items-center gap-1 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleAddEdit(supplier)} className="p-1.5 hover:bg-emerald-50 dark:hover:bg-primary/10 text-primary rounded-lg transition-transform hover:scale-110 active:scale-90">
+                    <Button variant="ghost" onClick={() => handleAddEdit(supplier)} className="!min-h-0 !p-1.5 !rounded-lg !text-primary hover:!bg-emerald-50 dark:hover:!bg-primary/10 hover:scale-110 active:scale-90">
                       <Edit className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                     {isAdmin && (
-                      <button onClick={() => handleDelete(supplier.id, supplier.name)} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 rounded-lg transition-transform hover:scale-110 active:scale-90">
+                      <Button variant="ghost" onClick={() => handleDelete(supplier.id, supplier.name)} className="!min-h-0 !p-1.5 !rounded-lg !text-red-500 hover:!bg-red-50 dark:hover:!bg-red-500/10 hover:scale-110 active:scale-90">
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
@@ -345,14 +331,16 @@ export function SupplierManager() {
                 </div>
               </div>
 
-              <button
+              <Button
+                variant="secondary"
+                fullWidth
                 onClick={() => setSelectedSupplierId(supplier.id)}
-                className="mt-auto w-full flex items-center justify-center gap-2 bg-gray-50 dark:bg-white/5 hover:bg-primary hover:text-white dark:hover:bg-primary text-gray-900 dark:text-white py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all group/btn btn-md border border-gray-200 dark:border-white/5 active:scale-95"
+                className="mt-auto !py-3 !rounded-2xl !text-[10px] !font-black !tracking-[0.2em] !bg-gray-50 dark:!bg-white/5 !border-gray-200 dark:!border-white/5 !text-gray-900 dark:!text-white hover:!bg-primary hover:!text-white dark:hover:!bg-primary group/btn"
               >
                 <Wallet className="h-3.5 w-3.5 transition-transform group-hover/btn:scale-110" />
                 <span>{t('view_ledger', 'View Ledger')}</span>
                 <ArrowRight className="h-3.5 w-3.5 opacity-30 transition-transform group-hover/btn:translate-x-1" />
-              </button>
+              </Button>
             </div>
           ))
         )}
