@@ -27,7 +27,7 @@ export function ExpensesReport({
   totalExpenseAmount, currency, theme, country
 }: ExpensesReportProps) {
   const { t } = useTranslation();
-  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredExpenses, 50);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredExpenses, 25);
   const tooltipStyle = {
     backgroundColor: theme === 'dark' ? '#171717' : 'white',
     border: theme === 'dark' ? '1px solid #333' : '1px solid #e5e7eb',

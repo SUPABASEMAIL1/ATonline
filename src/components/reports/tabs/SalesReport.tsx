@@ -57,7 +57,7 @@ export function SalesReport({
   creditSalesTotal = 0, creditSalesCount = 0, creditCollectedTotal = 0, creditCollectedCount = 0
 }: SalesReportProps) {
   const { t } = useTranslation();
-  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredSales, 50);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredSales, 25);
 
   const tooltipStyle = {
     backgroundColor: theme === 'dark' ? '#171717' : 'white',

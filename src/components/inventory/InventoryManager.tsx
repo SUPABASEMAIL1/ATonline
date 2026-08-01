@@ -105,7 +105,7 @@ export function InventoryManager() {
   const [showScannerInInventory, setShowScannerInInventory] = useState(false);
   const [showEstoreOnly, setShowEstoreOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [ITEMS_PER_PAGE, setPageSize] = useState(50);
+  const [ITEMS_PER_PAGE, setPageSize] = useState(25);
 
   // Synchronize barcode selections and generator open state to localStorage
   useEffect(() => {

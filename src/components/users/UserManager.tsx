@@ -26,7 +26,7 @@ export function UserManager() {
     user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredUsers, 50);
+  const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredUsers, 25);
 
 
   const handleEditUser = (user: UserType) => {
