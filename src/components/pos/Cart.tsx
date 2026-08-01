@@ -1191,11 +1191,11 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
             </span>
           )}
           {!(isNested || isFromBundle) && (
-            <div className="flex items-center gap-0.5 mt-0.5">
+            <div className="flex items-center gap-2 mt-1">
               {(profile?.role === 'admin' || profile?.canGiveDiscount) && (
                 <button
                   onClick={() => setShowDiscountInput(!showDiscountInput)}
-                  className={`w-5.5 h-5.5 flex items-center justify-center text-[8px] font-black leading-none rounded-full transition-colors ${item.discount > 0 ? 'text-primary bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-primary'}`}
+                  className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-[10px] sm:text-[9px] font-black leading-none rounded-full transition-colors ${item.discount > 0 ? 'text-primary bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-primary'}`}
                   title="Discount"
                 >
                   %
@@ -1204,10 +1204,10 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
               {(profile?.role === 'admin' || profile?.canGiveDiscount) && item.discount > 0 && (
                 <button
                   onClick={clearItemDiscount}
-                  className="w-5.5 h-5.5 flex items-center justify-center text-primary hover:text-red-500 hover:bg-rose-500/10 rounded-full transition-colors"
+                  className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-primary hover:text-red-500 hover:bg-rose-500/10 rounded-full transition-colors"
                   title="Clear Item Discount"
                 >
-                  <X className="h-2.5 w-2.5" />
+                  <X className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                 </button>
               )}
               {(profile?.role === 'admin' || profile?.canEditPrice) && (
@@ -1216,14 +1216,14 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
                     setTempPrice(item.product.price.toString());
                     setIsEditingPrice(!isEditingPrice);
                   }}
-                  className={`w-5.5 h-5.5 flex items-center justify-center rounded-full transition-colors ${isEditingPrice ? 'text-primary bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-primary'}`}
+                  className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-full transition-colors ${isEditingPrice ? 'text-primary bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-primary'}`}
                   title="Edit Price"
                 >
-                  <Edit2 className="h-2.5 w-2.5" />
+                  <Edit2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                 </button>
               )}
-              <button onClick={() => onRemove(index)} className="w-5.5 h-5.5 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-rose-500/10 rounded-full transition-colors" title="Remove">
-                <Trash2 className="h-2.5 w-2.5" />
+              <button onClick={() => onRemove(index)} className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-rose-500/10 rounded-full transition-colors" title="Remove">
+                <Trash2 className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
               </button>
             </div>
           )}

@@ -674,6 +674,7 @@ export function PurchaseOrderSystem() {
         <CameraScanner
           onScan={(code) => {
             const term = code.trim();
+            setSearchQuery(term);
             const normalizedTerm = term.toUpperCase().replace(/O/g, '0');
 
             // 1. Exact match

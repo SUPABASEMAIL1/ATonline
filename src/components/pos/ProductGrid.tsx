@@ -437,6 +437,8 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
           isContinuous={true}
           onScan={(code) => {
             const term = code.trim();
+            setSearchTerm(term); // Always enter text in search bar
+            
             const normalizedCode = term.toUpperCase().replace(/O/g, '0');
 
             const product = state.products.find((p: Product) => {
@@ -450,6 +452,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
 
             if (product) {
               onAddToCart(product);
+              setSearchTerm(''); // Clear after successful add
             } else {
               sonner.error(`Barcode not found: ${term}`);
             }

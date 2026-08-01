@@ -27,7 +27,6 @@ export function CameraScanner({
   const [isContainerReady, setIsContainerReady] = useState(false);
   const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  const [scanMode, setScanMode] = useState<'fast' | 'industrial' | 'all'>('fast');
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScannedText = useRef<string | null>(null);
   const lastScannedTime = useRef<number>(0);
@@ -69,7 +68,7 @@ export function CameraScanner({
     if (isContainerReady) {
       handleRetry();
     }
-  }, [scanMode]);
+  }, []);
 
   useEffect(() => {
     if (!isContainerReady) return;
@@ -107,40 +106,25 @@ export function CameraScanner({
 
         if (!isMountedRef.current || currentAttempt !== startAttemptRef.current) return;
 
-        const fastFormats = [
+        const allSupportedFormats = [
           Html5QrcodeSupportedFormats.QR_CODE,
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.EAN_8,
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.UPC_A,
           Html5QrcodeSupportedFormats.UPC_E,
-        ];
-
-        const industrialFormats = [
-          Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.CODE_93,
           Html5QrcodeSupportedFormats.ITF,
           Html5QrcodeSupportedFormats.CODABAR,
           Html5QrcodeSupportedFormats.DATA_MATRIX,
-        ];
-
-        const allSupportedFormats = [
-          ...fastFormats,
-          ...industrialFormats,
           Html5QrcodeSupportedFormats.AZTEC,
           Html5QrcodeSupportedFormats.PDF_417,
         ];
 
-        const targetFormats = scanMode === 'fast'
-          ? fastFormats
-          : scanMode === 'industrial'
-            ? industrialFormats
-            : allSupportedFormats;
-
         const html5QrCode = new Html5Qrcode(CONTAINER_ID, {
           verbose: false,
-          formatsToSupport: targetFormats
+          formatsToSupport: allSupportedFormats
         });
 
         scannerRef.current = html5QrCode;
@@ -170,7 +154,7 @@ export function CameraScanner({
           let cleanText = decodedText.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
 
           const now = Date.now();
-          if (cleanText === lastScannedText.current && now - lastScannedTime.current < 500) return;
+          if (cleanText === lastScannedText.current && now - lastScannedTime.current < 3000) return;
 
           lastScannedText.current = cleanText;
           lastScannedTime.current = now;
@@ -271,19 +255,6 @@ export function CameraScanner({
 
   const footer = (
     <div className="flex flex-col gap-4 w-full">
-      {/* Scan Mode Switcher */}
-      <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5">
-        {(['fast', 'industrial', 'all'] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => setScanMode(mode)}
-            className={`flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${scanMode === mode ? 'bg-primary text-white shadow-lg shadow-emerald-500/20 scale-[1.02]' : 'text-gray-600 hover:text-white'}`}
-          >
-            {mode === 'fast' ? '⚡ Fast' : mode === 'industrial' ? '📦 Industrial' : '🌍 All World'}
-          </button>
-        ))}
-      </div>
-
       {/* Hardware Controls */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2.5">

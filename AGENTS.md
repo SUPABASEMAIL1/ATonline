@@ -16,7 +16,8 @@
   # ...then use: command: pages deploy dist --project-name ${{ steps.cfname.outputs.name }}
   ```
 - After ANY `.github/workflows/*` change: push to ALL 4 repos, then verify the run shows the REAL workflow name (not the file path) and jobs > 0 before assuming it works.
-- Full Cloudflare Pages + Vercel deploy setup/verify guide: [docs/setup.md](docs/setup.md) → "Deploy Guide (Cloudflare Pages + Vercel)" section. Har shop ka apna CF account + token hai — `env_backups/` folder dekho, kabhi galat account par project mat banao.
+- **DEPLOY RULES (MANDATORY):** Deploy se pehle ALWAYS `env_backups/` folder dekho (har shop ka apna file: `JEANZONE-ENV`, `ATOLINE-ENV`, `minimahal-pos.env.local`, `.env.local.pizza-milano...`) — credentials wahi se lo, kabhi guess/other-shop token mat use karo. "All/sab" kaha jaye to hi 4 repos push karo (`origin` = jeanzone, `atonline`, `minimahalpos`, `pizzamilano`); specific shop ka naam ho to SIRF usi ka remote push karo. Har push ke baad GH Actions + CF/Vercel deployment verify karo (completed/success + READY) — bina verify "done" mat bolo.
+- Full Cloudflare Pages + Vercel deploy setup/verify guide: [docs/setup.md](docs/setup.md) → "Deploy Guide (Cloudflare Pages + Vercel)" section — Section 0 (mandatory flow), 1 (deploy map + env_backups mapping), 1a/1b (push commands), 5 (workflow examples). Har shop ka apna CF account + token hai — kabhi galat account par project mat banao.
 
 ---
 

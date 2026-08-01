@@ -900,16 +900,70 @@ curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/que
 
 > Har shop ka apna deploy setup hai. Ye guide agent ke liye hai — naya project/feature deploy karte waqt ya deploy issue debug karte waqt yahi follow karo.
 
-### 1. Current Deploy Map (4 Shops)
+### 0. ⚡ MANDATORY FLOW — Har Deploy Task ke Liye (Pehle Ye Padho!)
 
-| Shop | Repo | Deploy Platform | Domain | Status |
-|------|------|-----------------|--------|--------|
-| jeanzone | `zposdb1-crypto/jeanzone` | **CF Pages + Vercel** (GH Actions) | jeanzone.zaynahspos.com, jeanzone.pages.dev, jeanzone.vercel.app | ✅ Auto |
-| atonline | `SUPABASEMAIL1/ATonline` | **CF Pages** (GH Actions) | atonline.zaynahspos.com, atonline.pages.dev | ✅ Auto |
-| minimahal | `infominimahal-bit/mini-mahal-pos` | ⚠️ NONE | — | ❌ Fix pending |
-| pizza | `dispacher-zaynahspos/Pizza-Milano` | **Vercel** (git integration) | pizza-milano.vercel.app | ✅ Auto |
+**Agent ka pehla action ALWAYS yeh hota hai:**
 
-**Credentials:** `env_backups/` folder — har shop ka apna file: `JEANZONE-ENV`, `ATOLINE-ENV`, `minimahal-pos.env.local`, `.env.local.pizza-milano.20260708_202548`, `jeanzone.env.local`. Agent kabhi bhi in files ke bina deploy nahi kar sakta.
+1. **`env_backups/` folder kholo** — kabhi bhi credentials dimag se/guess kar ke mat use karo. Har shop ka token wahi se lo. (GEMINI.md F-rule: credentials ka source of truth = `env_backups/`.)
+2. **Deploy Map (neeche section 1) + env file dekho** — konsa project kahan deploy hota hai, uska remote kya hai, yeh table + file se confirm karo.
+3. **User ne kya kaha — "all" ya specific shop?**
+   - **"all" / "sab" / "4 repos"** → neeche **Section 1a: PUSH COMMANDS (ALL)** use karo — sab 4 repos ko push + har ek ka deploy verify.
+   - **"jeanzone" / "atonline" / "minimahal" / "pizza" / "pizza milano" etc. (kisi ek ka naam)** → sirf usi repo ko push karo (`git push <remote> main`), baki ko mat chhedo.
+   - **Ambiguous ho** ("deploy karo" bina naam ke) → pehle poocho: all ya specific?
+4. **Har push ke baad verify karo** — GH Actions run `completed/success` + CF/Vercel deployment `success`/`READY` (Section 2e/3d commands). Kabhi bhi bina verify kiye "done" mat bolo.
+
+> 🚨 **Rule:** `git push` kisi bhi remote par = wahan deploy trigger. Isliye jis ka kaha jaye usi ko push karo. Bina kahe sab ko push karne se un wanted deploys honge.
+
+### 1. Current Deploy Map (4 Shops) + env_backups Files
+
+| Shop | Remote | Repo | Deploy Platform | Domain | Status | env_backups File |
+|------|--------|------|-----------------|--------|--------|------------------|
+| jeanzone | `origin` | `zposdb1-crypto/jeanzone` | **CF Pages + Vercel** (GH Actions → CF + hook → Vercel) | jeanzone.zaynahspos.com, jeanzone.pages.dev, jeanzone.vercel.app | ✅ Auto | `JEANZONE-ENV` (sabse complete), `jeanzone.env.local` |
+| atonline | `atonline` | `SUPABASEMAIL1/ATonline` | **CF Pages** (GH Actions) | atonline.zaynahspos.com, atonline.pages.dev | ✅ Auto | `ATOLINE-ENV` |
+| minimahal | `minimahalpos` | `infominimahal-bit/mini-mahal-pos` | **Vercel** (GH Actions → hook, + git integration) | mini-mahal-pos.vercel.app | ✅ Auto | `minimahal-pos.env.local` |
+| pizza | `pizzamilano` | `dispacher-zaynahspos/Pizza-Milano` | **Vercel** (git integration) | pizza-milano.vercel.app | ✅ Auto | `.env.local.pizza-milano.20260708_202548` |
+
+**Credentials source of truth = `env_backups/` folder.** Har file mein konsa token hai:
+
+| env_backups File | Kiska | Keys Present |
+|------------------|-------|--------------|
+| `JEANZONE-ENV` / `jeanzone.env.local` | jeanzone (Zposdb1@gmail.com) | Supabase (URL/anon/service/mgmt), GitHub PAT ×2 (zposdb1-crypto + zaynahspos-hash), CF token + account `f61ce1b3c9f0a819714df802366c7248`, Vercel token + project + deploy hook |
+| `ATOLINE-ENV` | atonline (Supabasemail1@proton.me) | Supabase, GitHub PAT, CF token + account `43039ad79a149f127dc1c61725163ca6` (Vercel nahi hai) |
+| `minimahal-pos.env.local` | minimahal (infominimahal-1434) | Supabase, GitHub PAT, Vercel token + team + project + deploy hook |
+| `.env.local.pizza-milano.20260708_202548` | pizza (zaynahspk-7603) | Supabase, GitHub PAT, Vercel token |
+
+> ⚠️ **Kabhi bhi** galat shop ka token use karke deploy mat karo (jeanzone token se atonline deploy karna = forbidden). Har file apni shop ka hai.
+
+### 1a. PUSH COMMANDS — ALL (sab 4 repos + deploy verify)
+
+```bash
+# Sab 4 repos ko push (order: origin, atonline, minimahalpos, pizzamilano)
+git push origin main
+git push atonline main
+git push minimahalpos main
+git push pizzamilano main
+
+# PHIR sab ke GH Actions verify (Section 2e commands — har repo ka)
+# PHIR CF/Vercel deploy verify (Section 2e/3d — har shop ka)
+```
+
+### 1b. PUSH COMMANDS — EK SHOP (specific)
+
+```bash
+# jeanzone
+git push origin main
+
+# atonline
+git push atonline main
+
+# minimahal
+git push minimahalpos main
+
+# pizza
+git push pizzamilano main
+```
+
+**Deploy map note:** jeanzone push karne par CF + Vercel dono auto hote hain (GH Actions hook se). atonline par sirf CF. minimahal par sirf Vercel (hook + git integration dono). pizza par sirf Vercel (git integration).
 
 ### 2. Cloudflare Pages Setup (Naya Project ke liye)
 
@@ -1077,6 +1131,39 @@ curl -s "https://api.vercel.com/v6/deployments?projectId=$PROJECT_ID&limit=3" -H
 5. **Vercel BLOCKED?** — commit author fix karo (3d)
 6. **Vercel repo_no_access?** — Deploy Hook use karo (3b)
 7. **Purana repo transfer?** — CF/Vercel git integration toot jata hai jab repo owner change hota hai → relink (2c/3c)
+
+### 5. Workflow Examples (Agent ke liye ready-made responses)
+
+**Scenario A: "all pe push karo" / "all deploy karo" / "sab jagah push"**
+```
+1. env_backups/ dekh (sab shop files)
+2. git push origin main + atonline + minimahalpos + pizzamilano
+3. Har repo ke GH Actions run verify: curl runs?per_page=1 → completed/success (4 repos)
+4. CF verify: jeanzone + atonline deployments?per_page=1 → success
+5. Vercel verify: jeanzone + minimahal + pizza deployments → READY
+```
+
+**Scenario B: "jeanzone deploy karo" (ya koi ek shop)**
+```
+1. env_backups/JEANZONE-ENV dekh (sirf jeanzone wali file)
+2. git push origin main   (sirf yeh remote — baki 3 ko nahi)
+3. jeanzone ke GH Actions verify → completed/success
+4. CF jeanzone deploy verify + Vercel jeanzone READY
+```
+
+**Scenario C: "vercel pe deploy karo" (platform bola, shop nahi)**
+```
+1. Deploy map se shop identify karo jiske paas Vercel hai: jeanzone, minimahal, pizza
+2. Poocho: sab 3 ya koi ek? (agar "sab" to Scenario A; ek ho to Scenario B wala pattern)
+```
+
+**Scenario D: naye shop ka deploy setup banana**
+```
+1. env_backups/ mein nayi file banao (purani pattern copy karo)
+2. Section 2 (CF) ya Section 3 (Vercel) follow karo — project banao, hook banao, secrets set karo
+3. Deploy Map + env_backups table mein naya shop add karo (yeh guide update karo!)
+4. GH Actions workflow repo mein hai to wo hi chalega; nahi to 2c se add karo
+```
 
 ---
 
