@@ -506,7 +506,10 @@ export function PurchaseHistory() {
           <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest">
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
-          <Pagination mode="numbered" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          <Pagination mode="numbered" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageSizeChange={setPageSize}
+                  />
         </div>
       
 
@@ -711,7 +714,10 @@ export function PurchaseHistory() {
               <div className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest italic">Page {currentPage} of {totalPages}</p>
             </div>
-            <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+            <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageSizeChange={setPageSize}
+                  />
           </div>
         
       </div>

@@ -10,7 +10,7 @@ import { SearchableSelect } from '../common/SearchableSelect';
 import { useTranslation } from '../../hooks/useTranslation';
 import { SharedSearchBar, SharedProductList } from '../../shared/modules/search-and-list';
 import { SharedItem } from '../../shared/modules/search-and-list';
-import { Button, Badge, EmptyState, ToggleSwitch } from '../../shared/ui';
+import { Button, Badge, EmptyState, ToggleSwitch, Pagination } from '../../shared/ui';
 import { ExportButton } from '../../shared/export';
 
 const ITEMS_PER_PAGE = 25;
@@ -635,20 +635,15 @@ export function PurchaseOrderSystem() {
                 <p className="text-[11px] font-black text-gray-600 uppercase tracking-[0.2em]">
                   {t('showing', 'Showing')} <span className="text-primary">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> - <span className="text-primary">{Math.min(currentPage * ITEMS_PER_PAGE, activeList.length)}</span> {t('of', 'of')} <span className="text-primary">{activeList.length}</span> {t('items', 'items')}
                 </p>
-                <div className="flex gap-3">
-                  <Button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => prev - 1)}
-                    variant="secondary"
-                    className="!min-h-0 !p-3 !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 !rounded-[1.2rem] disabled:!opacity-30 disabled:hover:!scale-100 hover:!scale-105 !shadow-sm"
-                    icon={<ChevronLeft className="h-4 w-4" />}
-                  />
-                  <Button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => prev + 1)}
-                    variant="secondary"
-                    className="!min-h-0 !p-3 !bg-white dark:!bg-white/5 !border-gray-200 dark:!border-white/10 !rounded-[1.2rem] disabled:!opacity-30 disabled:hover:!scale-100 hover:!scale-105 !shadow-sm"
-                    icon={<ChevronRight className="h-4 w-4" />}
+                <div className="flex items-center gap-1.5 mx-auto sm:mx-0">
+                  <Pagination
+                    mode="prevNext"
+                    page={currentPage}
+                    totalPages={totalPages}
+                    totalItems={activeList.length}
+                    onPageChange={setCurrentPage}
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageSizeChange={setPageSize}
                   />
                 </div>
               </div>

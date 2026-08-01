@@ -34,7 +34,7 @@ export function ExpenseManager() {
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [ITEMS_PER_PAGE, setPageSize] = useState(20);
+  const [ITEMS_PER_PAGE, setPageSize] = useState(50);
 
   const paymentMethodScrollRef = useRef<HTMLDivElement>(null);
   const categoryScrollRef = useRef<HTMLDivElement>(null);

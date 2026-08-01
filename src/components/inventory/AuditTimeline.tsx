@@ -220,7 +220,10 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
           <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
-          <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageSizeChange={setPageSize}
+                  />
         </div>
       
 
@@ -297,7 +300,10 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
           <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest italic">
             Page {currentPage} / {totalPages}
           </p>
-          <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
+                    pageSize={ITEMS_PER_PAGE}
+                    onPageSizeChange={setPageSize}
+                  />
         </div>
       
     </div>
