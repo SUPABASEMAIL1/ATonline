@@ -530,7 +530,7 @@ export function CustomerManager() {
                 totalItems={filteredCustomers.length}
                 onPageChange={setCurrentPage}
                 siblingCount={1}
-                pageSize={pageSize}
+                pageSize={ITEMS_PER_PAGE}
                 onPageSizeChange={setPageSize}
               />
             </div>
