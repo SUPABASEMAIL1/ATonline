@@ -57,7 +57,7 @@ export function PurchaseHistory() {
     const newVal = typeof val === 'function' ? val(currentPage) : val;
     dispatch({ type: 'SET_INVENTORY_PURCHASES_PAGE', payload: Math.max(1, newVal) });
   };
-  const itemsPerPage = 10;
+  const [itemsPerPage, setPageSize] = useState(25);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -507,7 +507,7 @@ export function PurchaseHistory() {
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
           <Pagination mode="numbered" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
-                    pageSize={ITEMS_PER_PAGE}
+                    pageSize={itemsPerPage}
                     onPageSizeChange={setPageSize}
                   />
         </div>
@@ -715,7 +715,7 @@ export function PurchaseHistory() {
               <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest italic">Page {currentPage} of {totalPages}</p>
             </div>
             <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
-                    pageSize={ITEMS_PER_PAGE}
+                    pageSize={itemsPerPage}
                     onPageSizeChange={setPageSize}
                   />
           </div>

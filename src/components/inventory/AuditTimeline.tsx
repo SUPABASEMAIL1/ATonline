@@ -26,7 +26,7 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [itemsPerPage, setPageSize] = useState(25);
 
   useEffect(() => {
     loadHistory();
@@ -221,7 +221,7 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
             Page <span className="text-primary">{currentPage}</span> of {totalPages}
           </p>
           <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
-                    pageSize={ITEMS_PER_PAGE}
+                    pageSize={itemsPerPage}
                     onPageSizeChange={setPageSize}
                   />
         </div>
@@ -301,7 +301,7 @@ export function AuditTimeline({ onViewProduct, onViewBill }: AuditTimelineProps)
             Page {currentPage} / {totalPages}
           </p>
           <Pagination mode="prevNext" page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} 
-                    pageSize={ITEMS_PER_PAGE}
+                    pageSize={itemsPerPage}
                     onPageSizeChange={setPageSize}
                   />
         </div>
