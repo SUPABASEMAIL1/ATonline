@@ -74,9 +74,9 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
   const totalSpent = customerTransactions.reduce((sum, sale) => sum + sale.total, 0);
   const averageTransaction = totalTransactions > 0 ? totalSpent / totalTransactions : 0;
   const creditAvailable = Math.max(0, customer.creditLimit - customer.creditUsed);
-  const { page: creditPage, totalPages: creditTotalPages, pageItems: creditPageItems, goToPage: goToCreditPage } = usePagination(creditSales, 10);
-  const { page: paidPage, totalPages: paidTotalPages, pageItems: paidPageItems, goToPage: goToPaidPage } = usePagination(paidSales, 10);
-  const { page: paymentPage, totalPages: paymentTotalPages, pageItems: paymentPageItems, goToPage: goToPaymentPage } = usePagination(paymentHistory, 10);
+  const { page: creditPage, totalPages: creditTotalPages, pageItems: creditPageItems, goToPage: goToCreditPage, pageSize: creditPageSize, setPageSize: setCreditPageSize } = usePagination(creditSales, 10);
+  const { page: paidPage, totalPages: paidTotalPages, pageItems: paidPageItems, goToPage: goToPaidPage, pageSize: paidPageSize, setPageSize: setPaidPageSize } = usePagination(paidSales, 10);
+  const { page: paymentPage, totalPages: paymentTotalPages, pageItems: paymentPageItems, goToPage: goToPaymentPage, pageSize: paymentPageSize, setPageSize: setPaymentPageSize } = usePagination(paymentHistory, 10);
 
   const totalCollected = useMemo(() => paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0), [paymentHistory]);
 
@@ -361,8 +361,8 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                         totalItems={creditSales.length}
                         mode="numbered"
                       
-              pageSize={pageSize}
-              onPageSizeChange={setPageSize}
+              pageSize={creditPageSize}
+              onPageSizeChange={setCreditPageSize}
             />
                     </div>
                   )}
@@ -406,8 +406,8 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                         totalItems={paidSales.length}
                         mode="numbered"
                       
-              pageSize={pageSize}
-              onPageSizeChange={setPageSize}
+              pageSize={paidPageSize}
+              onPageSizeChange={setPaidPageSize}
             />
                     </div>
                   )}
@@ -520,8 +520,8 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                         totalItems={paymentHistory.length}
                         mode="numbered"
                       
-              pageSize={pageSize}
-              onPageSizeChange={setPageSize}
+              pageSize={paymentPageSize}
+              onPageSizeChange={setPaymentPageSize}
             />
                     </div>
                   )}

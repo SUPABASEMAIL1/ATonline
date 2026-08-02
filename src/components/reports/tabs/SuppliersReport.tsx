@@ -7,7 +7,7 @@ import { suppliersService } from '../../../lib/services';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { Supplier } from '../../../types';
 import { SharedSearchBar } from '../../../shared/modules/search-and-list';
-import { Badge } from '../../../shared/ui';
+import { Badge, Button } from '../../../shared/ui';
 import { ExportButton } from '../../../shared/export';
 
 interface SupplierReportRow {

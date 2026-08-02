@@ -818,9 +818,10 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           <BarcodePreview value={sale.invoiceNumber} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
         </div>
       )}
-      {settings.receiptShowFooter !== false && (
-        <>{settings.receiptFooter && <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>}<div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div></>
+      {settings.receiptShowFooter !== false && settings.receiptFooter && (
+        <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>
       )}
+      <div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
     </div>
   );
 
@@ -1643,14 +1644,10 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               />
             </div>
           )}
-          {settings.receiptShowFooter !== false && (
-            <>
-              {settings.receiptFooter && (
-                <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>
-              )}
-              <div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
-            </>
+          {settings.receiptShowFooter !== false && settings.receiptFooter && (
+            <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>
           )}
+          <div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
         </div>
 
         {template !== 'minimal' && <div style={dividerStyle} />}

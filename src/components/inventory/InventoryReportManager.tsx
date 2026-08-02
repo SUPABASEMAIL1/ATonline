@@ -237,7 +237,7 @@ export default function InventoryReportManager({
     return filtered;
   }, [state.products, state.sales, sales, search, statusFilter, categoryFilter, supplierFilter, globalCategory, globalSupplier, globalStore, startDate, endDate, sortField, sortDir]);
 
-  const { page, totalPages, pageItems: displayedData, goToPage } = usePagination(inventoryData, 25);
+  const { page, totalPages, pageItems: displayedData, goToPage, pageSize, setPageSize } = usePagination(inventoryData, 25);
 
   // Summary Metrics
   const totalStockValue = inventoryData.reduce((s, p) => s + p.stockValue, 0);
