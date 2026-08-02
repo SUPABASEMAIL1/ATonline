@@ -522,7 +522,7 @@ export function CustomerManager() {
         {/* Premium Pagination Footer */}
         
           <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
-            <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * pageSize, filteredCustomers.length)} {t("of", "of")} {filteredCustomers.length}</p>
+            <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredCustomers.length)} {t("of", "of")} {filteredCustomers.length}</p>
             <div className="mx-auto sm:mx-0">
               <Pagination
                 page={currentPage}

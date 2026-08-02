@@ -88,15 +88,6 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
     { key: 'transactionCount', label: t('transactions', 'Transactions'), format: 'number' as const },
   ];
 
-  const exportRows = useMemo(() => filteredRows.map(r => ({
-    name: r.supplier.name,
-    phone: r.supplier.phone || '',
-    totalBilled: r.totalBilled,
-    totalPaid: r.totalPaid,
-    balance: r.balance,
-    transactionCount: r.transactionCount,
-  })), [filteredRows]);
-
   const filteredRows = useMemo(() => {
     let result = rows;
     if (searchTerm) {
@@ -115,6 +106,15 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
     });
     return result;
   }, [rows, searchTerm, sortBy, sortDesc]);
+
+  const exportRows = useMemo(() => filteredRows.map(r => ({
+    name: r.supplier.name,
+    phone: r.supplier.phone || '',
+    totalBilled: r.totalBilled,
+    totalPaid: r.totalPaid,
+    balance: r.balance,
+    transactionCount: r.transactionCount,
+  })), [filteredRows]);
 
   const totals = useMemo(() => ({
     billed: rows.reduce((s, r) => s + r.totalBilled, 0),
