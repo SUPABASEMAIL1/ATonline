@@ -1715,6 +1715,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await saveProgressively('products', localDb.products, mergedProducts);
         updateStatus(`Fetched ${products.length} products...`, products.length);
 
+        // ── BUNDLES (Load instantly after products to avoid UI delay) ──
+        let remoteBundles: Bundle[] = [];
+        try {
+          remoteBundles = await bundlesService.getAll(true);
+          dispatch({ type: 'SET_BUNDLES', payload: remoteBundles });
+          await saveProgressively('bundles', localDb.bundles, remoteBundles);
+          await saveProgressively('bundle_items', localDb.bundleItems, remoteBundles.reduce((acc: any[], b: Bundle) => {
+            if (b.items) acc.push(...b.items);
+            return acc;
+          }, []));
+          await saveProgressively('bundle_slots', localDb.bundleSlots, remoteBundles.reduce((acc: any[], b: Bundle) => {
+            if (b.slots) acc.push(...b.slots);
+            return acc;
+          }, []));
+          await saveProgressively('bundle_slot_options', localDb.bundleSlotOptions, remoteBundles.reduce((acc: any[], b: Bundle) => {
+            if (b.slots) b.slots.forEach((s: any) => { if (s.options) acc.push(...s.options); });
+            return acc;
+          }, []));
+          console.log(`[AppContext] Loaded ${remoteBundles.length} bundles from cloud`);
+        } catch (e) {
+          console.warn('[AppContext] Bundle cloud load failed, using local', e);
+        }
+        updateStatus(`Fetched ${remoteBundles.length} bundles...`, remoteBundles.length);
+
         // ── CUSTOMERS ──
         const customers = await customersService.fetchRemote();
         const mergedCustomers = await smartMerge('customers', customers, localDb.customers);
@@ -1800,29 +1824,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Seed remote stock history
         if (remoteStockHistory.length > 0) {
           await saveProgressively('stock_history', localDb.stockHistory, remoteStockHistory);
-        }
-
-        // Load bundles from cloud
-        let remoteBundles: Bundle[] = [];
-        try {
-          remoteBundles = await bundlesService.getAll(true);
-          dispatch({ type: 'SET_BUNDLES', payload: remoteBundles });
-          await saveProgressively('bundles', localDb.bundles, remoteBundles);
-          await saveProgressively('bundle_items', localDb.bundleItems, remoteBundles.reduce((acc: any[], b: Bundle) => {
-            if (b.items) acc.push(...b.items);
-            return acc;
-          }, []));
-          await saveProgressively('bundle_slots', localDb.bundleSlots, remoteBundles.reduce((acc: any[], b: Bundle) => {
-            if (b.slots) acc.push(...b.slots);
-            return acc;
-          }, []));
-          await saveProgressively('bundle_slot_options', localDb.bundleSlotOptions, remoteBundles.reduce((acc: any[], b: Bundle) => {
-            if (b.slots) b.slots.forEach((s: any) => { if (s.options) acc.push(...s.options); });
-            return acc;
-          }, []));
-          console.log(`[AppContext] Loaded ${remoteBundles.length} bundles from cloud`);
-        } catch (e) {
-          console.warn('[AppContext] Bundle cloud load failed, using local', e);
         }
 
         // ── ADDITIVE RECONCILIATION: Only add offline-created records that weren't in the cloud set ──
