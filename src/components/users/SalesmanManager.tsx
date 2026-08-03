@@ -67,7 +67,7 @@ export function SalesmanManager() {
                 Salesmen <span className="text-gray-400 font-light">Management</span>
               </h1>
               <div className="flex items-center gap-2 mt-1 sm:mt-2">
-                <Badge variant="primary" className="!px-2 !py-0.5 !text-[10px] uppercase font-bold tracking-widest">{t('active', 'ACTIVE')}: {activeSalesmen}</Badge>
+                <Badge tone="success" className="!px-2 !py-0.5 !text-[10px] uppercase font-bold tracking-widest">{t('active', 'ACTIVE')}: {activeSalesmen}</Badge>
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                   {t('total_records', 'TOTAL RECORDS')}: {state.salesmen.length}
                 </span>
@@ -134,7 +134,7 @@ export function SalesmanManager() {
                         </div>
                       </td>
                       <td className="px-5 sm:px-8 py-4 sm:py-5 whitespace-nowrap">
-                        <Badge variant={salesman.active ? 'primary' : 'secondary'} className="!px-3 !py-1 !text-[10px] uppercase font-bold tracking-widest">
+                        <Badge tone={salesman.active ? 'success' : 'neutral'} className="!px-3 !py-1 !text-[10px] uppercase font-bold tracking-widest">
                           {salesman.active ? t('active', 'ACTIVE') : t('inactive', 'INACTIVE')}
                         </Badge>
                       </td>
