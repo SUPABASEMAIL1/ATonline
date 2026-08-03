@@ -340,19 +340,20 @@ export function ReportsManager() {
   }, [reportSales]);
 
   const cashiers = useMemo(() => {
-    const userNames = state.users.map(u => u.name).filter(Boolean);
-    const saleCashiers = reportSales.map(s => s.cashier).filter(Boolean);
+    const userNames = state.users.map(u => u.name).filter(c => c && c.toUpperCase() !== 'UNKNOWN');
+    const saleCashiers = reportSales.map(s => s.cashier).filter(c => c && c.toUpperCase() !== 'UNKNOWN');
     const combined = new Set([...userNames, ...saleCashiers]);
-    if (state.currentUser?.name) combined.add(state.currentUser.name);
+    if (state.currentUser?.name && state.currentUser.name.toUpperCase() !== 'UNKNOWN') combined.add(state.currentUser.name);
     return ['All', ...Array.from(combined).sort()];
   }, [reportSales, state.users, state.currentUser]);
 
   const salesmenList = useMemo(() => {
     const activeNames = state.salesmen?.map(s => s.name).filter(Boolean) || [];
+    const userNames = state.users.map(u => u.name).filter(Boolean);
     const saleSalesmen = reportSales.map(s => s.salesmanName).filter(Boolean);
-    const combined = new Set([...activeNames, ...saleSalesmen]);
+    const combined = new Set([...activeNames, ...userNames, ...saleSalesmen]);
     return ['All', ...Array.from(combined).sort()];
-  }, [reportSales, state.salesmen]);
+  }, [reportSales, state.salesmen, state.users]);
 
   const suppliers = useMemo(() => {
     // Show all registered suppliers to ensure visibility, even if no products are assigned yet

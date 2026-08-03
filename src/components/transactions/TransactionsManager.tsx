@@ -223,16 +223,17 @@ export function TransactionsManager() {
   }, [state.sales, dateFilter, startDateInput, endDateInput, timezone]);
 
   const cashiersList = useMemo(() => {
-    const userNames = state.users.map(u => u.name).filter(Boolean);
-    const saleCashiers = state.sales.map(s => s.cashier).filter(Boolean);
+    const userNames = state.users.map(u => u.name).filter(c => c && c.toUpperCase() !== 'UNKNOWN');
+    const saleCashiers = state.sales.map(s => s.cashier).filter(c => c && c.toUpperCase() !== 'UNKNOWN');
     return ['all', ...Array.from(new Set([...userNames, ...saleCashiers]))];
   }, [state.sales, state.users]);
 
   const salesmenList = useMemo(() => {
     const activeNames = state.salesmen?.map(s => s.name).filter(Boolean) || [];
+    const userNames = state.users.map(u => u.name).filter(Boolean);
     const saleSalesmen = state.sales.map(s => s.salesmanName).filter(Boolean);
-    return ['all', ...Array.from(new Set([...activeNames, ...saleSalesmen]))];
-  }, [state.sales, state.salesmen]);
+    return ['all', ...Array.from(new Set([...activeNames, ...userNames, ...saleSalesmen]))];
+  }, [state.sales, state.salesmen, state.users]);
 
   const filteredTransactions = useMemo(() => {
     // Use local data as fallback while cloud search is loading to prevent stats flash to 0

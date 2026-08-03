@@ -74,6 +74,7 @@ export function SalesReport({
     { key: 'customer', label: t('customer', 'Customer') },
     { key: 'paymentMethod', label: t('payment_method', 'Payment Method') },
     { key: 'cashier', label: t('cashier', 'Cashier') },
+    { key: 'salesman', label: t('salesman', 'Salesman') },
     { key: 'revenue', label: t('revenue', 'Revenue'), format: 'currency' as const },
     { key: 'status', label: t('status', 'Status') },
   ];
@@ -84,6 +85,7 @@ export function SalesReport({
     customer: sale.customerName || t('walk_in_customer', 'Walk-in Customer'),
     paymentMethod: t(sale.paymentMethod, sale.paymentMethod),
     cashier: sale.cashier || 'System',
+    salesman: sale.salesmanName || '',
     revenue: sale.total,
     status: t('completed', 'Completed'),
   })), [filteredSales, country, t]);
@@ -462,13 +464,14 @@ export function SalesReport({
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400">{t("date_time", "Date & Time")}</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400">{t("customer_details", "Customer Details")}</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400">{t("cashier", "Cashier")}</th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400">{t("salesman", "Salesman")}</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400 text-right">{t("revenue", "Revenue")}</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400 text-center">{t("status", "Status")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
               {filteredSales.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-600 font-bold uppercase tracking-widest text-xs">{t("no_transactions_found_period", "No transactions found for the selected period.")}</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-600 font-bold uppercase tracking-widest text-xs">{t("no_transactions_found_period", "No transactions found for the selected period.")}</td></tr>
               ) : pageItems.map(sale => (
                 <tr key={sale.id} className="group hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                   <td className="px-6 py-4"><span className="text-sm font-black text-primary dark:text-emerald-400 uppercase tracking-tighter">{sale.invoiceNumber}</span></td>
@@ -480,6 +483,13 @@ export function SalesReport({
                   <td className="px-6 py-4">
                     <p className="text-xs font-bold text-gray-700 dark:text-gray-300 leading-tight">{sale.cashier}</p>
                     <p className="text-[9px] font-black text-primary dark:text-emerald-400 uppercase tracking-widest mt-0.5">@{(users.find((u: any) => u.name === sale.cashier || u.email === sale.cashier)?.username) || 'system'}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    {sale.salesmanName ? (
+                      <p className="text-xs font-black text-teal-600 uppercase tracking-wider">{sale.salesmanName}</p>
+                    ) : (
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">-</p>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(sale.total, currency)}</td>
                   <td className="px-6 py-4 text-center"><span className="inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary dark:text-emerald-400 border border-primary/20">{t("completed", "Completed")}</span></td>
@@ -505,10 +515,16 @@ export function SalesReport({
               <div className="flex justify-between items-end">
                 <div className="space-y-1">
                   <p className="text-sm font-bold text-gray-800 dark:text-gray-200 leading-none">{sale.customerName || t("walk_in_customer", "Walk-in Customer")}</p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{t(sale.paymentMethod, sale.paymentMethod)}</span>
                     <span className="text-[8px] text-gray-600">•</span>
                     <span className="text-[9px] font-black text-primary/80 uppercase tracking-widest">{t("by", "By")} {sale.cashier}</span>
+                    {sale.salesmanName && (
+                      <>
+                        <span className="text-[8px] text-gray-600">•</span>
+                        <span className="text-[9px] font-black text-teal-600 uppercase tracking-widest">SM: {sale.salesmanName}</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-[0.15em] bg-primary/10 text-primary border border-primary/10">{t("completed", "COMPLETED")}</span>
