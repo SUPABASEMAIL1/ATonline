@@ -1392,8 +1392,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.bundleSlotOptions.delete(payload.old.id).catch(() => {});
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'variant_stock_history' }, () => { enqueueSync('variant_stock_history'); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'salesmen' }, () => { enqueueSync('salesmen'); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'variant_stock_history' }, async (payload) => {
+        if (await isPendingDelete('variant_stock_history', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.variantStockHistory.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.variantStockHistory.delete(payload.old.id).catch(() => {});
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'salesmen' }, async (payload) => {
+        if (await isPendingDelete('salesmen', payload.new?.id || payload.old?.id)) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          await localDb.salesmen.put(payload.new).catch(() => {});
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.salesmen.delete(payload.old.id).catch(() => {});
+        }
+      })
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.log(`[Realtime] Subscription status: ${status} — will retry in 5s.`);
