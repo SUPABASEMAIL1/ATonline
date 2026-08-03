@@ -10,7 +10,7 @@ import { EXPENSE_CATEGORIES, Sale, Expense } from '../../types';
 import InventoryReportManager from '../inventory/InventoryReportManager';
 import { localDb } from '../../lib/localDb';
 import { supabase } from '../../lib/supabase';
-import { dialog } from '../../lib/dialog';
+import { sonner } from '../../lib/sonner';
 import {
   salesService,
   expensesService,
@@ -112,20 +112,26 @@ export function ReportsManager() {
   const [repairing, setRepairing] = useState(false);
 
   const handleRepairData = async () => {
-    const confirmed = await dialog.confirm(
+    const confirmed = await sonner.confirm(
       'Repair Legacy Data?',
       'This will audit all legacy sales and backfill missing cost data for precise reporting. Proceed?',
       'YES, REPAIR'
     );
     if (!confirmed.isConfirmed) return;
+    
     setRepairing(true);
+    sonner.loading('Auditing Data... 0%');
     try {
-      const count = await salesService.patchLegacySales();
-      await dialog.alert('Data Audit Complete', `Patched ${count} legacy sales records.`);
+      const count = await salesService.patchLegacySales((percent) => {
+        sonner.update('Auditing Data...', `${percent}% Complete`);
+      });
+      sonner.close();
+      await sonner.alert('Data Audit Complete', `Patched ${count} legacy sales records.`);
       window.location.reload();
     } catch (error) {
       console.error('Repair failed:', error);
-      await dialog.alert('Repair Failed', 'Failed to repair data. Check console for details.');
+      sonner.close();
+      await sonner.alert('Repair Failed', 'Failed to repair data. Check console for details.');
     } finally {
       setRepairing(false);
     }

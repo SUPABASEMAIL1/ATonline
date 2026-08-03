@@ -2031,11 +2031,13 @@ export const salesService = {
     }
   },
 
-  async patchLegacySales(): Promise<number> {
+  async patchLegacySales(onProgress?: (percent: number) => void): Promise<number> {
     const allSales = await localDb.sales.toArray();
     let patchedCount = 0;
+    const total = allSales.length;
 
-    for (const sale of allSales) {
+    for (let i = 0; i < total; i++) {
+      const sale = allSales[i];
       let needsPatch = false;
       const updatedItems = sale.items.map(item => {
         if (!item.purchaseCost || item.purchaseCost <= 0) {
@@ -2060,7 +2062,12 @@ export const salesService = {
         }
         patchedCount++;
       }
+
+      if (onProgress && i % Math.max(1, Math.floor(total / 100)) === 0) {
+        onProgress(Math.floor((i / total) * 100));
+      }
     }
+    if (onProgress) onProgress(100);
     return patchedCount;
   }
 };
