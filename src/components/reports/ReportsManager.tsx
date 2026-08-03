@@ -106,7 +106,7 @@ export function ReportsManager() {
   const userPerms = state.currentUser?.permissions || [];
   const hasFullAccess = userRole === 'admin' || userRole === 'manager' || userPerms.includes('access_reports');
 
-  const validReportTypes = ['sales', 'inventory', 'customers', 'expenses', 'financial', 'suppliers'] as const;
+  const validReportTypes = ['sales', 'inventory', 'customers', 'expenses', 'financial', 'suppliers', 'salesmen'] as const;
   type ReportType = typeof validReportTypes[number];
   const reportType = (validReportTypes.includes(subTab as ReportType) ? subTab : 'sales') as ReportType;
   const [repairing, setRepairing] = useState(false);
