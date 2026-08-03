@@ -124,7 +124,14 @@ export function SalesmenReport({ salesmanData, currency, theme }: SalesmenReport
           <TrendingUp className="h-5 w-5 mr-2 text-primary" />{t("top_salesmen_revenue", "Top Salesmen Revenue")}
         </h3>
         <ResponsiveContainer width="100%" height={window.innerWidth < 768 ? 240 : 300}>
-          <LineChart data={sortedData.slice(0, 10).map(s => ({ name: s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name, revenue: s.totalSales, transactions: s.totalTransactions }))}>
+          <LineChart data={sortedData.slice(0, 10).map(s => {
+            const safeName = s.name || 'Unknown';
+            return { 
+              name: safeName.length > 15 ? safeName.substring(0, 15) + '...' : safeName, 
+              revenue: s.totalSales, 
+              transactions: s.totalTransactions 
+            };
+          })}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="name" stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} fontSize={12} />
             <YAxis stroke={theme === 'dark' ? '#9ca3af' : '#6b7280'} fontSize={12} />

@@ -1726,7 +1726,8 @@ BEGIN
         id, invoice_number, customer_id, customer_name, customer_phone,
         items, subtotal, discount_amount, bill_discount_value, bill_discount_type,
         tax_amount, total, received_amount, change_amount, payment_method,
-        status, cashier, cashier_role, notes, sale_type, timestamp, created_at, updated_at
+        status, cashier, cashier_role, notes, sale_type, timestamp, created_at, updated_at,
+        shift_id, salesman_id, salesman_name
     ) VALUES (
         (sale_data->>'id')::UUID,
         sale_data->>'invoice_number', (sale_data->>'customer_id')::UUID,
@@ -1739,7 +1740,10 @@ BEGIN
         COALESCE(sale_data->>'status', 'completed'), sale_data->>'cashier',
         sale_data->>'cashier_role', sale_data->>'notes',
         COALESCE(sale_data->>'sale_type', 'retail'),
-        COALESCE((sale_data->>'timestamp')::TIMESTAMPTZ, NOW()), NOW(), NOW()
+        COALESCE((sale_data->>'timestamp')::TIMESTAMPTZ, NOW()), NOW(), NOW(),
+        (sale_data->>'shift_id')::UUID,
+        (SELECT id FROM salesmen WHERE id = (sale_data->>'salesman_id')::UUID),
+        sale_data->>'salesman_name'
     ) RETURNING id INTO new_sale_id;
     RETURN jsonb_build_object('success', true, 'id', new_sale_id);
 EXCEPTION WHEN OTHERS THEN RETURN jsonb_build_object('success', false, 'error', SQLERRM);
