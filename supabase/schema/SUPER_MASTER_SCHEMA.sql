@@ -465,8 +465,34 @@ ALTER TABLE products REPLICA IDENTITY FULL;
 
 
 -- ════════════════════════════════════════════════════════════════
--- 6. PRODUCT BATCHES  [DEPRECATED - DO NOT USE] (FIFO / Expiry tracking)
+-- 6. PRODUCT BATCHES  (FIFO / Expiry tracking)
 -- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS product_batches (
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id          UUID REFERENCES products(id) ON DELETE CASCADE,
+    batch_number        TEXT NOT NULL,
+    batch_type          TEXT DEFAULT 'purchase' CHECK (batch_type IN ('opening', 'purchase')),
+    manufacturing_date  DATE,
+    expiry_date         DATE,
+    received_date       TIMESTAMPTZ DEFAULT NOW(),
+    qty_received        INTEGER NOT NULL,
+    qty_remaining       INTEGER NOT NULL,
+    purchase_cost       DECIMAL(10,2) NOT NULL,
+    retail_price        DECIMAL(10,2),
+    wholesale_price     DECIMAL(10,2),
+    estore_price        DECIMAL(10,2),
+    supplier_id         UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+    purchase_record_id  UUID,
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE product_batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_batches REPLICA IDENTITY FULL;
+
+DROP POLICY IF EXISTS "Allow all for authenticated" ON product_batches;
+CREATE POLICY "Allow all for authenticated" ON product_batches
+    FOR ALL USING (true) WITH CHECK (true);
 
 
 
@@ -600,6 +626,7 @@ CREATE TABLE IF NOT EXISTS salesmen (
 ALTER TABLE salesmen ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salesmen REPLICA IDENTITY FULL;
 
+DROP POLICY IF EXISTS "Allow all for authenticated" ON salesmen;
 CREATE POLICY "Allow all for authenticated" ON salesmen
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -1331,8 +1358,7 @@ GRANT EXECUTE ON FUNCTION process_return(UUID, JSONB) TO anon;
 -- ════════════════════════════════════════════════════════════════
 
 
-GRANT EXECUTE ON FUNCTION audit_stock_integrity() TO authenticated;
-GRANT EXECUTE ON FUNCTION audit_stock_integrity() TO anon;
+
 
 
 -- ── Purchase Cost Audit ──

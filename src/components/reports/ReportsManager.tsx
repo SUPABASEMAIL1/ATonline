@@ -170,6 +170,7 @@ export function ReportsManager() {
   const [selectedSupplier, setSelectedSupplier] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedCashier, setSelectedCashier] = useState('All');
+  const [selectedSalesman, setSelectedSalesman] = useState('All');
 
   const [selectedSaleType, setSelectedSaleType] = useState<'all' | 'retail' | 'wholesale' | 'estore'>('all');
   const [selectedPayment, setSelectedPayment] = useState('All');
@@ -346,6 +347,13 @@ export function ReportsManager() {
     return ['All', ...Array.from(combined).sort()];
   }, [reportSales, state.users, state.currentUser]);
 
+  const salesmenList = useMemo(() => {
+    const activeNames = state.salesmen?.map(s => s.name).filter(Boolean) || [];
+    const saleSalesmen = reportSales.map(s => s.salesmanName).filter(Boolean);
+    const combined = new Set([...activeNames, ...saleSalesmen]);
+    return ['All', ...Array.from(combined).sort()];
+  }, [reportSales, state.salesmen]);
+
   const suppliers = useMemo(() => {
     // Show all registered suppliers to ensure visibility, even if no products are assigned yet
     const registeredSuppliers = state.suppliers.map(s => s.name).filter(Boolean);
@@ -447,6 +455,10 @@ export function ReportsManager() {
         if (sale.cashier !== selectedCashier) return false;
       }
 
+      if (selectedSalesman !== 'All') {
+        if (sale.salesmanName !== selectedSalesman) return false;
+      }
+
       if (selectedSaleType !== 'all') {
         const type = sale.saleType || 'retail';
         if (type !== selectedSaleType) return false;
@@ -458,7 +470,7 @@ export function ReportsManager() {
 
       return true;
     });
-  }, [reportSales, reportRefunds, selectedSupplier, selectedCategory, selectedCashier, selectedSaleType, selectedPayment, state.products]);
+  }, [reportSales, reportRefunds, selectedSupplier, selectedCategory, selectedCashier, selectedSalesman, selectedSaleType, selectedPayment, state.products]);
 
   const filteredExpenses = useMemo(() => {
     return reportExpenses.filter(expense => {
@@ -1137,6 +1149,14 @@ export function ReportsManager() {
                   value={selectedCashier}
                   onChange={setSelectedCashier}
                   icon={Users}
+                />
+
+                <SearchableSelect
+                  label={t("salesman", "SALESMAN")}
+                  options={[{ id: 'All', label: t("all", "ALL") }, ...salesmenList.filter(s => s !== 'All').map(s => ({ id: s, label: s }))]}
+                  value={selectedSalesman}
+                  onChange={setSelectedSalesman}
+                  icon={Briefcase}
                 />
 
                 <SearchableSelect
