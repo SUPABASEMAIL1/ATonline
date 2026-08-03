@@ -206,6 +206,8 @@ export const mapSale = (item: any): Sale => ({
   deliveryLocationLat: item.delivery_location_lat ?? item.deliveryLocationLat,
   deliveryLocationLng: item.delivery_location_lng ?? item.deliveryLocationLng,
   customerNotes: item.customer_notes ?? item.customerNotes,
+  salesmanId: item.salesman_id ?? item.salesmanId,
+  salesmanName: item.salesman_name ?? item.salesmanName,
   timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
   createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
@@ -1406,6 +1408,7 @@ export const salesService = {
     paymentMethod?: string,
     status?: string,
     cashier?: string,
+    salesman?: string,
     saleType?: string
   }): Promise<Sale[]> {
     try {
@@ -1425,6 +1428,7 @@ export const salesService = {
       if (filters.status) query = query.eq('status', filters.status);
       if (filters.cashier) query = query.eq('cashier', filters.cashier);
       if (filters.saleType) query = query.eq('sale_type', filters.saleType);
+      if (filters.salesman) query = query.eq('salesman_name', filters.salesman);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -1447,6 +1451,7 @@ export const salesService = {
       if (filters.paymentMethod) sales = sales.filter(s => s.paymentMethod === filters.paymentMethod);
       if (filters.status) sales = sales.filter(s => s.status === filters.status);
       if (filters.cashier) sales = sales.filter(s => s.cashier === filters.cashier);
+      if (filters.salesman) sales = sales.filter(s => s.salesmanName === filters.salesman);
       if (filters.saleType) sales = sales.filter(s => s.saleType === filters.saleType);
       
       return sales.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 200);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag, MapPin } from 'lucide-react';
+import { Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag, MapPin, Briefcase } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
@@ -49,6 +49,7 @@ export function TransactionsManager() {
   const [endDateInput, setEndDateInput] = useState('');
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'retail' | 'wholesale' | 'estore'>('all');
   const [selectedCashier, setSelectedCashier] = useState('all');
+  const [selectedSalesman, setSelectedSalesman] = useState('all');
   const [isSearchingRemote, setIsSearchingRemote] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
@@ -124,6 +125,7 @@ export function TransactionsManager() {
           invoiceNumber: searchTerm.trim() || undefined,
           paymentMethod: paymentFilter !== 'all' ? paymentFilter : undefined,
           cashier: selectedCashier !== 'all' ? selectedCashier : undefined,
+          salesman: selectedSalesman !== 'all' ? selectedSalesman : undefined,
           saleType: saleTypeFilter !== 'all' ? saleTypeFilter : undefined,
         });
 
@@ -137,7 +139,7 @@ export function TransactionsManager() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, paymentFilter, saleTypeFilter, selectedCashier, dateFilter, startDateInput, endDateInput, refreshKey]);
+  }, [searchTerm, paymentFilter, saleTypeFilter, selectedCashier, selectedSalesman, dateFilter, startDateInput, endDateInput, refreshKey]);
 
   const handleLoadMore = async () => {
     setIsLoadingMore(true);
@@ -226,6 +228,12 @@ export function TransactionsManager() {
     return ['all', ...Array.from(new Set([...userNames, ...saleCashiers]))];
   }, [state.sales, state.users]);
 
+  const salesmenList = useMemo(() => {
+    const activeNames = state.salesmen?.map(s => s.name).filter(Boolean) || [];
+    const saleSalesmen = state.sales.map(s => s.salesmanName).filter(Boolean);
+    return ['all', ...Array.from(new Set([...activeNames, ...saleSalesmen]))];
+  }, [state.sales, state.salesmen]);
+
   const filteredTransactions = useMemo(() => {
     // Use local data as fallback while cloud search is loading to prevent stats flash to 0
     let list = isCloudSearch ? (cloudResults.length > 0 ? cloudResults : dateFiltered) : dateFiltered;
@@ -246,9 +254,10 @@ export function TransactionsManager() {
       const matchesPayment = paymentFilter === 'all' || sale.paymentMethod === paymentFilter;
       const matchesSaleType = saleTypeFilter === 'all' || sale.saleType === saleTypeFilter || (!sale.saleType && saleTypeFilter === 'retail');
       const matchesCashier = selectedCashier === 'all' || sale.cashier === selectedCashier;
-      return matchesSearch && matchesPayment && matchesSaleType && matchesCashier;
+      const matchesSalesman = selectedSalesman === 'all' || sale.salesmanName === selectedSalesman;
+      return matchesSearch && matchesPayment && matchesSaleType && matchesCashier && matchesSalesman;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [isCloudSearch, cloudResults, dateFiltered, searchTerm, paymentFilter, saleTypeFilter, selectedCashier]);
+  }, [isCloudSearch, cloudResults, dateFiltered, searchTerm, paymentFilter, saleTypeFilter, selectedCashier, selectedSalesman]);
 
   const totalRevenue = filteredTransactions.reduce((s, x) => s + (x.total - (x.refundedAmount || 0)), 0);
   const totalTransactions = filteredTransactions.length;
@@ -361,6 +370,7 @@ export function TransactionsManager() {
       { key: 'customerPhone', label: t('customer_phone', 'Customer Phone') },
       { key: 'cashier', label: t('cashier', 'Cashier') },
       { key: 'cashierAt', label: t('cashier_username', 'Cashier @Username') },
+      { key: 'salesmanName', label: t('salesman', 'Salesman') },
       { key: 'itemsList', label: t('items_list', 'Items List') },
       { key: 'totalItemsQty', label: t('items_qty', 'Items Qty'), format: 'number' as const },
       { key: 'saleType', label: t('sale_type', 'Sale Type') },
@@ -408,6 +418,7 @@ export function TransactionsManager() {
       customerPhone,
       cashier: cashierName,
       cashierAt,
+      salesmanName: sale.salesmanName || '',
       itemsList,
       totalItemsQty,
       saleType: getSaleTypeLabel(sale.saleType),
@@ -622,6 +633,14 @@ export function TransactionsManager() {
                 onChange={val => { setSelectedCashier(val); setCurrentPage(1); }}
                 placeholder={t("cashier", "Cashier")}
                 icon={User}
+                align="right"
+              />
+              <SearchableSelect
+                options={salesmenList.map(s => ({ id: s, label: s === 'all' ? t("salesman_all", "Salesman: All") : s.toUpperCase() }))}
+                value={selectedSalesman}
+                onChange={val => { setSelectedSalesman(val); setCurrentPage(1); }}
+                placeholder={t("salesman", "Salesman")}
+                icon={Briefcase}
                 align="right"
               />
               <DateRangePicker
