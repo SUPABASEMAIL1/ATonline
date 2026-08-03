@@ -169,9 +169,9 @@ export function SalesmanManager() {
                     <tr>
                       <td colSpan={3} className="px-8 py-16">
                         <EmptyState
-                          icon={Users}
+                          icon={<Users className="w-12 h-12" />}
                           title={t('no_salesmen_found', 'No Salesmen Found')}
-                          description={searchTerm ? t('try_adjusting_search', 'Try adjusting your search terms') : t('add_first_salesman', 'Add your first salesman to get started')}
+                          subtext={searchTerm ? t('try_adjusting_search', 'Try adjusting your search terms') : t('add_first_salesman', 'Add your first salesman to get started')}
                           action={
                             !searchTerm && state.currentUser?.role === 'admin' ? (
                               <Button variant="primary" onClick={handleAdd}>
