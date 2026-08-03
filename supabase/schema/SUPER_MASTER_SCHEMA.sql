@@ -585,6 +585,26 @@ ALTER TABLE sales REPLICA IDENTITY FULL;
 
 
 -- ════════════════════════════════════════════════════════════════
+-- 11b. SALESMEN  (Sales staff tracking)
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS salesmen (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name        TEXT NOT NULL,
+    phone       TEXT,
+    active      BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at  TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE salesmen ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salesmen REPLICA IDENTITY FULL;
+
+CREATE POLICY "Allow all for authenticated" ON salesmen
+    FOR ALL USING (true) WITH CHECK (true);
+
+
+-- ════════════════════════════════════════════════════════════════
 -- 12. EXPENSES  (Operating costs)
 -- ════════════════════════════════════════════════════════════════
 
@@ -2099,3 +2119,14 @@ ALTER TABLE sales
   ADD COLUMN IF NOT EXISTS source_order_id      UUID REFERENCES store_orders(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_sales_source_order_id ON sales(source_order_id);
+
+-- POST-LAUNCH ALTER TABLE: sales — Salesman Tracking
+ALTER TABLE sales
+  ADD COLUMN IF NOT EXISTS salesman_id     UUID REFERENCES salesmen(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS salesman_name   TEXT;
+
+-- POST-LAUNCH: Enable realtime for salesmen
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE salesmen;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

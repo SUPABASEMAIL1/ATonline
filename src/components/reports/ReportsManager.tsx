@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Wallet, Package, Users, DollarSign, Clock, FileText, PieChart as PieIcon, Truck, LayoutGrid, Store, BarChart3, RefreshCw, Zap, Coffee, Fuel, Home, Megaphone, Wrench, ShieldCheck, MoreHorizontal, ChevronLeft } from 'lucide-react';
+import { TrendingUp, Wallet, Package, Users, DollarSign, Clock, FileText, PieChart as PieIcon, Truck, LayoutGrid, Store, BarChart3, RefreshCw, Zap, Coffee, Fuel, Home, Megaphone, Wrench, ShieldCheck, MoreHorizontal, ChevronLeft, Briefcase } from 'lucide-react';
 
 import { useApp } from '../../context/SupabaseAppContext';
 import { subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from 'date-fns';
@@ -27,6 +27,7 @@ import { FinancialReport } from './tabs/FinancialReport';
 import { InventoryReport } from './tabs/InventoryReport';
 import { SkeletonLoader } from '../common/SkeletonLoader';
 import { SuppliersReport } from './tabs/SuppliersReport';
+import { SalesmenReport } from './tabs/SalesmenReport';
 import { DateRangePicker, Button } from '../../shared/ui';
 
 import { useNavigate, useParams } from 'react-router-dom';
@@ -824,6 +825,68 @@ export function ReportsManager() {
   }, [filteredSales, state.customers]);
 
 
+  // Salesman Analytics
+  const salesmanData = useMemo(() => {
+    const salesmanStats: Record<string, {
+      id: string;
+      name: string;
+      totalSales: number;
+      totalTransactions: number;
+      totalItems: number;
+      avgTransactionValue: number;
+    }> = {};
+
+    // Add all salesmen and users first to include those with no sales
+    [...state.salesmen, ...state.users].forEach(person => {
+      salesmanStats[person.id] = {
+        id: person.id,
+        name: person.name,
+        totalSales: 0,
+        totalTransactions: 0,
+        totalItems: 0,
+        avgTransactionValue: 0
+      };
+    });
+
+    // Add "Unassigned" for sales with no salesman
+    salesmanStats['unassigned'] = {
+      id: 'unassigned',
+      name: 'Unassigned',
+      totalSales: 0,
+      totalTransactions: 0,
+      totalItems: 0,
+      avgTransactionValue: 0
+    };
+
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+      if (!sale) return;
+      const salesmanId = sale.salesmanId || 'unassigned';
+      if (salesmanStats[salesmanId]) {
+        salesmanStats[salesmanId].totalSales += getEffectiveTotal(sale);
+        salesmanStats[salesmanId].totalTransactions += 1;
+        salesmanStats[salesmanId].totalItems += (sale.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+      } else {
+        // Fallback for sales where salesman was deleted
+        salesmanStats[salesmanId] = {
+          id: salesmanId,
+          name: sale.salesmanName || 'Deleted Salesman',
+          totalSales: getEffectiveTotal(sale),
+          totalTransactions: 1,
+          totalItems: (sale.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0),
+          avgTransactionValue: 0
+        };
+      }
+    });
+
+    // Calculate average transaction value
+    Object.values(salesmanStats).forEach(salesman => {
+      salesman.avgTransactionValue = salesman.totalTransactions > 0
+        ? salesman.totalSales / salesman.totalTransactions
+        : 0;
+    });
+
+    return Object.values(salesmanStats).sort((a, b) => b.totalSales - a.totalSales);
+  }, [filteredSales, state.salesmen, state.users]);
 
 
   // Reset sub-type when main report type changes
@@ -996,6 +1059,7 @@ export function ReportsManager() {
               { id: 'customers', label: t("customers", "CUSTOMERS"), icon: Users, color: 'bg-teal-600', show: true },
               { id: 'expenses', label: t("expenses", "EXPENSES"), icon: FileText, color: 'bg-rose-600', show: true },
               { id: 'financial', label: t("payments", "PAYMENTS"), icon: DollarSign, color: 'bg-indigo-600', show: true },
+              { id: 'salesmen', label: t("salesmen", "SALESMEN"), icon: Briefcase, color: 'bg-cyan-600', show: true },
               { id: 'suppliers', label: t("suppliers", "SUPPLIERS"), icon: Truck, color: 'bg-amber-600', show: true },
             ].filter(tab => {
               const role = state.currentUser?.role;
@@ -1144,6 +1208,16 @@ export function ReportsManager() {
             currency={state.settings.currency}
             theme={state.settings.theme}
             country={state.settings.country}
+          />
+        </div>
+      )}
+
+      {reportType === 'salesmen' && (
+        <div className="relative z-20 mt-2 sm:mt-4">
+          <SalesmenReport
+            salesmanData={salesmanData}
+            currency={state.settings.currency}
+            theme={state.settings.theme}
           />
         </div>
       )}

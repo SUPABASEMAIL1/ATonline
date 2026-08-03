@@ -748,6 +748,8 @@ export const toRemoteSale = (s: Partial<Sale>) => {
   if ('deliveryLocationLat' in s) { remote.delivery_location_lat = s.deliveryLocationLat; delete remote.deliveryLocationLat; }
   if ('deliveryLocationLng' in s) { remote.delivery_location_lng = s.deliveryLocationLng; delete remote.deliveryLocationLng; }
   if ('customerNotes' in s) { remote.customer_notes = s.customerNotes; delete remote.customerNotes; }
+  if ('salesmanId' in s) { remote.salesman_id = s.salesmanId; delete remote.salesmanId; }
+  if ('salesmanName' in s) { remote.salesman_name = s.salesmanName; delete remote.salesmanName; }
   if ('createdAt' in s) { remote.created_at = s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt; delete remote.createdAt; }
   if ('updatedAt' in s) { remote.updated_at = s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt; delete remote.updatedAt; }
   if ('timestamp' in s) {
@@ -1188,6 +1190,45 @@ export const customersService = {
   }
 };
 
+export const salesmenService = {
+  async getAll() {
+    return await localDb.salesmen.toArray();
+  },
+  async create(salesman: any) {
+    const id = generateId();
+    const newSalesman = {
+      ...salesman,
+      id,
+      active: salesman.active ?? true,
+      createdAt: new Date(),
+    };
+    const remote = {
+      id,
+      name: salesman.name,
+      phone: salesman.phone,
+      active: salesman.active,
+      created_at: newSalesman.createdAt.toISOString()
+    };
+    await localDb.salesmen.put(newSalesman);
+    await queueOp('salesmen', 'create', id, remote);
+    return newSalesman;
+  },
+  async update(id: string, updates: any) {
+    const remote: any = {};
+    if ('name' in updates) remote.name = updates.name;
+    if ('phone' in updates) remote.phone = updates.phone;
+    if ('active' in updates) remote.active = updates.active;
+    
+    await localDb.salesmen.update(id, { ...updates, updatedAt: new Date() });
+    await queueOp('salesmen', 'update', id, remote);
+    const updated = await localDb.salesmen.get(id);
+    return updated;
+  },
+  async delete(id: string) {
+    await localDb.salesmen.delete(id);
+    await queueOp('salesmen', 'delete', id, {});
+  }
+};
 
 /**
  * Users Service

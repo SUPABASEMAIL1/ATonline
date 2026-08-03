@@ -46,7 +46,8 @@ export type PendingOpEntity =
   | 'toppings'
   | 'variant_stock_history'
   | 'product_addons'
-  | 'store_orders';
+  | 'store_orders'
+  | 'salesmen';
 
 export type PendingOpType = 'create' | 'update' | 'delete' | 'upsert';
 
@@ -100,6 +101,7 @@ export class ZaynahsPosDB extends Dexie {
   productAddons!: Table<ProductAddon>;
   savedReceiptPngs!: Table<any>;
   storeOrders!: Table<StoreOrder>;
+  salesmen!: Table<any>;
 
   constructor() {
     // Make the IndexedDB name unique per Supabase Project so different clones on localhost don't share data
@@ -493,6 +495,11 @@ export class ZaynahsPosDB extends Dexie {
     this.version(10).stores({
       sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, shiftId, refundShiftId, status, paymentMethod',
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment'
+    });
+
+    this.version(11).stores({
+      sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, shiftId, refundShiftId, status, paymentMethod, salesmanId',
+      salesmen: 'id, name, active'
     });
   }
 }

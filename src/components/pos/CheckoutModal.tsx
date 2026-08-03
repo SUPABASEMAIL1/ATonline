@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, Smartphone, Check, AlertCircle, Gift, MessageCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, CheckCircle2, Layers, Hash, PlusCircle, Building2, Package } from 'lucide-react';
+import { X, CreditCard, Banknote, Smartphone, Check, AlertCircle, Gift, MessageCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, CheckCircle2, Layers, Hash, PlusCircle, Building2, Package, UserCircle } from 'lucide-react';
 import { Sale, SplitPayment } from '../../types';
 import { useApp, useInvoiceGeneration } from '../../context/SupabaseAppContext';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
@@ -16,6 +16,7 @@ import { cn } from '../../lib/utils';
 import { CompactItemRow } from './CompactItemRow';
 import { localDb, queueOp } from '../../lib/localDb';
 import { useTranslation } from '../../hooks/useTranslation';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     { method: 'cash', amount: 0 },
     { method: 'card', amount: 0 }
   ]);
+  const [salesmanId, setSalesmanId] = useState<string>('');
 
   const { retailEnabled, wholesaleEnabled, estoreEnabled } = state.settings;
 
@@ -88,8 +90,15 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
       else if (retailEnabled) setSaleType('retail');
       else if (wholesaleEnabled) setSaleType('wholesale');
       else if (estoreEnabled) setSaleType('estore');
+
+      if (state.editingSaleId) {
+        const oldSale = state.sales.find(s => s.id === state.editingSaleId);
+        if (oldSale?.salesmanId) {
+          setSalesmanId(oldSale.salesmanId);
+        }
+      }
     }
-  }, [isOpen, retailEnabled, wholesaleEnabled, estoreEnabled, state.notes, state.settings.defaultSaleType]);
+  }, [isOpen, retailEnabled, wholesaleEnabled, estoreEnabled, state.notes, state.settings.defaultSaleType, state.editingSaleId, state.sales]);
 
   useEffect(() => {
     if (isOpen && appliedDiscounts.length > 0) setShowDiscountAlert(true);
@@ -225,6 +234,10 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         finalInvoiceNumber = await generateInvoice();
       }
 
+      const selectedSalesman = salesmanId ? 
+        (state.salesmen.find(s => s.id === salesmanId)?.name || state.users.find(u => u.id === salesmanId)?.name)
+        : undefined;
+
       const sale: Sale = {
         id: generateId(),
         invoiceNumber: finalInvoiceNumber,
@@ -241,6 +254,8 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         paymentMethod: paymentMethod as any,
         status: (paymentMethod === 'credit' || (paymentMethod === 'split' && splitPayments.some(p => p.method === 'credit'))) ? 'credit' : 'completed',
         cashier: profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown',
+        salesmanId: salesmanId || undefined,
+        salesmanName: selectedSalesman,
         timestamp: new Date(),
         receiptNumber: finalInvoiceNumber,
         notes: saleNotes || undefined,
@@ -945,8 +960,27 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                 )}
               </div>
 
-              <div className="space-y-2">
-                <p className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] px-1">{t("memo", "Internal Notes")}</p>
+              {/* Salesman Selection */}
+              <div className="mb-4">
+                <SearchableSelect
+                  label={t('salesman', 'SALESMAN (OPTIONAL)')}
+                  options={[
+                    { id: '', label: 'None' },
+                    ...state.users.filter(u => u.active).map(u => ({ id: u.id, label: u.name })),
+                    ...state.salesmen.filter(s => s.active).map(s => ({ id: s.id, label: s.name }))
+                  ]}
+                  value={salesmanId}
+                  onChange={setSalesmanId}
+                  icon={UserCircle}
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                  <p className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] px-1">{t("memo", "Internal Notes")}</p>
+                </div>
                 <textarea
                   value={saleNotes}
                   onChange={(e) => {

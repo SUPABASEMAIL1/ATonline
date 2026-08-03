@@ -280,6 +280,15 @@ export interface SplitPayment {
   reference?: string;
 }
 
+export interface Salesman {
+  id: string;
+  name: string;
+  phone?: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
 export interface Sale {
   id: string;
   sourceOrderId?: string;
@@ -319,6 +328,9 @@ export interface Sale {
   deliveryLocationLat?: number;
   deliveryLocationLng?: number;
   customerNotes?: string;
+  // Salesman tracking
+  salesmanId?: string;
+  salesmanName?: string;
 }
 
 export interface RefundRequest {

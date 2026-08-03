@@ -666,6 +666,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
     <>
       <TwoCol left={`INV#: ${(sale.invoiceNumber || sale.receiptNumber || sale.id.slice(-6).toUpperCase()).replace(settings.invoicePrefix || 'INV', '')}`} right={`DATE: ${formatAppDate(sale.timestamp, settings.country).replace(/,/g, '')}`} />
       <TwoCol left={`TIME: ${new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`} right={`OP: ${sale.cashier?.split(' ')[0] || profile?.name?.split(' ')[0] || 'SYS'}`} />
+      {sale.salesmanName && <TwoCol left={`SM: ${sale.salesmanName}`} right="" />}
       {sale.dcNumber && <TwoCol left={`DC#: ${sale.dcNumber}`} right="" />}
       {settings.receiptShowCustomerName && sale.customerName && (
         <TwoCol left={`CUST: ${sale.customerName}`} right={settings.receiptShowCustomerPhone && sale.customerPhone ? `PH: ${sale.customerPhone}` : ""} />
@@ -1305,6 +1306,10 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             left={`TIME: ${new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
             right={`OP: ${sale.cashier?.split(' ')[0] || profile?.name?.split(' ')[0] || 'SYS'}`}
           />
+
+          {sale.salesmanName && (
+            <TwoCol left={`SM: ${sale.salesmanName}`} right="" />
+          )}
 
           {sale.dcNumber && (
             <TwoCol left={`DC#: ${sale.dcNumber}`} right="" />

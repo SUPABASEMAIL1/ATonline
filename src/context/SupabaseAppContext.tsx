@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, useRef } from 'react';
 import {
   Product, Customer, Sale, StoreOrder, User, Discount, CartItem, AppSettings, SalesTab, DiscountCondition, Expense, PurchaseRecord,
-  Category, Supplier, ProductBatch, PurchaseOrder, SupplierTransaction, Payment, StockHistory, Bundle
+  Category, Supplier, ProductBatch, PurchaseOrder, SupplierTransaction, Payment, StockHistory, Bundle, Salesman
 } from '../types';
 import { useAuth } from './AuthContext';
 import {
@@ -32,6 +32,7 @@ import {
   mapPurchaseRecord,
   mapPayment,
   storeOrdersService,
+  salesmenService,
   getNextInvoiceNumber,
   generateNextInvoiceNumber
 } from '../lib/services';
@@ -64,6 +65,9 @@ interface AppState {
   supplierTransactions: SupplierTransaction[];
   payments: Payment[];
   stockHistory: StockHistory[];
+  variantStockHistory: VariantStockHistory[];
+  productAddons: ProductAddon[];
+  salesmen: Salesman[];
   bundles: Bundle[];
   notes: string;
   storeOrders: StoreOrder[];
@@ -89,6 +93,11 @@ interface AppState {
 type AppAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_PRODUCT_ADDONS'; payload: ProductAddon[] }
+  | { type: 'SET_SALESMEN'; payload: Salesman[] }
+  | { type: 'ADD_SALESMAN'; payload: Salesman }
+  | { type: 'UPDATE_SALESMAN'; payload: Salesman }
+  | { type: 'DELETE_SALESMAN'; payload: string }
   | { type: 'SET_PRODUCTS'; payload: Product[] }
   | { type: 'ADD_PRODUCT'; payload: Product }
   | { type: 'UPDATE_PRODUCT'; payload: Product }
@@ -326,6 +335,9 @@ const initialState: AppState = {
   supplierTransactions: [],
   payments: [],
   stockHistory: [],
+  variantStockHistory: [],
+  productAddons: [],
+  salesmen: [],
   bundles: [],
   notes: '',
   editingSaleId: null,
@@ -350,6 +362,25 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, syncProgress: action.payload };
     case 'SET_ERROR':
       return { ...state, error: action.payload };
+    case 'SET_PRODUCT_ADDONS':
+      return { ...state, productAddons: action.payload };
+
+    case 'SET_SALESMEN':
+      return { ...state, salesmen: action.payload };
+    case 'ADD_SALESMAN':
+      if (state.salesmen.some(s => s.id === action.payload.id)) return state;
+      return { ...state, salesmen: [...state.salesmen, action.payload] };
+    case 'UPDATE_SALESMAN':
+      return {
+        ...state,
+        salesmen: state.salesmen.map(s => s.id === action.payload.id ? action.payload : s)
+      };
+    case 'DELETE_SALESMAN':
+      return {
+        ...state,
+        salesmen: state.salesmen.filter(s => s.id !== action.payload)
+      };
+
     case 'SET_PRODUCTS':
       return { ...state, products: action.payload };
     case 'ADD_PRODUCTS_BULK':
@@ -1361,22 +1392,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await localDb.bundleSlotOptions.delete(payload.old.id).catch(() => {});
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'variant_stock_history' }, async (payload) => {
-        if (await isPendingDelete('variant_stock_history', payload.new?.id || payload.old?.id)) return;
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.variantStockHistory.put(payload.new).catch(() => {});
-        } else if (payload.eventType === 'DELETE') {
-          await localDb.variantStockHistory.delete(payload.old.id).catch(() => {});
-        }
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_addons' }, async (payload) => {
-        if (await isPendingDelete('product_addons', payload.new?.id || payload.old?.id)) return;
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.productAddons.put(payload.new).catch(() => {});
-        } else if (payload.eventType === 'DELETE') {
-          await localDb.productAddons.delete(payload.old.id).catch(() => {});
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'variant_stock_history' }, () => { enqueueSync('variant_stock_history'); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'salesmen' }, () => { enqueueSync('salesmen'); })
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.log(`[Realtime] Subscription status: ${status} — will retry in 5s.`);
@@ -1473,7 +1490,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         localSettingsArr,
         localCategories,
         localSuppliers,
-        localPurchaseOrders
+        localPurchaseOrders,
+        localBundles,
+        localVariantStockHistory,
+        localProductAddons,
+        localSalesmen
       ] =
         await Promise.all([
           localDb.products.toArray(),
@@ -1488,7 +1509,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           localDb.appSettings.toArray(),
           localDb.categories.toArray(),
           localDb.suppliers.toArray(),
-          localDb.purchaseOrders.toArray()
+          localDb.purchaseOrders.toArray(),
+          localDb.bundles.toArray(),
+          localDb.variantStockHistory.toArray(),
+          localDb.productAddons.toArray(),
+          localDb.salesmen.toArray()
         ]);
 
       // NOTE: SET_PRODUCTS is dispatched below after batch hydration to avoid "NO BATCHES" flash
@@ -1516,7 +1541,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Load bundles from local cache
       try {
-        const localBundles = await localDb.bundles.toArray();
         const localBundleItems = await localDb.bundleItems.toArray();
         const localBundleSlots = await localDb.bundleSlots.toArray();
         const localBundleSlotOptions = await localDb.bundleSlotOptions.toArray();
@@ -1534,6 +1558,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.warn('[AppContext] Bundle local load failed', e);
       }
+      
+      dispatch({ type: 'SET_VARIANT_STOCK_HISTORY', payload: localVariantStockHistory });
+      dispatch({ type: 'SET_PRODUCT_ADDONS', payload: localProductAddons });
+      dispatch({ type: 'SET_SALESMEN', payload: localSalesmen });
 
       const localSettings = localSettingsArr.find(s => s.id === SETTINGS_ID) || localSettingsArr[0];
       if (localSettings) {
@@ -1765,12 +1793,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateStatus(`Fetched ${storeOrders.length} online orders...`, storeOrders.length);
 
         // ── OTHER METADATA ──
-        const [discounts, usersList, expenses, purchaseRecords, suppliersData] = await Promise.all([
+        const [discounts, usersList, expenses, purchaseRecords, suppliersData, salesmenData] = await Promise.all([
           discountsService.fetchRemote(), // Metadata
           usersService.fetchRemote(), // Metadata
           fetchDeltasAndMerge(localDb.expenses, expensesService.fetchRemote), // Transactional
           fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
-          suppliersService.fetchRemote() // Metadata
+          suppliersService.fetchRemote(), // Metadata
+          salesmenService.getAll() // Metadata
         ]);
         
         const mergedDiscounts = await smartMerge('discounts', discounts, localDb.discounts);
@@ -1780,6 +1809,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const mergedUsers = await smartMerge('users', usersList, localDb.users);
         dispatch({ type: 'SET_USERS', payload: mergedUsers });
         await saveProgressively('users', localDb.users, mergedUsers);
+        
+        const mergedSalesmen = await smartMerge('salesmen', salesmenData, localDb.salesmen);
+        dispatch({ type: 'SET_SALESMEN', payload: mergedSalesmen });
+        await saveProgressively('salesmen', localDb.salesmen, mergedSalesmen);
         
         const mergedExpenses = (await smartMerge('expenses', expenses, localDb.expenses))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

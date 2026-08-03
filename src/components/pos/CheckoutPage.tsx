@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { X, ArrowLeft, CreditCard, Banknote, Smartphone, Check, AlertCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, Package, Wallet, Gift, Layers, Hash, PlusCircle, Keyboard, Building2 } from 'lucide-react';
+import { X, ArrowLeft, CreditCard, Banknote, Smartphone, Check, AlertCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, Package, Wallet, Gift, Layers, Hash, PlusCircle, Keyboard, Building2, UserCircle } from 'lucide-react';
 import { Sale, SplitPayment, CartItem } from '../../types';
 import { useApp, useInvoiceGeneration } from '../../context/SupabaseAppContext';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
@@ -17,6 +17,7 @@ import { CompactItemRow } from './CompactItemRow';
 import { ShortcutsModal } from './ShortcutsModal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { usePOSKeyboard } from '../../hooks/usePOSKeyboard';
+import { SearchableSelect } from '../common/SearchableSelect';
 
 interface CheckoutPageProps {
   onClose: () => void;
@@ -37,6 +38,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const [saleNotes, setSaleNotes] = useState('');
   const [saleType, setSaleType] = useState<'retail' | 'wholesale' | 'estore'>('retail');
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
+  const [salesmanId, setSalesmanId] = useState<string>('');
 
   // New Fields
   const [extraCharges, setExtraCharges] = useState<{ name: string; amount: string }[]>([
@@ -139,6 +141,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
           setExtraCharges([{ name: 'DC', amount: '' }]);
         }
         if (editingSale.paymentMethod) setPaymentMethod(editingSale.paymentMethod === 'split' ? 'split' : editingSale.paymentMethod);
+        if (editingSale.salesmanId) setSalesmanId(editingSale.salesmanId);
       }
     } else {
       setSaleNotes(state.notes || '');
@@ -259,6 +262,10 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
     setIsProcessing(true);
     try {
+      const selectedSalesman = salesmanId ? 
+        (state.salesmen.find(s => s.id === salesmanId)?.name || state.users.find(u => u.id === salesmanId)?.name)
+        : undefined;
+
       const invoiceNumber = await generateInvoice();
       const sale: Sale = {
         id: generateId(), invoiceNumber,
@@ -273,6 +280,8 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         cardDetails: undefined,
         status: paymentMethod === 'credit' ? 'credit' : 'completed',
         cashier: profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown',
+        salesmanId: salesmanId || undefined,
+        salesmanName: selectedSalesman,
         timestamp: new Date(), receiptNumber: invoiceNumber,
         notes: saleNotes,
         appliedDiscounts,
@@ -700,6 +709,21 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
               </div>
             </div>
           )}
+
+          {/* Salesman Selection */}
+          <div className="mb-4">
+            <SearchableSelect
+              label={t('salesman', 'SALESMAN (OPTIONAL)')}
+              options={[
+                { id: '', label: 'None' },
+                ...state.users.filter(u => u.active).map(u => ({ id: u.id, label: u.name })),
+                ...state.salesmen.filter(s => s.active).map(s => ({ id: s.id, label: s.name }))
+              ]}
+              value={salesmanId}
+              onChange={setSalesmanId}
+              icon={UserCircle}
+            />
+          </div>
 
           {/* Notes */}
           <div>

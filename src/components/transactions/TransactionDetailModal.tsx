@@ -313,6 +313,9 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
             <div><p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">{t("date", "Date")}</p><p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">{formatAppDate(transaction.timestamp, state.settings.country)}</p></div>
             <div><p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">{t("customer", "Customer")}</p><p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">{transaction.customerName || t("walk_in", "Walk-in")}</p></div>
             <div><p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">{t("cashier", "Cashier")}</p><p className="text-[11px] font-black text-gray-900 dark:text-white uppercase">{transaction.cashier || 'System'}</p></div>
+            {transaction.salesmanName && (
+              <div><p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">{t("salesman", "Salesman")}</p><p className="text-[11px] font-black text-teal-600 uppercase">{transaction.salesmanName}</p></div>
+            )}
             {transaction.dcNumber && (
               <div className="col-span-2"><p className="text-[8px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">{t("dc_number", "DC Number")}</p><p className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tight tabular-nums">#{transaction.dcNumber}</p></div>
             )}

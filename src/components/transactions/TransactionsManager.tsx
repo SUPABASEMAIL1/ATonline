@@ -686,6 +686,7 @@ export function TransactionsManager() {
                   <td className="px-4 py-3 text-sm font-bold text-gray-700 dark:text-gray-300">
                     <div>{tx.customerName || t("walk_in", "Walk-in")}</div>
                     {tx.cashier && <div className="text-[9px] font-bold text-primary uppercase mt-0.5">{t("by", "By")} {tx.cashier}</div>}
+                    {tx.salesmanName && <div className="text-[9px] font-bold text-teal-600 uppercase mt-0.5">SM: {tx.salesmanName}</div>}
                   </td>
                   <td className="px-4 py-3 text-sm font-black text-primary dark:text-emerald-400">
                     <div>{formatCurrency(tx.total, state.settings.currency)}</div>
@@ -778,7 +779,8 @@ export function TransactionsManager() {
                   </Badge>
                 )}
               </div>
-              <h3 className="text-[10px] font-black text-gray-900 dark:text-white uppercase truncate mb-2">{tx.customerName || t("walk_in", "Walk-in")}</h3>
+              <h3 className="text-[10px] font-black text-gray-900 dark:text-white uppercase truncate mb-1">{tx.customerName || t("walk_in", "Walk-in")}</h3>
+              {tx.salesmanName && <p className="text-[8px] font-bold text-teal-600 uppercase mb-2">SM: {tx.salesmanName}</p>}
               <div className="flex flex-col">
                 <span className={`text-[11px] font-black text-primary dark:text-primary ${tx.refundedAmount > 0 ? 'line-through text-gray-400 text-[10px]' : ''}`}>
                   {formatCurrency(tx.total, state.settings.currency)}

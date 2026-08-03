@@ -14,7 +14,7 @@ const CustomerManager = lazy(() => import('./components/customers/CustomerManage
 const ReportsManager = lazy(() => import('./components/reports/ReportsManager').then(m => ({ default: m.ReportsManager })));
 const Settings = lazy(() => import('./components/settings/Settings').then(m => ({ default: m.Settings })));
 const DiscountManager = lazy(() => import('./components/discounts/DiscountManager').then(m => ({ default: m.DiscountManager })));
-const UserManager = lazy(() => import('./components/users/UserManager').then(m => ({ default: m.UserManager })));
+const UsersPage = lazy(() => import('./components/users/UsersPage').then(m => ({ default: m.UsersPage })));
 const ExpenseManager = lazy(() => import('./components/expenses/ExpenseManager').then(m => ({ default: m.ExpenseManager })));
 const SupplierManager = lazy(() => import('./components/inventory/suppliers/SupplierManager').then(m => ({ default: m.SupplierManager })));
 const PurchaseOrderSystem = lazy(() => import('./components/inventory/PurchaseOrderSystem').then(m => ({ default: m.PurchaseOrderSystem })));
@@ -389,7 +389,8 @@ function AppContent() {
                 <Route path="/reports" element={<Navigate to="/reports/sales" replace />} />
                 <Route path="/reports/:subTab" element={<RequireAccess viewId="reports"><ReportsManager /></RequireAccess>} />
                 <Route path="/discounts" element={<RequireAccess viewId="discounts"><DiscountManager /></RequireAccess>} />
-                <Route path="/users" element={<RequireAccess viewId="users"><UserManager /></RequireAccess>} />
+                <Route path="/users" element={<Navigate to="/users/staff" replace />} />
+                <Route path="/users/:subTab" element={<RequireAccess viewId="users"><UsersPage /></RequireAccess>} />
                 <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
                 <Route path="/settings/:subTab" element={<RequireAccess viewId="settings"><Settings /></RequireAccess>} />
                 <Route path="/suppliers" element={<RequireAccess viewId="suppliers"><SupplierManager /></RequireAccess>} />
