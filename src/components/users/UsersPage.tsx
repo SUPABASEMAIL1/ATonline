@@ -19,12 +19,12 @@ export function UsersPage() {
     {
       id: 'staff',
       label: t('system_users', 'SYSTEM USERS'),
-      icon: Users,
+      icon: <Users className="w-3.5 h-3.5" />,
     },
     {
       id: 'salesmen',
       label: t('salesmen', 'SALESMEN'),
-      icon: CreditCard,
+      icon: <CreditCard className="w-3.5 h-3.5" />,
     }
   ];
 
@@ -38,8 +38,8 @@ export function UsersPage() {
         <div className="max-w-[1600px] mx-auto px-1 sm:px-4 lg:px-6">
           <SubTabBar
             tabs={tabs}
-            activeTabId={subTab}
-            onTabChange={handleTabChange}
+            value={subTab}
+            onChange={handleTabChange}
           />
         </div>
       </div>
