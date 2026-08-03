@@ -110,6 +110,7 @@ export function ReportsManager() {
   type ReportType = typeof validReportTypes[number];
   const reportType = (validReportTypes.includes(subTab as ReportType) ? subTab : 'sales') as ReportType;
   const [repairing, setRepairing] = useState(false);
+  const [repairProgress, setRepairProgress] = useState<number | null>(null);
 
   const handleRepairData = async () => {
     const confirmed = await sonner.confirm(
@@ -120,9 +121,11 @@ export function ReportsManager() {
     if (!confirmed.isConfirmed) return;
     
     setRepairing(true);
+    setRepairProgress(0);
     sonner.loading('Auditing Data... 0%');
     try {
       const count = await salesService.patchLegacySales((percent) => {
+        setRepairProgress(percent);
         sonner.update('Auditing Data...', `${percent}% Complete`);
       });
       sonner.close();
@@ -134,6 +137,7 @@ export function ReportsManager() {
       await sonner.alert('Repair Failed', 'Failed to repair data. Check console for details.');
     } finally {
       setRepairing(false);
+      setRepairProgress(null);
     }
   };
 
@@ -1046,7 +1050,7 @@ export function ReportsManager() {
                 className="group !min-h-0 !px-3 !py-1.5 !rounded-lg !gap-2 !bg-rose-500/10 !hover:bg-rose-500/20 !text-rose-500 !border !border-rose-500/20 !shadow-none disabled:!opacity-50"
               >
                 <span className="text-[8px] font-black uppercase tracking-widest hidden sm:inline">
-                  {repairing ? 'Auditing...' : 'Repair Data'}
+                  {repairing ? `Auditing... ${repairProgress !== null ? `${repairProgress}%` : ''}` : 'Repair Data'}
                 </span>
               </Button>
             )}

@@ -2033,10 +2033,9 @@ export const salesService = {
 
   async patchLegacySales(onProgress?: (percent: number) => void): Promise<number> {
     const allSales = await localDb.sales.toArray();
-    let patchedCount = 0;
-    const total = allSales.length;
-
-    for (let i = 0; i < total; i++) {
+    const toUpdate: any[] = [];
+    
+    for (let i = 0; i < allSales.length; i++) {
       const sale = allSales[i];
       let needsPatch = false;
       const updatedItems = sale.items.map(item => {
@@ -2054,21 +2053,37 @@ export const salesService = {
       });
 
       if (needsPatch) {
-        const updatedSale = { ...sale, items: updatedItems, updatedAt: new Date() };
-        await localDb.sales.put(updatedSale);
-        // We only queue if it's not a draft and looks valid
-        if (!sale.invoiceNumber?.startsWith('DRAFT-')) {
-          await queueOp('sales', 'update', sale.id, toRemoteSale(updatedSale));
-        }
-        patchedCount++;
-      }
-
-      if (onProgress && i % Math.max(1, Math.floor(total / 100)) === 0) {
-        onProgress(Math.floor((i / total) * 100));
+        toUpdate.push({ ...sale, items: updatedItems, updatedAt: new Date() });
       }
     }
+
+    if (toUpdate.length === 0) {
+      if (onProgress) onProgress(100);
+      return 0;
+    }
+
+    // Process in chunks to avoid overwhelming the database and UI
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+      const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
+      await localDb.sales.bulkPut(chunk);
+      
+      for (const sale of chunk) {
+        if (!sale.invoiceNumber?.startsWith('DRAFT-')) {
+          await queueOp('sales', 'update', sale.id, toRemoteSale(sale));
+        }
+      }
+      
+      if (onProgress) {
+        onProgress(Math.floor(((i + chunk.length) / toUpdate.length) * 100));
+      }
+      
+      // Add a small delay to allow UI to breathe
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
     if (onProgress) onProgress(100);
-    return patchedCount;
+    return toUpdate.length;
   }
 };
 
