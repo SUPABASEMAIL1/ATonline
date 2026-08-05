@@ -27,6 +27,7 @@ import {
   mapStoreOrder,
   mapUser,
   mapSettings,
+  mapSalesman,
   mapExpense,
   mapDiscount,
   mapPurchaseRecord,
@@ -1087,8 +1088,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (subscriptionsInitialized.current) return;
     subscriptionsInitialized.current = true;
 
+    // Use a unique channel name for each connection attempt to avoid reusing a broken channel state
+    const channelName = `db-changes-global-${Date.now()}`;
     const channel = supabase
-      .channel('db-changes-global')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async (payload) => {
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           // Guard: Ignore updates for items pending local deletion
@@ -1403,14 +1406,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'salesmen' }, async (payload) => {
         if (await isPendingDelete('salesmen', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.salesmen.put(payload.new).catch(() => {});
+          const mapped = mapSalesman(payload.new);
+          await localDb.salesmen.put(mapped).catch(() => {});
+          const exists = state.salesmen.some(s => s.id === mapped.id);
+          if (payload.eventType === 'INSERT' && !exists) {
+            dispatch({ type: 'ADD_SALESMAN', payload: mapped });
+          } else {
+            dispatch({ type: 'UPDATE_SALESMAN', payload: mapped });
+          }
         } else if (payload.eventType === 'DELETE') {
           await localDb.salesmen.delete(payload.old.id).catch(() => {});
+          dispatch({ type: 'DELETE_SALESMAN', payload: payload.old.id });
         }
       })
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.log(`[Realtime] Subscription status: ${status} — will retry in 5s.`);
+          supabase.removeChannel(channel).catch(() => {});
           subscriptionsInitialized.current = false;
           subscriptionRef.current = null;
           retryTimer = setTimeout(() => {
@@ -1813,7 +1825,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           fetchDeltasAndMerge(localDb.expenses, expensesService.fetchRemote), // Transactional
           fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
           suppliersService.fetchRemote(), // Metadata
-          salesmenService.getAll() // Metadata
+          fetchDeltasAndMerge(localDb.salesmen, salesmenService.fetchRemote) // Metadata
         ]);
         
         const mergedDiscounts = await smartMerge('discounts', discounts, localDb.discounts);

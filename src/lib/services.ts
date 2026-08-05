@@ -144,6 +144,12 @@ export const mapProduct = (item: any): Product => ({
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
 });
 
+export const mapSalesman = (item: any): any => ({
+  ...item,
+  createdAt: item.created_at || item.createdAt || new Date().toISOString(),
+  updatedAt: item.updated_at || item.updatedAt,
+});
+
 export const mapCustomer = (item: any): Customer => ({
   ...item,
   priceTier: item.price_tier ?? item.priceTier,
@@ -1195,6 +1201,15 @@ export const customersService = {
 export const salesmenService = {
   async getAll() {
     return await localDb.salesmen.toArray();
+  },
+  async fetchRemote(lastSyncTime?: Date): Promise<any[]> {
+    const queryFn = () => {
+      let q = supabase.from('salesmen').select('*');
+      if (lastSyncTime) q = q.gte('updated_at', lastSyncTime.toISOString());
+      return q;
+    };
+    const data = await fetchAllPages(queryFn);
+    return data.map(mapSalesman);
   },
   async create(salesman: any) {
     const id = generateId();
