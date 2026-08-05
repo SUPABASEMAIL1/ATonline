@@ -1741,7 +1741,7 @@ BEGIN
         sale_data->>'cashier_role', sale_data->>'notes',
         COALESCE(sale_data->>'sale_type', 'retail'),
         COALESCE((sale_data->>'timestamp')::TIMESTAMPTZ, NOW()), NOW(), NOW(),
-        (SELECT id FROM salesmen WHERE id = (NULLIF(BTRIM((sale_data->>'salesman_id')::text), ''))::UUID),
+        (NULLIF(BTRIM((sale_data->>'salesman_id')::text), ''))::UUID,
         sale_data->>'salesman_name'
     ) RETURNING id INTO new_sale_id;
     RETURN jsonb_build_object('success', true, 'id', new_sale_id);
@@ -2151,8 +2151,10 @@ CREATE INDEX IF NOT EXISTS idx_sales_source_order_id ON sales(source_order_id);
 
 -- POST-LAUNCH ALTER TABLE: sales — Salesman Tracking
 ALTER TABLE sales
-  ADD COLUMN IF NOT EXISTS salesman_id     UUID REFERENCES salesmen(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS salesman_id     UUID,
   ADD COLUMN IF NOT EXISTS salesman_name   TEXT;
+
+ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_salesman_id_fkey;
 
 -- POST-LAUNCH: Enable realtime for salesmen
 DO $$ BEGIN
