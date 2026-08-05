@@ -153,7 +153,8 @@ async function executeOp(op: PendingOp): Promise<void> {
         bundle_slot_options: 'bundle_slot_options',
         variant_stock_history: 'variant_stock_history',
         product_addons: 'product_addons',
-        store_orders: 'store_orders'
+        store_orders: 'store_orders',
+        salesmen: 'salesmen'
     };
 
     const table = tableMap[op.entity];
