@@ -1741,8 +1741,8 @@ BEGIN
         sale_data->>'cashier_role', sale_data->>'notes',
         COALESCE(sale_data->>'sale_type', 'retail'),
         COALESCE((sale_data->>'timestamp')::TIMESTAMPTZ, NOW()), NOW(), NOW(),
-        (sale_data->>'shift_id')::UUID,
-        (SELECT id FROM salesmen WHERE id = (sale_data->>'salesman_id')::UUID),
+        (NULLIF(BTRIM((sale_data->>'shift_id')::text), ''))::UUID,
+        (SELECT id FROM salesmen WHERE id = (NULLIF(BTRIM((sale_data->>'salesman_id')::text), ''))::UUID),
         sale_data->>'salesman_name'
     ) RETURNING id INTO new_sale_id;
     RETURN jsonb_build_object('success', true, 'id', new_sale_id);

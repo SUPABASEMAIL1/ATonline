@@ -332,9 +332,15 @@ async function executeOp(op: PendingOp): Promise<void> {
                 }
                 const result = await supabase.rpc('process_sale', { sale_data: payload });
                 error = result.error;
+                if (!error && result.data && result.data.success === false) {
+                    error = new Error(result.data.error || 'Unknown process_sale RPC error');
+                }
             } else if (op.entity === 'sales' && opType === 'update' && (payload.status === 'refunded' || payload.status === 'partially_refunded')) {
                 const result = await supabase.rpc('process_return', { sale_id: entityId, return_data: payload });
                 error = result.error;
+                if (!error && result.data && result.data.success === false) {
+                    error = new Error(result.data.error || 'Unknown process_return RPC error');
+                }
             } else if (op.entity === 'purchase_records' && opType === 'create') {
                 // BYPASS process_stock_in RPC — the RPC contains a hardcoded reference to
                 // 'supplier_id' column which does not exist in the remote schema.
