@@ -501,6 +501,10 @@ export class ZaynahsPosDB extends Dexie {
       sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, shiftId, refundShiftId, status, paymentMethod, salesmanId',
       salesmen: 'id, name, active'
     });
+
+    this.version(12).stores({
+      sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, status, paymentMethod, salesmanId',
+    });
   }
 }
 
