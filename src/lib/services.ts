@@ -2068,10 +2068,14 @@ export const salesService = {
       const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
       await localDb.sales.bulkPut(chunk);
       
-      for (const sale of chunk) {
-        if (!sale.invoiceNumber?.startsWith('DRAFT-')) {
-          await queueOp('sales', 'update', sale.id, toRemoteSale(sale));
-        }
+      const remoteChunk = chunk
+        .filter(sale => !sale.invoiceNumber?.startsWith('DRAFT-'))
+        .map(toRemoteSale);
+
+      if (remoteChunk.length > 0) {
+        // Bulk upsert to Supabase to avoid 5000+ pending ops crashing the sync engine
+        const { error } = await supabase.from('sales').upsert(remoteChunk, { onConflict: 'id' });
+        if (error) console.error('Bulk sync failed for chunk:', error);
       }
       
       if (onProgress) {
@@ -2082,6 +2086,14 @@ export const salesService = {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     
+    // Clear any stuck pending ops for sales updates to recover browsers that got locked up in previous repair attempts
+    const pendingSalesUpdates = await localDb.pendingOps
+      .filter(op => op.table === 'sales' && op.action === 'update')
+      .primaryKeys();
+    if (pendingSalesUpdates.length > 0) {
+      await localDb.pendingOps.bulkDelete(pendingSalesUpdates);
+    }
+
     if (onProgress) onProgress(100);
     return toUpdate.length;
   }

@@ -313,7 +313,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           // Success or attempt finished, close after a reasonable buffer
           setTimeout(() => {
             console.log('[ReceiptPrint] Auto-closing after print attempt');
-            onClose();
+            handleSafeClose();
           }, 3000); // Increased to 3s for slower print dialogs
         }).catch(err => {
           console.error('[ReceiptPrint] Print failed:', err);
@@ -325,64 +325,81 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
   }, [isAutoPrint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-Save PNG ──
-  useEffect(() => {
-    const isEnabled = settings.autoSaveReceiptPng;
-    if (!isEnabled || autoPngSavedRef.current) return;
+  const [isSavingPng, setIsSavingPng] = useState(false);
+  
+  const performAutoSavePng = async () => {
+    if (autoPngSavedRef.current || isSavingPng) return;
     autoPngSavedRef.current = true;
+    setIsSavingPng(true);
+    
+    try {
+      const receiptEl = document.getElementById('receipt-content');
+      if (!receiptEl) return;
 
-    const timer = setTimeout(async () => {
-      try {
-        const receiptEl = document.getElementById('receipt-content');
-        if (!receiptEl) return;
+      const originalStyle = receiptEl.style.cssText;
+      receiptEl.style.boxShadow = 'none';
+      receiptEl.style.height = 'auto';
+      receiptEl.style.overflow = 'visible';
 
-        const originalStyle = receiptEl.style.cssText;
-        receiptEl.style.boxShadow = 'none';
-        receiptEl.style.height = 'auto';
-        receiptEl.style.overflow = 'visible';
+      const canvas = await html2canvas(receiptEl, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        width: receiptEl.offsetWidth,
+        height: receiptEl.scrollHeight,
+        windowHeight: receiptEl.scrollHeight,
+        y: 0, scrollX: 0, scrollY: 0
+      });
 
-        const canvas = await html2canvas(receiptEl, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-          width: receiptEl.offsetWidth,
-          height: receiptEl.scrollHeight,
-          windowHeight: receiptEl.scrollHeight,
-          y: 0, scrollX: 0, scrollY: 0
-        });
+      receiptEl.style.cssText = originalStyle;
 
-        receiptEl.style.cssText = originalStyle;
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
 
-        canvas.toBlob(async (blob) => {
-          if (!blob) return;
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const fileName = `${dateStr}_${sale.invoiceNumber || sale.id?.slice(-8)}.png`;
 
-          const dateStr = new Date().toISOString().slice(0, 10);
-          const fileName = `${dateStr}_${sale.invoiceNumber || sale.id?.slice(-8)}.png`;
+        // Save to IndexedDB
+        try {
+          const { localDb } = await import('../../lib/localDb');
+          await localDb.savedReceiptPngs.put({
+            id: `${dateStr}_${sale.id}`,
+            invoiceNumber: sale.invoiceNumber,
+            saleDate: dateStr,
+            saleId: sale.id,
+            blob,
+            fileName,
+            createdAt: new Date()
+          });
+        } catch (dbErr) {
+          console.warn('[ReceiptPrint] Failed to save PNG to IndexedDB:', dbErr);
+        }
 
-          // Save to IndexedDB
-          try {
-            const { localDb } = await import('../../lib/localDb');
-            await localDb.savedReceiptPngs.put({
-              id: `${dateStr}_${sale.id}`,
-              invoiceNumber: sale.invoiceNumber,
-              saleDate: dateStr,
-              saleId: sale.id,
-              blob,
-              fileName,
-              createdAt: new Date()
-            });
-          } catch (dbErr) {
-            console.warn('[ReceiptPrint] Failed to save PNG to IndexedDB:', dbErr);
-          }
+        // Trigger download
+        triggerDownload(blob, fileName);
+      }, 'image/png');
+    } catch (err) {
+      console.error('[ReceiptPrint] Auto-save PNG failed:', err);
+    } finally {
+      setIsSavingPng(false);
+    }
+  };
 
-          // Trigger download
-          triggerDownload(blob, fileName);
-        }, 'image/png');
-      } catch (err) {
-        console.error('[ReceiptPrint] Auto-save PNG failed:', err);
-      }
-    }, 2000);
+  const handleSafeClose = async () => {
+    if (settings.autoSaveReceiptPng && !autoPngSavedRef.current && !isSavingPng) {
+      document.body.style.cursor = 'wait';
+      await performAutoSavePng();
+      document.body.style.cursor = 'default';
+    }
+    onClose();
+  };
 
+  useEffect(() => {
+    if (!settings.autoSaveReceiptPng) return;
+    const timer = setTimeout(() => {
+      performAutoSavePng();
+    }, 1500);
     return () => clearTimeout(timer);
   }, [settings.autoSaveReceiptPng]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1683,7 +1700,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             <button onClick={() => handlePrint()} className="w-full py-3 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">
               Print Manually
             </button>
-            <button onClick={onClose} className="text-[10px] font-black text-gray-600 uppercase tracking-widest hover:text-gray-900 dark:hover:text-white transition-colors">
+            <button onClick={handleSafeClose} className="text-[10px] font-black text-gray-600 uppercase tracking-widest hover:text-gray-900 dark:hover:text-white transition-colors">
               Tap to close
             </button>
           </div>
@@ -1700,7 +1717,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
   return (
     <Modal
       isOpen={true}
-      onClose={onClose}
+      onClose={handleSafeClose}
       title="PRINT CHECKOUT"
       subtitle="Zaynahs POS • Monochrome"
       maxWidth={isA4 ? 'lg' : 'md'}
@@ -1727,7 +1744,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
             <button
               id="receipt-close-btn"
-              onClick={onClose}
+              onClick={handleSafeClose}
               className="btn btn-md group flex-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 dark:border-primary/20 dark:bg-surface dark:text-emerald-400 dark:hover:bg-primary dark:hover:text-white transition-all !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[10px]"
             >
               <span>NEW SALE</span>
