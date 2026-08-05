@@ -1799,6 +1799,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_CUSTOMERS', payload: mergedCustomers });
         await saveProgressively('customers', localDb.customers, mergedCustomers);
         updateStatus(`Fetched ${customers.length} customers...`, customers.length);
+        // ── USERS & SALESMEN (Load quickly before heavy sales data) ──
+        const [usersList, salesmenData] = await Promise.all([
+          usersService.fetchRemote(),
+          fetchDeltasAndMerge(localDb.salesmen, salesmenService.fetchRemote)
+        ]);
+        
+        const mergedUsers = await smartMerge('users', usersList, localDb.users);
+        dispatch({ type: 'SET_USERS', payload: mergedUsers });
+        await saveProgressively('users', localDb.users, mergedUsers);
+        
+        const mergedSalesmen = await smartMerge('salesmen', salesmenData, localDb.salesmen);
+        dispatch({ type: 'SET_SALESMEN', payload: mergedSalesmen });
+        await saveProgressively('salesmen', localDb.salesmen, mergedSalesmen);
+        updateStatus(`Fetched users and salesmen...`, usersList.length + salesmenData.length);
 
         // ── SALES ──
         const sales = await fetchDeltasAndMerge(localDb.sales, salesService.fetchRemote);
@@ -1819,26 +1833,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateStatus(`Fetched ${storeOrders.length} online orders...`, storeOrders.length);
 
         // ── OTHER METADATA ──
-        const [discounts, usersList, expenses, purchaseRecords, suppliersData, salesmenData] = await Promise.all([
+        const [discounts, expenses, purchaseRecords, suppliersData] = await Promise.all([
           discountsService.fetchRemote(), // Metadata
-          usersService.fetchRemote(), // Metadata
           fetchDeltasAndMerge(localDb.expenses, expensesService.fetchRemote), // Transactional
           fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
           suppliersService.fetchRemote(), // Metadata
-          fetchDeltasAndMerge(localDb.salesmen, salesmenService.fetchRemote) // Metadata
         ]);
         
         const mergedDiscounts = await smartMerge('discounts', discounts, localDb.discounts);
         dispatch({ type: 'SET_DISCOUNTS', payload: mergedDiscounts });
         await saveProgressively('discounts', localDb.discounts, mergedDiscounts);
-        
-        const mergedUsers = await smartMerge('users', usersList, localDb.users);
-        dispatch({ type: 'SET_USERS', payload: mergedUsers });
-        await saveProgressively('users', localDb.users, mergedUsers);
-        
-        const mergedSalesmen = await smartMerge('salesmen', salesmenData, localDb.salesmen);
-        dispatch({ type: 'SET_SALESMEN', payload: mergedSalesmen });
-        await saveProgressively('salesmen', localDb.salesmen, mergedSalesmen);
         
         const mergedExpenses = (await smartMerge('expenses', expenses, localDb.expenses))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -1854,7 +1858,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_SUPPLIERS', payload: mergedSuppliers });
         await saveProgressively('suppliers', localDb.suppliers, mergedSuppliers);
         
-        updateStatus('Syncing marketing and procurement data...', discounts.length + usersList.length + expenses.length + purchaseRecords.length + suppliersData.length);
+        updateStatus('Syncing marketing and procurement data...', discounts.length + expenses.length + purchaseRecords.length + suppliersData.length);
 
         // ── TABS, STOCK, PAYMENTS ──
         const [salesTabsData, supplierTxData, remoteStockHistory, remotePayments] = await Promise.all([
