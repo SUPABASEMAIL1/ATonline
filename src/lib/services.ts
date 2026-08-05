@@ -197,6 +197,8 @@ export const mapSale = (item: any): Sale => ({
   receiptNumber: item.receipt_number ?? item.receiptNumber,
   receivedAmount: item.received_amount ?? item.receivedAmount,
   changeAmount: item.change_amount ?? item.changeAmount,
+  salesmanId: item.salesman_id ?? item.salesmanId,
+  salesmanName: item.salesman_name ?? item.salesmanName,
   appliedDiscounts: item.applied_discounts ?? item.appliedDiscounts,
   freeGifts: item.free_gifts ?? item.freeGifts,
   saleDate: item.sale_date ?? item.saleDate,
@@ -212,8 +214,6 @@ export const mapSale = (item: any): Sale => ({
   deliveryLocationLat: item.delivery_location_lat ?? item.deliveryLocationLat,
   deliveryLocationLng: item.delivery_location_lng ?? item.deliveryLocationLng,
   customerNotes: item.customer_notes ?? item.customerNotes,
-  salesmanId: item.salesman_id ?? item.salesmanId,
-  salesmanName: item.salesman_name ?? item.salesmanName,
   timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
   createdAt: item.created_at ? new Date(item.created_at) : new Date(item.createdAt),
   updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(item.updatedAt)
@@ -741,6 +741,8 @@ export const toRemoteSale = (s: Partial<Sale>) => {
   if ('receiptNumber' in s) { remote.receipt_number = s.receiptNumber; delete remote.receiptNumber; }
   if ('receivedAmount' in s) { remote.received_amount = s.receivedAmount; delete remote.receivedAmount; }
   if ('changeAmount' in s) { remote.change_amount = s.changeAmount; delete remote.changeAmount; }
+  if ('salesmanId' in s) { remote.salesman_id = s.salesmanId; delete remote.salesmanId; }
+  if ('salesmanName' in s) { remote.salesman_name = s.salesmanName; delete remote.salesmanName; }
   if ('appliedDiscounts' in s) { remote.applied_discounts = s.appliedDiscounts; delete remote.appliedDiscounts; }
   if ('freeGifts' in s) { remote.free_gifts = s.freeGifts; delete remote.freeGifts; }
   if ('saleDate' in s) { remote.sale_date = s.saleDate; delete remote.saleDate; }
