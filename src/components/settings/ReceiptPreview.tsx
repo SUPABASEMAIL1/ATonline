@@ -209,9 +209,12 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
         </div>
       )}
       {settings.receiptShowFooter !== false && settings.receiptFooter && (
-        <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>
+        <div style={{ marginBottom: '8px', whiteSpace: 'pre-wrap' }}>{settings.receiptFooter}</div>
       )}
-      <div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
+      {settings.receiptShowFooter !== false && settings.storeWebsite && (
+        <div style={{ marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
+      )}
+      <div style={{ marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
     </div>
   );
 
@@ -316,9 +319,12 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
         </div>
       )}
       {settings.receiptShowFooter !== false && settings.receiptFooter && (
-        <div style={{ marginBottom: '8px' }}>{settings.receiptFooter}</div>
+        <div style={{ marginBottom: '8px', whiteSpace: 'pre-wrap' }}>{settings.receiptFooter}</div>
       )}
-      <div style={{ marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
+      {settings.receiptShowFooter !== false && settings.storeWebsite && (
+        <div style={{ marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
+      )}
+      <div style={{ marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
     </div>
   );
 
@@ -398,7 +404,13 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
               {paymentBlock}
               {notesBlock}
             </div>
-            <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
+            {settings.receiptShowFooter !== false && settings.receiptFooter && (
+              <div style={{ textAlign: 'center', marginTop: '15px', whiteSpace: 'pre-wrap', fontSize: `${fs.footer}px` }}>{settings.receiptFooter}</div>
+            )}
+            {settings.receiptShowFooter !== false && settings.storeWebsite && (
+              <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
+            )}
+            <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
           </div>
         );
 
@@ -424,7 +436,13 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             <div style={{ textAlign: 'left', margin: '10px 0' }}>
               <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
             </div>
-            <div style={{ textAlign: 'left', marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
+            {settings.receiptShowFooter !== false && settings.receiptFooter && (
+              <div style={{ textAlign: 'left', marginTop: '8px', whiteSpace: 'pre-wrap', fontSize: `${fs.footer}px` }}>{settings.receiptFooter}</div>
+            )}
+            {settings.receiptShowFooter !== false && settings.storeWebsite && (
+              <div style={{ textAlign: 'left', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
+            )}
+            <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
           </>
         );
 
@@ -537,7 +555,13 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             <div style={{ border: '1px solid #000', padding: '10px 0', marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
               <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
             </div>
-            <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
+            {settings.receiptShowFooter !== false && settings.receiptFooter && (
+              <div style={{ textAlign: 'center', marginTop: '8px', whiteSpace: 'pre-wrap', fontSize: `${fs.footer}px` }}>{settings.receiptFooter}</div>
+            )}
+            {settings.receiptShowFooter !== false && settings.storeWebsite && (
+              <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
+            )}
+            <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
           </>
         );
 
@@ -568,7 +592,10 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             {footerBlock}
             <div style={{ borderTop: '2px dashed #000', marginTop: '20px', paddingTop: '15px', position: 'relative', textAlign: 'center' }}>
               <span style={{ position: 'absolute', top: '-11px', left: '50%', background: '#fff', padding: '0 5px', fontSize: '14px' }}>✂</span>
-              <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>(WWW.ZAYNAHSPOS.COM)</div>
+              {settings.receiptShowFooter !== false && settings.storeWebsite && (
+                <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
+              )}
+              <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
             </div>
           </>
         );
