@@ -310,7 +310,7 @@ export function Settings() {
       receiptDensity: state.settings?.receiptDensity || 'normal',
       receiptHeader: state.settings?.receiptHeader || '',
       receiptFooter: state.settings?.receiptFooter || '',
-      receiptShowFooter: !!state.settings?.receiptShowFooter,
+      receiptShowFooter: state.settings?.receiptShowFooter ?? true,
       receiptShowLogo: state.settings?.receiptShowLogo ?? true,
       receiptShowTax: state.settings?.receiptShowTax ?? true,
       receiptShowDiscount: state.settings?.receiptShowDiscount ?? true,

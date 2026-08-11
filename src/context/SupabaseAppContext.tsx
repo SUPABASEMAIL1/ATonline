@@ -240,6 +240,7 @@ const getCachedSettings = (): AppState['settings'] => {
     receiptFontWeight: 400,
     receiptHeader: 'Official Sales Receipt',
     receiptFooter: 'Thank you for shopping with us!',
+    receiptShowFooter: true,
     barcodePaperSize: 'A4',
     barcodeA4Columns: 3,
     barcodeA4Rows: 10,
