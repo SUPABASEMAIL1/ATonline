@@ -986,7 +986,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
 
     const bundleItemsInCart = state.cart.filter((x: any) => {
       const bId = x.bundleId || x.bundle_id;
-      return bId && bId.startsWith(item.id);
+      return bId && bId.startsWith(item.id + '-');
     });
     if (bundleItemsInCart.length === 0) {
       if (d > 0) handleAddBundle(item);
@@ -1009,7 +1009,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
     if (newBundleQty <= 0) {
       const updatedCart = state.cart.filter((x: any) => {
         const bId = x.bundleId || x.bundle_id;
-        return !(bId && bId.startsWith(item.id));
+        return !(bId && bId.startsWith(item.id + '-'));
       });
       dispatch({ type: 'SET_CART', payload: updatedCart });
       return;
@@ -1019,7 +1019,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
 
     const newCart = state.cart.map(cartItem => {
       const bId = cartItem.bundleId || cartItem.bundle_id;
-      if (bId && bId.startsWith(item.id)) {
+      if (bId && bId.startsWith(item.id + '-')) {
         const itemBaseQty = cartItem.quantity / currentQty;
         const qty = isReturnMode ? -Math.abs(itemBaseQty * newBundleQty) : itemBaseQty * newBundleQty;
 
@@ -1031,7 +1031,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           ...cartItem,
           quantity: qty,
           discount: discount,
-          subtotal: (cartItem.product.price + toppingsTotal) * qty - discount
+          subtotal: ((cartItem.price ?? cartItem.product.price) + toppingsTotal) * qty - discount
         };
       }
       return cartItem;
@@ -1058,18 +1058,8 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         variantToSet = '13 Inch';
       }
 
-      const signaturePayload = {
-        baseId: bundle.id,
-        items: selectedItems?.map(i => `${i.productId}:${i.quantity}`).sort().join(',') || '',
-        toppings: toppingsMap ? Object.entries(toppingsMap).map(([pid, tArr]) => `${pid}:${tArr.map(t => t.id).sort().join(',')}`).sort().join('|') : ''
-      };
-      const signatureString = JSON.stringify(signaturePayload);
-      let hash = 0;
-      for (let i = 0; i < signatureString.length; i++) {
-        hash = ((hash << 5) - hash) + signatureString.charCodeAt(i);
-        hash |= 0;
-      }
-      const bundleInstanceId = `${bundle.id}-${Math.abs(hash)}`;
+      // Use crypto.randomUUID() combined with bundle.id for strict collision prevention
+      const bundleInstanceId = `${bundle.id}-${crypto.randomUUID()}`;
 
       const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map((item, idx) => {
         let updatedItem = { ...item, bundleId: bundleInstanceId, bundle_id: bundleInstanceId };
@@ -1106,7 +1096,23 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         }))
         : cartItems;
 
-      dispatch({ type: 'MERGE_BUNDLE_CART_ITEMS', payload: itemsToDispatch });
+      
+      const existingInstance = state.cart.filter(x => (x.bundleId || x.bundle_id) === bundleInstanceId);
+      if (existingInstance.length > 0) {
+        const mergedItems = itemsToDispatch.map(item => {
+          const prev = existingInstance.find(x => x.product.id === item.product.id);
+          if (!prev) return item;
+          return {
+            ...prev,
+            quantity: prev.quantity + item.quantity,
+            discount: prev.discount + item.discount,
+            subtotal: prev.subtotal + item.subtotal,
+          };
+        });
+        dispatch({ type: 'SET_CART', payload: [...state.cart.filter(x => (x.bundleId || x.bundle_id) !== bundleInstanceId), ...mergedItems] });
+      } else {
+        dispatch({ type: 'MERGE_BUNDLE_CART_ITEMS', payload: itemsToDispatch });
+      }
 
       const discountText = bundle.discountType === 'percentage'
         ? `${bundle.discountValue}%`
@@ -1206,7 +1212,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           if (!isGroup) {
             const bundleItemsInCart = state.cart.filter((x: any) => {
               const bId = x.bundleId || x.bundle_id;
-              return bId && bId.startsWith(item.id);
+              return bId && bId.startsWith(item.id + '-');
             });
             if (bundleItemsInCart.length > 0) {
               if (item.items && item.items.length > 0) {
