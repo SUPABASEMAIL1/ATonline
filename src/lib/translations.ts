@@ -114,7 +114,7 @@ export const translations: Record<string, Record<string, string>> = {
     general_settings: "General Settings",
     receipt_design: "Receipt Design",
     security_account: "Security & Account",
-    db_tools: "Zaynahs DB",
+    db_tools: "Database",
     store_identity: "Store Identity",
     store_identity_subtitle: "How your business appears to customers",
     business_name: "Business Name",

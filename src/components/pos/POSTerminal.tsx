@@ -135,7 +135,7 @@ export function POSTerminal() {
     };
   }, [isMobileCartOpen, showCheckout, isDraftsModalOpen, isShortcutsModalOpen, optionsProduct]);
 
-  const addToCart = (product: Product, weight?: number, options?: { selectedVariant?: string; selectedModifiers?: ProductModifier[]; addonItems?: CartAddonItem[]; serialNumber?: string; toppings?: CartItemTopping[]; overrideProduct?: Product }) => {
+  const addToCart = (product: Product, weight?: number, options?: { selectedVariant?: string; selectedVariantId?: string; selectedVariantLabel?: string; selectedModifiers?: ProductModifier[]; addonItems?: CartAddonItem[]; serialNumber?: string; toppings?: CartItemTopping[]; overrideProduct?: Product }) => {
     
     // If an overrideProduct is provided (e.g. a variation child selected in modal), use it instead of the parent
     if (options?.overrideProduct) {
@@ -263,6 +263,8 @@ export function POSTerminal() {
         subtotal: product.isWeightBased ? price * Math.sign(newQuantity) : price * newQuantity,
         originalPrice: basePrice,
         selectedVariant: options?.selectedVariant,
+        selectedVariantId: options?.selectedVariantId,
+        selectedVariantLabel: options?.selectedVariantLabel,
         selectedModifiers: options?.selectedModifiers,
         addonItems: options?.addonItems,
         serialNumber: options?.serialNumber,
@@ -367,7 +369,9 @@ export function POSTerminal() {
         taxAmount: 0,
         total: cartTotal,
         paymentMethod: 'cash',
-        status: 'completed',
+        // DRAFT RULE: drafts are saved carts, NOT revenue — status must stay 'pending'
+        // so reports, stock, and customer stats never count them until completion.
+        status: 'pending',
         cashier: user?.user_metadata?.full_name || user?.email || 'Unknown',
         timestamp: new Date(),
         receiptNumber: `DRAFT-${Date.now().toString().slice(-6)}`,

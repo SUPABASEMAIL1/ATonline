@@ -44,28 +44,30 @@ export function DashboardManager() {
 
     return {
       total: todaySales.reduce((sum, s) => {
-        if (s.status === 'completed' || s.status === 'credit') return sum + s.total;
+        // UNIVERSAL REVENUE RULE: revenue = money actually collected. Credit sales are
+        // NOT revenue until collected — must match ReportsManager exactly.
+        if (s.status === 'completed') return sum + s.total;
         if (s.status === 'refunded') return sum - (s.total || 0);
     if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
         return sum;
       }, 0),
       cash: todaySales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'cash');
-        if (s.status === 'completed' || s.status === 'credit') return sum + amt;
+        if (s.status === 'completed') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
         if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
       }, 0),
       card: todaySales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'card');
-        if (s.status === 'completed' || s.status === 'credit') return sum + amt;
+        if (s.status === 'completed') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
         if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
       }, 0),
       digital: todaySales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'digital');
-        if (s.status === 'completed' || s.status === 'credit') return sum + amt;
+        if (s.status === 'completed') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
         if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
@@ -163,7 +165,7 @@ export function DashboardManager() {
               </div>
               <div className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20 flex items-center gap-1">
                 <Activity className="w-2.5 h-2.5" />
-                <span className="text-[8px] font-black uppercase tracking-widest">Zaynahs POS</span>
+                <span className="text-[8px] font-black uppercase tracking-widest">POS</span>
               </div>
             </div>
 

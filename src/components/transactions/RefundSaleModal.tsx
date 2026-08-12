@@ -35,9 +35,14 @@ export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund
     (sale.items || []).forEach((item, index) => {
       const refundQty = partialQtys[index] || 0;
       if (refundQty > 0) {
-        const unitPrice = item.quantity > 0 ? (item.total || item.subtotal || 0) / item.quantity : 0;
-        const refundAmount = unitPrice * refundQty;
-        total += refundAmount;
+        // MONEY RULE: round every money value to 2 decimal places — float division
+        // (unitPrice = subtotal/qty) otherwise drifts cents into the ledger on
+        // repeated partial refunds.
+        const unitPrice = item.quantity > 0
+          ? Math.round(((item.total || item.subtotal || 0) / item.quantity) * 100) / 100
+          : 0;
+        const refundAmount = Math.round(unitPrice * refundQty * 100) / 100;
+        total = Math.round((total + refundAmount) * 100) / 100;
         items.push({
           index,
           productId: item.product.id,

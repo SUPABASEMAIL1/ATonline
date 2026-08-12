@@ -401,7 +401,14 @@ export function ReportsManager() {
   }, [reportSales, reportExpenses]);
 
   const filteredSales = useMemo(() => {
-    const allSalesRaw = [...reportSales, ...reportRefunds];
+    // PARTIAL-REFUND DEDUPE (universal rule): getReportSales includes 'partially_refunded'
+    // AND getReportRefunds includes it — without dedupe the refund amount is subtracted
+    // TWICE from revenue. Merge by id, reportSales copy wins, refunds only add NEW ids.
+    const salesById = new Map<string, any>();
+    reportSales.forEach(s => { if (s && s.id) salesById.set(s.id, s); });
+    reportRefunds.forEach(s => { if (s && s.id && !salesById.has(s.id)) salesById.set(s.id, s); });
+
+    const allSalesRaw = Array.from(salesById.values());
     
     // Unroll addonItems into separate line items for accurate reporting
     const allSales = allSalesRaw.map(sale => {
@@ -712,8 +719,10 @@ export function ReportsManager() {
   const creditSalesCount = filteredSales.filter(s => s.status === 'credit' || s.paymentMethod === 'credit').length;
 
   // Credit payments COLLECTED in this period (money actually received)
-  const creditCollectedTotal = reportPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-  const creditCollectedCount = reportPayments.length;
+  // Universal rule: refund payouts are direction:'out' — NEVER count them as collections.
+  const creditCollectedTotal = reportPayments.reduce((sum: number, p: any) =>
+    p.direction === 'out' ? sum : sum + (p.amount || 0), 0);
+  const creditCollectedCount = reportPayments.filter((p: any) => p.direction !== 'out').length;
 
   const totalTransactions = filteredSales.filter(s => s.status === 'completed').length;
   const averageTransaction = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
@@ -744,7 +753,10 @@ export function ReportsManager() {
       const estoreSales = filteredSales.filter(s => (s.status === 'completed' || s.status === 'credit') && s.saleType === 'estore').reduce((a, x) => a + getAmountByMethod(x, method), 0);
 
       // Amount from credit collections (payments received)
-      const collections = reportPayments.filter(p => p.method === method).reduce((a, p) => a + (p.amount || 0), 0);
+      // Universal rule: exclude refund payouts (direction:'out') from collections.
+      const collections = reportPayments
+        .filter(p => p.direction !== 'out' && p.method === method)
+        .reduce((a, p) => a + (p.amount || 0), 0);
       
       const expenses = filteredExpenses.filter(e => e.paymentMethod === method).reduce((a, x) => a + Number(x.amount), 0);
       const refunds = filteredSales.reduce((a, x) => {

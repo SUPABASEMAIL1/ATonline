@@ -24,6 +24,8 @@ export interface StockInCommitItem {
   supplier?: string;
   type?: string;
   notes?: string;
+  variantId?: string;
+  variantLabel?: string;
 }
 
 interface StockInCommitParams {
@@ -55,6 +57,8 @@ export async function commitStockInToInventory({
       productId: item.id,
       productName: item.name,
       sku: item.sku || '',
+      variantId: item.variantId,
+      variantLabel: item.variantLabel,
       quantity: item.quantity,
       costPrice: item.costPrice || 0,
       totalAmount: item.quantity * (item.costPrice || 0),

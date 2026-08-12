@@ -72,7 +72,7 @@ export interface SyncHistoryItem {
   status: 'success' | 'partial' | 'failed';
 }
 
-export class ZaynahsPosDB extends Dexie {
+export class PosDB extends Dexie {
   products!: Table<Product>;
   customers!: Table<Customer>;
   sales!: Table<Sale>;
@@ -105,6 +105,9 @@ export class ZaynahsPosDB extends Dexie {
 
   constructor() {
     // Make the IndexedDB name unique per Supabase Project so different clones on localhost don't share data
+    // NOTE: 'ZaynahsPosDB_' prefix is intentionally PRESERVED — renaming would orphan
+    // every existing device's IndexedDB data (full local cache wipe on upgrade).
+    // Universal branding applies to UI strings, never to persistence keys.
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
     const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || 'default';
     const dbName = `ZaynahsPosDB_${projectRef}`;
@@ -262,10 +265,9 @@ export class ZaynahsPosDB extends Dexie {
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock',
       categories: 'id, name',
       suppliers: 'id, name',
-      sales: 'id, invoiceNumber, customerId, shiftId, timestamp, saleDate, status, dcNumber, extraCharges',
+      sales: 'id, invoiceNumber, customerId, timestamp, saleDate, status, dcNumber, extraCharges',
       customers: 'id, name, phone, email',
-      expenses: 'id, categoryId, shiftId, date',
-      shifts: 'id, userId, startTime, endTime, status',
+      expenses: 'id, categoryId, date',
       discounts: 'id, name, type, active',
       users: 'id, username, email',
       productBatches: 'id, productId, created_at, status',
@@ -279,7 +281,6 @@ export class ZaynahsPosDB extends Dexie {
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',
       pendingOps: '++id, [entity+entityId], status, createdAt',
       syncHistory: '++id, timestamp',
-      shiftDenominations: 'id, shiftId',
       // Legacy compatibility:
       app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
       purchase_records: 'id, productId, supplierId, date'
@@ -317,13 +318,12 @@ export class ZaynahsPosDB extends Dexie {
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock',
       categories: 'id, name',
       suppliers: 'id, name',
-      sales: 'id, invoiceNumber, customerId, shiftId, timestamp, saleDate, status, dcNumber, extraCharges',
+      sales: 'id, invoiceNumber, customerId, timestamp, saleDate, status, dcNumber, extraCharges',
       customers: 'id, name, phone, email',
-      expenses: 'id, categoryId, shiftId, date',
+      expenses: 'id, categoryId, date',
       expense_categories: 'id, name',
       purchase_records: 'id, productId, supplierId, date',
       app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
-      shifts: 'id, userId, startTime, endTime, status',
       discounts: 'id, name, type, active',
       terminal_stats: 'id',
       sync_status: 'id'
@@ -333,13 +333,12 @@ export class ZaynahsPosDB extends Dexie {
       products: 'id, name, barcode, sku, categoryId, supplierId, isDraft, trackInventory, stock',
       categories: 'id, name',
       suppliers: 'id, name',
-      sales: 'id, invoiceNumber, customerId, shiftId, timestamp, saleDate, status, dcNumber, extraCharges',
+      sales: 'id, invoiceNumber, customerId, timestamp, saleDate, status, dcNumber, extraCharges',
       customers: 'id, name, phone, email',
-      expenses: 'id, categoryId, shiftId, date',
+      expenses: 'id, categoryId, date',
       expense_categories: 'id, name',
       purchase_records: 'id, productId, supplierId, date',
       app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
-      shifts: 'id, userId, startTime, endTime, status',
       discounts: 'id, name, type, active',
       terminal_stats: 'id',
       sync_status: 'id'
@@ -360,8 +359,6 @@ export class ZaynahsPosDB extends Dexie {
       supplierTransactions: 'id, supplierId',
       payments: 'id, supplierId',
       stockHistory: 'id, productId',
-      shifts: 'id, userId, status',
-      shiftDenominations: 'id, shiftId',
       salesTabs: 'id, userId',
       expenses: 'id, category, date',
       appSettings: 'id',
@@ -384,8 +381,6 @@ export class ZaynahsPosDB extends Dexie {
       supplierTransactions: 'id, supplierId',
       payments: 'id, supplierId',
       stockHistory: 'id, productId',
-      shifts: 'id, userId, status',
-      shiftDenominations: 'id, shiftId',
       salesTabs: 'id, userId',
       expenses: 'id, category, date',
       appSettings: 'id',
@@ -408,8 +403,6 @@ export class ZaynahsPosDB extends Dexie {
       supplierTransactions: 'id, supplierId',
       payments: 'id, supplierId',
       stockHistory: 'id, productId',
-      shifts: 'id, userId, status',
-      shiftDenominations: 'id, shiftId',
       salesTabs: 'id, userId',
       expenses: 'id, category, date',
       appSettings: 'id',
@@ -438,8 +431,6 @@ export class ZaynahsPosDB extends Dexie {
       supplierTransactions: 'id, supplierId',
       payments: 'id, supplierId',
       stockHistory: 'id, productId',
-      shifts: 'id, userId, status',
-      shiftDenominations: 'id, shift_id',
       salesTabs: 'id, userId',
       expenses: 'id, category, date',
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType',
@@ -462,8 +453,6 @@ export class ZaynahsPosDB extends Dexie {
       supplierTransactions: 'id, supplierId',
       payments: 'id, supplierId',
       stockHistory: 'id, productId',
-      shifts: 'id, userId, status',
-      shiftDenominations: 'id, shiftId',
       salesTabs: 'id, userId',
       expenses: 'id, category, date',
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns',
@@ -472,8 +461,8 @@ export class ZaynahsPosDB extends Dexie {
     });
 
     this.version(7).stores({
-      sales: 'id, invoiceNumber, customerId, timestamp, shiftId, refundShiftId',
-      expenses: 'id, category, date, shiftId'
+      sales: 'id, invoiceNumber, customerId, timestamp',
+      expenses: 'id, category, date'
     });
 
     this.version(8).stores({
@@ -484,21 +473,21 @@ export class ZaynahsPosDB extends Dexie {
     });
 
     this.version(9).stores({
-      sales: 'id, invoiceNumber, customerId, timestamp, shiftId, refundShiftId, status, paymentMethod',
+      sales: 'id, invoiceNumber, customerId, timestamp, status, paymentMethod',
       products: 'id, name, sku, barcode, category, supplier, stock, active',
       stockHistory: 'id, productId, timestamp, type',
-      expenses: 'id, category, date, shiftId, paymentMethod',
+      expenses: 'id, category, date, paymentMethod',
       customers: 'id, name, email, phone',
       productBatches: 'id, productId, created_at, status'
     });
 
     this.version(10).stores({
-      sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, shiftId, refundShiftId, status, paymentMethod',
+      sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, status, paymentMethod',
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment'
     });
 
     this.version(11).stores({
-      sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, shiftId, refundShiftId, status, paymentMethod, salesmanId',
+      sales: 'id, invoiceNumber, dcNumber, customerId, timestamp, status, paymentMethod, salesmanId',
       salesmen: 'id, name, active'
     });
 
@@ -508,7 +497,7 @@ export class ZaynahsPosDB extends Dexie {
   }
 }
 
-export const localDb = new ZaynahsPosDB();
+export const localDb = new PosDB();
 
 
 // Atomic ID generation helper
@@ -534,11 +523,22 @@ export async function queueOp(
   options?: { batchId?: string }
 ) {
   try {
-    // ── QUEUE SIZE CAP ──
+    // ── QUEUE SIZE CAP (FINANCIAL SAFETY) ──
+    // Never drop sales/stock_history ops — losing them silently corrupts the cloud ledger.
+    // Instead, prune earlier-errored ops (they are already stuck) then always enqueue.
     const queueCount = await localDb.pendingOps.count();
     if (queueCount >= 1000) {
-      console.warn(`[DB] Pending ops queue has ${queueCount} items — dropping new op to prevent unbounded growth.`);
-      return;
+      const droppable = await localDb.pendingOps
+        .where('status')
+        .equals('error')
+        .limit(queueCount - 800)
+        .toArray();
+      if (droppable.length > 0) {
+        await localDb.pendingOps.bulkDelete(droppable.map(o => o.id).filter(Boolean) as number[]);
+        console.warn(`[DB] Queue at cap — pruned ${droppable.length} errored ops to make room. NEVER dropping pending ops.`);
+      } else {
+        console.warn(`[DB] Pending ops queue at ${queueCount} items — all pending (financial records). Queue stays; sync will drain it.`);
+      }
     }
 
     const existing = await localDb.pendingOps
@@ -547,18 +547,33 @@ export async function queueOp(
       .first();
 
     if (existing && opType !== 'delete') {
-      // If we already have a 'create' or 'upsert' pending, stay in that state
-      const newOpType = (existing.opType === 'create' || existing.opType === 'upsert')
-        ? existing.opType
-        : opType;
+      // MERGE RULES (universal, financial-safe):
+      // 1. A queued 'delete' MUST survive later update/upsert attempts — deleting a record
+      //    then editing it means the record is deleted; allowing the update to win would
+      //    silently RESURRECT financial records on the cloud (dedup data-loss class).
+      // 2. Fresh payload 'create'/'upsert' stays in that state (create+update = create).
+      // 3. Merging MUST reset retries/status — a stuck op (error, retries >= 5) merged with
+      //    a new edit becomes processable again. Never leave a zombie op that forever fails
+      //    both the retry filter and the error-recovery filter.
+      let newOpType: PendingOpType | 'upsert';
+      if (existing.opType === 'delete') {
+        newOpType = 'delete';
+      } else if (existing.opType === 'create' || existing.opType === 'upsert') {
+        newOpType = existing.opType;
+      } else {
+        newOpType = opType;
+      }
 
-      const mergedPayload = { ...existing.payload, ...payload };
+      const mergedPayload = (existing.opType === 'delete' || newOpType === 'delete')
+        ? existing.payload
+        : { ...existing.payload, ...payload };
 
       await localDb.pendingOps.update(existing.id!, {
         payload: mergedPayload,
         opType: newOpType,
         createdAt: Date.now(),
         status: 'pending',
+        retries: 0,
         ...(options?.batchId && !existing.batchId ? { batchId: options.batchId } : {})
       });
     } else {

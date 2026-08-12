@@ -9,20 +9,12 @@ import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { SharedSearchBar, SharedProductList } from '../../shared/modules/search-and-list';
 import {
-  productsService,
-  suppliersService,
-  expensesService,
-  generateId,
-  toRemoteProductBatch,
-  toRemoteSupplierTransaction,
-  toRemotePurchaseRecord,
-  toRemoteStockHistory,
-  toRemoteExpense
+  productsService
 } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { Product } from '../../types';
 import { formatCurrency, getCurrencySymbol } from '../../lib/currencies';
-import { queueOp, localDb } from '../../lib/localDb';
+import { commitStockInToInventory } from '../../lib/stockInCommit';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -127,90 +119,47 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
         const qty = Number(item.quantity);
         const cost = Number(item.costPrice);
         const retail = Number(item.retailPrice);
-        const batchId = generateId();
-
-        const recordId = generateId();
-        const newRecord = {
-          id: recordId,
-          productId: item.id,
-          productName: item.name,
-          sku: item.sku || '',
-          quantity: qty,
-          costPrice: cost,
-          totalAmount: qty * cost,
-          type: 'Stock IN',
-          supplier: item.batchSupplier || item.supplier || 'DIRECT ENTRY',
-          date: timestamp,
-          addedBy: profile?.email || 'System',
-          notes: batchData.notes ? `${batchData.notes} | Batch Record` : 'Inventory Re-stock',
-          createdAt: now
-        };
-        await localDb.purchaseRecords.add(newRecord as any);
-        queueOp('purchase_records', 'create', recordId, toRemotePurchaseRecord(newRecord as any));
-
-        dispatch({ type: 'ADD_PURCHASE_RECORD', payload: newRecord as any });
+        const supplier = item.batchSupplier || item.supplier || 'DIRECT ENTRY';
 
         const currentProduct = state.products.find(p => p.id === item.id);
-        if (currentProduct) {
-          const baselineStock = (currentProduct.stock >= 990000 || currentProduct.trackInventory === false) ? 0 : currentProduct.stock;
-          const newStockCount = baselineStock + qty;
 
-          const updatedProduct = {
-            ...currentProduct,
-            stock: newStockCount,
-            cost: cost,
+        // Preserve infinite-baseline behaviour: non-tracked products (999999 baseline) reset to 0 first
+        if (currentProduct && (currentProduct.stock >= 990000 || currentProduct.trackInventory === false)) {
+          await productsService.update(item.id, { stock: 0, trackInventory: true });
+        }
+
+        // Sync retail price + tracking metadata (stock is stripped inside productsService.update —
+        // cloud stock is updated ONLY via stock_history/variant_stock_history triggers)
+        if (currentProduct && (retail > 0 && retail !== currentProduct.price)) {
+          await productsService.update(item.id, {
             price: retail,
             trackInventory: true,
             supplier: item.batchSupplier || currentProduct.supplier
-          };
-
-          await productsService.update(item.id, {
-            stock: updatedProduct.stock,
-            cost: updatedProduct.cost,
-            price: updatedProduct.price,
-            trackInventory: true,
-            supplier: updatedProduct.supplier
           });
-
-          const histId = generateId();
-          const histEntry = {
-            id: histId,
-            productId: item.id,
-            changeQty: qty,
-            type: 'stock_in' as const,
-            referenceId: recordId,
-            note: `Batch Stock In: ${item.batchSupplier || item.supplier || 'DIRECT'}`,
-            balanceAfter: newStockCount,
-            cashierId: profile?.id || state.currentUser?.id,
-            cashierName: profile?.name || state.currentUser?.name || profile?.username || state.currentUser?.username || 'System',
-            createdAt: now
-          };
-          await localDb.stockHistory.add(histEntry);
-          queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
-
-          dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
         }
 
-        // Record supplier ledger transaction if toggle is ON and a supplier is associated
-        const supplierName = item.batchSupplier || item.supplier;
-        if (recordAsSupplierBill && supplierName && supplierName !== 'DIRECT ENTRY') {
-          const matchedSupplier = state.suppliers.find(
-            s => s.name.toLowerCase() === supplierName.toLowerCase()
-          );
-          if (matchedSupplier) {
-            try {
-              await suppliersService.recordBill({
-                supplierId: matchedSupplier.id,
-                amount: qty * cost,
-                note: `Stock In: ${item.name} x${qty}`,
-                referenceId: recordId,
-                sourceType: 'auto_purchase',
-              });
-            } catch (ledgerErr) {
-              console.warn('[BatchStockIn] Failed to record supplier ledger entry:', ledgerErr);
-            }
-          }
-        }
+        // SHARED COMMIT PATH — single source of truth for stock-in (never a parallel
+        // implementation): purchase record + product stock + stock_history + variant
+        // restock ledger (F22) + supplier bill all handled inside commitStockInToInventory.
+        await commitStockInToInventory({
+          items: [{
+            id: item.id,
+            name: item.name,
+            sku: item.sku || '',
+            quantity: qty,
+            costPrice: cost,
+            supplier,
+            type: 'Stock IN',
+            notes: batchData.notes ? `${batchData.notes} | Batch Record` : 'Inventory Re-stock',
+            variantId: item.variantId,
+            variantLabel: item.variantLabel
+          }],
+          recordAsSupplierBill,
+          suppliers: state.suppliers,
+          profile,
+          dispatch,
+          date: timestamp
+        });
       }
 
 
@@ -359,6 +308,7 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
                   <tr className="bg-gray-50 dark:bg-white/[0.02]">
                     <th className="px-6 py-4 text-[9px] font-black text-gray-600 uppercase tracking-[0.2em]">{t('product_identity')}</th>
                     <th className="px-6 py-4 text-[9px] font-black text-gray-600 uppercase tracking-[0.2em]">{t('sourcing')}</th>
+                    <th className="px-6 py-4 text-[9px] font-black text-gray-600 uppercase tracking-[0.2em]">{t('variant', 'VARIANT')}</th>
                     <th className="px-6 py-4 text-[9px] font-black text-primary uppercase tracking-[0.2em] text-center">{t('qty')}</th>
                     <th className="px-6 py-4 text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] text-right">{t('cost')}</th>
                     <th className="px-6 py-4 text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] text-right">{t('retail')}</th>
@@ -380,6 +330,28 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
                           className="w-full bg-[#f8f9fa] dark:bg-black/20 border-none rounded-lg px-3 py-2 text-[10px] font-black text-gray-900 dark:text-white uppercase"
                           placeholder={t('direct_entry')}
                         />
+                      </td>
+                      <td className="px-6 py-4 min-w-[170px]">
+                        {(item.variantData || []).some((vd: any) => vd.trackInventory !== false) ? (
+                          <SearchableSelect
+                            options={[
+                              { id: '__general__', label: t('general_stock', 'GENERAL STOCK') },
+                              ...(item.variantData || []).map((vd: any) => ({
+                                id: vd.id,
+                                label: `${vd.option1 || ''}${vd.option2 ? ` / ${vd.option2}` : ''}`,
+                                sublabel: vd.stock !== undefined ? `Stock: ${vd.stock}` : undefined
+                              }))
+                            ]}
+                            value={item.variantId || '__general__'}
+                            onChange={(val) => {
+                              const vd = (item.variantData || []).find((v: any) => v.id === val);
+                              updateItem(item.id, 'variantId', val === '__general__' ? undefined : val);
+                              updateItem(item.id, 'variantLabel', val === '__general__' ? undefined : (vd ? `${vd.option1 || ''}${vd.option2 ? ` / ${vd.option2}` : ''}` : undefined));
+                            }}
+                          />
+                        ) : (
+                          <span className="text-[9px] font-black text-gray-400 uppercase">{t('general', 'General')}</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <input

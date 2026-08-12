@@ -7,6 +7,10 @@ import { BarcodePreview } from '../common/BarcodePreview';
 
 interface ReceiptPreviewProps { settings: AppSettings; }
 
+
+// ── CENTRALIZED WATERMARK (Applied to all templates) ──
+const RECEIPT_WATERMARK = <div style={{ textAlign: 'center', marginTop: '16px', borderTop: '1px dashed rgba(0,0,0,0.3)', paddingTop: '8px', marginBottom: '2px', fontSize: '7.5px', letterSpacing: '1px', fontWeight: 600, opacity: 0.8, fontFamily: 'system-ui, sans-serif' }}>POWERED BY ZAYNAHSPOS.COM</div>;
+
 export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -139,7 +143,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
       {settings.receiptShowStoreAddress && <div style={{ marginTop: '4px' }}>{settings.storeAddress}</div>}
       <div style={{ marginTop: '2px' }}>
         {settings.receiptShowStorePhone && <span>T: {settings.storePhone || '+92 300 0000000'}</span>}
-        {settings.receiptShowStoreEmail && <span style={{ marginLeft: '6px' }}>E: {settings.storeEmail || 'contact@zaynahspos.com'}</span>}
+        {settings.receiptShowStoreEmail && <span style={{ marginLeft: '6px' }}>E: {settings.storeEmail || 'contact@mystore.com'}</span>}
       </div>
       {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100) }}>{settings.receiptHeader}</div>}
     </>
@@ -169,7 +173,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
         )}
         {showQr && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '8px', textAlign: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
+            <span style={{ fontSize: '7px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
             <QRCodeSVG value="https://www.google.com/maps/search/?api=1&query=24.8607,67.0011" size={90} level="M" style={{ margin: '0 auto' }} />
           </div>
         )}
@@ -214,7 +218,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
       {settings.receiptShowFooter !== false && settings.storeWebsite && (
         <div style={{ marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
       )}
-      <div style={{ marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+      {RECEIPT_WATERMARK}
     </div>
   );
 
@@ -254,7 +258,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
       {settings.receiptShowStoreAddress && <div style={{ marginTop: '4px' }}>{settings.storeAddress}</div>}
       <div style={{ marginTop: '2px' }}>
         {settings.receiptShowStorePhone && <span>T: {settings.storePhone || '+92 300 0000000'}</span>}
-        {settings.receiptShowStoreEmail && <span style={{ marginLeft: '6px' }}>E: {settings.storeEmail || 'contact@zaynahspos.com'}</span>}
+        {settings.receiptShowStoreEmail && <span style={{ marginLeft: '6px' }}>E: {settings.storeEmail || 'contact@mystore.com'}</span>}
       </div>
     </>
   );
@@ -275,7 +279,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
         )}
         {showQr && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '8px', textAlign: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
+            <span style={{ fontSize: '7px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
             <QRCodeSVG value="https://www.google.com/maps/search/?api=1&query=24.8607,67.0011" size={90} level="M" style={{ margin: '0 auto' }} />
           </div>
         )}
@@ -324,7 +328,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
       {settings.receiptShowFooter !== false && settings.storeWebsite && (
         <div style={{ marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
       )}
-      <div style={{ marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+      {RECEIPT_WATERMARK}
     </div>
   );
 
@@ -410,7 +414,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             {settings.receiptShowFooter !== false && settings.storeWebsite && (
               <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
             )}
-            <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+            {RECEIPT_WATERMARK}
           </div>
         );
 
@@ -442,7 +446,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             {settings.receiptShowFooter !== false && settings.storeWebsite && (
               <div style={{ textAlign: 'left', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
             )}
-            <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+            {RECEIPT_WATERMARK}
           </>
         );
 
@@ -457,7 +461,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
                 <span>{settings.receiptShowStoreAddress && settings.storeAddress}</span>
                 <span>
                   {settings.receiptShowStorePhone && (settings.storePhone || '+92 300 0000000')}
-                  {settings.receiptShowStoreEmail && ` | ${settings.storeEmail || 'contact@zaynahspos.com'}`}
+                  {settings.receiptShowStoreEmail && ` | ${settings.storeEmail || 'contact@mystore.com'}`}
                 </span>
               </div>
             </div>
@@ -561,7 +565,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             {settings.receiptShowFooter !== false && settings.storeWebsite && (
               <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
             )}
-            <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+            {RECEIPT_WATERMARK}
           </>
         );
 
@@ -575,7 +579,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
               <div>
                 {settings.receiptShowStoreAddress && settings.storeAddress}
                 {settings.receiptShowStorePhone && ` | T: ${settings.storePhone || '+92 300 0000000'}`}
-                {settings.receiptShowStoreEmail && ` | E: ${settings.storeEmail || 'contact@zaynahspos.com'}`}
+                {settings.receiptShowStoreEmail && ` | E: ${settings.storeEmail || 'contact@mystore.com'}`}
               </div>
             </div>
             <div style={bodyStyle}>
@@ -595,7 +599,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
               {settings.receiptShowFooter !== false && settings.storeWebsite && (
                 <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
               )}
-              <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+              {RECEIPT_WATERMARK}
             </div>
           </>
         );

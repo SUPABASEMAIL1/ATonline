@@ -7,7 +7,7 @@
 
 ## 📑 Table of Contents
 
-1. [System Overview](#-system-overview)
+1. [System Overview](#-system-overview) — including **MAJOR RULES (non-negotiable)**
 2. [Architecture](#-architecture)
 3. [Tech Stack](#-tech-stack)
 4. [Project Structure](#-project-structure)
@@ -40,6 +40,20 @@ Zaynah's POS is a **local-first, single-tenant Point of Sale** system built for 
 | **Management API Only** | All DB operations via Supabase Management API (`sbp_` token). No Prisma, no direct connection strings |
 | **GRANT ALL** | `anon` role ko har table par full access hai. No RLS checks needed — single-tenant simplicity |
 | **Realtime Sync** | Supabase Realtime subscriptions se live updates aate hain across browser tabs |
+
+### ⚠️ MAJOR RULES (NON-NEGOTIABLE — har agent/session ke liye)
+
+| Rule | Detail |
+|------|--------|
+| **1. Code = UNIVERSAL** | Code kabhi kisi ek shop/business ke liye hardcode nahi hota. Branding, names, niches — sab settings se aate hain (fallback: `POS` / `My Store`). Saare 4 repos par **ek hi codebase** deploy hota hai — koi shop-specific code-changes nahi. Ek feature ek hi jagah fix hota hai, sabko milta hai |
+| **2. Env/Credentials HAMESHA `env_backups/` se** | Deploy aur DB operations se pehle `env_backups/` folder zarooor padho (har shop ka apna file: `JEANZONE-ENV`, `ATOLINE-ENV`, `minimahal-pos.env.local`, `.env.local.pizza-milano...`). Credentials **kabhi guess/mix nahi** karte — shop ka naam diya hai to sirf usi shop ka env use karo; "all/sab" kaho to 4 repos push |
+| **3. All Fixes → ALL Projects** | Har fix (code, SQL, schema, v1/release) har ek project par apply hota hai — koi project peeche nahi rehta. Deploy ke baad GH Actions + Cloudflare/Vercel + DB verify **zaroori**: bina verify "done" nahi kehte |
+| **4. Code 1 — Credentials ALAG-ALAG** | Sabki **code ek jaisi** hai, lekin **har shop ka apna env** hai (Supabase URL/anon/service key, Management API key, Cloudflare account/token). Dusre shop ke credentials kabhi use nahi karte; galat account par project kabhi nahi banate |
+| **5. Master Schema = SAME (parity)** | `supabase/schema/SUPER_MASTER_SCHEMA.sql` hi single source of truth — sab 4 projects par **exact same schema** (tables, columns, guards/triggers, functions, constraints, updated_at timestamps). Schema kabhi ek shop par baad mein nahi, sab par ek saath |
+| **6. Systems IDENTICAL on all projects** | Har system (F21 stale-write guards, F22 variant ledger, estore, inventory, reports, F23 guard-pattern) har DB par same behavior deta hai. Verify: TEST BATTERY har project par chalao — results **identical** expect (`f21_guards=24`, `tombstones=1`, `functions=7`). Koi divergence = fix zaroori |
+| **7. Docs Current** | `docs/SYSTEM_FUNCTIONS_GUIDE.md`, `docs/TESTS_GUIDE.md` (full test battery — koi miss na karo), `docs/MODULES.md`, `docs/UI_RULES.md`, `GEMINI.md` (SCHEMA CHANGE LOG + F-rules), `docs/setup.md` — jo bhi change ho, usi change mein update karo |
+
+> ⚠️ In rules ka ulhan = violation. Agent ka pehla kaam kisi bhi task se pehle: table of contents + MAJOR RULES + env_backups inventory.
 
 ### Data Flow
 
@@ -512,7 +526,7 @@ curl -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query"
 Ye 1 command sab kuch create karti hai:
 - ✅ 21 tables (all columns, constraints, defaults)
 - ✅ All indexes
-- ✅ All 12 functions
+- ✅ All 13 functions (incl. `on_stock_history_insert` + `on_variant_stock_history_insert` stock triggers + `get_next_invoice_number()` RPC)
 - ✅ Realtime publication (21 tables)
 - ✅ GRANT ALL to anon + authenticated
 - ✅ Seed data (app_settings row)
@@ -774,6 +788,52 @@ npm run build
 - ✅ `ALTER TABLE ADD COLUMN IF NOT EXISTS` use karein (idempotent)
 - ✅ Har change ke baad `setup.md` update karna MANDATORY hai
 - ✅ Har change ke baad `SUPER_MASTER_SCHEMA.sql` update karna MANDATORY hai
+
+### 🆕 NEW CLONE / NEW SETUP — AUTO-INSTALL ALL GUARDS (MANDATORY)
+
+> Naya clone/shop bana rahe ho to FULL `SUPER_MASTER_SCHEMA.sql` push karo (idempotent hai — tables, functions, triggers, RLS, tombstones, guards sab auto-install ho jate hain). Individual migrations loop chhod kar master schema push karna hi standard hai:
+
+1. `env_backups/` se us shop ka `VITE_SUPABASE_URL` (ref) + `SUPABASE_MGMT_API_KEY` lo (kabhi doosre shop ka token na use karo)
+2. Full master schema via Management API push karo (Section "Database Push" command se)
+3. Is push se AUTO install hota hai: saare tables + post-launch ALTERs + **row_tombstones + guard_stale_write + record_row_tombstone triggers (F21)** + variant restock columns (F22) + sab updated_at/stock triggers + RLS policies + realtime publication
+4. Verification chalao — Section "Post-Deployment Verification" + F21/F22 trigger check:
+
+```bash
+curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/query" \
+  -H "Authorization: Bearer $SUPABASE_MGMT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT t.tablename, t.trigger_name, t.event_manipulation FROM information_schema.triggers t WHERE t.trigger_name LIKE '\''%stale_write%'\'' OR t.trigger_name LIKE '\''%tombstone%'\'' ORDER BY 1,2"}'
+```
+
+**Expected:** 16 triggers (8× guard_stale_write + 8× record_tombstone) on sales, stock_history, variant_stock_history, purchase_records, expenses, payments, store_orders, sales_tabs.
+Aur variant columns check: `SELECT column_name FROM information_schema.columns WHERE table_name='purchase_records' AND column_name IN ('variant_id','variant_label');` → 2 rows.
+
+> ⚠️ **AGENTS ke liye:** jab bhi schema change karo, is setup.md ke saare sections (Migration Log + F-rule summary + verification) SAME change mein update karo — stale setup.md = violation. Ye rule AGENTS.md + GEMINI.md ($5) mein bhi hai.
+
+### Financial Integrity Rules (F12-F22 — 2026-08-12 audits)
+
+Full rule text AGENTS.md + GEMINI.md mein hai. Summary:
+
+- **F12 Single-Reversal:** Stock reversal sirf owning service mein exactly 1 baar (`salesService.delete` / `returnSale` / `purchaseRecordsService.delete`). UI handlers dobara reverse karna BANNED hai.
+- **F13 Draft Rule:** Drafts = `status:'pending'` — stock/customer/revenue kabhi touch nahi karte.
+- **F14 Never Truncate:** Financial queries par `.limit()`/`.slice(0,N)` BANNED — `fetchAllPages()` use karo; `state.sales` full rakho.
+- **F15 Partial-Refund Dedupe:** `reportSales` + `reportRefunds` merge by sale id (duplicate `partially_refunded` ko 2x mat count karo).
+- **F16 Wallet Collections:** Refund payouts `direction:'out'` — collections/totals se exclude.
+- **F17 Queue Merge:** Queued `delete` = delete wins (resurrect banned); merge par `retries` reset.
+- **F18 Realtime Guards:** Pending local change par remote UPDATE skip; `stock_history` realtime rows mapped.
+- **F19 No Cache Wipe on Fetch Failure:** `.catch(() => [])` leading merge = local wipe; identity no-op karo.
+- **F20 No Silent Ops Drops:** Type/constraint errors → op `error` (review ke liye); sync timeout `_isSyncing` release nahi karta.
+- **F21 Stale-Write Guard (DB-enforced):** Deleted financial rows kabhi resurrect nahi ho sakte — `row_tombstones` + `guard_stale_write()` trigger (`STALE_WRITE`/P0007) on `sales`, `stock_history`, `variant_stock_history`, `purchase_records`, `expenses`, `payments`, `store_orders`, `sales_tabs`. Newest-wins (updated_at compare). SyncEngine P0007 op drop karta hai + cloud se refresh. Products/customers/suppliers guard NAHI hain (variation id reuse).
+- **F22 Variant-Restock Ledger:** Variant stock sirf `variant_stock_history` se badalta hai (trigger → `products.variant_data[].stock`). Stock-in variant target kar sakta hai (`purchase_records.variant_id`/`variant_label`); create = 1 `purchase` entry, delete = 1 `adjustment` reversal. SAB stock-in `commitStockInToInventory` shared helper se (parallel paths BANNED); `applyVariantStockMovement()` shared service helper.
+
+### Migration Log (recent — full changelog GEMINI.md SCHEMA CHANGE LOG mein)
+
+| Date | Migration | Purpose |
+|------|-----------|---------|
+| 2026-08-12 | `20260812180000_stale_write_guards_variant_restock.sql` | F21 stale-write guards (`row_tombstones` + `guard_stale_write` P0007 on 8 financial tables) + F22 variant restock cols (`purchase_records.variant_id`/`variant_label`) |
+| 2026-08-12 | `20260812142314_get_next_invoice_number_rpc.sql` | Invoice collision RPC `get_next_invoice_number()` |
+| 2026-08-12 | `20260812215000_estore_cancel_double_release_guard.sql` | Estore cancel trigger sirf tab stock release karta hai jab `fulfilled_sale_id IS NULL` (double-release fix) |
+| 2026-08-12 | (earlier same day) `20260812210000_inventory_sync_trigger.sql`, `20260812213000_estore_oversell_fix.sql`, `20260812213500_estore_release_stock_trigger.sql`, `20260812214000_enable_rls_stock_history.sql` | Stock trigger model + estore oversell RPC |
 
 ---
 
@@ -1199,3 +1259,8 @@ Har agent ke liye mandatory rules:
 4. **Kuch bhi DB/code change kiya?** → `docs/setup.md` + `SUPER_MASTER_SCHEMA.sql` dono sync mein rakhna
 
 > **Failure to keep setup.md updated = Violation of Prime Directive.**
+
+### 🛑 2026-08-12 Architecture & Policy Updates
+- **Shift System Removed (Rule F7)**: The shift management logic and columns have been completely and permanently removed. The POS runs completely independent of shifts.
+- **Estore Oversell Fix**: Estore online orders NO LONGER reserve or deduct stock when placed. Stock is ONLY deducted when the order is fulfilled and billed via the POS terminal checkout.
+- **24-Hour Online Order Auto-Delete**: Cancelled online orders that are older than 24 hours are automatically deleted by the app's maintenance prune (syncEngine) to keep the cache and DB clean without affecting financials.

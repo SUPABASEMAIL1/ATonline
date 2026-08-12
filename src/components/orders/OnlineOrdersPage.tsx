@@ -196,7 +196,7 @@ const OrderProgress = ({ status, deliveryAddress }: { status: string; deliveryAd
           <Store className="w-4 h-4 text-emerald-500 shrink-0" />
           <div>
             <p className="font-black text-gray-700 dark:text-gray-300">START DESTINATION</p>
-            <p className="text-[9px] font-medium text-gray-400 mt-0.5">Zaynahs POS Store</p>
+            <p className="text-[9px] font-medium text-gray-400 mt-0.5">Online Store</p>
           </div>
         </div>
         <div className="flex items-start gap-2 border-l border-gray-100 dark:border-white/5 pl-4">
@@ -711,10 +711,10 @@ export function OnlineOrdersPage() {
                       ))}
 
                       {/* Render Standalone Items */}
-                      {standaloneItems.map(({ item, originalIndex }) => (
+                      {standaloneItems.map(({ item, originalIndex }, sIdx) => (
                         <div key={originalIndex} className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-white/5 last:border-0">
                           <div className="flex items-center gap-4">
-                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{sIdx + 1}</span>
                               <div className="relative shrink-0">
                                 {item.product?.image ? (
                                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm border border-gray-200/50 dark:border-white/10">

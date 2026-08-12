@@ -21,7 +21,7 @@ export function SyncStatusBadge() {
                     onClick={() => setShowManager(true)}
                     style={{ minHeight: 'unset' }}
                     className="flex items-center justify-center gap-1.5 flex-shrink-0 w-8 h-8 sm:w-auto sm:h-9 px-2.5 sm:px-3 rounded-full bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-transparent shadow-sm transition-all animate-pulse"
-                    title="Syncing changes to Zaynahs DB... Click to view queue."
+                    title="Syncing changes... Click to view queue."
                 >
                     <RefreshCw className="h-5 w-5 sm:h-3 sm:w-3 animate-spin" />
                     <span className="text-[9px] font-bold uppercase tracking-tight hidden sm:block">Syncing...</span>

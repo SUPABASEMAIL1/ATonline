@@ -270,6 +270,26 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
       const { productsService } = await import('../../lib/services');
 
       if (product) {
+        // --- NEW: Generate stock_history on direct stock edit ---
+        if (product.trackInventory && productData.trackInventory && product.stock !== productData.stock) {
+          const { localDb, queueOp, generateId } = await import('../../lib/localDb');
+          const { toRemoteStockHistory } = await import('../../lib/services');
+          const diff = (productData.stock || 0) - (product.stock || 0);
+          const histId = generateId();
+          const histEntry = {
+            id: histId,
+            productId: product.id,
+            changeQty: diff,
+            type: 'adjustment' as const,
+            referenceId: 'MANUAL_EDIT',
+            note: 'Direct Stock Edit via Form',
+            balanceAfter: productData.stock || 0,
+            cashierName: 'System',
+            createdAt: new Date()
+          };
+          await localDb.stockHistory.add(histEntry);
+          await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
+        }
         await productsService.update(productData.id, productData);
         dispatch({ type: 'UPDATE_PRODUCT', payload: productData });
       } else {

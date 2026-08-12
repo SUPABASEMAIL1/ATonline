@@ -1,7 +1,7 @@
 {
-  "name": "Zaynahs POS System",
-  "short_name": "Zaynahs",
-  "description": "Fast, offline-first point-of-sale system by ZaynahsPOS",
+  "name": "POS System",
+  "short_name": "POS",
+  "description": "Fast, offline-first point-of-sale system",
   "start_url": "/pos",
   "scope": "/pos",
   "display": "standalone",

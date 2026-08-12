@@ -202,7 +202,7 @@ const revenue = state.sales
 // CORRECT — queries Supabase directly with date filter
 const { data: salesData } = await supabase
   .from('sales')
-  .select('total, items, shift_id, created_at, status')
+  .select('total, items, created_at, status')
   .gte('created_at', startDate.toISOString())
   .lte('created_at', endDate.toISOString())
   .neq('status', 'refunded');
@@ -215,10 +215,8 @@ const revenue = salesData?.reduce((sum, s) => sum + s.total, 0) ?? 0;
 ---
 
 ## RULE F7 — SINGLE TENANT ARCHITECTURE
-This is a 1 Clone = 1 Shop system.  and  do NOT exist and should never be used.
-
-## RULE F7 — SINGLE TENANT ARCHITECTURE
 This is a 1 Clone = 1 Shop system. workspace_id and shift_id do NOT exist and should never be used.
+**Shift System: PERMANENTLY REMOVED (2026-08-12).** No shift tables/columns/functions anywhere — in code, localDb, or any project DB. Never reintroduce a shift system; tampering will corrupt reports.
 
 ## RULE F8 — STOCK AUDIT FUNCTION (ADD TO SERVICES.TS)
 
@@ -294,6 +292,88 @@ The `reconcileAllStock()` function in `services.ts` and the "Reconcile" button i
 - **Behavior**: Scans all tracked products, compares `products.stock` vs `SUM(product_batches.qty_remaining)`, reports mismatches, optionally auto-fixes
 
 **Never remove this tool. It is the last line of defense against inventory corruption.**
+
+---
+
+## RULE F12 — SINGLE-REVERSAL RULE (PERMANENT)
+
+Every stock reversal happens EXACTLY ONCE, inside the owning service. UI handlers must NEVER reverse stock again after calling the service.
+
+- **Owning services**: `salesService.delete`, `returnSale`, `purchaseRecordsService.delete`
+- **Rule**: Deleting ANY purchase record (Stock IN / Adjustment — signed quantity) reverses its ledger effect with exactly ONE `adjustment_out` history entry inside `purchaseRecordsService.delete`.
+- **Violation history**: PurchaseHistory double-reversal caused -2×Q on cloud (`2026-08-12` audit C1).
+
+## RULE F13 — DRAFT RULE (PERMANENT)
+
+Drafts (`status:'pending'` / `DRAFT_SALE` note) are saved CARTS, not revenue.
+
+- NEVER deduct/restore stock for drafts
+- NEVER touch customer stats (creditUsed, totalPurchases)
+- NEVER appear in `getReportSales`/`getReportRefunds` (`.neq('status','pending')`)
+- Guards live in `salesService.create` (`skipStockEffects`) + `salesService.delete` (`!isDraftSale`)
+- UI: `POSTerminal.saveDraft` saves with `status:'pending'` (never `completed`)
+
+## RULE F14 — NEVER TRUNCATE FINANCIAL DATA (PERMANENT)
+
+- NO `.limit()` or `.slice(0, N)` on sales/expenses/payments/refunds for totals or reports — use `fetchAllPages()`.
+- `state.sales` must hold ALL sales (list views paginate themselves).
+- Violation history: 1000-sale slice corrupted dashboard/transactions totals; 200/5000 caps on report+search queries.
+
+## RULE F15 — PARTIAL-REFUND DEDUPE (PERMANENT)
+
+`partially_refunded` sales appear in BOTH `getReportSales` AND `getReportRefunds` → merging with `[...sales, ...refunds]` subtracts refundedAmount TWICE.
+
+- Merge by sale id — reportSales copy wins, refunds only add NEW ids.
+
+## RULE F16 — WALLET COLLECTIONS EXCLUDE REFUND PAYOUTS (PERMANENT)
+
+- Refund payouts are `direction:'out'` — collections/totals MUST exclude them (`p.direction !== 'out'`).
+- Wallet totals MUST subtract refunded sales (full = full method share, partial = prorated for split) everywhere (ReportsManager + TransactionsManager together).
+
+## RULE F17 — QUEUE MERGE RULES (localDb.queueOp) (PERMANENT)
+
+- A queued `delete` MUST survive later update/upsert attempts (delete wins — never resurrect financial records).
+- Merging MUST reset `retries: 0` + `status:'pending'` — no zombie ops that fail both the retry filter and error-recovery filter.
+
+## RULE F18 — REALTIME CONFLICT GUARDS (PERMANENT)
+
+- Sales UPDATE events must skip rows with a pending local change / isPendingDelete — remote value is older than local intent.
+- Realtime `stock_history` rows must be `mapStockHistory`-mapped — raw snake_case rows break report readers and the 90-day/5000-cap prune.
+
+## RULE F19 — FETCH FAILURE NEVER WIPES CACHE (PERMANENT)
+
+`.catch(() => [])` on a leading merge source = local cache wipe (payments ledger). On failure, merge from the CURRENT local rows (identity no-op).
+
+## RULE F20 — NO SILENT FINANCIAL OP DROPS (PERMANENT)
+
+- Type/constraint errors (`22P02`/`22003`/`23514`) mark ops `error` for owner review — NEVER hard-delete financial ops from the queue.
+- Duplicate-key drops only for `sales` create (invoice collision RPC path).
+- Sync timeout must NOT release `_isSyncing` mid-batch (avoids double execution).
+
+## RULE F21 — STALE-WRITE GUARD (PERMANENT — cross-device conflict endgame)
+
+- **Problem:** Device A cancels/deletes a record; Device B's stale bill-edit syncs later with `.upsert()` → the deleted record RESURRECTS (was last-write-wins).
+- **Server-enforced solution (DB):**
+  - `row_tombstones(table_name, ref_id, deleted_at)` registry + `record_row_tombstone()` AFTER DELETE trigger on financial tables: `sales`, `stock_history`, `variant_stock_history`, `purchase_records`, `expenses`, `payments`, `store_orders`, `sales_tabs`.
+  - `guard_stale_write()` BEFORE INSERT OR UPDATE trigger on the same tables raises `STALE_WRITE` (`ERRCODE P0007`) when: (a) ANY write targets a tombstoned id (delete wins — F17 now DB-enforced across devices, a deleted row can NEVER come back), or (b) `NEW.updated_at < OLD.updated_at` (newest-wins; remote is authoritative).
+  - `update_updated_at_column()` now PRESERVES the client timestamp when it is newer than the stored row (previously always stamped `NOW()` making client timestamps useless). Server-side SQL updates still pass (they set `NOW()` explicitly).
+  - **Executions do NOT guard** `products`/`customers`/`suppliers` — variation child re-creation reuses ids after variant removal; those tables keep the client-side `updated_at` skip in SyncEngine.
+- **SyncEngine handling:** `P0007`/`stale_write` → op is dropped (NOT error-queued — the payload is by definition outdated; retry can never succeed) + local refreshes from cloud via realtime/merge. Cloud = truth.
+- **Operational note:** device clocks should be synced; a permanently-behind clock will have its edits rejected (correct — newer edits win).
+
+## RULE F22 — VARIANT-RESTOCK LEDGER (PERMANENT)
+
+- Variant stock edits/restock must ALWAYS flow through `variant_stock_history` (trigger updates `products.variant_data[].stock`) — never through the stripped `variant_data` in product payloads (silently lost before this rule).
+- `purchase_records` carries `variant_id`/`variant_label` so stock-in can target ONE variant: `purchaseRecordsService.create` writes ONE `purchase` variant history entry (+qty) and `purchaseRecordsService.delete` reverses it with ONE `adjustment` entry (−qty) — single-reversal (F12) at variant level too.
+- All stock-in paths (`commitStockInToInventory`, BatchStockInSystem, ProductDetailHub quick restock) use the SHARED `commitStockInToInventory` helper — parallel stock-in implementations are BANNED (AGENTS.md rule 18).
+- ProductDetailHub direct variant-stock field edits log `adjustment` delta entries (previously silently never synced).
+
+## RULE F23 — GUIDE + GUARD-PATTERN REGISTRATION (PERMANENT — every new financial function)
+
+- 📖 **[docs/SYSTEM_FUNCTIONS_GUIDE.md](docs/SYSTEM_FUNCTIONS_GUIDE.md) is the live source of truth** for every DB function/trigger/flow (F21 guard flow, F22 variant ledger, sync/recovery, troubleshooting). Read it before touching SQL/sync/financial logic; UPDATE it in the SAME change as any schema/flow change (stale guide = violation, same spirit as AGENTS.md rule 18).
+- EVERY new financial table/function MUST follow the guard pattern checklist (§6 of the guide): 3 triggers per table (`guard_stale_write_*`, `record_row_tombstone_*`, `update_*_updated_at`), append-only ledger triggers for stock/log tables, shared-helper service layer (F12 single-reversal), localDb + SyncEngine (P0007/F17/F18) wiring.
+- Register the new function in the guide's §2 registry + add SCHEMA CHANGE LOG entry + run the §7 TEST BATTERY on ALL 4 projects (expect identical results: currently `f21_guards=24`, `tombstones=1`, `functions=7`) — no PASS = no "done".
+- NEVER add a financial write path without its guards — the DB layer is the last line of defense against cross-device corruption (F21) and silent stock loss (F22).
 
 ---
 
@@ -469,12 +549,12 @@ HAVING p.stock != COALESCE(SUM(pb.qty_remaining), 0);
 
 **3. Sales without shift:**
 ```sql
-SELECT COUNT(*) FROM sales WHERE shift_id IS NULL;
+-- SHIFT SYSTEM REMOVED (2026-08-12) — no shift_id column exists anywhere.
 ```
 
 **4. Expenses without shift:**
 ```sql
-SELECT COUNT(*) FROM expenses WHERE shift_id IS NULL;
+-- SHIFT SYSTEM REMOVED (2026-08-12) — no shift_id column exists anywhere.
 ```
 
 **5. Sales with missing purchase cost:**
@@ -501,7 +581,6 @@ Read all of these completely:
 - `src/context/SupabaseAppContext.tsx`
 - `src/components/pos/CheckoutModal.tsx`
 - `src/components/reports/ReportsManager.tsx`
-- `src/components/shifts/ShiftClosePage.tsx`
 - `src/lib/localDb.ts`
 - `src/lib/syncEngine.ts`
 - `supabase/schema/SUPER_MASTER_SCHEMA.sql`
@@ -536,6 +615,78 @@ To implement similar auto-deletion models in the future:
 Whenever a database change is made, it MUST be recorded here.
 
 > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
+
+### [2026-08-12] Full-Project Audit Fixes — F12-F20 + Universal Branding
+**Files:** `supabase/migrations/20260812215000_estore_cancel_double_release_guard.sql`, `SUPER_MASTER_SCHEMA.sql`, `src/lib/services.ts`, `src/lib/syncEngine.ts`, `src/lib/localDb.ts`, `src/context/SupabaseAppContext.tsx`, `src/components/reports/ReportsManager.tsx`, `src/components/dashboard/DashboardManager.tsx`, `src/components/transactions/TransactionsManager.tsx`, `src/components/transactions/RefundSaleModal.tsx`, `src/components/inventory/PurchaseHistory.tsx`, `src/components/pos/POSTerminal.tsx`, `AGENTS.md`, `GEMINI.md`, `docs/setup.md`
+**Context:** 3 parallel audits (stock ledger integrity, sync engine, money math) found 15 issues — all fixed. Universal rules F12-F20 written into AGENTS.md + GEMINI.md.
+**Fixes:**
+1. **C1 (CRITICAL):** PurchaseHistory delete double-reversal (−2×Q on cloud) — handler no longer reverses; `purchaseRecordsService.delete` now reverses ALL record types (incl. Adjustment, signed quantity) with ONE `adjustment_out` entry.
+2. **H1/B1:** `partially_refunded` double-count in ReportsManager revenue/wallets — merge by sale id (sales copy wins).
+3. **B2:** Credit Collected + collections exclude refund payouts (`direction:'out'`).
+4. **A1:** `getReportExpenses` paginated via `fetchAllPages` (was capped at 1000).
+5. **H3:** Drafts = `status:'pending'` — create/delete skip all stock/customer effects; `getReportSales` filters `.neq('status','pending')`.
+6. **H4:** ADD_SALE reducer skips estore fulfillment sales (sourceOrderId).
+7. **H5/H6:** queueOp merge — delete survives update/upsert; merge resets `retries:0`.
+8. **H7:** payments delta fetch failure = identity no-op (no local ledger wipe).
+9. **B3:** RefundSaleModal 2dp rounding.
+10. **B5/B6:** Dashboard + Transactions wallet totals match Reports definition (credit excluded, refunds per method).
+11. **A2:** state.sales 1000-cap removed (never truncate financial data).
+12. **A3:** cloud sales search paginated; `fetchAllPages` exported.
+13. **F20:** constraint errors mark ops `error` (never delete); sync timeout no longer releases `_isSyncing` mid-batch.
+14. **F18:** sales UPDATE realtime skips pending-delete rows; realtime `stock_history` rows mapped.
+15. **DB:** estore cancel trigger releases stock only when `fulfilled_sale_id IS NULL` (migration 20260812215000) — deployed to all 4 projects.
+16. **Universal branding:** all vendor branding removed from code (tenant name from settings, neutral `POS` fallback). Persistence keys preserved (`ZaynahsPosDB_`, `Zaynahs_Local_Backups_DB`, `zaynahs-pos-auth`, logo asset).
+
+### [2026-08-12] Permanent Fixes — F21 Stale-Write Guards + F22 Variant-Restock Ledger
+**Files:** `supabase/migrations/20260812180000_stale_write_guards_variant_restock.sql`, `SUPER_MASTER_SCHEMA.sql`, `src/lib/syncEngine.ts`, `src/lib/services.ts`, `src/lib/stockInCommit.ts`, `src/components/inventory/BatchStockInSystem.tsx`, `src/components/inventory/ProductDetailHub.tsx`, `src/types/index.ts`, `AGENTS.md`, `GEMINI.md`, `docs/setup.md`
+**Context:** The last two known limitations were made PERMANENT solutions: (1) cross-device stale writes could resurrect deleted ledger rows (last-write-wins), (2) variant stock never updated on restock.
+**Fixes:**
+1. **F21 (DB, server-enforced):** `row_tombstones` registry + `record_row_tombstone()` AFTER DELETE + `guard_stale_write()` BEFORE INSERT/UPDATE raising `STALE_WRITE` (P0007) on `sales`, `stock_history`, `variant_stock_history`, `purchase_records`, `expenses`, `payments`, `store_orders`, `sales_tabs`. Deleted financial rows can NEVER resurrect; newest-wins replaces last-write-wins. `update_updated_at_column()` now preserves client timestamps when newer.
+2. **F21 (SyncEngine):** P0007/stale_write error → op dropped (by-definition-outdated payload; retry impossible) + local refreshes via realtime/merge (cloud = truth). NOT applied to products/customers/suppliers (variation child id reuse; they keep client-side skip).
+3. **F22:** `purchase_records.variant_id`/`variant_label` columns; `purchaseRecordsService.create` writes ONE `purchase` variant_stock_history entry (+qty) + local variantData update via shared `applyVariantStockMovement()`; `delete` reverses with ONE `adjustment` entry (−qty). `commitStockInToInventory` (shared path) + BatchStockInSystem (refactored onto the shared helper, variant selector column added) + ProductDetailHub quick-restock all support variant-targeted restock.
+4. **F22:** ProductDetailHub direct variant-stock field edits log `adjustment` delta entries (previously silently stripped from product payloads and LOST).
+5. **Schema docs:** master schema + setup.md updated; deploy = full master schema push via Management API to all 4 projects (also covers NEW clones — schema is idempotent, a new clone auto-installs all guards by pushing `SUPER_MASTER_SCHEMA.sql`).
+
+### [2026-08-12] System Functions Guide + F23 Registration Rule
+**Files:** `docs/SYSTEM_FUNCTIONS_GUIDE.md` (new), `GEMINI.md` (RULE F23), `AGENTS.md` (reference + F23)
+**Context:** User asked for a permanent detailed guide so future agents can understand the full system flow (every DB function, trigger, financial flow) without re-researching, plus a mandatory rule that every new function follows the same guard pattern and registers itself in the guide.
+**Added:**
+1. **Guide:** `docs/SYSTEM_FUNCTIONS_GUIDE.md` — layer map (app vs Supabase), full §2 registry of ALL 9 DB functions/triggers (verified live 24 guards/7 functions/2 stock triggers × 4 projects), F21 stale-write flow diagram, F22 variant-restock flow diagram, sync/recovery flow, §6 MANDATORY checklist for adding new financial tables/functions (3 triggers + ledger + shared helper + localDb/sync + register + test), §7 ready-to-run TEST BATTERY (A schema inventory, B live guard battery, C variant ledger live, D residue check), §8 troubleshooting cheatsheet.
+2. **RULE F23 (GEMINI.md):** guide = live source of truth; every new financial table/function MUST follow the guard pattern; register in guide §2 + SCHEMA CHANGE LOG + run battery on ALL 4 projects (expected: `f21_guards=24`, `tombstones=1`, `functions=7`); NEVER add a financial write path without guards.
+3. **AGENTS.md:** F23 listed in AUDIT-GRADE RULES + guide added to Reference Docs table.
+
+### [2026-08-12] TESTS_GUIDE full-flow battery — Estore + Schema Parity fixes
+**Files:** `docs/TESTS_GUIDE.md` (new), `supabase/migrations/20260812235500_fix_estore_place_order_bugs.sql`, `supabase/migrations/20260813000000_fix_products_variant_history_schema_parity.sql`, `SUPER_MASTER_SCHEMA.sql`, `docs/SYSTEM_FUNCTIONS_GUIDE.md`, `docs/setup.md`
+**Context:** User asked for a complete test guide + full system flow test (products all types, billing, estore, orders→POS, reports) — and to delete all test records after. Battery found 3 real DB issues, all fixed + verified on all 4 projects, then **zero residue cleanup**.
+**Fixes (all deployed to 4 projects via Management API, verified):**
+1. **ESTORE ORDERING TOTALLY BROKEN (all projects):** `place_estore_order` wrote to non-existent `address`/`table_number`/`fulfillment_mode` columns + cast UUID `reference_id`→`::text` → every online order + every cancel failed. Rewrote: `delivery_address` (jo app bhejta hai), UUID refs, **F22 variant-aware reservation/release** (variant items reserve via `variant_stock_history`). Retest: reserve −2, variant reserve −2, cancel +2, fulfil→sale — 4/4 PASS.
+2. **MINIMAHAL products schema divergence:** `product_type`, `is_service`, `require_serial`, `is_weight_based`, `price_per_unit`, `unit`, `parent_id` columns missing (master schema post-launch ALTER block omitted them; v16 CREATE-only). Added idempotently → variable products now save there.
+3. **PIZZAMILANO variant_stock_history CHECK divergence:** type list lacked `'purchase'` (+ signed types) → variant stock-in crashed there. Normalized to 7-type set on all projects.
+**After fixes:** full system-flow battery **11/11 PASS identical on all 4 projects** (products simple+variable, stock_in +10, variant stock_in +3, sale deduct, draft no-deduct, stale edit P0007, delete restore once, tombstone resurrect block, estore reserve/variant/cancel, fulfil-link). Cleanup: **residue 0/0/0/0** (products/sales/orders/history/tombstones all test rows deleted).
+
+### [2026-08-12] docs/setup.md — MAJOR RULES section (7 non-negotiable rules)
+**Files:** `docs/setup.md` (Core Principles + new ⚠️ MAJOR RULES section + TOC update)
+**Context:** User requested the universal operating rules documented in setup.md so every session/agent follows them without ambiguity.
+**Added:** Table of 7 non-negotiable rules — (1) Code = UNIVERSAL (1 codebase, sab 4 repos, no brand hardcode), (2) Env/Credentials always from `env_backups/` (har shop ka apna file — kabhi guess/mix nahi), (3) All fixes applied to ALL projects + deploy verify mandatory (no verify = no "done"), (4) Code 1 — credentials ALAG-ALAG (har shop apna env/CF token), (5) Master Schema = SAME parity on all 4 projects (SUPER_MASTER_SCHEMA.sql single source), (6) Systems IDENTICAL on all projects (test battery results identical: `f21_guards=24`/`tombstones=1`/`functions=7`, divergence = fix), (7) Docs current (SYSTEM_FUNCTIONS_GUIDE/MODULES/UI_RULES/GEMINI/setup.md update in same change).
+
+### [2026-08-12] Financial Integrity Sweep — Trigger Model Completion + Reconcile Restore
+**Files:** `supabase/migrations/20260812142314_get_next_invoice_number_rpc.sql`, `SUPER_MASTER_SCHEMA.sql`, `src/lib/services.ts`, `src/lib/syncEngine.ts`, `src/lib/localDb.ts`, `src/context/SupabaseAppContext.tsx`, `src/components/inventory/InventoryManager.tsx`, `src/components/inventory/ProductDetailHub.tsx`, `src/components/inventory/PurchaseHistory.tsx`, `GEMINI.md`
+**Context:** Cloud triggers `on_stock_history_insert` + `on_variant_stock_history_insert` were added earlier (08-12) to make stock single-source via the append-only stock_history ledger. This sweep fixed every remaining path that still sent ABSOLUTE stock in `products` payloads (double-count with the trigger), restored the F11 reconcile tool, and hardened sync data-loss paths.
+**Fixes:**
+1. **Non-atomic product payloads — stock stripped everywhere** (cloud stock is now ONLY via history trigger):
+   - `salesService.delete` main + addon restores (`services.ts`), refund addon restore, `productsService.adjustStock`, `purchaseRecordsService.create` cost payload, `productsService.create` (only when an `initial` history entry exists — non-tracked 999999 stock keeps absolute value), `PurchaseHistory` delete reversal.
+   - Kept absolute stock ONLY for non-tracked products (no history entry → no trigger → absolute value required).
+2. **Variant stock restore on delete/refund:** `salesService.delete` + `returnSale` now write `variant_stock_history` 'return' entries + restore local `variant_data` (previously variant levels stayed permanently low after delete/refund).
+3. **Direct stock edit audit:** `ProductDetailHub.handleSave` now logs `adjustment` history when the stock field is edited directly (was silent before).
+4. **Reconcile tool restored (RULE F11):** `reconcileAllStock(autoFix?)` in `services.ts` — replays cloud `stock_history` ledger (Σ change_qty per product), compares with `products.stock`, reports mismatches, auto-fix writes one `adjustment` history entry per mismatch (trigger aligns stock). Purple "Reconcile" button with Shield icon added to InventoryManager toolbar.
+5. **Sync data-loss hardening:**
+   - `pruneStaleOps` now ONLY prunes errored ops (never pending — unsynced bills are financial records).
+   - `queueOp` cap no longer drops pending ops — prunes errored ones instead, or warns.
+   - `pruneExpiredCancelledOrders` REMOTE DELETE REMOVED — cancelled orders are permanent financial records; cloud audit trail preserved (local cache still cleaned).
+6. **Invoice collision RPC added:** `get_next_invoice_number()` now exists (was missing → collision retries always failed). Deployed to all 4 projects.
+7. **Report truncation fixed:** `getReportSales` + `getReportRefunds` + `salesService.searchSales` + `salesService.fetchRemote` + `storeOrdersService.fetchRemote` now paginate via `fetchAllPages` (no more 200/5000 caps — big-shop totals accurate).
+8. **Fixed pre-existing build error:** duplicate `costUpdate` declaration in `purchaseRecordsService.create`.
+9. **AppContext realtime sale reducer** no longer floors stock at 0 (matches ledger negative values).
 
 ### [2026-07-31] Fix: Add updated_at to 5 ledger/history tables (Delta Sync 400s)
 **Files:** `supabase/migrations/20260731210000_add_updated_at_ledger_history_tables.sql`, `SUPER_MASTER_SCHEMA.sql`, `docs/setup.md`, `GEMINI.md`

@@ -809,16 +809,15 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
               const { bundles, standaloneItems } = groupCartItems(checkoutCartItems);
 
-              const renderItemCard = (itemData: { item: CartItem; originalIndex: number }, isNested = false) => {
+              const renderItemCard = (itemData: { item: CartItem; originalIndex: number }, isNested = false, sIdx?: number) => {
                 const { item, originalIndex } = itemData;
-                const iIdx = originalIndex + 1;
                 const hidePrices = isNested && item.bundleHideItemPrices === true;
                 return (
                   <div key={originalIndex} className={cn(
                     "flex items-start gap-2.5 p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/5",
                     isNested && "shadow-none border-none bg-transparent dark:bg-transparent p-1"
                   )}>
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0 mt-0.5">{iIdx}</span>
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0 mt-0.5">{isNested ? '-' : (sIdx !== undefined ? sIdx + 1 : originalIndex + 1)}</span>
                     <div className="h-9 w-9 rounded-lg bg-white dark:bg-surface border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 mt-0.5 aspect-square">
                       {item.product.image ? (
                         <img src={item.product.image} className="h-full w-full object-cover" />
@@ -966,7 +965,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                 );
               });
 
-              const renderedStandalones = standaloneItems.map((item) => renderItemCard(item));
+              const renderedStandalones = standaloneItems.map((item, sIdx) => renderItemCard(item, false, sIdx));
 
               return (
                 <>

@@ -59,10 +59,10 @@ const initialState: AppState = {
   currentUser: null,
   selectedCustomer: null,
   settings: {
-    storeName: 'Zaynahs',
+    storeName: 'My Store',
     storeAddress: '',
     storePhone: '',
-    storeEmail: 'info@zaynahspos.com',
+    storeEmail: '',
     taxRate: 0,
     currency: 'LKR',
     interfaceMode: 'touch',

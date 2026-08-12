@@ -174,47 +174,16 @@ export function PurchaseHistory() {
     const result = await sonner.deleteConfirm('this record');
     if (result.isConfirmed) {
       try {
-        const { generateId, toRemoteStockHistory, toRemoteProduct, toRemoteProductBatch } = await import('../../lib/services');
-        const { localDb, queueOp } = await import('../../lib/localDb');
+        const { localDb } = await import('../../lib/localDb');
 
         await purchaseRecordsService.delete(record.id);
 
-        const product = state.products.find(p => p.id === record.productId);
-        if (product && product.trackInventory) {
-          const now = new Date();
-          const newStock = (product.stock || 0) - record.quantity;
-
-          // --- STOCK ONLY UPDATE (Batch system deprecated) ---
-          await localDb.products.update(product.id, { stock: newStock, updatedAt: now });
-          await queueOp('products', 'update', product.id, toRemoteProduct({
-            ...product, stock: newStock, updatedAt: now
-          }));
-
-          // --- STOCK HISTORY LOG ---
-          const histId = generateId();
-          const histEntry = {
-            id: histId,
-            productId: product.id,
-            changeQty: -record.quantity,
-            type: 'adjustment' as const,
-            referenceId: record.id,
-            note: `Purchase record deleted: ${record.supplier || 'Direct'} (${record.quantity} units)`,
-            balanceAfter: newStock,
-            cashierName: 'Admin',
-            createdAt: now
-          };
-          await localDb.stockHistory.add(histEntry);
-          await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
-
-          // Update in-memory state
-          const updatedProduct = { ...product, stock: newStock, updatedAt: now };
-          dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
-        } else if (product) {
-          // Non-tracked product — just update stock number
-          const newStock = (product.stock || 0) - record.quantity;
-          const updatedProduct = { ...product, stock: newStock };
-          await productsService.update(product.id, updatedProduct);
-          dispatch({ type: 'UPDATE_PRODUCT', payload: updatedProduct });
+        // Stock reversal + audit history is handled INSIDE purchaseRecordsService.delete
+        // (universal single-reversal rule — never reverse twice, never double-count ledger).
+        // Here we only refresh in-memory state so the UI matches the local DB.
+        const freshProduct = await localDb.products.get(record.productId);
+        if (freshProduct) {
+          dispatch({ type: 'UPDATE_PRODUCT', payload: freshProduct });
         }
 
         dispatch({ type: 'DELETE_PURCHASE_RECORD', payload: record.id });

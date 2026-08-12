@@ -61,6 +61,10 @@ interface ReceiptPrintProps {
   onClose: () => void;
 }
 
+
+// ── CENTRALIZED WATERMARK (Applied to all templates) ──
+const RECEIPT_WATERMARK = <div style={{ textAlign: 'center', marginTop: '16px', borderTop: '1px dashed rgba(0,0,0,0.3)', paddingTop: '8px', marginBottom: '2px', fontSize: '7.5px', letterSpacing: '1px', fontWeight: 600, opacity: 0.8, fontFamily: 'system-ui, sans-serif' }}>POWERED BY ZAYNAHSPOS.COM</div>;
+
 export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
   const { state } = useApp();
   const { profile } = useAuth();
@@ -693,7 +697,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         )}
         {showQr && directionsUrl && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '8px', textAlign: 'center' }}>
-            <span style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
+            <span style={{ fontSize: '7px', fontWeight: 'bold', marginBottom: '4px' }}>Scan for Delivery Directions:</span>
             <QRCodeSVG value={directionsUrl} size={90} level="M" style={{ margin: '0 auto' }} />
           </div>
         )}
@@ -864,7 +868,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       {settings.receiptShowFooter !== false && settings.storeWebsite && (
         <div style={{ marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
       )}
-      <div style={{ marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+      {RECEIPT_WATERMARK}
     </div>
   );
 
@@ -988,7 +992,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       {settings.receiptShowFooter !== false && settings.storeWebsite && (
         <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
       )}
-      <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+      {RECEIPT_WATERMARK}
     </div>
   );
 
@@ -1020,7 +1024,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       {settings.receiptShowFooter !== false && settings.storeWebsite && (
         <div style={{ textAlign: 'left', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
       )}
-      <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+      {RECEIPT_WATERMARK}
     </div>
   );
 
@@ -1137,7 +1141,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       {settings.receiptShowFooter !== false && settings.storeWebsite && (
         <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
       )}
-      <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+      {RECEIPT_WATERMARK}
     </div>
   );
 
@@ -1170,7 +1174,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {settings.receiptShowFooter !== false && settings.storeWebsite && (
           <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
         )}
-        <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+        {RECEIPT_WATERMARK}
       </div>
     </div>
   );
@@ -1745,7 +1749,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           {settings.receiptShowFooter !== false && settings.storeWebsite && (
             <div style={{ marginTop: '4px', fontSize: '10px' }}>({settings.storeWebsite.replace(/^https?:\/\//i, '').toUpperCase()})</div>
           )}
-          <div style={{ marginTop: '6px', fontSize: '9px', letterSpacing: '0.5px', opacity: 0.7 }}>WWW.ZAYNAHSPOS.COM</div>
+          {RECEIPT_WATERMARK}
         </div>
 
         {template !== 'minimal' && <div style={dividerStyle} />}
@@ -1795,7 +1799,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       isOpen={true}
       onClose={handleSafeClose}
       title="PRINT CHECKOUT"
-      subtitle="Zaynahs POS • Monochrome"
+      subtitle="POS • Monochrome"
       maxWidth={isA4 ? 'lg' : 'md'}
       headerActions={
         <div>

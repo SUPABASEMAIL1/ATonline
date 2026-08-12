@@ -20,7 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Product, PurchaseRecord, Sale } from '../../types';
 import { formatCurrency } from '../../lib/currencies';
-import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProduct, productToppingsService } from '../../lib/services';
+import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProduct, productToppingsService, applyVariantStockMovement } from '../../lib/services';
 import { commitStockInToInventory } from '../../lib/stockInCommit';
 import { localDb, queueOp } from '../../lib/localDb';
 import { compressImage } from '../../lib/imageCompression';
@@ -252,7 +252,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         id: histId,
         productId: product.id,
         changeQty: qtyChange,
-        type: qtyChange > 0 ? 'adjustment_in' as const : 'adjustment_out' as const,
+        type: qtyChange > 0 ? 'adjustment' as const : 'adjustment_out' as const,
         referenceId: newRecord.id,
         note: `Adjustment: ${reason}`,
         balanceAfter: updatedProduct.stock,
@@ -401,6 +401,51 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         };
         await localDb.stockHistory.add(histEntry);
         await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
+      } else if (!isInfinity && !wasInfinity) {
+        // Direct stock field edit while tracking was already ON → log adjustment
+        const oldStock = product.stock || 0;
+        const newStockVal = updatedProduct.stock || 0;
+        if (oldStock !== newStockVal) {
+          const diffStock = newStockVal - oldStock;
+          const adjHistId = generateId();
+          const adjHistEntry = {
+            id: adjHistId,
+            productId: product.id,
+            changeQty: diffStock,
+            type: 'adjustment' as const,
+            referenceId: 'MANUAL_EDIT',
+            note: `Direct Stock Edit via Form (${oldStock} → ${newStockVal})`,
+            balanceAfter: newStockVal,
+            cashierName: profile?.email || 'System',
+            createdAt: now
+          };
+          await localDb.stockHistory.add(adjHistEntry);
+          await queueOp('stock_history', 'create', adjHistId, toRemoteStockHistory(adjHistEntry));
+        }
+
+        // F22 — Variant stock edits → variant_stock_history adjustments.
+        // (Previously these values were stripped from the product payload and silently
+        // never synced; the variant_stock_history trigger updates cloud variant_data[].stock.)
+        const savedVariantData = variantData || [];
+        for (const vd of savedVariantData) {
+          if (!vd.id) continue; // id-less rows are pending generation — skip
+          const oldVd = (product.variantData || []).find(v => v.id === vd.id);
+          const oldVariantStock = oldVd?.stock ?? 0;
+          const newVariantStock = vd.stock ?? 0;
+          if (oldVariantStock !== newVariantStock) {
+            await applyVariantStockMovement({
+              product,
+              variantId: vd.id,
+              variantLabel: `${vd.option1 || ''}${vd.option2 ? ` / ${vd.option2}` : ''}`,
+              changeQty: newVariantStock - oldVariantStock,
+              type: 'adjustment',
+              referenceId: 'MANUAL_EDIT',
+              note: `Direct Variant Stock Edit (${oldVariantStock} → ${newVariantStock})`,
+              cashierName: profile?.email || 'System',
+              createdAt: now
+            });
+          }
+        }
       }
 
       const saved = await productsService.update(product.id, updatedProduct);

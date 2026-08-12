@@ -1,6 +1,6 @@
 {
-  "name": "Zaynahs Online Store",
-  "short_name": "Zaynahs",
+  "name": "Online Store",
+  "short_name": "Store",
   "description": "Browse and order items online from our digital storefront",
   "start_url": "/store",
   "scope": "/store",

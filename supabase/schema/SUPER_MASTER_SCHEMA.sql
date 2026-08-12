@@ -90,6 +90,8 @@
 --      Changed from ADD TABLE to SET TABLE for idempotency.
 --   4. sales: 31 orphaned sales (shift_id IS NULL) assigned to nearest preceding shift.
 --   5. expenses: 2 orphaned expenses (shift_id IS NULL) assigned to nearest preceding shift.
+--   ⚠️ SHIFT SYSTEM PERMANENTLY REMOVED (2026-08-12): no shift tables/columns/functions
+--      exist or may ever be re-added. Historical entries above are migration record only.
 --   6. Code: Removed backdrop-blur-md from ProductGrid.tsx (design rule compliance).
 --
 -- [2026-07-10] Drop workspace_id — Single-tenant architecture
@@ -718,6 +720,8 @@ CREATE TABLE IF NOT EXISTS purchase_records (
     product_id      UUID REFERENCES products(id) ON DELETE SET NULL,
     product_name    TEXT NOT NULL,
     sku             TEXT,
+    variant_id      TEXT,
+    variant_label   TEXT,
     quantity        INTEGER NOT NULL DEFAULT 0,
     cost_price      DECIMAL(12,2) DEFAULT 0,
     retail_price    DECIMAL(12,2),
@@ -944,6 +948,30 @@ CREATE INDEX IF NOT EXISTS idx_variant_stock_history_date ON variant_stock_histo
 GRANT ALL ON variant_stock_history TO anon, authenticated, service_role;
 
 -- ════════════════════════════════════════════════════════════════
+-- 27b. ROW TOMBSTONES (F21 — Stale-Write Guard registry)
+-- Records every DELETE of a financial ledger row so a deleted record
+-- can NEVER be resurrected by a stale update from another device.
+-- ════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS row_tombstones (
+  table_name TEXT NOT NULL,
+  ref_id UUID NOT NULL,
+  deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (table_name, ref_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_row_tombstones_ref ON row_tombstones(ref_id);
+
+GRANT ALL ON row_tombstones TO anon, authenticated, service_role;
+
+ALTER TABLE row_tombstones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow service_role ALL on row_tombstones" ON row_tombstones;
+CREATE POLICY "Allow service_role ALL on row_tombstones"
+  ON row_tombstones FOR ALL
+  TO service_role
+  USING (true) WITH CHECK (true);
+
+-- ════════════════════════════════════════════════════════════════
 -- 28. PRODUCT ADDONS (Inventory-tracked add-on products)
 -- ════════════════════════════════════════════════════════════════
 
@@ -1056,7 +1084,42 @@ CREATE INDEX IF NOT EXISTS idx_stock_history_type          ON stock_history(type
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = timezone('utc'::text, now());
+  IF NEW.updated_at IS NULL OR NEW.updated_at <= OLD.updated_at THEN
+    NEW.updated_at = NOW();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ── Inventory Sync Trigger (Append-Only Ledger) ──
+CREATE OR REPLACE FUNCTION trigger_update_product_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE products SET 
+        stock = COALESCE(stock, 0) + NEW.change_qty,
+        updated_at = NOW()
+    WHERE id = NEW.product_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION trigger_update_variant_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE products
+    SET 
+        variant_data = (
+            SELECT jsonb_agg(
+                CASE 
+                    WHEN v->>'id' = NEW.variant_id::text THEN 
+                        v || jsonb_build_object('stock', COALESCE((v->>'stock')::int, 0) + NEW.change_qty)
+                    ELSE v 
+                END
+            )
+            FROM jsonb_array_elements(variant_data) AS v
+        ),
+        updated_at = NOW()
+    WHERE id = NEW.product_id;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -1079,6 +1142,56 @@ DO $$ BEGIN CREATE TRIGGER update_payments_updated_at           BEFORE UPDATE ON
 DO $$ BEGIN CREATE TRIGGER update_stock_history_updated_at      BEFORE UPDATE ON stock_history      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN CREATE TRIGGER update_purchase_records_updated_at    BEFORE UPDATE ON purchase_records    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── F21 Stale-Write Guards (server-enforced) ──
+CREATE OR REPLACE FUNCTION guard_stale_write()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- (a) A deleted row can never come back (tombstone blocks resurrect).
+  IF EXISTS (
+    SELECT 1 FROM row_tombstones
+    WHERE table_name = TG_TABLE_NAME AND ref_id = NEW.id
+  ) THEN
+    RAISE EXCEPTION 'STALE_WRITE: record % was deleted from % on another device (or this one). Refresh from cloud — this stale write was rejected.', NEW.id, TG_TABLE_NAME
+      USING ERRCODE = 'P0007';
+  END IF;
+  -- (b) Newest-wins: reject writes older than the stored row.
+  IF TG_OP = 'UPDATE' AND NEW.updated_at < OLD.updated_at THEN
+    RAISE EXCEPTION 'STALE_WRITE: remote % row % is NEWER (cloud %) than this local change (%). Refresh from cloud — this stale write was rejected.', TG_TABLE_NAME, NEW.id, OLD.updated_at, NEW.updated_at
+      USING ERRCODE = 'P0007';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION record_row_tombstone()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO row_tombstones (table_name, ref_id, deleted_at)
+  VALUES (TG_TABLE_NAME, OLD.id, COALESCE(OLD.updated_at, NOW()))
+  ON CONFLICT (table_name, ref_id)
+  DO UPDATE SET deleted_at = EXCLUDED.deleted_at;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_sales            BEFORE INSERT OR UPDATE ON sales                FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_stock_history    BEFORE INSERT OR UPDATE ON stock_history         FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_variant_history  BEFORE INSERT OR UPDATE ON variant_stock_history FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_purchase_records BEFORE INSERT OR UPDATE ON purchase_records      FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_expenses         BEFORE INSERT OR UPDATE ON expenses              FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_payments         BEFORE INSERT OR UPDATE ON payments              FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_store_orders     BEFORE INSERT OR UPDATE ON store_orders          FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_sales_tabs       BEFORE INSERT OR UPDATE ON sales_tabs            FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN CREATE TRIGGER record_tombstone_sales             AFTER DELETE ON sales                FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_stock_history     AFTER DELETE ON stock_history         FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_variant_history   AFTER DELETE ON variant_stock_history FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_purchase_records  AFTER DELETE ON purchase_records      FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_expenses          AFTER DELETE ON expenses              FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_payments          AFTER DELETE ON payments              FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_store_orders      AFTER DELETE ON store_orders          FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_sales_tabs        AFTER DELETE ON sales_tabs            FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
 -- ── Invoice Number Generator ──
@@ -1124,6 +1237,35 @@ DO $$ BEGIN
       FOR EACH ROW
       EXECUTE FUNCTION auto_generate_invoice_number();
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── get_next_invoice_number RPC (used by syncEngine on invoice collision) ──
+CREATE OR REPLACE FUNCTION get_next_invoice_number()
+RETURNS TEXT AS $$
+DECLARE
+    prefix TEXT;
+    counter INTEGER;
+    new_invoice_number TEXT;
+BEGIN
+    SELECT invoice_prefix, invoice_counter
+    INTO prefix, counter
+    FROM app_settings LIMIT 1;
+
+    IF prefix IS NULL THEN prefix := 'INV'; END IF;
+    IF counter IS NULL THEN counter := 1000; END IF;
+
+    loop
+        new_invoice_number := prefix || '-' || LPAD(counter::TEXT, 6, '0');
+        -- Advance the counter every call so concurrent callers never collide
+        UPDATE app_settings
+        SET invoice_counter = counter + 1,
+            updated_at = timezone('utc'::text, now());
+        counter := counter + 1;
+        EXIT;
+    end loop;
+
+    RETURN new_invoice_number;
+END;
+$$ LANGUAGE plpgsql;
 
 
 -- ── Customer Stats Auto-Update ──
@@ -1655,7 +1797,14 @@ ALTER TABLE products
   ADD COLUMN IF NOT EXISTS variant_data  JSONB DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS modifiers     JSONB DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS estore_sort_order INTEGER DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS estore_category_sort_order INTEGER DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS estore_category_sort_order INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS product_type  TEXT DEFAULT 'simple',
+  ADD COLUMN IF NOT EXISTS is_service    BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS require_serial BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_weight_based BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS price_per_unit DECIMAL(12,2),
+  ADD COLUMN IF NOT EXISTS unit          TEXT DEFAULT 'piece',
+  ADD COLUMN IF NOT EXISTS parent_id     UUID REFERENCES products(id) ON DELETE CASCADE;
 
 DO $$
 BEGIN
@@ -1769,17 +1918,22 @@ EXCEPTION WHEN OTHERS THEN RETURN jsonb_build_object('success', false, 'error', 
 END; $$;
 
 -- ── 3. Stock Integrity Audit ──
+DROP FUNCTION IF EXISTS audit_stock_integrity() CASCADE;
 CREATE OR REPLACE FUNCTION audit_stock_integrity()
-RETURNS TABLE(product_id uuid, name text, stock integer, batch_sum bigint, diff bigint)
+RETURNS TABLE(product_id uuid, name text, stock integer, history_sum bigint, diff bigint)
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
-  SELECT p.id, p.name, p.stock,
-    COALESCE(SUM(pb.qty_remaining), 0) AS batch_sum,
-    p.stock::bigint - COALESCE(SUM(pb.qty_remaining), 0) AS diff
+  SELECT 
+    p.id, 
+    p.name, 
+    p.stock,
+    COALESCE(SUM(sh.change_qty), 0) AS history_sum,
+    p.stock::bigint - COALESCE(SUM(sh.change_qty), 0) AS diff
   FROM products p
-  LEFT JOIN product_batches pb ON pb.product_id = p.id
+  LEFT JOIN stock_history sh ON sh.product_id = p.id
+  WHERE p.track_inventory = true
   GROUP BY p.id, p.name, p.stock
-  HAVING p.stock != COALESCE(SUM(pb.qty_remaining), 0)
-  ORDER BY ABS(p.stock - COALESCE(SUM(pb.qty_remaining), 0)) DESC;
+  HAVING p.stock != COALESCE(SUM(sh.change_qty), 0)
+  ORDER BY ABS(p.stock - COALESCE(SUM(sh.change_qty), 0)) DESC;
 $$;
 
 
@@ -2126,6 +2280,15 @@ ALTER TABLE stock_history
 ALTER TABLE variant_stock_history
   ADD COLUMN IF NOT EXISTS updated_at           TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
 
+-- POST-LAUNCH FIX (2026-08-12, found by TESTS_GUIDE full-flow battery):
+-- variant_stock_history type CHECK must allow 'purchase' + signed reversal types on
+-- ALL projects (PizzaMilano had older 4-type check → variant stock-in crashed there).
+DO $$ BEGIN
+  ALTER TABLE variant_stock_history DROP CONSTRAINT IF EXISTS variant_stock_history_type_check;
+  ALTER TABLE variant_stock_history ADD CONSTRAINT variant_stock_history_type_check
+    CHECK (type IN ('sale', 'return', 'adjustment', 'initial', 'purchase', 'stock_in', 'adjustment_out'));
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+
 -- POST-LAUNCH ALTER TABLE: product_addons — Delta Sync Support
 ALTER TABLE product_addons
   ADD COLUMN IF NOT EXISTS updated_at           TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL;
@@ -2136,6 +2299,11 @@ DO $$ BEGIN CREATE TRIGGER update_payments_updated_at              BEFORE UPDATE
 DO $$ BEGIN CREATE TRIGGER update_stock_history_updated_at         BEFORE UPDATE ON stock_history         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TRIGGER update_variant_stock_history_updated_at BEFORE UPDATE ON variant_stock_history FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TRIGGER update_product_addons_updated_at        BEFORE UPDATE ON product_addons        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- POST-LAUNCH TRIGGERS: Inventory Sync Triggers
+DO $$ BEGIN CREATE TRIGGER on_stock_history_insert AFTER INSERT ON stock_history FOR EACH ROW EXECUTE FUNCTION trigger_update_product_stock(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER on_variant_stock_history_insert AFTER INSERT ON variant_stock_history FOR EACH ROW EXECUTE FUNCTION trigger_update_variant_stock(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 
 -- POST-LAUNCH ALTER TABLE: expenses — Manual Override
 ALTER TABLE expenses
@@ -2160,4 +2328,858 @@ ALTER TABLE sales DROP CONSTRAINT IF EXISTS sales_salesman_id_fkey;
 DO $$ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE salesmen;
 EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+-- Fix Estore Oversell Bug: Reserve stock upon order placement
+-- (fixed 2026-08-12: delivery_address column — app sends delivery_address;
+--  reference_id UUID cast fix; variant-aware reservation F22)
+CREATE OR REPLACE FUNCTION place_estore_order(order_data jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    new_order_id uuid;
+BEGIN
+    -- 1. Insert into store_orders (NO stock effect — POS bill deducts later)
+    INSERT INTO store_orders (
+        invoice_number, customer_id, customer_name, customer_phone,
+        delivery_address, customer_notes, items, subtotal, discount_amount,
+        tax_amount, total, payment_method, status, cashier,
+        delivery_location_lat, delivery_location_lng, delivery_fee
+    ) VALUES (
+        order_data->>'invoice_number',
+        (order_data->>'customer_id')::uuid,
+        order_data->>'customer_name',
+        order_data->>'customer_phone',
+        COALESCE(order_data->>'delivery_address', order_data->>'address'),
+        order_data->>'customer_notes',
+        order_data->'items',
+        (order_data->>'subtotal')::numeric,
+        (order_data->>'discount_amount')::numeric,
+        (order_data->>'tax_amount')::numeric,
+        (order_data->>'total')::numeric,
+        order_data->>'payment_method',
+        order_data->>'status',
+        order_data->>'cashier',
+        (order_data->>'delivery_location_lat')::numeric,
+        (order_data->>'delivery_location_lng')::numeric,
+        (order_data->>'delivery_fee')::numeric
+    ) RETURNING id INTO new_order_id;
+
+    RETURN jsonb_build_object('success', true, 'order_id', new_order_id);
+END;
+$$;
+
+-- Estore policy (2026-08-12): NO stock effect at placement — inventory moves
+-- ONLY when the POS bills the order (sale create = normal sale path deduction).
+-- Cancel restores stock ONLY for legacy pre-migration reservations (self-healing).
+-- Cancelled orders are auto-permanently deleted 24h after cancellation (app prune).-- Trigger to release stock when a legacy-pre-migration estore order is cancelled.
+-- New orders (2026-08-12+ policy) never touched stock at placement → cancel is a no-op.
+CREATE OR REPLACE FUNCTION trigger_release_estore_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    item jsonb;
+    product_rec record;
+    has_reservation boolean;
+BEGIN
+    -- If status changed to cancelled AND the order was never fulfilled
+    -- (fulfilled orders already route stock through the sale/refund ledger —
+    --  releasing here too would double-restore stock / inflate the ledger)
+    IF NEW.status = 'cancelled' AND OLD.status != 'cancelled' AND NEW.fulfilled_sale_id IS NULL THEN
+        FOR item IN SELECT * FROM jsonb_array_elements(NEW.items)
+        LOOP
+            SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
+
+            IF product_rec.track_inventory IS TRUE THEN
+                IF item ? 'variantId' AND item->>'variantId' IS NOT NULL AND item->>'variantId' != '' THEN
+                    SELECT EXISTS (
+                        SELECT 1 FROM variant_stock_history
+                        WHERE product_id = product_rec.id
+                          AND variant_id = (item->>'variantId')::text
+                          AND reference_id = NEW.id
+                          AND note LIKE 'Estore Reservation%'
+                    ) INTO has_reservation;
+
+                    IF has_reservation THEN
+                        INSERT INTO variant_stock_history (
+                            product_id, variant_id, variant_label, change_qty, type,
+                            reference_id, note, cashier_name
+                        ) VALUES (
+                            product_rec.id,
+                            item->>'variantId',
+                            item->>'variantLabel',
+                            (item->>'quantity')::integer,
+                            'return',
+                            NEW.id,
+                            'Estore Order Cancelled: ' || NEW.invoice_number,
+                            'System'
+                        );
+                    END IF;
+                ELSE
+                    SELECT EXISTS (
+                        SELECT 1 FROM stock_history
+                        WHERE product_id = product_rec.id
+                          AND reference_id = NEW.id
+                          AND note LIKE 'Estore Reservation%'
+                    ) INTO has_reservation;
+
+                    IF has_reservation THEN
+                        INSERT INTO stock_history (
+                            product_id, change_qty, type, reference_id, note, cashier_name
+                        ) VALUES (
+                            product_rec.id,
+                            (item->>'quantity')::integer,
+                            'return',
+                            NEW.id,
+                            'Estore Order Cancelled: ' || NEW.invoice_number,
+                            'System'
+                        );
+                    END IF;
+                END IF;
+            END IF;
+        END LOOP;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_store_order_cancelled ON store_orders;
+CREATE TRIGGER on_store_order_cancelled
+AFTER UPDATE ON store_orders
+FOR EACH ROW
+EXECUTE FUNCTION trigger_release_estore_stock();
+-- Enable RLS on stock_history and variant_stock_history
+ALTER TABLE stock_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE variant_stock_history ENABLE ROW LEVEL SECURITY;
+
+-- 1. stock_history Policies
+-- Allow anyone to read (needed for POS devices sync)
+CREATE POLICY "Allow public read on stock_history" 
+ON stock_history FOR SELECT 
+TO public 
+USING (true);
+
+-- Allow authenticated users to insert (POS Cashiers/Admins)
+CREATE POLICY "Allow authenticated insert on stock_history" 
+ON stock_history FOR INSERT 
+TO authenticated 
+WITH CHECK (true);
+
+-- Allow service_role to do everything
+CREATE POLICY "Allow service_role ALL on stock_history" 
+ON stock_history FOR ALL 
+TO service_role 
+USING (true) 
+WITH CHECK (true);
+
+-- 2. variant_stock_history Policies
+-- Allow anyone to read
+CREATE POLICY "Allow public read on variant_stock_history" 
+ON variant_stock_history FOR SELECT 
+TO public 
+USING (true);
+
+-- Allow authenticated users to insert
+CREATE POLICY "Allow authenticated insert on variant_stock_history" 
+ON variant_stock_history FOR INSERT 
+TO authenticated 
+WITH CHECK (true);
+
+-- Allow service_role to do everything
+CREATE POLICY "Allow service_role ALL on variant_stock_history" 
+ON variant_stock_history FOR ALL 
+TO service_role 
+USING (true) 
+WITH CHECK (true);
+
+-- ════════════════════════════════════════════════════════════════
+-- POST-LAUNCH (F21/F22 — 2026-08-12): Stale-Write Guards + Variant Restock
+-- ════════════════════════════════════════════════════════════════
+
+-- F22: purchase_records variant columns (variant-targeted restock)
+ALTER TABLE purchase_records
+  ADD COLUMN IF NOT EXISTS variant_id   TEXT,
+  ADD COLUMN IF NOT EXISTS variant_label TEXT;
+
+-- F21: row_tombstones registry (created near table 27b; re-created idempotently)
+CREATE TABLE IF NOT EXISTS row_tombstones (
+  table_name TEXT NOT NULL,
+  ref_id UUID NOT NULL,
+  deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (table_name, ref_id)
+);
+CREATE INDEX IF NOT EXISTS idx_row_tombstones_ref ON row_tombstones(ref_id);
+GRANT ALL ON row_tombstones TO anon, authenticated, service_role;
+ALTER TABLE row_tombstones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow service_role ALL on row_tombstones" ON row_tombstones;
+CREATE POLICY "Allow service_role ALL on row_tombstones"
+  ON row_tombstones FOR ALL
+  TO service_role
+  USING (true) WITH CHECK (true);
+
+-- F21: guard + tombstone triggers (idempotent re-creation)
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_sales            BEFORE INSERT OR UPDATE ON sales                FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_stock_history    BEFORE INSERT OR UPDATE ON stock_history         FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_variant_history  BEFORE INSERT OR UPDATE ON variant_stock_history FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_purchase_records BEFORE INSERT OR UPDATE ON purchase_records      FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_expenses         BEFORE INSERT OR UPDATE ON expenses              FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_payments         BEFORE INSERT OR UPDATE ON payments              FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_store_orders     BEFORE INSERT OR UPDATE ON store_orders          FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER guard_stale_write_sales_tabs       BEFORE INSERT OR UPDATE ON sales_tabs            FOR EACH ROW EXECUTE FUNCTION guard_stale_write(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN CREATE TRIGGER record_tombstone_sales             AFTER DELETE ON sales                FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_stock_history     AFTER DELETE ON stock_history         FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_variant_history   AFTER DELETE ON variant_stock_history FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_purchase_records  AFTER DELETE ON purchase_records      FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_expenses          AFTER DELETE ON expenses              FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_payments          AFTER DELETE ON payments              FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_store_orders      AFTER DELETE ON store_orders          FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER record_tombstone_sales_tabs        AFTER DELETE ON sales_tabs            FOR EACH ROW EXECUTE FUNCTION record_row_tombstone(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- ════════════════════════════════════════════════════════════════
+-- MIGRATION: Inventory Sync Trigger
+-- Ensures 10-year auditability by mathematically adjusting product stock
+-- whenever a stock_history delta is appended.
+-- ════════════════════════════════════════════════════════════════
+
+-- 1. Create the trigger function
+CREATE OR REPLACE FUNCTION trigger_update_product_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Update the main product stock
+    UPDATE products SET 
+        stock = COALESCE(stock, 0) + NEW.change_qty,
+        updated_at = NOW()
+    WHERE id = NEW.product_id;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Attach the trigger to stock_history
+DROP TRIGGER IF EXISTS on_stock_history_insert ON stock_history;
+CREATE TRIGGER on_stock_history_insert
+AFTER INSERT ON stock_history
+FOR EACH ROW EXECUTE FUNCTION trigger_update_product_stock();
+
+-- 3. Create the variant stock trigger function
+CREATE OR REPLACE FUNCTION trigger_update_variant_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Update the variant stock inside the JSONB variant_data array
+    -- This relies on the fact that variant_data is an array of objects
+    -- We update the specific object where id = NEW.variant_id
+    UPDATE products
+    SET 
+        variant_data = (
+            SELECT jsonb_agg(
+                CASE 
+                    WHEN v->>'id' = NEW.variant_id::text THEN 
+                        v || jsonb_build_object('stock', COALESCE((v->>'stock')::int, 0) + NEW.change_qty)
+                    ELSE v 
+                END
+            )
+            FROM jsonb_array_elements(variant_data) AS v
+        ),
+        updated_at = NOW()
+    WHERE id = NEW.product_id;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 4. Attach the trigger to variant_stock_history
+DROP TRIGGER IF EXISTS on_variant_stock_history_insert ON variant_stock_history;
+CREATE TRIGGER on_variant_stock_history_insert
+AFTER INSERT ON variant_stock_history
+FOR EACH ROW EXECUTE FUNCTION trigger_update_variant_stock();
+
+-- 5. Restore Reconcile Tool (F11 Rule)
+-- This replaces the deprecated product_batches reconcile tool with a stock_history sum comparison.
+CREATE OR REPLACE FUNCTION audit_stock_integrity_history()
+RETURNS TABLE(product_id uuid, name text, stock integer, history_sum bigint, diff bigint)
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT 
+    p.id, 
+    p.name, 
+    p.stock,
+    COALESCE(SUM(sh.change_qty), 0) AS history_sum,
+    p.stock::bigint - COALESCE(SUM(sh.change_qty), 0) AS diff
+  FROM products p
+  LEFT JOIN stock_history sh ON sh.product_id = p.id
+  WHERE p.track_inventory = true
+  GROUP BY p.id, p.name, p.stock
+  HAVING p.stock != COALESCE(SUM(sh.change_qty), 0)
+  ORDER BY ABS(p.stock - COALESCE(SUM(sh.change_qty), 0)) DESC;
+$$;
+
+GRANT EXECUTE ON FUNCTION audit_stock_integrity_history() TO anon, authenticated;
+-- Fix Estore Oversell Bug: Reserve stock upon order placement
+CREATE OR REPLACE FUNCTION place_estore_order(order_data jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    new_order_id uuid;
+    item jsonb;
+    product_rec record;
+    new_stock integer;
+BEGIN
+    -- 1. Insert into store_orders
+    INSERT INTO store_orders (
+        invoice_number, customer_id, customer_name, customer_phone,
+        address, customer_notes, items, subtotal, discount_amount,
+        tax_amount, total, payment_method, status, cashier,
+        delivery_location_lat, delivery_location_lng,
+        delivery_fee, table_number, fulfillment_mode
+    ) VALUES (
+        order_data->>'invoice_number',
+        (order_data->>'customer_id')::uuid,
+        order_data->>'customer_name',
+        order_data->>'customer_phone',
+        order_data->>'address',
+        order_data->>'customer_notes',
+        order_data->'items',
+        (order_data->>'subtotal')::numeric,
+        (order_data->>'discount_amount')::numeric,
+        (order_data->>'tax_amount')::numeric,
+        (order_data->>'total')::numeric,
+        order_data->>'payment_method',
+        order_data->>'status',
+        order_data->>'cashier',
+        (order_data->>'delivery_location_lat')::numeric,
+        (order_data->>'delivery_location_lng')::numeric,
+        (order_data->>'delivery_fee')::numeric,
+        order_data->>'table_number',
+        order_data->>'fulfillment_mode'
+    ) RETURNING id INTO new_order_id;
+
+    -- 2. Deduct stock for each item by inserting into stock_history
+    -- (The on_stock_history_insert trigger will automatically update products.stock)
+    FOR item IN SELECT * FROM jsonb_array_elements(order_data->'items')
+    LOOP
+        -- Check if product tracks inventory
+        SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
+        
+        IF product_rec.track_inventory = true THEN
+            INSERT INTO stock_history (
+                product_id, change_qty, type, reference_id, note, cashier_name
+            ) VALUES (
+                product_rec.id,
+                -((item->>'quantity')::integer),
+                'sale',
+                new_order_id::text,
+                'Estore Reservation: ' || (order_data->>'invoice_number'),
+                'ONLINE_STORE'
+            );
+        END IF;
+    END LOOP;
+
+    RETURN jsonb_build_object('success', true, 'order_id', new_order_id);
+END;
+$$;
+
+-- Grant execute to anon
+GRANT EXECUTE ON FUNCTION place_estore_order(jsonb) TO anon;
+-- Trigger to release stock when an estore order is cancelled
+CREATE OR REPLACE FUNCTION trigger_release_estore_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    item jsonb;
+    product_rec record;
+BEGIN
+    -- If status changed to cancelled
+    IF NEW.status = 'cancelled' AND OLD.status != 'cancelled' THEN
+        -- Loop through items to restore stock
+        FOR item IN SELECT * FROM jsonb_array_elements(NEW.items)
+        LOOP
+            -- Check if product tracks inventory
+            SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
+            
+            IF product_rec.track_inventory = true THEN
+                INSERT INTO stock_history (
+                    product_id, change_qty, type, reference_id, note, cashier_name
+                ) VALUES (
+                    product_rec.id,
+                    (item->>'quantity')::integer,
+                    'return',
+                    NEW.id::text,
+                    'Estore Order Cancelled: ' || NEW.invoice_number,
+                    'System'
+                );
+            END IF;
+        END LOOP;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_store_order_cancelled ON store_orders;
+CREATE TRIGGER on_store_order_cancelled
+AFTER UPDATE ON store_orders
+FOR EACH ROW
+EXECUTE FUNCTION trigger_release_estore_stock();
+-- Enable RLS on stock_history and variant_stock_history
+ALTER TABLE stock_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE variant_stock_history ENABLE ROW LEVEL SECURITY;
+
+-- 1. stock_history Policies
+-- Allow anyone to read (needed for POS devices sync)
+CREATE POLICY "Allow public read on stock_history" 
+ON stock_history FOR SELECT 
+TO public 
+USING (true);
+
+-- Allow authenticated users to insert (POS Cashiers/Admins)
+CREATE POLICY "Allow authenticated insert on stock_history" 
+ON stock_history FOR INSERT 
+TO authenticated 
+WITH CHECK (true);
+
+-- Allow service_role to do everything
+CREATE POLICY "Allow service_role ALL on stock_history" 
+ON stock_history FOR ALL 
+TO service_role 
+USING (true) 
+WITH CHECK (true);
+
+-- 2. variant_stock_history Policies
+-- Allow anyone to read
+CREATE POLICY "Allow public read on variant_stock_history" 
+ON variant_stock_history FOR SELECT 
+TO public 
+USING (true);
+
+-- Allow authenticated users to insert
+CREATE POLICY "Allow authenticated insert on variant_stock_history" 
+ON variant_stock_history FOR INSERT 
+TO authenticated 
+WITH CHECK (true);
+
+-- Allow service_role to do everything
+CREATE POLICY "Allow service_role ALL on variant_stock_history" 
+ON variant_stock_history FOR ALL 
+TO service_role 
+USING (true) 
+WITH CHECK (true);
+-- 2026-08-12 Financial Integrity Sweep: Estore cancel double-release guard
+-- Issue: trigger_release_estore_stock released +qty on ANY transition to 'cancelled'.
+-- If an order was already FULFILLED (sale converted — goods sold, stock already
+-- deducted at sale commit / restored at sale refund), cancelling the order released
+-- stock a second time (net stock inflation).
+-- Fix: only release reservation stock when the order was NEVER fulfilled.
+CREATE OR REPLACE FUNCTION public.trigger_release_estore_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    item jsonb;
+    product_rec record;
+BEGIN
+    -- If status changed to cancelled AND the order was never fulfilled
+    -- (fulfilled orders already route stock through the sale/refund ledger)
+    IF NEW.status = 'cancelled' AND OLD.status != 'cancelled' AND NEW.fulfilled_sale_id IS NULL THEN
+        -- Loop through items to restore stock
+        FOR item IN SELECT * FROM jsonb_array_elements(NEW.items)
+        LOOP
+            -- Check if product tracks inventory
+            SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
+
+            IF product_rec.track_inventory = true THEN
+                INSERT INTO stock_history (
+                    product_id, change_qty, type, reference_id, note, cashier_name
+                ) VALUES (
+                    product_rec.id,
+                    (item->>'quantity')::integer,
+                    'return',
+                    NEW.id::text,
+                    'Estore Order Cancelled: ' || NEW.invoice_number,
+                    'System'
+                );
+            END IF;
+        END LOOP;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_store_order_cancelled ON store_orders;
+CREATE TRIGGER on_store_order_cancelled
+AFTER UPDATE ON store_orders
+FOR EACH ROW
+EXECUTE FUNCTION public.trigger_release_estore_stock();-- 20260812235500_fix_estore_place_order_bugs.sql
+-- 🐛 FIX (found by TESTS_GUIDE full-system-flow battery, 2026-08-12):
+--   1. place_estore_order referenced columns (address, table_number, fulfillment_mode)
+--      that DON'T EXIST in store_orders → EVERY online order placement failed.
+--      App sends 'delivery_address' (toRemoteStoreOrder) — switch to that column.
+--   2. reference_id is UUID; both functions cast ::text → every tracked-product
+--      order AND every cancel raised 42804 → stock reservation/release never happened.
+--   3. F22 note: estore reservation deducts via stock_history (product-level) —
+--      variant items would silently not reserve; app routes variant orders
+--      through variant_stock_history on the POS side; RPC reserves products only.
+
+CREATE OR REPLACE FUNCTION place_estore_order(order_data jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    new_order_id uuid;
+    item jsonb;
+    product_rec record;
+    variant_rec record;
+BEGIN
+    -- 1. Insert into store_orders
+    INSERT INTO store_orders (
+        invoice_number, customer_id, customer_name, customer_phone,
+        delivery_address, customer_notes, items, subtotal, discount_amount,
+        tax_amount, total, payment_method, status, cashier,
+        delivery_location_lat, delivery_location_lng, delivery_fee
+    ) VALUES (
+        order_data->>'invoice_number',
+        (order_data->>'customer_id')::uuid,
+        order_data->>'customer_name',
+        order_data->>'customer_phone',
+        COALESCE(order_data->>'delivery_address', order_data->>'address'),
+        order_data->>'customer_notes',
+        order_data->'items',
+        (order_data->>'subtotal')::numeric,
+        (order_data->>'discount_amount')::numeric,
+        (order_data->>'tax_amount')::numeric,
+        (order_data->>'total')::numeric,
+        order_data->>'payment_method',
+        order_data->>'status',
+        order_data->>'cashier',
+        (order_data->>'delivery_location_lat')::numeric,
+        (order_data->>'delivery_location_lng')::numeric,
+        (order_data->>'delivery_fee')::numeric
+    ) RETURNING id INTO new_order_id;
+
+    -- 2. Reserve stock for each tracked item (F22: variant-aware)
+    --    product-level stock → stock_history (trigger updates products.stock)
+    --    variant item    → variant_stock_history (trigger updates variant_data)
+    FOR item IN SELECT * FROM jsonb_array_elements(order_data->'items')
+    LOOP
+        SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
+        IF product_rec.track_inventory IS TRUE THEN
+            IF item ? 'variantId' AND item->>'variantId' IS NOT NULL AND item->>'variantId' != '' THEN
+                INSERT INTO variant_stock_history (
+                    product_id, variant_id, variant_label, change_qty, type,
+                    reference_id, note, cashier_name
+                ) VALUES (
+                    product_rec.id,
+                    item->>'variantId',
+                    item->>'variantLabel',
+                    -((item->>'quantity')::integer),
+                    'sale',
+                    new_order_id,
+                    'Estore Reservation: ' || (order_data->>'invoice_number'),
+                    'ONLINE_STORE'
+                );
+            ELSE
+                INSERT INTO stock_history (
+                    product_id, change_qty, type, reference_id, note, cashier_name
+                ) VALUES (
+                    product_rec.id,
+                    -((item->>'quantity')::integer),
+                    'sale',
+                    new_order_id,
+                    'Estore Reservation: ' || (order_data->>'invoice_number'),
+                    'ONLINE_STORE'
+                );
+            END IF;
+        END IF;
+    END LOOP;
+
+    RETURN jsonb_build_object('success', true, 'order_id', new_order_id);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION place_estore_order(jsonb) TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION trigger_release_estore_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    item jsonb;
+    product_rec record;
+BEGIN
+    IF NEW.status = 'cancelled' AND OLD.status != 'cancelled' AND NEW.fulfilled_sale_id IS NULL THEN
+        FOR item IN SELECT * FROM jsonb_array_elements(NEW.items)
+        LOOP
+            SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
+            IF product_rec.track_inventory IS TRUE THEN
+                IF item ? 'variantId' AND item->>'variantId' IS NOT NULL AND item->>'variantId' != '' THEN
+                    INSERT INTO variant_stock_history (
+                        product_id, variant_id, variant_label, change_qty, type,
+                        reference_id, note, cashier_name
+                    ) VALUES (
+                        product_rec.id,
+                        item->>'variantId',
+                        item->>'variantLabel',
+                        (item->>'quantity')::integer,
+                        'return',
+                        NEW.id,
+                        'Estore Order Cancelled: ' || NEW.invoice_number,
+                        'System'
+                    );
+                ELSE
+                    INSERT INTO stock_history (
+                        product_id, change_qty, type, reference_id, note, cashier_name
+                    ) VALUES (
+                        product_rec.id,
+                        (item->>'quantity')::integer,
+                        'return',
+                        NEW.id,
+                        'Estore Order Cancelled: ' || NEW.invoice_number,
+                        'System'
+                    );
+                END IF;
+            END IF;
+        END LOOP;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;-- 20260813000000_fix_products_variant_history_schema_parity.sql
+-- 🐛 FIX (found by TESTS_GUIDE full-system-flow battery, 2026-08-12):
+--   1. MINIMAHAL: products.product_type (etc.) columns were NEVER added — the
+--      master schema's post-launch ALTER block omitted them → variable products
+--      could not save on that project (schema divergence, MAJOR RULES #5/#6).
+--   2. PIZZAMILANO: variant_stock_history type CHECK lacked 'purchase' → variant
+--      stock-in crashed there (divergence). Master schema now normalizes to the
+--      full signed-7 type set.
+-- Fix = idempotent ALTERs; safe on all 4 projects.
+
+ALTER TABLE products
+  ADD COLUMN IF NOT EXISTS product_type   TEXT DEFAULT 'simple',
+  ADD COLUMN IF NOT EXISTS is_service     BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS require_serial BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_weight_based BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS price_per_unit DECIMAL(12,2),
+  ADD COLUMN IF NOT EXISTS unit           TEXT DEFAULT 'piece',
+  ADD COLUMN IF NOT EXISTS parent_id      UUID REFERENCES products(id) ON DELETE CASCADE;
+
+DO $$ BEGIN
+  ALTER TABLE variant_stock_history DROP CONSTRAINT IF EXISTS variant_stock_history_type_check;
+  ALTER TABLE variant_stock_history ADD CONSTRAINT variant_stock_history_type_check
+    CHECK (type IN ('sale', 'return', 'adjustment', 'initial', 'purchase', 'stock_in', 'adjustment_out'));
+EXCEPTION WHEN undefined_object THEN NULL; END $$;-- ═══════════════════════════════════════════════════════════════════════════
+-- ESTORE POLICY CHANGE (2026-08-12) — "No stock effect until POS bill"
+--
+-- Why:
+--   Previously place_estore_order RESERVED stock at order placement (deducted
+--   -qty immediately) and the cancel trigger restored it. User policy change:
+--   til the POS bills an online order, inventory must show ZERO movement.
+--
+-- New behavior (PERMANENT):
+--   1. place_estore_order → inserts the order ONLY. No stock_history /
+--      variant_stock_history rows. Inventory untouched at placement.
+--   2. POS fulfillment (CheckoutPage/CheckoutModal) creates the sale with
+--      sourceOrderId → salesService.create now deducts stock through the
+--      normal sale path (AI-era client code removes the isEstoreFulfillment
+--      skip). The sale's own 'sale' history rows are the ONLY stock effect.
+--   3. trigger_release_estore_stock → cancel restores stock ONLY IF a matching
+--      'Estore Reservation' row still exists (legacy in-flight orders placed
+--      before this migration). New orders have no reservations → no-op.
+--      Self-healing + idempotent: never double-restores, never invents stock.
+--   4. LEGACY in-flight reservations (rows with note 'Estore Reservation: …')
+--      are compensated with +qty 'return' entries at migration time. Net
+--      zero — stock returns to pre-reservation level — so fulfilling an old
+--      order after this migration deducts exactly once (no double deduction).
+--   5. Cancelled store orders are auto-permanently deleted 24h after
+--      cancellation by the app's maintenance prune (syncEngine), now ENABLED.
+--      Permanent via row_tombstones (F21) — deleted rows can never resurrect.
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ── 1. place_estore_order: REMOVE the reservation loop ─────────────────────
+CREATE OR REPLACE FUNCTION place_estore_order(order_data jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    new_order_id uuid;
+BEGIN
+    -- 1. Insert into store_orders (no stock effect — POS bill deducts later)
+    INSERT INTO store_orders (
+        invoice_number, customer_id, customer_name, customer_phone,
+        delivery_address, customer_notes, items, subtotal, discount_amount,
+        tax_amount, total, payment_method, status, cashier,
+        delivery_location_lat, delivery_location_lng, delivery_fee
+    ) VALUES (
+        order_data->>'invoice_number',
+        (order_data->>'customer_id')::uuid,
+        order_data->>'customer_name',
+        order_data->>'customer_phone',
+        COALESCE(order_data->>'delivery_address', order_data->>'address'),
+        order_data->>'customer_notes',
+        order_data->'items',
+        (order_data->>'subtotal')::numeric,
+        (order_data->>'discount_amount')::numeric,
+        (order_data->>'tax_amount')::numeric,
+        (order_data->>'total')::numeric,
+        order_data->>'payment_method',
+        order_data->>'status',
+        order_data->>'cashier',
+        (order_data->>'delivery_location_lat')::numeric,
+        (order_data->>'delivery_location_lng')::numeric,
+        (order_data->>'delivery_fee')::numeric
+    ) RETURNING id INTO new_order_id;
+
+    RETURN jsonb_build_object('success', true, 'order_id', new_order_id);
+END;
+$$;
+
+-- Grant execute to anon
+GRANT EXECUTE ON FUNCTION place_estore_order(jsonb) TO anon, authenticated, service_role;
+
+-- ── 2. trigger_release_estore_stock: restore ONLY if a reservation exists ──
+-- New orders never create reservations → cancel is a no-op (correct).
+-- Legacy pre-migration orders had reservations → cancel still releases them.
+CREATE OR REPLACE FUNCTION trigger_release_estore_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    item jsonb;
+    product_rec record;
+    has_reservation boolean;
+BEGIN
+    -- If status changed to cancelled AND the order was never fulfilled
+    -- (fulfilled orders already route stock through the sale/refund ledger —
+    --  releasing here too would double-restore stock / inflate the ledger)
+    IF NEW.status = 'cancelled' AND OLD.status != 'cancelled' AND NEW.fulfilled_sale_id IS NULL THEN
+        FOR item IN SELECT * FROM jsonb_array_elements(NEW.items)
+        LOOP
+            -- Check if product tracks inventory
+            SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
+
+            IF product_rec.track_inventory IS TRUE THEN
+                IF item ? 'variantId' AND item->>'variantId' IS NOT NULL AND item->>'variantId' != '' THEN
+                    -- Variant path: release ONLY if a legacy reservation exists for THIS order
+                    SELECT EXISTS (
+                        SELECT 1 FROM variant_stock_history
+                        WHERE product_id = product_rec.id
+                          AND variant_id = (item->>'variantId')::text
+                          AND reference_id = NEW.id
+                          AND note LIKE 'Estore Reservation%'
+                    ) INTO has_reservation;
+
+                    IF has_reservation THEN
+                        INSERT INTO variant_stock_history (
+                            product_id, variant_id, variant_label, change_qty, type,
+                            reference_id, note, cashier_name
+                        ) VALUES (
+                            product_rec.id,
+                            item->>'variantId',
+                            item->>'variantLabel',
+                            (item->>'quantity')::integer,
+                            'return',
+                            NEW.id,
+                            'Estore Order Cancelled: ' || NEW.invoice_number,
+                            'System'
+                        );
+                    END IF;
+                ELSE
+                    -- Simple path: release ONLY if a legacy reservation exists for THIS order
+                    SELECT EXISTS (
+                        SELECT 1 FROM stock_history
+                        WHERE product_id = product_rec.id
+                          AND reference_id = NEW.id
+                          AND note LIKE 'Estore Reservation%'
+                    ) INTO has_reservation;
+
+                    IF has_reservation THEN
+                        INSERT INTO stock_history (
+                            product_id, change_qty, type, reference_id, note, cashier_name
+                        ) VALUES (
+                            product_rec.id,
+                            (item->>'quantity')::integer,
+                            'return',
+                            NEW.id,
+                            'Estore Order Cancelled: ' || NEW.invoice_number,
+                            'System'
+                        );
+                    END IF;
+                END IF;
+            END IF;
+        END LOOP;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+-- Re-attach trigger (idempotent)
+DROP TRIGGER IF EXISTS on_store_order_cancelled ON store_orders;
+CREATE TRIGGER on_store_order_cancelled
+AFTER UPDATE ON store_orders
+FOR EACH ROW
+EXECUTE FUNCTION trigger_release_estore_stock();
+
+-- ── 3. LEGACY RESERVATION RELEASE (one-time compensation) ──────────────────
+-- Reverse every legacy 'Estore Reservation' row with an equal +qty 'return'
+-- entry. Net ledger effect = zero; products.stock (already reduced by the
+-- reservation trigger) returns to pre-reservation levels. Runs only when
+-- reservations exist (idempotent — reference note is unique per function run
+-- and successive runs find zero rows to release).
+DO $$
+DECLARE
+    r record;
+    n_released integer := 0;
+BEGIN
+    -- Simple-product reservations
+    FOR r IN
+        SELECT sh.product_id, sh.change_qty, sh.reference_id, o.invoice_number
+        FROM stock_history sh
+        LEFT JOIN store_orders o ON o.id = sh.reference_id
+        WHERE sh.note LIKE 'Estore Reservation%'
+          AND sh.change_qty < 0
+    LOOP
+        INSERT INTO stock_history (
+            id, product_id, change_qty, type, reference_id, note, cashier_name, created_at
+        ) VALUES (
+            gen_random_uuid(), r.product_id, -r.change_qty, 'return', r.reference_id,
+            'Estore Reservation Release (2026-08-12 migration): ' || COALESCE(r.invoice_number, 'order'),
+            'System', now()
+        );
+        n_released := n_released + 1;
+    END LOOP;
+
+    -- Variant reservations
+    FOR r IN
+        SELECT vh.product_id, vh.variant_id, vh.variant_label, vh.change_qty, vh.reference_id, o.invoice_number
+        FROM variant_stock_history vh
+        LEFT JOIN store_orders o ON o.id = vh.reference_id
+        WHERE vh.note LIKE 'Estore Reservation%'
+          AND vh.change_qty < 0
+    LOOP
+        INSERT INTO variant_stock_history (
+            id, product_id, variant_id, variant_label, change_qty, type,
+            reference_id, note, cashier_name, created_at
+        ) VALUES (
+            gen_random_uuid(), r.product_id, r.variant_id, r.variant_label, -r.change_qty,
+            'return', r.reference_id,
+            'Estore Reservation Release (2026-08-12 migration): ' || COALESCE(r.invoice_number, 'order'),
+            'System', now()
+        );
+        n_released := n_released + 1;
+    END LOOP;
+
+    RAISE NOTICE 'Legacy estore reservations released: %', n_released;
 END $$;

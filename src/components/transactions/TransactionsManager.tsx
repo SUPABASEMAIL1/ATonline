@@ -290,10 +290,34 @@ export function TransactionsManager() {
       credit: 0,
     };
     
+    // UNIVERSAL WALLET RULE: wallet totals must mirror ReportsManager —
+    // fully refunded sales subtract their full method share, partially
+    // refunded sales subtract the refunded amount (pro-rata for split).
     filteredTransactions.forEach(t => {
-      totals.cash += getAmountByMethod(t, 'cash');
-      totals.card += getAmountByMethod(t, 'card');
-      totals.digital += getAmountByMethod(t, 'digital');
+      const addToWallet = (method: 'cash' | 'card' | 'digital', amt: number) => {
+        totals[method] = Math.round((totals[method] + amt) * 100) / 100;
+      };
+
+      if (t.status === 'refunded') {
+        addToWallet('cash', -getAmountByMethod(t, 'cash'));
+        addToWallet('card', -getAmountByMethod(t, 'card'));
+        addToWallet('digital', -getAmountByMethod(t, 'digital'));
+      } else if (t.status === 'partially_refunded') {
+        const refundedAmt = t.refundedAmount || 0;
+        addToWallet('cash', -(t.paymentMethod === 'split'
+          ? refundedAmt * (getAmountByMethod(t, 'cash') / (t.total || 1))
+          : (t.paymentMethod === 'cash' || !t.paymentMethod ? refundedAmt : 0)));
+        addToWallet('card', -(t.paymentMethod === 'split'
+          ? refundedAmt * (getAmountByMethod(t, 'card') / (t.total || 1))
+          : (t.paymentMethod === 'card' ? refundedAmt : 0)));
+        addToWallet('digital', -(t.paymentMethod === 'split'
+          ? refundedAmt * (getAmountByMethod(t, 'digital') / (t.total || 1))
+          : (t.paymentMethod === 'digital' ? refundedAmt : 0)));
+      } else {
+        addToWallet('cash', getAmountByMethod(t, 'cash'));
+        addToWallet('card', getAmountByMethod(t, 'card'));
+        addToWallet('digital', getAmountByMethod(t, 'digital'));
+      }
       totals.credit += getAmountByMethod(t, 'credit');
     });
     

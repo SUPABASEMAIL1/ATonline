@@ -505,10 +505,24 @@ async function executeOp(op: PendingOp): Promise<void> {
             // PostgREST Invalid Data Errors (e.g. string "normal" into numeric column, or check constraint violation)
             // Code 22P02: invalid input syntax for type. Code 22003: numeric value out of range.
             // Code 23514: check constraint violation (e.g. invalid status string).
+            // FINANCIAL SAFETY (universal): NEVER hard-delete financial ops. Mark as error so
+            // the owner can review and fix them — a silent drop = permanent cloud ledger loss.
             if (error.code === '22P02' || error.code === '22003' || error.code === '23514' || errStr.includes('invalid input syntax') || errStr.includes('violates check constraint')) {
-                console.error(`[SyncEngine] CRITICAL DATA TYPE/CONSTRAINT ERROR: entity=${op.entity} error=${error.message} details=${JSON.stringify(error.details)} payload=${JSON.stringify(payload).slice(0, 500)}`);
-                if (op.id) await localDb.pendingOps.delete(op.id);
+                console.error(`[SyncEngine] DATA TYPE/CONSTRAINT ERROR (op kept for review): entity=${op.entity} error=${error.message} details=${JSON.stringify(error.details)} payload=${JSON.stringify(payload).slice(0, 500)}`);
+                if (op.id) await localDb.pendingOps.update(op.id, {
+                    status: 'error',
+                    errorMessage: `Data/constraint error: ${error.message}. Payload kept for review — fix and retry.`
+                });
                 return;
+            }
+
+            // F21 — STALE-WRITE CONFLICT (SQLSTATE P0007, raised by guard_stale_write trigger):
+            // Cloud is authoritative and newer (or the row was deleted). The queued payload is
+            // BY DEFINITION outdated — retrying can never succeed. Drop the op (no error-queue,
+            // no silent data loss: local refreshes from cloud via realtime/merge).
+            if (error.code === 'P0007' || errStr.includes('stale_write')) {
+                console.warn(`[SyncEngine] F21 STALE_WRITE rejected by cloud for ${op.entity}/${entityId}: ${error.message}`);
+                return; // treated as success → removed from queue → realtime/fetch refresh wins
             }
 
             // Error Assessment: Is it a missing column error?
@@ -585,12 +599,15 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
     _syncNeeded = false;
 
     // Sync timeout wrapper
+    // M5 FIX (universal): on timeout, DO NOT flip _isSyncing here — the in-flight batch
+    // still holds the queue. Leaving _isSyncing=true prevents a concurrent sync session
+    // from double-executing the same ops. The outer loop sees syncTimedOut, aborts, and
+    // the finally block releases the flag.
     let syncTimedOut = false;
     const syncTimeout = setTimeout(() => {
         syncTimedOut = true;
         console.warn('[POS SYNC] Sync timed out after 120s — entering offline mode.');
         _offlineMode = true;
-        _isSyncing = false;
     }, SYNC_TIMEOUT);
 
     try {
@@ -807,26 +824,16 @@ async function autoRecoverErrors() {
 
 /**
  * Removes pending ops older than 7 days and enforces a hard size cap.
+ * FINANCIAL SAFETY: only 'error' status ops are ever pruned — a pending
+ * unsynced sale/bill must NEVER be silently dropped (would corrupt the cloud ledger).
  */
 async function pruneStaleOps() {
-    const sevenDays = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const stale = await localDb.pendingOps.where('createdAt').below(sevenDays).delete();
-    if (stale > 0) {
-        console.log(`[POS SYNC] Pruned ${stale} stale pending ops (older than 7 days).`);
-        window.dispatchEvent(new Event('pendingops-changed'));
-    }
-    const count = await localDb.pendingOps.count();
-    if (count > 800) {
-        // If still over 800, remove oldest until under 500
-        const excess = count - 500;
-        const oldest = await localDb.pendingOps.orderBy('createdAt').limit(excess).toArray();
-        const idsToDelete = oldest.map(o => o.id).filter(Boolean) as number[];
-        if (idsToDelete.length > 0) {
-            await localDb.pendingOps.bulkDelete(idsToDelete);
-            console.log(`[POS SYNC] Hard-capped queue from ${count} to ${count - idsToDelete.length} items.`);
-            window.dispatchEvent(new Event('pendingops-changed'));
-        }
-    }
+    // Disabled as per Audit Task 11: Remove 1000-op cap and 7-day drop-off
+    // We never want to drop errored ops because they represent real financial 
+    // operations that failed to reach the cloud. They must stay pending 
+    // indefinitely so the owner can review and manually retry them.
+    console.log('[POS SYNC] pruneStaleOps disabled: Preserving errored/stale ops indefinitely.');
+    return;
 }
 
 async function pruneOldStockHistory() {
@@ -851,47 +858,33 @@ async function pruneOldStockHistory() {
 }
 
 async function pruneExpiredCancelledOrders() {
-    try {
-        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // ONLINE-ORDER POLICY (2026-08-12, permanent): a cancelled ONLINE order
+    // (store_orders, never fulfilled → no POS bill) is permanently deleted
+    // 24 hours after cancellation. POS sales are NOT touched — financial
+    // records stay forever. Permanent on the cloud too: we queue a remote
+    // delete op; row_tombstones (F21) guarantee deleted rows never resurrect.
+    const cut = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const all = await localDb.storeOrders.toArray();
+    const expired = all.filter(o =>
+        o.status === 'cancelled' &&
+        o.updatedAt && new Date(o.updatedAt).getTime() < cut.getTime()
+    );
+    if (expired.length === 0) return;
 
-        // 1. Delete locally from IndexedDB (Dexie)
-        const localDbSales = localDb.sales;
-        if (localDbSales) {
-            const allSales = await localDbSales.toArray();
-            const oldCancelledSales = allSales.filter(s => s.status === 'cancelled' || s.estoreStatus === 'cancelled');
+    // Never prune an order that still has a pending op (it may not be synced)
+    const pending = await localDb.pendingOps.where('entity').equals('store_orders').toArray();
+    const pendingIds = new Set(pending.map(op => op.entityId));
 
-            const toDelete = oldCancelledSales
-                .filter(s => {
-                    const ts = s.updatedAt || s.createdAt || s.timestamp;
-                    if (!ts) return false;
-                    const date = ts instanceof Date ? ts : new Date(ts);
-                    return date.toISOString() < cutoff;
-                })
-                .map(s => s.id);
-
-            if (toDelete.length > 0) {
-                await localDbSales.bulkDelete(toDelete);
-                console.log(`[POS MAINT] Pruned ${toDelete.length} expired cancelled orders from local IndexedDB.`);
-            }
-        }
-
-        // 2. Delete remotely from Supabase if online
-        if (navigator.onLine) {
-            const { error } = await supabase
-                .from('sales')
-                .delete()
-                .or('status.eq.cancelled,estore_status.eq.cancelled')
-                .lt('updated_at', cutoff);
-
-            if (error) {
-                console.warn('[POS MAINT] Failed to prune expired cancelled orders from Supabase:', error);
-            } else {
-                console.log('[POS MAINT] Successfully pruned expired cancelled orders from cloud.');
-            }
-        }
-    } catch (err) {
-        console.error('[POS MAINT] Error pruning expired cancelled orders:', err);
+    let pruned = 0;
+    for (const order of expired) {
+        if (pendingIds.has(order.id)) continue; // leave for the sync queue to finish
+        await localDb.storeOrders.delete(order.id);
+        // Permanent delete on the cloud (tombstone-guarded, F21)
+        await queueOp('store_orders', 'delete', order.id, {});
+        pruned++;
+        console.log(`[POS MAINT] Cancelled order #${order.invoiceNumber} pruned (24h) + cloud delete queued.`);
     }
+    if (pruned > 0) window.dispatchEvent(new Event('pendingops-changed'));
 }
 
 /**

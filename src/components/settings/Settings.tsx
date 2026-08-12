@@ -580,7 +580,7 @@ export function Settings() {
     ...(state.settings?.estoreEnabled ? [{ id: 'estore' as TabType, label: 'Online Store', icon: Globe }] : []),
     { id: 'receipt', label: 'Receipt Design', icon: Printer },
     { id: 'security', label: 'Security & Account', icon: Shield },
-    { id: 'database', label: 'Zaynahs DB', icon: Database, adminOnly: true },
+    { id: 'database', label: 'Database', icon: Database, adminOnly: true },
   ];
 
   const visibleTabs = tabs.filter(t => !t.adminOnly || profile?.role === 'admin');
@@ -605,7 +605,7 @@ export function Settings() {
           </div>
           <div className="shrink-0 flex flex-col">
             <h1 className="text-2xl xl:text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter leading-none">{t("settings")}</h1>
-            <p className="text-gray-600 dark:text-gray-400 text-[9px] font-black uppercase tracking-[0.2em] mt-2 opacity-60">{t("control_center", "Control Center")} • {formData.storeName || 'Zaynahs POS'}</p>
+            <p className="text-gray-600 dark:text-gray-400 text-[9px] font-black uppercase tracking-[0.2em] mt-2 opacity-60">{t("control_center", "Control Center")} • {formData.storeName?.trim() || 'POS'}</p>
           </div>
         </div>
 
@@ -738,7 +738,7 @@ export function Settings() {
                             value={formData.storeName}
                             onChange={handleChange}
                             className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
-                            placeholder="Zaynahs POS"
+                            placeholder="My Store"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -760,7 +760,7 @@ export function Settings() {
                             value={formData.storeEmail}
                             onChange={handleChange}
                             className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
-                            placeholder="contact@zaynahspos.com"
+                            placeholder="contact@mystore.com"
                           />
                         </div>
                         <div className="space-y-1.5">
@@ -771,7 +771,7 @@ export function Settings() {
                             value={formData.storeWebsite}
                             onChange={handleChange}
                             className="w-full bg-white dark:bg-black/20 border-gray-200 dark:border-white/5 rounded-xl py-2 px-3 focus:ring-2 focus:ring-[#10B981]/10 focus:border-[#10B981] transition-all text-[13px] sm:text-sm text-gray-900 dark:text-white font-bold"
-                            placeholder="www.zaynahspos.com"
+                            placeholder="www.mystore.com"
                           />
                         </div>
                         <div className="md:col-span-2 space-y-1.5">
@@ -1617,7 +1617,7 @@ export function Settings() {
                     <Globe className="w-5 h-5 text-cyan-600" />
                   </div>
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Zaynahs DB Adapter</h2>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Database Adapter</h2>
                     <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Cloud Backend Provisioning</p>
                   </div>
                 </div>
@@ -1629,7 +1629,7 @@ export function Settings() {
                       <input
                         type="url"
                         id="electron-supabase-url"
-                        placeholder="https://xxxxxx.zaynahsdb.com"
+                        placeholder="https://xxxxxx.supabase.co"
                         className="w-full bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-2xl py-3.5 px-5 font-mono text-xs font-bold"
                       />
                     </div>
@@ -2263,17 +2263,21 @@ export function Settings() {
         }
       />
 
-      {/* Support Footer */}
+      {/* Support Footer — UNIVERSAL: tenant website/email from settings, hidden if unset */}
       <div className="mt-12 pb-32 text-center space-y-4">
         <div className="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8">
-          <Button variant="ghost" onClick={() => window.open('https://www.zaynahspos.com', '_blank')} className="!min-h-0 !p-0 !rounded-none !gap-2 !text-primary hover:!text-emerald-700 !font-bold underline underline-offset-4 decoration-2 decoration-emerald-100 !shadow-none !hover:bg-transparent dark:!hover:bg-transparent">
-            <Globe className="w-4 h-4" />
-            <span className="text-xs uppercase tracking-widest whitespace-nowrap">www.zaynahspos.com</span>
-          </Button>
-          <Button variant="ghost" onClick={() => window.location.href = 'mailto:zaynahspos@gmail.com'} className="!min-h-0 !p-0 !rounded-none !gap-2 !text-blue-600 hover:!text-blue-700 !font-bold underline underline-offset-4 decoration-2 decoration-blue-100 !shadow-none !hover:bg-transparent dark:!hover:bg-transparent">
-            <Smartphone className="w-4 h-4" />
-            <span className="text-xs uppercase tracking-widest whitespace-nowrap">zaynahspos@gmail.com</span>
-          </Button>
+          {formData.storeWebsite?.trim() && (
+            <Button variant="ghost" onClick={() => window.open(formData.storeWebsite, '_blank')} className="!min-h-0 !p-0 !rounded-none !gap-2 !text-primary hover:!text-emerald-700 !font-bold underline underline-offset-4 decoration-2 decoration-emerald-100 !shadow-none !hover:bg-transparent dark:!hover:bg-transparent">
+              <Globe className="w-4 h-4" />
+              <span className="text-xs uppercase tracking-widest whitespace-nowrap">{formData.storeWebsite}</span>
+            </Button>
+          )}
+          {formData.storeEmail?.trim() && (
+            <Button variant="ghost" onClick={() => window.location.href = `mailto:${formData.storeEmail}`} className="!min-h-0 !p-0 !rounded-none !gap-2 !text-blue-600 hover:!text-blue-700 !font-bold underline underline-offset-4 decoration-2 decoration-blue-100 !shadow-none !hover:bg-transparent dark:!hover:bg-transparent">
+              <Smartphone className="w-4 h-4" />
+              <span className="text-xs uppercase tracking-widest whitespace-nowrap">{formData.storeEmail}</span>
+            </Button>
+          )}
         </div>
         <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.2em]">Crafted for peak performance & enterprise reliability</p>
       </div>

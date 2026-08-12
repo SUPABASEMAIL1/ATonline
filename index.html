@@ -10,21 +10,21 @@
   <meta name="theme-color" content="#10b981" />
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Zaynahs POS</title>
-  <meta name="description" content="Zaynahs POS - A modern point of sale system" />
+  <title>POS</title>
+  <meta name="description" content="POS - A modern point of sale system" />
   <meta name="robots" content="index, follow" />
 
-  <meta property="og:title" content="Zaynahs POS" />
+  <meta property="og:title" content="POS" />
   <meta property="og:description" content="A modern point of sale system for retail and e-commerce." />
   <meta property="og:image" content="/zaynahs-logo.svg" />
-  <meta property="og:url" content="https://zaynahspos.com" />
+  <meta property="og:url" content="https://pos.app" />
   <meta property="og:type" content="website" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Zaynahs POS" />
+  <meta name="twitter:title" content="POS" />
   <meta name="twitter:description" content="A modern point of sale system for retail and e-commerce." />
   <meta name="twitter:image" content="/zaynahs-logo.svg" />
-  <meta name="twitter:site" content="@zaynahs_pos" />
+  
   <meta name="twitter:creator" content="@iamchandira" />
   <script>
     // Apply theme immediately to prevent flashing
@@ -70,20 +70,19 @@
     // Dev-mode SW cleanup is handled in the consolidated SW lifecycle block below
 
     // ─── Dynamic PWA Manifest per Tenant ───
-    // RULE: Only /store route uses saved business name + logo from settings.
-    // POS/admin routes always use hardcoded Zaynahs defaults.
+    // UNIVERSAL BRANDING: tenant name from settings everywhere; neutral 'POS' fallback.
     (function () {
       var _settings = {};
       try { _settings = JSON.parse(localStorage.getItem('pos_settings') || '{}'); } catch (e) { }
 
-      var _bizName = _settings.storeName || 'Zaynahs';
+      var _bizName = (_settings.storeName || '').trim() || 'POS';
       var _storeLogo = _settings.storeLogo || '';
       var _isStore = window.location.pathname.startsWith('/store');
 
-      // ── DEFAULT values (POS/admin) — hardcoded Zaynahs brand ──
-      var _useName = 'Zaynahs POS';
-      var _useShortName = 'Zaynahs';
-      var _useTitle = 'Zaynahs POS';
+      // ── DEFAULT values (POS/admin) — neutral, tenant-driven ──
+      var _useName = 'POS - ' + _bizName;
+      var _useShortName = _bizName.length > 12 ? _bizName.substring(0, 10) + '\u2026' : _bizName;
+      var _useTitle = _bizName + ' - POS';
       var _useIcon = '/zaynahs-logo.svg';
 
       // ── STORE overrides — use saved tenant settings ──

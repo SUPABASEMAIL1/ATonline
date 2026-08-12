@@ -518,7 +518,7 @@ export function Header({
 
               {/* Version / Copyright */}
               <div className="mt-2 mb-8 text-center">
-                <p className="text-[10px] font-black text-gray-600 dark:text-white/10 uppercase tracking-[0.3em]">Zaynahs POS v12.0</p>
+                <p className="text-[10px] font-black text-gray-600 dark:text-white/10 uppercase tracking-[0.3em]">POS v12.0</p>
               </div>
             </div>
 

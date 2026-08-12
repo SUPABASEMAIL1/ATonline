@@ -638,6 +638,8 @@ export interface PurchaseRecord {
   productId?: string;
   productName: string;
   sku?: string;
+  variantId?: string;
+  variantLabel?: string;
   quantity: number;
   costPrice: number;
   retailPrice?: number;

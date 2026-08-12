@@ -126,7 +126,7 @@ export function DatabaseTools() {
       sonner.loading('Generating System Backup...');
       const backup: any = {
         version: '2.0',
-        platform: 'Zaynahs POS',
+        platform: 'POS',
         timestamp: new Date().toISOString(),
         selectedTables: Array.from(selectedStores),
         tables: {}
@@ -160,7 +160,7 @@ export function DatabaseTools() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `zaynahs_pos_backup_${new Date().toLocaleDateString('en-CA')}_${Date.now()}.json`;
+      link.download = `pos_backup_${new Date().toLocaleDateString('en-CA')}_${Date.now()}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -215,7 +215,7 @@ export function DatabaseTools() {
       try {
         backup = JSON.parse(text);
       } catch {
-        throw new Error('Invalid JSON file. Please select a valid Zaynahs POS backup file.');
+        throw new Error('Invalid JSON file. Please select a valid POS backup file.');
       }
 
       if (!backup.tables || typeof backup.tables !== 'object') {

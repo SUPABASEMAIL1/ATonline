@@ -25,24 +25,23 @@ export function updateDynamicManifest(opts: {
 }) {
   const origin = window.location.origin;
 
-  // ── DEFAULT (POS/admin) — hardcoded Zaynahs brand ──
-  let name = 'Zaynahs POS';
-  let shortName = 'Zaynahs';
-  let description = 'Fast, offline-first point-of-sale system';
+  // ── UNIVERSAL BRANDING (no brand hardcoded): tenant name from settings, neutral
+  //    'POS' fallback. isStore only switches the storefront description/scope. ──
+  const bizName = (opts.storeName || '').trim() || 'POS';
+  let name = opts.isStore ? bizName : `POS - ${bizName}`;
+  let shortName = bizName.length > 12 ? bizName.substring(0, 10) + '\u2026' : bizName;
+  let description = opts.isStore
+    ? 'Browse and order items online from our digital storefront'
+    : 'Fast, offline-first point-of-sale system';
   let iconSrc = origin + '/zaynahs-logo.svg';
   let mimeType = 'image/svg+xml';
-  let bgColor = '#0a0a0a';
-  let orientation: OrientationLockType = 'any';
-  let categories = ['business', 'finance', 'productivity'];
+  let bgColor = opts.isStore ? '#f9fafb' : '#0a0a0a';
+  let orientation: OrientationLockType = opts.isStore ? 'portrait' : 'any';
+  let categories = opts.isStore ? ['shopping', 'food', 'lifestyle'] : ['business', 'finance', 'productivity'];
 
   // ── STORE — use saved tenant settings ──
   if (opts.isStore) {
-    name = opts.storeName;
-    shortName = opts.storeName;
-    description = 'Browse and order items online from our digital storefront';
-    bgColor = '#f9fafb';
-    orientation = 'portrait';
-    categories = ['shopping', 'food', 'lifestyle'];
+    name = bizName;
 
     if (opts.storeLogo) {
       const isDataUrl = opts.storeLogo.startsWith('data:');

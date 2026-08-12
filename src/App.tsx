@@ -169,19 +169,19 @@ function AppContent() {
   }, [location.pathname]);
 
   // Dynamic PWA Manifest Updater
-  // RULE: Only /store route uses saved business name + logo from settings.
-  // POS/admin routes always use hardcoded Zaynahs defaults.
+  // UNIVERSAL BRANDING (no brand hardcoded): everywhere uses the tenant's saved
+  // business name from settings; fallback is the neutral 'POS'. The /store route
+  // adds the storefront suffix/logo; POS/admin routes keep the neutral default.
   useEffect(() => {
     if (!state.settings) return;
-    const bizName = state.settings.storeName || 'Zaynahs';
+    const bizName = state.settings.storeName?.trim() || 'POS';
     const storeLogo = state.settings.storeLogo || '';
     const themeColor = state.settings.estoreThemeColor || '#10b981';
     const isStore = location.pathname.startsWith('/store');
 
-    // Default (POS/admin) — hardcoded Zaynahs brand
-    let name = 'Zaynahs POS';
-    let shortName = 'Zaynahs';
-    let title = 'Zaynahs POS';
+    let name = bizName.startsWith('POS') ? bizName : `POS - ${bizName}`;
+    let shortName = bizName.length > 12 ? bizName.substring(0, 10) + '\u2026' : bizName;
+    let title = `${bizName} - POS`;
 
     // Store — use saved tenant settings
     if (isStore) {
@@ -196,7 +196,7 @@ function AppContent() {
         favicons.forEach(favicon => favicon.setAttribute('href', storeLogo));
       }
     } else {
-      // Default (POS/admin) — reset PWA & favicon back to hardcoded Zaynahs default brand
+      // POS/admin default — reset PWA & favicon to the default neutral logo
       const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
       if (appleIcon) appleIcon.setAttribute('href', '/zaynahs-logo.svg');
       const favicons = document.querySelectorAll('link[rel*="icon"]');

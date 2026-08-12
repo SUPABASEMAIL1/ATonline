@@ -278,7 +278,7 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
     /* ─── Print ───────────────────────────────────────────────────── */
     const handlePrint = useReactToPrint({
         contentRef: componentRef,
-        documentTitle: `Zaynahs_POS_Labels_${new Date().toLocaleDateString('en-CA')}`,
+        documentTitle: `POS_Labels_${new Date().toLocaleDateString('en-CA')}`,
         pageStyle: paperSize === 'A4' ? `
             @page { size: 210mm 297mm; margin: 0mm !important; }
             @media print {

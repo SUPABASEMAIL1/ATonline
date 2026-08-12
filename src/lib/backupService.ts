@@ -4,6 +4,8 @@ import { localDb } from './localDb';
 const generateId = () => Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 
 // --- Simple IDB Wrapper for Local Backups & Config ---
+// NOTE: 'Zaynahs_Local_Backups_DB' name is intentionally PRESERVED (legacy persistence
+// key) — renaming orphans every device's saved backups. UI strings are universal.
 const initBackupDb = (): Promise<IDBDatabase> => {
     return new Promise((resolve, reject) => {
         const req = indexedDB.open('Zaynahs_Local_Backups_DB', 2); // Upgraded version for config store
@@ -271,7 +273,7 @@ export const backupService = {
             
             const backup: any = {
                 version: '3.0',
-                platform: 'Zaynahs POS',
+                platform: 'POS',
                 timestamp: new Date().toISOString(),
                 type: 'auto_snapshot',
                 tables: {}

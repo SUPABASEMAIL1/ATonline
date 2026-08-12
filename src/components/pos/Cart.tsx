@@ -687,12 +687,12 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 </div>
               ));
 
-              const renderedStandalones = standaloneItems.map(({ item, originalIndex }) => (
+              const renderedStandalones = standaloneItems.map(({ item, originalIndex }, sIdx) => (
                 <CartItemCard
                   key={`${item.product.id}-${originalIndex}`}
                   item={item}
                   index={originalIndex}
-                  visualIndex={originalIndex + 1}
+                  visualIndex={sIdx + 1}
                   onUpdateQuantity={updateQuantity}
                   onRemove={removeFromCart}
                   onApplyDiscount={applyDiscount}

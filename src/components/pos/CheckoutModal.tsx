@@ -587,7 +587,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         return b.items[0]?.item.product.image;
                       };
 
-                      const renderItemCard = (itemData: { item: CartItem; originalIndex: number }) => {
+                      const renderItemCard = (itemData: { item: CartItem; originalIndex: number }, isNested = false, sIdx?: number) => {
                         const { item, originalIndex } = itemData;
                         const discountStr = showDiscount && item.discount > 0 ? `-${formatCurrency(item.discount, state.settings.currency)}` : undefined;
                         return (
@@ -595,6 +595,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                             <CompactItemRow
                               image={item.product.image}
                               name={item.product.name}
+                              index={isNested ? undefined : (sIdx !== undefined ? sIdx + 1 : originalIndex + 1)}
                               variant={item.selectedVariantLabel || item.selectedVariant}
                               quantity={Math.abs(item.quantity)}
                               price={formatCurrency(item.product.price * item.quantity, state.settings.currency)}
@@ -604,7 +605,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                               toppings={item.toppings}
                               displayToppings={item.displayToppings}
                               sn={item.serialNumber}
-                              index={originalIndex + 1}
                             />
                           </div>
                         );
@@ -667,9 +667,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                           </div>
                         );
                       });
-
-                      const renderedStandalones = standaloneItems.map((item) => renderItemCard(item));
-
+                      const renderedStandalones = standaloneItems.map((item, sIdx) => renderItemCard(item, false, sIdx));
                       return (
                         <>
                           {renderedBundlesHeader}

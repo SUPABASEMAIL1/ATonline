@@ -32,10 +32,12 @@ import {
   mapDiscount,
   mapPurchaseRecord,
   mapPayment,
+  mapStockHistory,
   storeOrdersService,
   salesmenService,
   getNextInvoiceNumber,
-  generateNextInvoiceNumber
+  generateNextInvoiceNumber,
+  fetchAllPages
 } from '../lib/services';
 import { localDb, seedLocalDb, isPendingDelete, SETTINGS_ID } from '../lib/localDb';
 import { playOnlineOrderSound } from '../lib/sounds';
@@ -186,11 +188,11 @@ const getCachedCurrentUser = (): User | null => {
 
 const getCachedSettings = (): AppState['settings'] => {
   const defaultSettings: AppState['settings'] = {
-    storeName: 'Zaynahs',
+    storeName: 'My Store',
     storeAddress: 'Sample Address, City, Country',
     storePhone: '',
-    storeEmail: 'zaynahspos@gmail.com',
-    storeWebsite: 'https://www.zaynahspos.com',
+    storeEmail: '',
+    storeWebsite: '',
     storeLogo: undefined,
     taxRate: 0,
     currency: 'PKR',
@@ -213,7 +215,7 @@ const getCachedSettings = (): AppState['settings'] => {
     receiptShowStoreHeader: true,
     receiptShowStoreFooter: true,
     receiptHeaderNotes: 'Thank you for your business!',
-    receiptFooterNotes: 'Developed by ZaynahsPos',
+    receiptFooterNotes: '',
     enableLowStockAlert: true,
     lowStockThreshold: 5,
     quickCashButtons: [100, 500, 1000, 5000],
@@ -548,19 +550,24 @@ function appReducer(state: AppState, action: AppAction): AppState {
       }
 
       // Update inventory locally immediately for UI
+      // Estore fulfillment sales NEVER deduct here — stock was already reserved atomically
+      // by the place_estore_order RPC at order placement (sourceOrderId skip, mirrors service).
       if (sale.status === 'completed' || sale.status === 'credit') {
         const isReturn = sale.total < 0 || sale.id.startsWith('RET-') || sale.notes?.includes('RETURN');
+        const isEstoreFulfillment = !!sale.sourceOrderId;
 
+        if (!isEstoreFulfillment) {
         sale.items.forEach(item => {
           const productIdx = updatedProducts.findIndex(p => p.id === item.product.id);
           if (productIdx >= 0 && updatedProducts[productIdx].trackInventory !== false) {
             const qtyToDeduct = item.weight || item.quantity;
             const updatedProduct = { ...updatedProducts[productIdx] };
-            // Floor stock at 0 — never show negative stock in UI
-            updatedProduct.stock = Math.max(0, (updatedProduct.stock || 0) - qtyToDeduct);
+            // Allow negative stock — never floor at 0 (server + local bookkeeping must stay identical)
+            updatedProduct.stock = (updatedProduct.stock || 0) - qtyToDeduct;
             updatedProducts[productIdx] = updatedProduct;
           }
         });
+        }
       }
 
       return {
@@ -1175,6 +1182,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             dispatch({ type: 'ADD_SALE', payload: mapped });
           }
         } else if (payload.eventType === 'UPDATE') {
+          // CONFLICT GUARD (universal): if this device has a pending(op) change for this
+          // sale (local edit/delete not yet synced), the remote value is OLDER than our
+          // intent — applying it would clobber the local edit and resurrect pending deletes.
+          if (await isPendingDelete('sales', payload.new.id)) {
+            console.log(`[Realtime] Skipping UPDATE for locally-deleted sale: ${payload.new.id}`);
+            return;
+          }
           const mapped = mapSale(payload.new);
           await localDb.sales.put(mapped);
           dispatch({ type: 'UPDATE_SALE', payload: mapped });
@@ -1348,7 +1362,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Data is fetched fresh on loadData() and is not rendered live in real-time lists.
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           if (await isPendingDelete('stock_history', payload.new.id)) return;
-          await localDb.stockHistory.put(payload.new); // Persist locally, no dispatch
+          // SHAPE GUARD (universal): realtime rows are raw snake_case — map them so
+          // local rows always have the same shape (createdAt), otherwise report readers
+          // and the 90-day/5000-cap prune get undefined/Invalid Date rows.
+          await localDb.stockHistory.put(mapStockHistory(payload.new)); // Persist locally, no dispatch
         } else if (payload.eventType === 'DELETE') {
           await localDb.stockHistory.delete(payload.old.id);
         }
@@ -1577,10 +1594,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // NOTE: SET_PRODUCTS is dispatched below after batch hydration to avoid "NO BATCHES" flash
       if (localCustomers.length > 0) dispatch({ type: 'SET_CUSTOMERS', payload: localCustomers });
-      // Load the most recent 1000 sales into memory to keep the app snappy
+      // Load ALL sales into memory — never truncate financial data (totals must be exact).
       const recentSales = localSales
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 1000);
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       dispatch({ type: 'SET_SALES', payload: recentSales });
       if (localDiscounts.length > 0) dispatch({ type: 'SET_DISCOUNTS', payload: localDiscounts });
@@ -1850,9 +1866,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // ── SALES ──
         const sales = await fetchDeltasAndMerge(localDb.sales, salesService.fetchRemote);
         const allSales = await smartMerge('sales', sales, localDb.sales);
+        // UNIVERSAL NO-TRUNCATION RULE: never cap financial data in memory —
+        // dashboard/transactions totals must always cover ALL sales. List views
+        // paginate themselves; capping here silently corrupts totals.
         const mergedSales = allSales
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 1000);
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         dispatch({ type: 'SET_SALES', payload: mergedSales });
         await saveProgressively('sales', localDb.sales, mergedSales);
         updateStatus(`Fetched ${sales.length} sales records...`, sales.length);
@@ -1894,11 +1912,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateStatus('Syncing marketing and procurement data...', discounts.length + expenses.length + purchaseRecords.length + suppliersData.length);
 
         // ── TABS, STOCK, PAYMENTS ──
+        // PAYMENTS SAFETY (universal): a failed fetch must NEVER wipe the local payments
+        // ledger — on error, treat the local rows as the merge source (identity no-op).
         const [salesTabsData, supplierTxData, remoteStockHistory, remotePayments] = await Promise.all([
           supabase.from('sales_tabs').select('*').eq('user_id', user.id),
           fetchDeltasAndMerge(localDb.supplierTransactions, supplierTransactionsService.fetchRemote).catch(() => []),
           fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote).catch(() => []),
-          fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(() => [])
+          fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(async () => localDb.payments.toArray())
         ]);
 
         if (supplierTxData.length > 0) {
@@ -2047,16 +2067,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'APPEND_SALES', payload: localMatches });
       }
 
-      // 2. If online, search Supabase
+      // 2. If online, search Supabase (paginated — never truncate search results)
       if (navigator.onLine) {
-        const { data, error } = await supabase
+        const all = await fetchAllPages(() => supabase
           .from('sales')
           .select('*')
-          .or(`receipt_number.ilike.%${term}%,invoice_number.ilike.%${term}%,customer_name.ilike.%${term}%`)
-          .limit(20);
+          .or(`receipt_number.ilike.%${term}%,invoice_number.ilike.%${term}%,customer_name.ilike.%${term}%`));
 
-        if (data && data.length > 0) {
-          const mapped = data.map(mapSale);
+        if (all && all.length > 0) {
+          const mapped = all.map(mapSale);
           dispatch({ type: 'APPEND_SALES', payload: mapped });
           // Save to local for future offline use
           await localDb.sales.bulkPut(mapped);

@@ -498,7 +498,7 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
                               )}
                             </div>
                             <div className="min-w-0">
-                              <span className="truncate block">{item.product?.name || t("item", "Item")}</span>
+                              <span className="truncate block">{index + 1}. {item.product?.name || t("item", "Item")}</span>
                               {(item.selectedVariant || (item.selectedModifiers && item.selectedModifiers.length > 0) || item.serialNumber || (item.toppings && item.toppings.length > 0) || (item.displayToppings && item.displayToppings.length > 0)) && (
                                 <div className="flex flex-col gap-0.5 mt-0.5 normal-case tracking-normal">
                                   {item.selectedVariant && <span className="text-[8px] font-bold text-gray-500">{item.selectedVariant}</span>}

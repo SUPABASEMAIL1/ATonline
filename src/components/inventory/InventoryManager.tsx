@@ -361,7 +361,7 @@ export function InventoryManager() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Zaynahs_Inventory_Products_${new Date().toLocaleDateString('en-CA')}.json`;
+    a.download = `Inventory_Products_${new Date().toLocaleDateString('en-CA')}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -385,6 +385,41 @@ export function InventoryManager() {
     fileInputRef.current?.click();
   };
 
+  const [isReconciling, setIsReconciling] = useState(false);
+
+  const handleReconcile = async () => {
+    setIsReconciling(true);
+    try {
+      const { reconcileAllStock } = await import('../../lib/services');
+      const result = await reconcileAllStock(false);
+      if (result.totalChecked === 0) {
+        sonner.warning('No stock history found yet — nothing to audit');
+        return;
+      }
+      if (result.mismatches.length === 0) {
+        sonner.success(`Audit passed — ${result.totalChecked} products match the stock ledger`);
+        return;
+      }
+      const fixConfirmed = await sonner.confirm(
+        'Stock Mismatch Detected',
+        `${result.mismatches.length} of ${result.totalChecked} products differ from the stock ledger. Auto-fix now?`
+      );
+      if (!fixConfirmed.isConfirmed) {
+        sonner.dismissAll();
+        console.table(result.mismatches.map(m => ({ Product: m.name, Ledger: m.expected, Actual: m.actual, Diff: m.diff })));
+        sonner.warning(`${result.mismatches.length} mismatches reported (not fixed)`);
+        return;
+      }
+      const fixed = await reconcileAllStock(true);
+      sonner.success(`Reconcile complete — ${fixed.fixed} products corrected`);
+    } catch (error: any) {
+      console.error('Reconcile failed:', error);
+      sonner.error(`Reconcile failed: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -403,7 +438,7 @@ export function InventoryManager() {
       let products = importData.data?.products || importData.products || (Array.isArray(importData) ? importData : null);
 
       if (!products || !Array.isArray(products)) {
-        throw new Error('Invalid file format. Please use a standard Zaynahs Inventory export.');
+        throw new Error('Invalid file format. Please use a standard Inventory export.');
       }
 
       const confirmed = await sonner.confirm(
@@ -692,6 +727,9 @@ export function InventoryManager() {
                     </Button>
                     <Button variant="primary" size="md" onClick={handleExportSelected} className="!px-4 !py-2.5 !text-[9px] !font-black !bg-emerald-50 dark:!bg-primary/10 !border-emerald-100 dark:!border-primary/20 !text-primary dark:!text-emerald-400 hover:!bg-emerald-50 dark:hover:!bg-primary/10 !rounded-xl !shadow-none" icon={<Download className="h-4 w-4" />}>
                       <span>{t("export", "Export")}</span>
+                    </Button>
+                    <Button variant="secondary" size="md" onClick={handleReconcile} disabled={isReconciling} className="!px-4 !py-2.5 !text-[9px] !font-black !bg-violet-50 dark:!bg-violet-500/10 !border-violet-100 dark:!border-violet-500/20 !text-violet-600 dark:!text-violet-400 hover:!bg-violet-100 dark:hover:!bg-violet-500/20 !rounded-xl !shadow-none" icon={<Shield className="h-4 w-4" />}>
+                      <span>{isReconciling ? t("reconciling", "Auditing...") : t("reconcile", "Reconcile")}</span>
                     </Button>
                   </>
                 )}

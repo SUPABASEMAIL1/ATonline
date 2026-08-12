@@ -1,5 +1,5 @@
 /**
- * Smart image compression utility for ZaynahsPos.
+ * Smart image compression utility for the POS.
  * Converts images to WebP and targets a maximum file size of 10-20KB.
  */
 export async function compressImage(

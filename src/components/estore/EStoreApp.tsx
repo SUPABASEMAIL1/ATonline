@@ -153,7 +153,7 @@ export function EStoreApp() {
   // Dynamic PWA Manifest Updater for E-Store Customer storefront visitors
   useEffect(() => {
     if (!settings) return;
-    const bizName = settings.storeName || 'Zaynahs';
+    const bizName = settings.storeName?.trim() || 'My Store';
     const storeLogo = settings.storeLogo || '';
     const themeColor = settings.estoreThemeColor || '#10b981';
 
@@ -407,7 +407,7 @@ export function EStoreApp() {
 
           {/* Decorative Footer */}
           <div className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.2em] mt-2">
-            Powered by {settings.storeName || 'Zaynahs POS'}
+            Powered by {settings.storeName?.trim() || 'POS'}
           </div>
         </div>
       </div>

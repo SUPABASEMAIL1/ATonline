@@ -80,26 +80,43 @@ See [GEMINI.md](GEMINI.md) sections F1-F11 for complete financial rules:
 - F4: Bill Edit Must Be Atomic
 - F5: Purchase Cost Must Never Be Zero Silently
 - F6: Reports Must Query DB Directly
-- F7: Shift ID Is Mandatory On All Records
+- F7: Shift System Is REMOVED (permanent) — no shift tables/columns ever, anywhere in any clone
 - F8: Stock Audit Function
 - F9: Purchase Record Deletion Must Restore Batches + Log History
 - F10: Bill Edit Rollback On Failure (Both CheckoutModal + CheckoutPage)
 - F11: Reconcile Tool Must Exist (reconcileAllStock + UI button)
 
+## 🔴 AUDIT-GRADE RULES (F12-F22 — from the 2026-08-12 full-project audits)
+
+- **F12 — Single-Reversal Rule:** Every stock reversal happens EXACTLY once, inside the owning service (`salesService.delete`, `returnSale`, `purchaseRecordsService.delete`). UI handlers must NEVER reverse stock again after calling a service (PurchaseHistory double-reversal was -2×Q on cloud). Deleting ANY purchase record (Stock IN / Adjustment — signed quantity) reverses its ledger effect with ONE 'adjustment_out' history entry.
+- **F13 — Draft Rule:** Drafts (`status:'pending'` / `DRAFT_SALE`) are saved carts, NOT revenue: they must never deduct/restore stock, never touch customer stats, never appear in `getReportSales`. Guards: `salesService.create`/`delete` (skipStockEffects) + report filters `.neq('status','pending')`.
+- **F14 — Never Truncate Financial Data:** NO `.limit()` or `.slice(0, N)` on sales/expenses/payments/refunds for totals or reports. Use `fetchAllPages()`. state.sales must hold ALL sales (list views paginate themselves).
+- **F15 — Partial-Refund Dedupe:** Never `[...reportSales, ...reportRefunds]` blindly — `partially_refunded` appears in BOTH; merge by sale id (sales copy wins) or refunds subtract twice (revenue corruption).
+- **F16 — Wallet Collections:** Refund payouts are `direction:'out'` — collections/totals must exclude them (`p.direction !== 'out'`). Wallet totals must subtract refunded sales (full = full method share, partial = prorated for split) everywhere (ReportsManager + TransactionsManager together).
+- **F17 — Queue Merge Rules (localDb.queueOp):** (a) a queued `delete` must survive later update/upsert (delete wins — never resurrect financial records); (b) merging MUST reset `retries: 0` + `status:'pending'` (no zombie ops that pass neither retry nor error recovery filters).
+- **F18 — Realtime Conflict Guards:** sales UPDATE events must skip rows with a pending local change (`isPendingDelete`) — remote value is older than local intent. Realtime `stock_history` rows must be `mapStockHistory`-mapped (raw snake_case breaks prunes/reports).
+- **F19 — Fetch Failure Never Wipes Cache:** `.catch(() => [])` on a leading merge source = local cache wipe (payments ledger). On failure, merge from the CURRENT local rows (identity no-op).
+- **F20 — No Silent Ops Drops:** Type/constraint errors (`22P02`/`22003`/`23514`) mark ops `error` for owner review — NEVER hard-delete financial ops from the queue. Duplicate-key drops only for `sales` create (invoice collision RPC path); sync timeout must NOT release `_isSyncing` mid-batch (double execution).
+- **F21 — Stale-Write Guard (DB-enforced, permanent):** Deleted financial rows can NEVER resurrect. `row_tombstones` + `record_row_tombstone()` (AFTER DELETE) + `guard_stale_write()` (BEFORE INSERT/UPDATE, raises `STALE_WRITE`/`P0007`) guard `sales`, `stock_history`, `variant_stock_history`, `purchase_records`, `expenses`, `payments`, `store_orders`, `sales_tabs`. Newest-wins: `UPDATE` with `updated_at` older than the stored row is rejected. `update_updated_at_column()` preserves client timestamps when newer. SyncEngine drops P0007 ops (payload by definition outdated) + refreshes from cloud. NEVER guard products/customers/suppliers (variation child id reuse).
+- **F22 — Variant-Restock Ledger (permanent):** Variant stock changes ALWAYS flow through `variant_stock_history` (trigger updates `products.variant_data[].stock`) — never via `variant_data` in product payloads (stripped = silently lost). Stock-in targets a variant via `purchase_records.variant_id`/`variant_label` (`purchaseRecordsService.create` writes ONE 'purchase' entry; `delete` reverses ONE 'adjustment' entry). ALL stock-in MUST use the shared `commitStockInToInventory` from `src/lib/stockInCommit.ts` — parallel stock-in implementations BANNED. Shared helper: `applyVariantStockMovement()` in services.ts.
+- **F23 — Guide + Guard-Pattern Registration (permanent):** 📖 [docs/SYSTEM_FUNCTIONS_GUIDE.md](docs/SYSTEM_FUNCTIONS_GUIDE.md) is the live source of truth for ALL DB functions/triggers/flows — read it before touching SQL/sync/financial logic and UPDATE it in the SAME change as any schema/flow change. Every NEW financial table/function MUST follow the guard pattern (3 triggers per table: `guard_stale_write_*`, `record_row_tombstone_*`, `update_*_updated_at` + append-only ledger triggers + shared-helper service layer), register in the guide's §2 registry + GEMINI.md SCHEMA CHANGE LOG, and pass the §7 TEST BATTERY on ALL 4 projects (expected: `f21_guards=24`, `tombstones=1`, `functions=7`) — no PASS = no "done". NEVER add a financial write path without its guards.
+
 ---
 
-## 🎯 Brand Isolation Rule
+## 🎯 Universal Branding Rule (No Brand Hardcoded)
 
-**Only `/store` route uses saved business name + logo from settings.** All other app routes (POS, admin, reports, inventory, etc.) MUST always use hardcoded Zaynahs defaults:
+Code is UNIVERSAL and reusable across ALL clones (open source, no vendor brand anywhere):
 
-| Route | Name | Logo |
+| Where | Name | Logo |
 |-------|------|------|
-| `/store` | Settings `storeName` | Settings `storeLogo` (if uploaded, else `/zaynahs-logo.svg`) |
-| All others (POS, admin, etc.) | `"Zaynahs POS"` | `/zaynahs-logo.svg` (hardcoded) |
+| Everywhere (POS, admin, store) | Settings `storeName` (fallback: `"POS"` / `"My Store"`) | Settings `storeLogo` (fallback: `/zaynahs-logo.svg` — default asset, never deleted) |
 
+- **NEVER hardcode a vendor/business name** in UI strings, titles, manifests, exports, filenames (except legacy persistence keys — see below).
+- Persistence keys are NOT branding: IndexedDB names (`ZaynahsPosDB_`, `Zaynahs_Local_Backups_DB`), localStorage auth keys (`zaynahs-pos-auth`) and the logo asset filename are legacy-compat and MUST be preserved — renaming wipes user data / logs users out.
+- New features must read the tenant name from settings with neutral fallbacks.
 - Files enforcing this: `src/lib/dynamicManifest.ts`, `src/App.tsx`, `index.html` inline script
 - `short_name` = first 12 chars of name (with ellipsis if truncated)
-- The original SVG logo at `/zaynahs-logo.svg` (gradient Z) is the permanent default and must never be deleted
+- The original SVG logo at `/zaynahs-logo.svg` is the permanent default and must never be deleted
 
 ---
 
@@ -241,6 +258,7 @@ When user pastes any error:
 |-----|---------|
 | [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) | Supabase Management API — all DB ops via `sbp_` token |
 | [@docs/cloudflare-pages-api-guide.md](docs/cloudflare-pages-api-guide.md) | Cloudflare Pages API — project, deploy, env vars via `cfut_` token |
+| [@docs/SYSTEM_FUNCTIONS_GUIDE.md](docs/SYSTEM_FUNCTIONS_GUIDE.md) | ⚙️ Live registry of ALL DB functions/triggers + financial flows (F21/F22/sync) + new-function checklist + TEST BATTERY — READ FIRST before touching SQL/sync/financial logic |
 | [GEMINI.md](GEMINI.md) | Master rules, financial integrity, migration rules |
 | [docs/setup.md](docs/setup.md) | Complete setup guide (fresh project + existing DB sync) — keep updated with every change |
 | [docs/MODULES.md](docs/MODULES.md) | 📚 Live registry of ALL shared modules — must be updated whenever a shared module is added/changed |

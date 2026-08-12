@@ -185,7 +185,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
         const normalizedUsername = formData.username.trim().toLowerCase();
         const resolvedEmail = formData.email.trim()
           ? formData.email.trim().toLowerCase()
-          : `${normalizedUsername}.${Date.now().toString(36)}@zaynahs.local`;
+          : `${normalizedUsername}.${Date.now().toString(36)}@pos.local`;
 
         const hash = await hashPasswordString(formData.password);
         const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({

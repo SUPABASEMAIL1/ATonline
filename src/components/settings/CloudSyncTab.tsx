@@ -188,7 +188,7 @@ export function CloudSyncTab() {
                  <Zap className="w-6 h-6 text-white" />
               </div>
               <div>
-                 <h3 className="font-black text-gray-900 dark:text-white mb-1">Zaynahs AI V2</h3>
+                 <h3 className="font-black text-gray-900 dark:text-white mb-1">Sync Assistant</h3>
                  <p className="text-xs text-gray-600 font-bold opacity-60">Enable advanced prediction & inventory insights.</p>
               </div>
            </div>

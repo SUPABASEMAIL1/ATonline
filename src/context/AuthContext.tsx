@@ -401,11 +401,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.log('✅ Resolved from local cache:', matchedLocal.email);
             loginEmail = matchedLocal.email;
           } else {
-            loginEmail = `${normalizedIdentifier}@zaynahs.local`;
+            loginEmail = `${normalizedIdentifier}@pos.local`;
           }
         } catch (e) {
           console.warn('Local resolution failed:', e);
-          loginEmail = `${normalizedIdentifier}@zaynahs.local`;
+          loginEmail = `${normalizedIdentifier}@pos.local`;
         }
 
         // Step 2: Check Cloud for username->email mapping (policy-safe)
@@ -420,11 +420,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               loginEmail = rpcEmail;
             } else {
               console.warn('[Auth] RPC lookup failed or returned null. Trying fallback convention.');
-              loginEmail = `${normalizedIdentifier}@zaynahs.local`;
+              loginEmail = `${normalizedIdentifier}@pos.local`;
             }
           } catch (lookupErr) {
             console.warn('[Auth] Cloud lookup crashed:', lookupErr);
-            loginEmail = `${normalizedIdentifier}@zaynahs.local`;
+            loginEmail = `${normalizedIdentifier}@pos.local`;
           }
         }
 
@@ -723,6 +723,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('pos_offline_profile');
 
       // Clear Supabase's local auth token to ensure session is destroyed offline
+      // NOTE: legacy 'zaynahs-pos-auth' key names are PRESERVED — renaming would
+      // strand existing sessions on upgrades. Persistence keys are not branding.
       localStorage.removeItem('zaynahs-pos-auth');
       localStorage.removeItem('zaynahs-pos-admin-auth');
 

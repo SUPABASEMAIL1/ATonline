@@ -287,7 +287,8 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
 
       const remoteData = toRemoteStoreOrder(orderData);
 
-      const { error } = await supabase.from('store_orders').insert(remoteData);
+      // Call the RPC to reserve stock automatically and securely
+      const { data, error } = await supabase.rpc('place_estore_order', { order_data: remoteData });
       if (error) throw error;
 
       setOrderId(generatedInvoice);
@@ -702,9 +703,9 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                     ))}
 
                     {/* Render Standalone Items */}
-                    {standaloneItems.map(({ item, originalIndex }) => (
+                    {standaloneItems.map(({ item, originalIndex }, sIdx) => (
                       <div key={originalIndex} className="flex gap-4 items-center">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{sIdx + 1}</span>
                         {item.product.image ? (
                           <img src={item.product.image} alt={item.product.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
                         ) : (
