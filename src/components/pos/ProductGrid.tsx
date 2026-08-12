@@ -1058,8 +1058,18 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         variantToSet = '13 Inch';
       }
 
-      // Use crypto.randomUUID() combined with bundle.id for strict collision prevention
-      const bundleInstanceId = `${bundle.id}-${crypto.randomUUID()}`;
+      const signaturePayload = {
+        baseId: bundle.id,
+        items: selectedItems?.map(i => `${i.productId}:${i.quantity}`).sort().join(',') || '',
+        toppings: toppingsMap ? Object.entries(toppingsMap).map(([pid, tArr]) => `${pid}:${tArr.map(t => t.id).sort().join(',')}`).sort().join('|') : ''
+      };
+      const signatureString = JSON.stringify(signaturePayload);
+      let hash = 0;
+      for (let i = 0; i < signatureString.length; i++) {
+        hash = ((hash << 5) - hash) + signatureString.charCodeAt(i);
+        hash |= 0;
+      }
+      const bundleInstanceId = `${bundle.id}-${Math.abs(hash)}`;
 
       const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map((item, idx) => {
         let updatedItem = { ...item, bundleId: bundleInstanceId, bundle_id: bundleInstanceId };
