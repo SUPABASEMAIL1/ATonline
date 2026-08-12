@@ -182,8 +182,35 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
       }
     });
 
+    const bundles = Array.from(bundlesMap.values()).map(b => {
+      let bundleQty = 1;
+      const firstCartItem = b.items[0];
+      if (firstCartItem) {
+        const bundleIdFull = firstCartItem.bundleId || firstCartItem.bundle_id;
+        const originalBundleDefId = bundleIdFull?.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || bundleIdFull;
+        const bundleDef = state.bundles?.find(bd => bd.id === originalBundleDefId);
+        
+        if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+          const firstBi = bundleDef.items[0];
+          const cItem = b.items.find((x: any) => x.product.id === firstBi.productId);
+          if (cItem) {
+            bundleQty = Math.round(cItem.quantity / firstBi.quantity);
+          }
+        } else if (firstCartItem.quantity > 0) {
+          bundleQty = firstCartItem.quantity;
+        }
+      }
+      
+      if (bundleQty === 0) bundleQty = 1;
+      
+      return {
+        ...b,
+        bundleQty
+      };
+    });
+
     return {
-      bundles: Array.from(bundlesMap.values()),
+      bundles,
       standaloneItems
     };
   };
@@ -367,17 +394,7 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
                     const hideItemPrices = b.items.some((item: any) => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
                     const bundleImage = b.items[0]?.product?.image || null;
                     const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
-                    let bundleQty = 1;
-                    const bundleDef = state.bundles?.find((x: any) => x.id === b.bundleId);
-                    if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
-                      const firstBi = bundleDef.items[0];
-                      const cartItem = b.items.find((x: any) => x.product?.id === firstBi.productId);
-                      if (cartItem) {
-                        bundleQty = Math.round(cartItem.quantity / firstBi.quantity);
-                      }
-                    } else if (b.items.length > 0) {
-                      bundleQty = b.items[0].quantity;
-                    }
+                    const bundleQty = b.bundleQty;
 
                     rows.push(
                       <tr key={`bundle-${b.bundleId}`} className="bg-violet-500/[0.02] border-t border-gray-100 dark:border-white/5">

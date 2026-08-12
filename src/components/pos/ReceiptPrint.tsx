@@ -67,7 +67,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
   const settings = state.settings;
   const { play } = useSoundFeedback();
 
-  const showDiscount = settings.receiptShowDiscount !== false && 
+  const showDiscount = settings.receiptShowDiscount !== false &&
     !(sale.items || []).some((item: any) => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
 
   const isAutoPrint = settings.receiptPrinter;
@@ -105,7 +105,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
   // ── Template config ──
   const template = settings.receiptTemplate || 'modern';
 
-  const isNewLayout = ['horizontal_header','centered_flow','left_grid','split_columns','floating_totals','offset_logo','boxed_sections','tear_off','vertical_line','emphasized_total'].includes(template);
+  const isNewLayout = ['horizontal_header', 'centered_flow', 'left_grid', 'split_columns', 'floating_totals', 'offset_logo', 'boxed_sections', 'tear_off', 'vertical_line', 'emphasized_total'].includes(template);
 
   const fontFamily = (() => {
     switch (template) {
@@ -326,12 +326,12 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
 
   // ── Auto-Save PNG ──
   const [isSavingPng, setIsSavingPng] = useState(false);
-  
+
   const performAutoSavePng = async () => {
     if (autoPngSavedRef.current || isSavingPng) return;
     autoPngSavedRef.current = true;
     setIsSavingPng(true);
-    
+
     try {
       const receiptEl = document.getElementById('receipt-content');
       if (!receiptEl) return;
@@ -545,14 +545,14 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         }
         const b = bundlesMap.get(bundleName)!;
         b.bundleIds.add(bundleId);
-        
+
         const childKey = `${item.product?.name || 'Item'}_${item.selectedVariant || ''}_${item.selectedVariantLabel || ''}`;
         if (!b.itemsMap.has(childKey)) {
           b.itemsMap.set(childKey, { ...item, quantity: 0, aggregatedExtras: new Map() });
         }
         const c = b.itemsMap.get(childKey);
         c.quantity += Math.abs(item.quantity);
-        
+
         const aggregateExtra = (arr: any[], type: string, priceProp: string) => {
           (arr || []).forEach((x: any) => {
             const name = x.name || x.addon?.name;
@@ -563,7 +563,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             c.aggregatedExtras.get(key).qty += addQty;
           });
         };
-        
+
         aggregateExtra(item.selectedModifiers, 'mod', 'price');
         aggregateExtra(item.addonItems, 'addon', 'subtotal');
         aggregateExtra(item.toppings, 'top', 'price');
@@ -577,20 +577,42 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         standaloneItems.push(item);
       }
     });
-    
-    const bundles = Array.from(bundlesMap.values()).map(b => ({
-      bundleId: Array.from(b.bundleIds)[0], // For keys
-      bundleName: b.bundleName,
-      bundleQty: b.bundleIds.size,
-      items: Array.from(b.itemsMap.values()).map((c: any) => ({
-         ...c,
-         extrasList: Array.from(c.aggregatedExtras.values())
-      })),
-      totalOriginal: b.totalOriginal,
-      totalDiscount: b.totalDiscount,
-      totalSubtotal: b.totalSubtotal
-    }));
-    
+
+    const bundles = Array.from(bundlesMap.values()).map(b => {
+      let bundleQty = b.bundleIds.size;
+      const firstCartItem = Array.from(b.itemsMap.values())[0] as any;
+      if (firstCartItem) {
+        const bundleIdFull = firstCartItem.bundleId || firstCartItem.bundle_id;
+        const originalBundleDefId = bundleIdFull?.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || bundleIdFull;
+        const bundleDef = state.bundles?.find(bd => bd.id === originalBundleDefId);
+        
+        if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+          const firstBi = bundleDef.items[0];
+          const cItem = Array.from(b.itemsMap.values()).find((x: any) => x.product.id === firstBi.productId) as any;
+          if (cItem) {
+            bundleQty = Math.round(cItem.quantity / firstBi.quantity);
+          }
+        } else if (firstCartItem.quantity > 0) {
+          bundleQty = firstCartItem.quantity;
+        }
+      }
+
+      if (bundleQty === 0) bundleQty = 1;
+
+      return {
+        bundleId: Array.from(b.bundleIds)[0], // For keys
+        bundleName: b.bundleName,
+        bundleQty: bundleQty,
+        items: Array.from(b.itemsMap.values()).map((c: any) => ({
+          ...c,
+          extrasList: Array.from(c.aggregatedExtras.values())
+        })),
+        totalOriginal: b.totalOriginal,
+        totalDiscount: b.totalDiscount,
+        totalSubtotal: b.totalSubtotal
+      };
+    });
+
     return { bundles, standaloneItems };
   };
   const grouped = groupItems(sale.items);
@@ -705,7 +727,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>🎁 {b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}{b.bundleName}</div>
               {b.items[0]?.toppings?.length > 0 && (
                 <div style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '2px', paddingLeft: '8px' }}>
-                  + {b.items[0].toppings.map((t:any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}
+                  + {b.items[0].toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}
                 </div>
               )}
               <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
@@ -739,7 +761,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.body}px`, marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase', color: '#6b7280' }}>
             OTHER / STANDALONE ITEMS ({shStandalone.length})
           </div>
-            {shStandalone.map((item: any, index: number) => (
+          {shStandalone.map((item: any, index: number) => (
             <div key={`sa-${index}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
               <div style={{ textAlign: 'left', wordWrap: 'break-word' }}>{index + 1}. {item.product?.name || 'Item'}</div>
               {item.selectedVariantLabel && <div style={{ textAlign: 'left', fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.8 }}>{item.selectedVariantLabel}</div>}
@@ -1403,8 +1425,35 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                     standaloneItems.push(item);
                   }
                 });
+                const bundles = Array.from(bundlesMap.values()).map(b => {
+                  let bundleQty = 1;
+                  const firstCartItem = b.items[0];
+                  if (firstCartItem) {
+                    const bundleIdFull = firstCartItem.bundleId || firstCartItem.bundle_id;
+                    const originalBundleDefId = bundleIdFull?.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || bundleIdFull;
+                    const bundleDef = state.bundles?.find(bd => bd.id === originalBundleDefId);
+                    
+                    if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+                      const firstBi = bundleDef.items[0];
+                      const cItem = b.items.find((x: any) => x.product.id === firstBi.productId);
+                      if (cItem) {
+                        bundleQty = Math.round(cItem.quantity / firstBi.quantity);
+                      }
+                    } else if (firstCartItem.quantity > 0) {
+                      bundleQty = firstCartItem.quantity;
+                    }
+                  }
+                  
+                  if (bundleQty === 0) bundleQty = 1;
+                  
+                  return {
+                    ...b,
+                    bundleQty
+                  };
+                });
+
                 return {
-                  bundles: Array.from(bundlesMap.values()),
+                  bundles,
                   standaloneItems
                 };
               };
@@ -1416,53 +1465,53 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                   <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.body}px`, marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase', color: '#7c3aed' }}>
                     BUNDLE / DEAL ITEMS ({bundles.length})
                   </div>
-                   {bundles.map((b, bIdx) => {
+                  {bundles.map((b, bIdx) => {
                     return (
-                    <div key={`bundle-${b.bundleId}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
-                      <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>
-                        🎁 {b.bundleName}
-                      </div>
-                      
-                      <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
-                        {b.items.map((item: any, idx: number) => (
-                          <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
-                            {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
-                            {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
-                    {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(',')}` : ''}
-                    {item.addonItems?.length > 0 ? ` + Add-ons: ${item.addonItems.map((a:any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
-                    {item.toppings?.length > 0 ? ` + ${item.toppings.map((t:any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
-                          </div>
-                        ))}
-                      </div>
+                      <div key={`bundle-${b.bundleId}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
+                        <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>
+                          🎁 {b.bundleName}
+                        </div>
 
-                      {showDiscount ? (
-                        <>
-                          <TwoCol
-                            left="  DEAL SUBTOTAL"
-                            right={formatCurrency(b.totalOriginal, currencyCode)}
-                            style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.7 }}
-                          />
-                          {b.totalDiscount > 0 && (
+                        <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
+                          {b.items.map((item: any, idx: number) => (
+                            <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
+                              {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
+                              {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
+                              {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(',')}` : ''}
+                              {item.addonItems?.length > 0 ? ` + Add-ons: ${item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
+                              {item.toppings?.length > 0 ? ` + ${item.toppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}
+                            </div>
+                          ))}
+                        </div>
+
+                        {showDiscount ? (
+                          <>
                             <TwoCol
-                              left="  🎁 DEAL DISCOUNT"
-                              right={`-${formatCurrency(b.totalDiscount, currencyCode)}`}
-                              style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, color: '#dc2626', fontWeight: 'bold' }}
+                              left="  DEAL SUBTOTAL"
+                              right={formatCurrency(b.totalOriginal, currencyCode)}
+                              style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.7 }}
                             />
-                          )}
+                            {b.totalDiscount > 0 && (
+                              <TwoCol
+                                left="  🎁 DEAL DISCOUNT"
+                                right={`-${formatCurrency(b.totalDiscount, currencyCode)}`}
+                                style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, color: '#dc2626', fontWeight: 'bold' }}
+                              />
+                            )}
+                            <TwoCol
+                              left="  DEAL PRICE"
+                              right={formatCurrency(b.totalSubtotal, currencyCode)}
+                              style={{ fontSize: `${Math.max(8, fs.body - 1)}px`, fontWeight: 'bold' }}
+                            />
+                          </>
+                        ) : (
                           <TwoCol
                             left="  DEAL PRICE"
                             right={formatCurrency(b.totalSubtotal, currencyCode)}
                             style={{ fontSize: `${Math.max(8, fs.body - 1)}px`, fontWeight: 'bold' }}
                           />
-                        </>
-                      ) : (
-                        <TwoCol
-                          left="  DEAL PRICE"
-                          right={formatCurrency(b.totalSubtotal, currencyCode)}
-                          style={{ fontSize: `${Math.max(8, fs.body - 1)}px`, fontWeight: 'bold' }}
-                        />
-                      )}
-                    </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -1542,7 +1591,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
 
             // Bill discount is the remainder
             const billDiscount = Math.max(0, (sale.discountAmount || 0) - dealDiscount - itemDiscount);
-            
+
             // Check if we have more than one type of discount to show a breakdown
             const typesCount = [dealDiscount > 0, itemDiscount > 0, billDiscount > 0].filter(Boolean).length;
 
@@ -1550,23 +1599,23 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               return (
                 <>
                   {dealDiscount > 0 && (
-                    <TwoCol 
-                      left="  DEAL DISCOUNT" 
-                      right={`-${formatCurrency(dealDiscount, currencyCode)}`} 
+                    <TwoCol
+                      left="  DEAL DISCOUNT"
+                      right={`-${formatCurrency(dealDiscount, currencyCode)}`}
                       style={{ fontSize: `${Math.max(8, fs.body - 1)}px`, opacity: 0.8 }}
                     />
                   )}
                   {itemDiscount > 0 && (
-                    <TwoCol 
-                      left="  ITEM DISCOUNT" 
-                      right={`-${formatCurrency(itemDiscount, currencyCode)}`} 
+                    <TwoCol
+                      left="  ITEM DISCOUNT"
+                      right={`-${formatCurrency(itemDiscount, currencyCode)}`}
                       style={{ fontSize: `${Math.max(8, fs.body - 1)}px`, opacity: 0.8 }}
                     />
                   )}
                   {billDiscount > 0 && (
-                    <TwoCol 
-                      left="  BILL DISCOUNT" 
-                      right={`-${formatCurrency(billDiscount, currencyCode)}`} 
+                    <TwoCol
+                      left="  BILL DISCOUNT"
+                      right={`-${formatCurrency(billDiscount, currencyCode)}`}
                       style={{ fontSize: `${Math.max(8, fs.body - 1)}px`, opacity: 0.8 }}
                     />
                   )}
@@ -1578,7 +1627,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               if (dealDiscount > 0) label = "DEAL DISCOUNT";
               else if (itemDiscount > 0) label = "ITEM DISCOUNT";
               else if (billDiscount > 0) label = "BILL DISCOUNT";
-              
+
               return (
                 <TwoCol left={label} right={`-${formatCurrency(sale.discountAmount, currencyCode)}`} />
               );
@@ -1787,7 +1836,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
+                  <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span className="flex items-center">
                     SHARE
                     <span className="hidden sm:inline-flex items-center ml-1.5 px-1.5 py-0.5 text-[8px] tracking-normal font-bold bg-white/20 rounded-md">S</span>
@@ -1800,7 +1849,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               onClick={handlePrint}
               className="btn btn-md btn-primary group flex-[1.5] !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[10px]"
             >
-              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
+              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="flex items-center">
                 PRINT BILL
                 <span className="hidden sm:inline-flex items-center ml-1.5 px-1 py-0.5 text-[8px] tracking-normal font-bold bg-white/20 rounded-md">ENTER</span>
@@ -1809,7 +1858,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           </div>
         </div>
       }
-      
+
     >
       <ReceiptScaler paperWidthPx={paperWidthPx}>
         {renderReceiptBody()}
