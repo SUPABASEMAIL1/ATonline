@@ -624,13 +624,13 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         </div>
                       );
 
-                      const renderedBundles = bundles.map((b) => {
+                      const renderedBundles = bundles.map((b, bIdx) => {
                         const discountStr = showDiscount && b.totalDiscount > 0 ? `-${formatCurrency(b.totalDiscount, state.settings.currency)}` : undefined;
                         return (
                           <div key={`checkout-bundle-${b.bundleId}`} className="p-3 my-1.5 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/[0.01]">
                             <CompactItemRow
                               image={bundleThumb(b)}
-                              name={b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}
+                              name={`${bIdx + 1}. ${b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}`}
                               price={formatCurrency(b.totalSubtotal, state.settings.currency)}
                               discount={discountStr}
                             />

@@ -14,7 +14,7 @@ let _offlineTimer: ReturnType<typeof setTimeout> | null = null;
 let _offlineMode = false;
 
 export function isSyncEngineBusy(): boolean {
-  return _isSyncing;
+    return _isSyncing;
 }
 
 export function clearBlacklist(entity?: string) {
@@ -69,7 +69,7 @@ function filterPayload(entity: string, payload: any) {
 }
 
 function recordBlacklistedColumn(entity: string, errorMsg: string) {
-    if (entity === 'app_settings') return false; 
+    if (entity === 'app_settings') return false;
     // Example: "Could not find the 'ai_v2_enabled' column of 'app_settings' in the schema cache"
     const match = errorMsg.match(/Could not find the '([^']+)' column of '([^']+)'/);
     if (match) {
@@ -196,7 +196,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                 try {
                     const cached = localStorage.getItem('pos_offline_profile');
                     if (cached) cachedUserId = JSON.parse(cached).id;
-                } catch (_) {}
+                } catch (_) { }
                 const targetUid = authUser?.id || cachedUserId;
                 if (targetUid) {
                     payload.user_id = targetUid;
@@ -313,7 +313,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                 const { error: upsertError } = await supabase
                     .from('app_settings')
                     .upsert({ ...payload, id: SETTINGS_ID, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-                
+
                 if (upsertError) {
                     // Fallback: If upsert fails (e.g. unique constraint issues), try to update the first row found
                     const { data: firstRow } = await supabase.from('app_settings').select('id').limit(1).maybeSingle();
@@ -410,7 +410,7 @@ async function executeOp(op: PendingOp): Promise<void> {
             // Handle duplicate key error (409 Conflict / 23505) gracefully
             const errStr = (JSON.stringify(error) + (error.message || '')).toLowerCase();
             const isDuplicate = error.code === '23505' || (error.code === '409' && !errStr.includes('foreign key'));
-            
+
             if (isDuplicate || errStr.includes('duplicate key') || errStr.includes('unique constraint')) {
                 // SPECIAL CASE: Invoice Number Collision
                 if (op.entity === 'sales' && opType === 'create' && errStr.includes('invoice_number')) {
@@ -420,10 +420,10 @@ async function executeOp(op: PendingOp): Promise<void> {
                         if (!rpcError && data?.invoiceNumber) {
                             const newInvoiceNumber = data.invoiceNumber;
                             const updatedPayload = { ...payload, invoice_number: newInvoiceNumber };
-                            
+
                             // Update local record so it matches the cloud (otherwise local reports won't match cloud)
                             await localDb.sales.update(entityId, { invoiceNumber: newInvoiceNumber });
-                            
+
                             // Update pending op payload and retry immediately
                             await localDb.pendingOps.update(op.id!, { payload: updatedPayload });
                             console.log(`[SyncEngine] Re-assigned invoice ${newInvoiceNumber} to sale ${entityId}. Retrying...`);
@@ -440,60 +440,60 @@ async function executeOp(op: PendingOp): Promise<void> {
             }
 
 
-                
-                // Auto-drop truly orphaned records (where parent is unlikely to appear)
-                // ONLY drop if it's a Foreign Key violation (23503)
-                if ((error.code === '23503' || errStr.includes('foreign key')) && 
-                    (op.entity === 'product_batches' || op.entity === 'stock_history' || op.entity === 'purchase_records')) {
-                    console.warn(`[SyncEngine] Flagging orphaned ${op.entity} (ID: ${entityId}) as error (FK Violation).`);
-                    if (op.id) await localDb.pendingOps.update(op.id, { 
-                        status: 'error', 
-                        errorMessage: `Orphaned record: Parent ${op.entity === 'product_batches' ? 'Product' : 'Sale'} not found in cloud.` 
-                    });
-                    return; 
-                }
 
-                // Permanent Fix: Auto-nullify or re-assign missing foreign keys to unblock the queue
-                const possibleFKs = [
-                    { key: 'user_id', camel: 'userId', action: 'current_user' },
-                    { key: 'customer_id', camel: 'customerId', action: 'null' },
-                    { key: 'selected_customer_id', camel: 'selectedCustomerId', action: 'null' }
-                ];
-                
-                let healed = false;
-                for (const fk of possibleFKs) {
-                    if (errStr.includes(fk.key)) {
-                        let newValue = null;
-                        if (fk.action === 'current_user') {
-                            const { data: { session } } = await supabase.auth.getSession();
-                            let cachedUserId = null;
-                            try {
-                                const cached = localStorage.getItem('pos_offline_profile');
-                                if (cached) cachedUserId = JSON.parse(cached).id;
-                            } catch (_) {}
-                            newValue = session?.user?.id || cachedUserId || null;
-                            console.warn(`[SyncEngine] FK failed on ${fk.key} for ${op.entity}. Re-assigning to user ${newValue}.`);
-                        } else {
-                            console.warn(`[SyncEngine] FK failed on ${fk.key} for ${op.entity}. Nullifying to unblock sync.`);
-                        }
-                        
-                        const updatedPayload = { ...op.payload, [fk.key]: newValue };
-                        if (fk.camel in updatedPayload) updatedPayload[fk.camel] = newValue;
-                        
-                        if (op.id) {
-                            await localDb.pendingOps.update(op.id, { payload: updatedPayload });
-                        }
-                        healed = true;
+            // Auto-drop truly orphaned records (where parent is unlikely to appear)
+            // ONLY drop if it's a Foreign Key violation (23503)
+            if ((error.code === '23503' || errStr.includes('foreign key')) &&
+                (op.entity === 'product_batches' || op.entity === 'stock_history' || op.entity === 'purchase_records')) {
+                console.warn(`[SyncEngine] Flagging orphaned ${op.entity} (ID: ${entityId}) as error (FK Violation).`);
+                if (op.id) await localDb.pendingOps.update(op.id, {
+                    status: 'error',
+                    errorMessage: `Orphaned record: Parent ${op.entity === 'product_batches' ? 'Product' : 'Sale'} not found in cloud.`
+                });
+                return;
+            }
+
+            // Permanent Fix: Auto-nullify or re-assign missing foreign keys to unblock the queue
+            const possibleFKs = [
+                { key: 'user_id', camel: 'userId', action: 'current_user' },
+                { key: 'customer_id', camel: 'customerId', action: 'null' },
+                { key: 'selected_customer_id', camel: 'selectedCustomerId', action: 'null' }
+            ];
+
+            let healed = false;
+            for (const fk of possibleFKs) {
+                if (errStr.includes(fk.key)) {
+                    let newValue = null;
+                    if (fk.action === 'current_user') {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        let cachedUserId = null;
+                        try {
+                            const cached = localStorage.getItem('pos_offline_profile');
+                            if (cached) cachedUserId = JSON.parse(cached).id;
+                        } catch (_) { }
+                        newValue = session?.user?.id || cachedUserId || null;
+                        console.warn(`[SyncEngine] FK failed on ${fk.key} for ${op.entity}. Re-assigning to user ${newValue}.`);
+                    } else {
+                        console.warn(`[SyncEngine] FK failed on ${fk.key} for ${op.entity}. Nullifying to unblock sync.`);
                     }
+
+                    const updatedPayload = { ...op.payload, [fk.key]: newValue };
+                    if (fk.camel in updatedPayload) updatedPayload[fk.camel] = newValue;
+
+                    if (op.id) {
+                        await localDb.pendingOps.update(op.id, { payload: updatedPayload });
+                    }
+                    healed = true;
                 }
-                
-                // Specific drop for users referencing auth.users that don't exist
-                if (op.entity === 'users' && errStr.includes('users_id_fkey')) {
-                    console.warn(`[SyncEngine] Dropping orphaned user ${entityId} because auth.users record is missing.`);
-                    return; // Treat as success to drop from queue
-                }
-                
-                if (healed) throw error; // Throw so it retries on the next tick with the nullified/re-assigned payload
+            }
+
+            // Specific drop for users referencing auth.users that don't exist
+            if (op.entity === 'users' && errStr.includes('users_id_fkey')) {
+                console.warn(`[SyncEngine] Dropping orphaned user ${entityId} because auth.users record is missing.`);
+                return; // Treat as success to drop from queue
+            }
+
+            if (healed) throw error; // Throw so it retries on the next tick with the nullified/re-assigned payload
 
             // RPC Missing Error (PGRST202 or 404 with missing function message)
             if (error.code === 'PGRST202' || errStr.includes('Could not find the function')) {
@@ -544,7 +544,7 @@ function scheduleOfflineRetry() {
         if (navigator.onLine) {
             _offlineBackoff = 0;
             _offlineMode = false;
-            syncToCloud().catch(() => {});
+            syncToCloud().catch(() => { });
         } else {
             // Still offline — double backoff and reschedule
             _offlineBackoff = Math.min((_offlineBackoff || BACKOFF_INITIAL) * 2, BACKOFF_MAX);
@@ -647,7 +647,7 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
 
                 try {
                     await executeOp(op);
-                    
+
                     // Only delete from pendingOps if it wasn't marked as 'error' inside executeOp
                     const finalOp = await localDb.pendingOps.get(op.id!);
                     if (finalOp && finalOp.status !== 'error') {
@@ -667,14 +667,14 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                                         if (data) {
                                             const localTable = op.entity === 'products' ? localDb.products
                                                 : op.entity === 'customers' ? localDb.customers
-                                                : localDb.suppliers;
+                                                    : localDb.suppliers;
                                             const mapped = op.entity === 'products' ? mapProduct(data)
                                                 : op.entity === 'customers' ? mapCustomer(data)
-                                                : data;
-                                            (localTable as any).put(mapped).catch(() => {});
+                                                    : data;
+                                            (localTable as any).put(mapped).catch(() => { });
                                         }
                                     })
-                                    .catch(() => {}); // Non-critical, best-effort
+                                    .catch(() => { }); // Non-critical, best-effort
                             }
                         }
                     } else if (finalOp?.status === 'error') {
@@ -695,11 +695,11 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
 
                     // Check for auth/JWT errors — re-enable auth init instead of stacking retries
                     const isAuthError = errorMsg.toLowerCase().includes('401') ||
-                                       errorMsg.toLowerCase().includes('jwt') ||
-                                       errorMsg.toLowerCase().includes('unauthorized') ||
-                                       errorMsg.toLowerCase().includes('token expired') ||
-                                       errorMsg.toLowerCase().includes('bearer') ||
-                                       err?.status === 401;
+                        errorMsg.toLowerCase().includes('jwt') ||
+                        errorMsg.toLowerCase().includes('unauthorized') ||
+                        errorMsg.toLowerCase().includes('token expired') ||
+                        errorMsg.toLowerCase().includes('bearer') ||
+                        err?.status === 401;
 
                     if (isAuthError) {
                         console.warn('[POS SYNC] Auth error detected — re-enabling auth init to refresh session.');
@@ -712,12 +712,12 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                     }
 
                     // Check for network errors - if offline, don't increment retries or mark as failed
-                    const isNetworkError = !navigator.onLine || 
-                                         errorMsg.toLowerCase().includes('fetch') || 
-                                         errorMsg.toLowerCase().includes('networkerror') ||
-                                         errorMsg.toLowerCase().includes('disconnected') ||
-                                         errorMsg.toLowerCase().includes('quic') ||
-                                         errorMsg.toLowerCase().includes('load resource');
+                    const isNetworkError = !navigator.onLine ||
+                        errorMsg.toLowerCase().includes('fetch') ||
+                        errorMsg.toLowerCase().includes('networkerror') ||
+                        errorMsg.toLowerCase().includes('disconnected') ||
+                        errorMsg.toLowerCase().includes('quic') ||
+                        errorMsg.toLowerCase().includes('load resource');
 
                     if (isNetworkError) {
                         console.warn('[POS SYNC] Network issue detected, pausing sync queue.');
@@ -734,8 +734,8 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                     // Only increment retries for real API/Logic errors
                     const newRetries = (op.retries || 0) + 1;
                     const status = newRetries >= 5 ? 'error' : 'failed';
-                    const isPermissionDenied = errorMsg.toLowerCase().includes('permission denied') || 
-                                               errorMsg.toLowerCase().includes('permission_denied');
+                    const isPermissionDenied = errorMsg.toLowerCase().includes('permission denied') ||
+                        errorMsg.toLowerCase().includes('permission_denied');
 
                     await localDb.pendingOps.update(op.id!, {
                         retries: newRetries,
@@ -775,19 +775,19 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
 async function autoRecoverErrors() {
     const errorOps = await localDb.pendingOps.where('status').equals('error').toArray();
     let recoveredCount = 0;
-    
+
     for (const op of errorOps) {
         // Check for permanent errors
-        const isPermanent = op.errorMessage?.includes('Orphaned record') || 
-                            op.errorMessage?.includes('Permission Denied') ||
-                            op.errorMessage?.includes('Permission denied') ||
-                            op.lastError?.includes('permission denied') ||
-                            op.lastError?.includes('foreign key constraint') ||
-                            op.lastError?.includes('rls policy');
-                            
+        const isPermanent = op.errorMessage?.includes('Orphaned record') ||
+            op.errorMessage?.includes('Permission Denied') ||
+            op.errorMessage?.includes('Permission denied') ||
+            op.lastError?.includes('permission denied') ||
+            op.lastError?.includes('foreign key constraint') ||
+            op.lastError?.includes('rls policy');
+
         // We use a custom field in the record if it doesn't exist, to track auto recoveries
         const autoRetryCount = (op as any).autoRetryCount || 0;
-        
+
         if (!isPermanent && autoRetryCount < 3) {
             await localDb.pendingOps.update(op.id!, {
                 status: 'pending',
@@ -797,11 +797,11 @@ async function autoRecoverErrors() {
             recoveredCount++;
         }
     }
-    
+
     if (recoveredCount > 0) {
         console.log(`[POS SYNC] Auto-recovered ${recoveredCount} errored ops.`);
         window.dispatchEvent(new Event('pendingops-changed'));
-        syncToCloud().catch(() => {});
+        syncToCloud().catch(() => { });
     }
 }
 
@@ -859,7 +859,7 @@ async function pruneExpiredCancelledOrders() {
         if (localDbSales) {
             const allSales = await localDbSales.toArray();
             const oldCancelledSales = allSales.filter(s => s.status === 'cancelled' || s.estoreStatus === 'cancelled');
-            
+
             const toDelete = oldCancelledSales
                 .filter(s => {
                     const ts = s.updatedAt || s.createdAt || s.timestamp;
@@ -868,7 +868,7 @@ async function pruneExpiredCancelledOrders() {
                     return date.toISOString() < cutoff;
                 })
                 .map(s => s.id);
-            
+
             if (toDelete.length > 0) {
                 await localDbSales.bulkDelete(toDelete);
                 console.log(`[POS MAINT] Pruned ${toDelete.length} expired cancelled orders from local IndexedDB.`);
@@ -882,7 +882,7 @@ async function pruneExpiredCancelledOrders() {
                 .delete()
                 .or('status.eq.cancelled,estore_status.eq.cancelled')
                 .lt('updated_at', cutoff);
-            
+
             if (error) {
                 console.warn('[POS MAINT] Failed to prune expired cancelled orders from Supabase:', error);
             } else {
@@ -960,7 +960,7 @@ export function startSyncEngine() {
             wasOffline = true;
             return;
         }
-        
+
         // If we are in offline mode or were previously offline, actively ping to check real internet access
         if (_offlineMode || wasOffline) {
             try {
@@ -977,7 +977,7 @@ export function startSyncEngine() {
                             _offlineTimer = null;
                         }
                         // Unstick all pending ops and sync instantly
-                        syncToCloud({ resetRetries: true }).catch(() => {});
+                        syncToCloud({ resetRetries: true }).catch(() => { });
                         // Dispatch online event to trigger SupabaseAppContext loadData(true)
                         window.dispatchEvent(new Event('online'));
                     }

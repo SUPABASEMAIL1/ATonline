@@ -473,9 +473,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
         )
       };
     }
-        )
-      };
-    }
     case 'UPDATE_CART_ITEM': {
       const newCart = state.cart.map((item, index) =>
         index === action.payload.index ? action.payload.item : item

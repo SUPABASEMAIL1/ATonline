@@ -663,12 +663,12 @@ export function OnlineOrdersPage() {
                     return (
                       <div className="space-y-4 w-full">
                         {/* Render Deals */}
-                        {bundles.map(b => (
+                        {bundles.map((b, bIdx) => (
                           <div key={b.bundleId} className="p-4 rounded-2xl border border-dashed border-primary/30 bg-primary/[0.02] dark:bg-primary/[0.01] space-y-3">
                             <div className="flex justify-between items-start">
                               <div>
                                 <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1 shadow-sm">🎁 DEAL</span>
-                                <h4 className="font-black text-gray-900 dark:text-white text-base uppercase leading-tight">{b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</h4>
+                                <h4 className="font-black text-gray-900 dark:text-white text-base uppercase leading-tight">{bIdx + 1}. {b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</h4>
                               {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
                                 <p className="text-[10px] text-gray-500 truncate font-medium mt-1">+ {b.items[0].item.toppings.map((t: any) => `${Math.abs(b.items[0].item.quantity || 1) > 1 ? Math.abs(b.items[0].item.quantity || 1) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(b.items[0].item.quantity || 1), state.settings?.currency)})`).join(', ')}</p>
                               )}

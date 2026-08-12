@@ -646,12 +646,12 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                 return (
                   <div className="space-y-4 w-full">
                     {/* Render Deals */}
-                    {bundles.map(b => (
+                    {bundles.map((b, bIdx) => (
                       <div key={b.bundleId} className="p-4 rounded-2xl border border-dashed border-primary/20 bg-primary/[0.02] space-y-2">
                         <div className="flex justify-between items-start">
                           <div>
                             <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1">🎁 DEAL</span>
-                            <h4 className="font-bold text-[var(--color-text)] text-sm uppercase leading-tight">{b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</h4>
+                            <h4 className="font-bold text-[var(--color-text)] text-sm uppercase leading-tight">{bIdx + 1}. {b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</h4>
                           </div>
                           <div className="text-right shrink-0">
                             <span className="font-black text-primary text-sm block">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>

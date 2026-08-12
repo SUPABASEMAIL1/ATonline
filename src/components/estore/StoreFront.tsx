@@ -892,62 +892,85 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
                   <p className="font-bold">Your cart is empty</p>
                 </div>
               ) : (() => {
-                const groupCartItems = (cartItems: any[]) => {
-                  const bundlesMap = new Map<string, {
-                    bundleId: string;
-                    bundleName: string;
-                    items: { item: any; originalIndex: number }[];
-                    totalSubtotal: number;
-                  }>();
-                  const standaloneItems: { item: any; originalIndex: number }[] = [];
+                  const groupCartItems = (cartItems: any[]) => {
+                    const bundlesMap = new Map<string, {
+                      bundleId: string;
+                      bundleName: string;
+                      items: { item: any; originalIndex: number }[];
+                      totalSubtotal: number;
+                      bundleQty: number;
+                    }>();
+                    const standaloneItems: { item: any; originalIndex: number }[] = [];
 
-                  cartItems.forEach((item, index) => {
-                    const bId = item.bundleId || item.bundle_id;
-                    if (bId) {
-                      if (!bundlesMap.has(bId)) {
-                        bundlesMap.set(bId, {
-                          bundleId: bId,
-                          bundleName: item.bundleName || 'Deal',
-                          items: [],
-                          totalSubtotal: 0
-                        });
+                    cartItems.forEach((item, index) => {
+                      const bId = item.bundleId || item.bundle_id;
+                      if (bId) {
+                        if (!bundlesMap.has(bId)) {
+                          bundlesMap.set(bId, {
+                            bundleId: bId,
+                            bundleName: item.bundleName || 'Deal',
+                            items: [],
+                            totalSubtotal: 0,
+                            bundleQty: 1
+                          });
+                        }
+                        const b = bundlesMap.get(bId)!;
+                        b.items.push({ item, originalIndex: index });
+                        b.totalSubtotal += item.subtotal;
+                      } else {
+                        standaloneItems.push({ item, originalIndex: index });
                       }
-                      const b = bundlesMap.get(bId)!;
-                      b.items.push({ item, originalIndex: index });
-                      b.totalSubtotal += item.subtotal;
-                    } else {
-                      standaloneItems.push({ item, originalIndex: index });
-                    }
-                  });
+                    });
 
-                  return { bundles: Array.from(bundlesMap.values()), standaloneItems };
-                };
+                    bundlesMap.forEach((b) => {
+                      const originalBundleDefId = b.bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || b.bundleId;
+                      let bundleDef = state.bundles?.find(x => x.id === originalBundleDefId);
+                      if (!bundleDef) {
+                        bundleDef = state.products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
+                      }
+                      
+                      let bundleQty = 1;
+                      if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+                        const firstBi = bundleDef.items[0];
+                        const cartItem = b.items.find(x => x.item.product.id === firstBi.productId);
+                        if (cartItem) {
+                          bundleQty = Math.round(cartItem.item.quantity / firstBi.quantity);
+                        }
+                      } else if (b.items.length > 0) {
+                        bundleQty = b.items[0].item.quantity;
+                      }
+                      if (bundleQty === 0) bundleQty = 1;
+                      b.bundleQty = bundleQty;
+                    });
 
-                const { bundles, standaloneItems } = groupCartItems(cart);
+                    return { bundles: Array.from(bundlesMap.values()), standaloneItems };
+                  };
 
-                return (
-                  <div className="space-y-6">
-                    {/* Render Deals */}
-                    {bundles.map(b => (
-                      <div key={b.bundleId} className="bg-[var(--color-card-bg)] rounded-3xl p-5 border border-black/5 dark:border-white/5 shadow-sm">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <span className="      bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">🎁 DEAL</span>
-                            <h4 className="font-bold text-sm text-[var(--color-text)] uppercase leading-tight">{b.bundleName}</h4>
+                  const { bundles, standaloneItems } = groupCartItems(cart);
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Render Deals */}
+                      {bundles.map((b, bIdx) => (
+                        <div key={b.bundleId} className="bg-[var(--color-card-bg)] rounded-3xl p-5 border border-black/5 dark:border-white/5 shadow-sm">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <span className="      bg-primary/10 text-primary text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">🎁 DEAL</span>
+                              <h4 className="font-bold text-sm text-[var(--color-text)] uppercase leading-tight">{bIdx + 1}. {b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</h4>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-primary">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-primary">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
-                          </div>
-                        </div>
-                        {(b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0) && (
-                          <div className="mb-2">
-                            <p className="text-[10px] text-primary/70 font-medium">+ {b.items[0].item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
-                          </div>
-                        )}
-                        <div className="space-y-2 border-t border-black/5 dark:border-white/5 pt-2">
-                          {b.items.map(({ item, originalIndex }) => (
-                            <div key={originalIndex} className="flex gap-2.5 items-center text-xs">
-                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
+                          {(b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0) && (
+                            <div className="mb-2">
+                              <p className="text-[10px] text-primary/70 font-medium">+ {b.items[0].item.toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, settings?.currency)})`).join(', ')}</p>
+                            </div>
+                          )}
+                          <div className="space-y-2 border-t border-black/5 dark:border-white/5 pt-2">
+                            {b.items.map(({ item, originalIndex }) => (
+                              <div key={originalIndex} className="flex gap-2.5 items-center text-xs">
+                                <span className="flex items-center justify-center w-6 h-6 text-gray-700 dark:text-gray-300 text-[12px] font-bold shrink-0">-</span>
                               {item.product.image ? (
                                 <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                               ) : (

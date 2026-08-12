@@ -408,7 +408,7 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
                               )}
                             </div>
                             <div className="flex flex-col min-w-0">
-                              <span className="text-[9px] font-black text-violet-700 dark:text-violet-300 uppercase truncate">{bundleQty > 1 ? `${bundleQty}x ${b.bundleName}` : b.bundleName}</span>
+                              <span className="text-[9px] font-black text-violet-700 dark:text-violet-300 uppercase truncate">{bIdx + 1}. {bundleQty > 1 ? `${bundleQty}x ${b.bundleName}` : b.bundleName}</span>
                               {b.items[0]?.toppings && b.items[0].toppings.length > 0 && (
                                 <span className="text-[8px] font-medium text-gray-500 dark:text-gray-400 leading-tight mt-0.5 truncate">
                                   + {b.items[0].toppings.map((t: any) => `${bundleQty > 1 ? bundleQty + 'x ' : ''}${t.name} (${formatCurrency(t.price * bundleQty, state.settings.currency)})`).join(', ')}

@@ -615,7 +615,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                     </div>
                     {/* Name + Price */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[9px] font-black text-violet-700 dark:text-violet-300 truncate leading-tight">{b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</p>
+                      <p className="text-[9px] font-black text-violet-700 dark:text-violet-300 truncate leading-tight">{bundles.findIndex(x => x.bundleId === b.bundleId) + 1}. {b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className={`text-[8px] font-bold ${b.items.some(({ item }) => item.bundleHideItemPrices === true) ? 'text-violet-700 dark:text-violet-300' : 'text-gray-500'}`}>
                           {formatCurrency(b.totalSubtotal, state.settings.currency)}

@@ -318,7 +318,7 @@ function AppContent() {
 
   return (
     <div dir={isRtl ? 'rtl' : 'ltr'} className="h-[100dvh] bg-gray-50 dark:bg-app flex flex-col overflow-hidden">
-      <Toaster 
+      <Toaster
         position="top-center"
         expand={false}
         visibleToasts={3}

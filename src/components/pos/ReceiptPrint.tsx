@@ -722,9 +722,9 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.body}px`, marginBottom: '4px', letterSpacing: '1px', textTransform: 'uppercase', color: '#7c3aed' }}>
             BUNDLE / DEAL ITEMS ({shBundles.length})
           </div>
-          {shBundles.map((b: any) => (
+          {shBundles.map((b: any, bIdx: number) => (
             <div key={b.bundleId} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
-              <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>🎁 {b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}{b.bundleName}</div>
+              <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>{bIdx + 1}. 🎁 {b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}{b.bundleName}</div>
               {b.items[0]?.toppings?.length > 0 && (
                 <div style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '2px', paddingLeft: '8px' }}>
                   + {b.items[0].toppings.map((t: any) => `${t.name} (${formatCurrency(t.price, currencyCode)})`).join(', ')}
@@ -1469,7 +1469,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                     return (
                       <div key={`bundle-${b.bundleId}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
                         <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>
-                          🎁 {b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}{b.bundleName}
+                          {bIdx + 1}. 🎁 {b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}{b.bundleName}
                         </div>
 
                         <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>

@@ -168,11 +168,11 @@ export function KOTPrint({ sale }: KOTPrintProps) {
       let html = '';
       
       if (shBundles.length > 0) {
-        shBundles.forEach((b: any) => {
+        shBundles.forEach((b: any, bIdx: number) => {
           html += `
           <div class="table-row" style="padding-bottom: 2px; border-bottom: none;">
             <div class="table-row-detail">
-              <div class="table-row-name" style="font-size: 14px;">🎁 ${b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}${b.bundleName}</div>
+              <div class="table-row-name" style="font-size: 14px;">${bIdx + 1}. 🎁 ${b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}${b.bundleName}</div>
             </div>
           </div>`;
           b.items.forEach((item: any, idx: number) => {
