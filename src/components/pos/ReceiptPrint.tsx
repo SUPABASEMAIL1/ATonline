@@ -733,7 +733,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
               <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
                 {b.items.map((item: any, idx: number) => (
                   <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
-                    {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
+                    {idx + 1}. {b.bundleQty > 0 ? Math.round(item.quantity / b.bundleQty) : item.quantity}x {item.product?.name || 'Item'}
                     {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
                     {item.extrasList && item.extrasList.length > 0 && (
                       <div style={{ paddingLeft: '6px', fontSize: `${Math.max(8, fs.body - 3)}px`, fontWeight: 'bold' }}>
@@ -1469,13 +1469,13 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                     return (
                       <div key={`bundle-${b.bundleId}`} style={{ marginBottom: '6px', textTransform: 'uppercase' }}>
                         <div style={{ fontWeight: clamp(baseWeight + 300), marginBottom: '2px' }}>
-                          🎁 {b.bundleName}
+                          🎁 {b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}{b.bundleName}
                         </div>
 
                         <div style={{ paddingLeft: '8px', marginBottom: '4px' }}>
                           {b.items.map((item: any, idx: number) => (
                             <div key={idx} style={{ fontSize: `${Math.max(8, fs.body - 2)}px`, opacity: 0.9, marginBottom: '1px' }}>
-                              {idx + 1}. {item.quantity}x {item.product?.name || 'Item'}
+                              {idx + 1}. {b.bundleQty > 0 ? Math.round(item.quantity / b.bundleQty) : item.quantity}x {item.product?.name || 'Item'}
                               {item.selectedVariantLabel ? ` (${item.selectedVariantLabel})` : item.selectedVariant ? ` (${item.selectedVariant})` : ''}
                               {item.selectedModifiers?.length > 0 ? ` +${item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), currencyCode)})`).join(',')}` : ''}
                               {item.addonItems?.length > 0 ? ` + Add-ons: ${item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), currencyCode)})`).join(', ')}` : ''}

@@ -440,19 +440,18 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
                           className={`${item.product?.id ? 'cursor-pointer hover:bg-violet-500/[0.03] dark:hover:bg-violet-500/[0.03] transition-colors group' : ''} bg-violet-500/[0.005] border-t border-gray-100/50 dark:border-white/5`}
                         >
                           <td className={`pl-10 pr-4 py-1.5 text-[9px] text-gray-600 dark:text-gray-400 uppercase ${item.product?.id ? 'group-hover:text-primary' : ''}`}>
-                            <span className="font-bold">- {item.product?.name || 'Item'}</span>
+                            <span className="font-bold">- {bundleQty > 0 ? Math.round(item.quantity / bundleQty) : item.quantity}x {item.product?.name || 'Item'}</span>
                             {item.selectedVariant && <span className="text-[8px] text-gray-400"> ({item.selectedVariant})</span>}
                             {item.selectedModifiers && item.selectedModifiers.length > 0 && <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 ml-1">+ {item.selectedModifiers.map((m: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${m.name} (${formatCurrency(m.price * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}</span>}
                             {item.addonItems && item.addonItems.length > 0 && <span className="text-[10px] font-medium text-violet-500 dark:text-violet-400 ml-1">+ Add-ons: {item.addonItems.map((a: any) => `${a.addon?.name || a.name} ${a.quantity * Math.abs(item.quantity)}x (${formatCurrency(a.subtotal * Math.abs(item.quantity), state.settings.currency)})`).join(', ')}</span>}
                             {item.displayToppings && item.displayToppings.length > 0 && <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 ml-1">+ {item.displayToppings.map((t: any) => `${Math.abs(item.quantity) > 1 ? Math.abs(item.quantity) + 'x ' : ''}${t.name}`).join(', ')}</span>}
-                          </td>
-                          <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] font-bold text-gray-500">
-                            <div>{item.quantity}</div>
                             {item.refundedQuantity > 0 && (
                               <div className="text-[7px] font-black text-rose-500 uppercase tracking-tight mt-0.5 leading-none">
                                 {item.refundedQuantity} {t("returned_caps", "Returned")}
                               </div>
                             )}
+                          </td>
+                          <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] font-bold text-gray-500">
                           </td>
                           <td className="px-2.5 sm:px-4 py-1.5 text-right text-[9px] text-gray-400">
                             {!hideItemPrices && formatCurrency(item.product?.price * item.quantity, state.settings.currency)}
