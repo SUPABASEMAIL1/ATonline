@@ -181,7 +181,7 @@ export function KOTPrint({ sale }: KOTPrintProps) {
             <div class="table-row" style="border-top: none; padding-top: 0;">
               <div class="table-row-qty" style="font-size: 13px;">${baseItemQty}x</div>
               <div class="table-row-detail">
-                <div class="table-row-name" style="font-weight: normal;">${idx + 1}. ${item.product?.name || 'Item'}</div>
+                <div class="table-row-name" style="font-weight: normal;">- ${item.product?.name || 'Item'}</div>
                 ${item.selectedVariant ? `<div class="table-row-meta" style="font-weight: bold;">- ${item.selectedVariant}</div>` : ''}
                 ${item.extrasList.length > 0 ? `<div class="table-row-meta" style="font-weight: bold; font-size: 11px;">+ ${item.extrasList.map((e: any) => `${e.qty > 1 ? e.qty + 'x ' : ''}${e.name}`).join(', ')}</div>` : ''}
               </div>

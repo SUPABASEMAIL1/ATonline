@@ -615,7 +615,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                     </div>
                     {/* Name + Price */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[9px] font-black text-violet-700 dark:text-violet-300 truncate leading-tight">{b.bundleName}</p>
+                      <p className="text-[9px] font-black text-violet-700 dark:text-violet-300 truncate leading-tight">{b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className={`text-[8px] font-bold ${b.items.some(({ item }) => item.bundleHideItemPrices === true) ? 'text-violet-700 dark:text-violet-300' : 'text-gray-500'}`}>
                           {formatCurrency(b.totalSubtotal, state.settings.currency)}
@@ -993,9 +993,10 @@ interface CartItemCardProps {
   profile: any;
   isNested?: boolean;
   isFromBundle?: boolean;
+  baseQuantity?: number;
 }
 
-function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, onApplyDiscount, currency, dispatch, profile, isNested, isFromBundle }: CartItemCardProps) {
+function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, onApplyDiscount, currency, dispatch, profile, isNested, isFromBundle, baseQuantity }: CartItemCardProps) {
   const { state } = useApp();
   const showDiscount = state.settings.receiptShowDiscount !== false &&
     !state.cart.some(cartItem => cartItem.bundleHideItemPrices === true || cartItem.bundle_hide_item_prices === true);
@@ -1057,7 +1058,11 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
     <div className={`group hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors overflow-hidden ${isNested ? 'pl-0 pr-1 py-0.5 hover:bg-transparent dark:hover:bg-transparent' : isFromBundle ? 'pl-3 pr-4 py-1' : 'pl-3 pr-4 py-1.5'}`}>
       {/* Main row */}
       <div className="flex items-center gap-1.5">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{visualIndex || (index + 1)}</span>
+        {isFromBundle ? (
+          <span className="flex items-center justify-center w-6 h-6 text-gray-700 dark:text-gray-300 text-[12px] font-bold shrink-0">-</span>
+        ) : (
+          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{visualIndex || (index + 1)}</span>
+        )}
         {/* Thumbnail (not for nested items) */}
         {!isNested && (
           <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 shrink-0 flex items-center justify-center self-start mt-0.5 aspect-square">
@@ -1164,7 +1169,7 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
         {/* Qty stepper or static Qty display if nested / from bundle */}
         {(isNested || isFromBundle) ? (
           <span className="text-[9px] font-black px-1.5 py-0.5 bg-violet-500/5 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded shrink-0 self-center select-none">
-            {Math.abs(item.quantity)}
+            {baseQuantity !== undefined ? baseQuantity : Math.abs(item.quantity)}x
           </span>
         ) : (
           <div className="flex items-center self-center bg-gray-150/70 dark:bg-white/5 rounded-full p-0.5 shrink-0">
