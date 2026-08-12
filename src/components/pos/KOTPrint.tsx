@@ -137,11 +137,33 @@ export function KOTPrint({ sale }: KOTPrintProps) {
         }
       });
       
-      const shBundles = Array.from(bundlesMap.values()).map(b => ({
-        bundleName: b.bundleName,
-        bundleQty: b.bundleIds.size,
-        items: Array.from(b.itemsMap.values()).map((c: any) => ({ ...c, extrasList: Array.from(c.aggregatedExtras.values()) }))
-      }));
+      const shBundles = Array.from(bundlesMap.values()).map(b => {
+        let bundleQty = b.bundleIds.size;
+        const firstCartItem = Array.from(b.itemsMap.values())[0] as any;
+        if (firstCartItem) {
+          const bundleIdFull = firstCartItem.bundleId || firstCartItem.bundle_id;
+          const originalBundleDefId = bundleIdFull?.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || bundleIdFull;
+          const bundleDef = state.bundles?.find(bd => bd.id === originalBundleDefId);
+          
+          if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+            const firstBi = bundleDef.items[0];
+            const cItem = Array.from(b.itemsMap.values()).find((x: any) => x.product.id === firstBi.productId) as any;
+            if (cItem) {
+              bundleQty = Math.round(cItem.quantity / firstBi.quantity);
+            }
+          } else if (firstCartItem.quantity > 0) {
+            bundleQty = firstCartItem.quantity;
+          }
+        }
+        
+        if (bundleQty === 0) bundleQty = 1;
+
+        return {
+          bundleName: b.bundleName,
+          bundleQty,
+          items: Array.from(b.itemsMap.values()).map((c: any) => ({ ...c, extrasList: Array.from(c.aggregatedExtras.values()) }))
+        };
+      });
 
       let html = '';
       
@@ -150,13 +172,14 @@ export function KOTPrint({ sale }: KOTPrintProps) {
           html += `
           <div class="table-row" style="padding-bottom: 2px; border-bottom: none;">
             <div class="table-row-detail">
-              <div class="table-row-name" style="font-size: 14px;">🎁 ${b.bundleQty}x ${b.bundleName}</div>
+              <div class="table-row-name" style="font-size: 14px;">🎁 ${b.bundleQty > 1 ? `${b.bundleQty}x ` : ''}${b.bundleName}</div>
             </div>
           </div>`;
           b.items.forEach((item: any, idx: number) => {
+            const baseItemQty = b.bundleQty > 0 ? Math.round(item.quantity / b.bundleQty) : item.quantity;
             html += `
             <div class="table-row" style="border-top: none; padding-top: 0;">
-              <div class="table-row-qty" style="font-size: 13px;">${item.quantity}x</div>
+              <div class="table-row-qty" style="font-size: 13px;">${baseItemQty}x</div>
               <div class="table-row-detail">
                 <div class="table-row-name" style="font-weight: normal;">${idx + 1}. ${item.product?.name || 'Item'}</div>
                 ${item.selectedVariant ? `<div class="table-row-meta" style="font-weight: bold;">- ${item.selectedVariant}</div>` : ''}

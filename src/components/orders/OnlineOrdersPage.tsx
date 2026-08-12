@@ -610,6 +610,7 @@ export function OnlineOrdersPage() {
                         bundleName: string;
                         items: { item: any; originalIndex: number }[];
                         totalSubtotal: number;
+                        bundleQty: number;
                       }>();
                       const standaloneItems: { item: any; originalIndex: number }[] = [];
 
@@ -621,7 +622,8 @@ export function OnlineOrdersPage() {
                               bundleId: bId,
                               bundleName: item.bundleName || item.bundle_name || 'Deal',
                               items: [],
-                              totalSubtotal: 0
+                              totalSubtotal: 0,
+                              bundleQty: 1
                             });
                           }
                           const b = bundlesMap.get(bId)!;
@@ -630,6 +632,27 @@ export function OnlineOrdersPage() {
                         } else {
                           standaloneItems.push({ item, originalIndex: index });
                         }
+                      });
+                      
+                      bundlesMap.forEach((b) => {
+                        const originalBundleDefId = b.bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || b.bundleId;
+                        let bundleDef = state.bundles?.find(x => x.id === originalBundleDefId);
+                        if (!bundleDef) {
+                          bundleDef = state.products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
+                        }
+                        
+                        let bundleQty = 1;
+                        if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+                          const firstBi = bundleDef.items[0];
+                          const cartItem = b.items.find(x => x.item.product.id === firstBi.productId);
+                          if (cartItem) {
+                            bundleQty = Math.round(cartItem.item.quantity / firstBi.quantity);
+                          }
+                        } else if (b.items.length > 0) {
+                          bundleQty = b.items[0].item.quantity;
+                        }
+                        if (bundleQty === 0) bundleQty = 1;
+                        b.bundleQty = bundleQty;
                       });
 
                       return { bundles: Array.from(bundlesMap.values()), standaloneItems };
@@ -645,20 +668,20 @@ export function OnlineOrdersPage() {
                             <div className="flex justify-between items-start">
                               <div>
                                 <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1 shadow-sm">🎁 DEAL</span>
-                                <h4 className="font-black text-gray-900 dark:text-white text-base uppercase leading-tight">{b.bundleName}</h4>
+                                <h4 className="font-black text-gray-900 dark:text-white text-base uppercase leading-tight">{b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</h4>
                               {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
                                 <p className="text-[10px] text-gray-500 truncate font-medium mt-1">+ {b.items[0].item.toppings.map((t: any) => `${Math.abs(b.items[0].item.quantity || 1) > 1 ? Math.abs(b.items[0].item.quantity || 1) + 'x ' : ''}${t.name} (${formatCurrency(t.price * Math.abs(b.items[0].item.quantity || 1), state.settings?.currency)})`).join(', ')}</p>
                               )}
                             </div>
                             <div className="text-right shrink-0">
                               <span className="font-black text-primary text-base block">{formatCurrency(b.totalSubtotal, state.settings?.currency)}</span>
-                              <span className="text-xs font-bold text-gray-500 block mt-0.5">Qty: {b.items[0]?.item.quantity || 1}</span>
+                              <span className="text-xs font-bold text-gray-500 block mt-0.5">Qty: {b.bundleQty}</span>
                             </div>
                           </div>
                           <div className="space-y-2 border-t border-gray-100 dark:border-white/5 pt-2.5">
                             {b.items.map(({ item, originalIndex }) => (
                               <div key={originalIndex} className="flex gap-3 items-center text-xs">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
+                                <span className="flex items-center justify-center w-6 h-6 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">-</span>
                                 {item.product?.image ? (
                                   <img src={item.product.image} alt={item.product.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                                 ) : (
@@ -667,7 +690,7 @@ export function OnlineOrdersPage() {
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-gray-900 dark:text-white truncate">{item.product?.name}</p>
+                                  <p className="font-bold text-gray-900 dark:text-white truncate">{b.bundleQty > 0 ? Math.round(Math.abs(item.quantity) / b.bundleQty) : Math.abs(item.quantity)}x {item.product?.name}</p>
                                   {item.selectedVariant && (
                                     <p className="text-[10px] text-gray-500 truncate">{item.selectedVariant}</p>
                                   )}

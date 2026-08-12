@@ -593,6 +593,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                     bundleName: string;
                     items: { item: any; originalIndex: number }[];
                     totalSubtotal: number;
+                    bundleQty: number;
                   }>();
                   const standaloneItems: { item: any; originalIndex: number }[] = [];
 
@@ -602,17 +603,39 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                       if (!bundlesMap.has(bId)) {
                         bundlesMap.set(bId, {
                           bundleId: bId,
-                          bundleName: item.bundleName || 'Deal',
+                          bundleName: item.bundleName || item.bundle_name || 'Deal',
                           items: [],
-                          totalSubtotal: 0
+                          totalSubtotal: 0,
+                          bundleQty: 1
                         });
                       }
                       const b = bundlesMap.get(bId)!;
                       b.items.push({ item, originalIndex: index });
-                      b.totalSubtotal += item.subtotal;
+                      b.totalSubtotal += item.subtotal ?? ((item.price != null ? item.price * item.quantity : (item.product?.price ?? 0) * item.quantity) - (item.discount || 0));
                     } else {
                       standaloneItems.push({ item, originalIndex: index });
                     }
+                  });
+                  
+                  bundlesMap.forEach((b) => {
+                    const originalBundleDefId = b.bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || b.bundleId;
+                    let bundleDef = state.bundles?.find(x => x.id === originalBundleDefId);
+                    if (!bundleDef) {
+                      bundleDef = state.products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
+                    }
+                    
+                    let bundleQty = 1;
+                    if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
+                      const firstBi = bundleDef.items[0];
+                      const cartItem = b.items.find(x => x.item.product.id === firstBi.productId);
+                      if (cartItem) {
+                        bundleQty = Math.round(cartItem.item.quantity / firstBi.quantity);
+                      }
+                    } else if (b.items.length > 0) {
+                      bundleQty = b.items[0].item.quantity;
+                    }
+                    if (bundleQty === 0) bundleQty = 1;
+                    b.bundleQty = bundleQty;
                   });
 
                   return { bundles: Array.from(bundlesMap.values()), standaloneItems };
@@ -628,11 +651,11 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                         <div className="flex justify-between items-start">
                           <div>
                             <span className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md inline-block mb-1">🎁 DEAL</span>
-                            <h4 className="font-bold text-[var(--color-text)] text-sm uppercase leading-tight">{b.bundleName}</h4>
+                            <h4 className="font-bold text-[var(--color-text)] text-sm uppercase leading-tight">{b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}</h4>
                           </div>
                           <div className="text-right shrink-0">
                             <span className="font-black text-primary text-sm block">{formatCurrency(b.totalSubtotal, settings?.currency)}</span>
-                            <span className="text-[10px] font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {b.items[0]?.item.quantity || 1}</span>
+                            <span className="text-[10px] font-bold text-[var(--color-text)] opacity-50 block mt-0.5">Qty: {b.bundleQty}</span>
                           </div>
                         </div>
                         {b.items[0]?.item.toppings && b.items[0].item.toppings.length > 0 && (
@@ -643,7 +666,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                         <div className="space-y-1.5 border-t border-black/5 dark:border-white/5 pt-2">
                           {b.items.map(({ item, originalIndex }) => (
                             <div key={originalIndex} className="flex gap-2 items-center text-xs">
-                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[10px] font-bold shrink-0">{originalIndex + 1}</span>
+                              <span className="flex items-center justify-center w-6 h-6 text-[var(--color-text)] opacity-50 text-[10px] font-bold shrink-0">-</span>
                               {item.product.image ? (
                                 <img src={item.product.image} alt={item.product.name} className="w-7 h-7 rounded-lg object-cover shrink-0" />
                               ) : (
@@ -652,7 +675,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                                 </div>
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="font-bold text-[var(--color-text)] truncate">{item.product.name}</p>
+                                <p className="font-bold text-[var(--color-text)] truncate">{b.bundleQty > 0 ? Math.round(Math.abs(item.quantity) / b.bundleQty) : Math.abs(item.quantity)}x {item.product.name}</p>
                                 {item.selectedVariant && (
                                   <p className="text-[10px] text-[var(--color-text)] opacity-50 truncate">{item.selectedVariant}</p>
                                 )}

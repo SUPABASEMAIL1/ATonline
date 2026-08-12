@@ -928,7 +928,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                   <div key={`checkout-page-bundle-${b.bundleId}`} className="p-3 my-1.5 rounded-xl border border-dashed border-violet-500/30 bg-violet-500/[0.01]">
                     <CompactItemRow
                       image={bundleThumb(b)}
-                      name={b.bundleName}
+                      name={b.bundleQty > 1 ? `${b.bundleQty}x ${b.bundleName}` : b.bundleName}
                       price={formatCurrency(b.totalSubtotal, state.settings.currency)}
                       discount={discountStr}
                     />
@@ -943,7 +943,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                       {b.items.map(({ item, originalIndex }) => (
                         <div key={originalIndex} className="flex flex-col text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase">
                           <div className="flex justify-between items-center">
-                            <span className="flex items-center gap-1.5 truncate"><span className="flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 text-[8px] font-bold shrink-0">{originalIndex + 1}</span>{Math.abs(item.quantity)} × {item.product.name}</span>
+                            <span className="flex items-center gap-1.5 truncate">- {b.bundleQty > 0 ? Math.round(Math.abs(item.quantity) / b.bundleQty) : Math.abs(item.quantity)} × {item.product.name}</span>
                             <div className="flex items-center gap-1 shrink-0 ml-2">
                               {item.selectedVariantLabel && <span className="text-[8px] text-gray-500">({item.selectedVariantLabel})</span>}
                               {!item.selectedVariantLabel && item.selectedVariant && <span className="text-[8px] text-gray-500">({item.selectedVariant})</span>}
