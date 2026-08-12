@@ -1106,27 +1106,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         }))
         : cartItems;
 
-      let updatedCart = [...state.cart];
-
-      for (const item of itemsToDispatch) {
-        const existingIndex = updatedCart.findIndex(
-          x => (x.bundleId === item.bundleId || x.bundle_id === item.bundleId) && x.product.id === item.product.id
-        );
-
-        if (existingIndex >= 0) {
-          const existing = updatedCart[existingIndex];
-          updatedCart[existingIndex] = {
-            ...existing,
-            quantity: existing.quantity + item.quantity,
-            discount: (existing.discount || 0) + (item.discount || 0),
-            subtotal: (existing.subtotal || 0) + (item.subtotal || 0),
-          };
-        } else {
-          updatedCart.push(item);
-        }
-      }
-
-      dispatch({ type: 'SET_CART', payload: updatedCart });
+      dispatch({ type: 'MERGE_BUNDLE_CART_ITEMS', payload: itemsToDispatch });
 
       const discountText = bundle.discountType === 'percentage'
         ? `${bundle.discountValue}%`

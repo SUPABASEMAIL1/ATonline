@@ -92,6 +92,8 @@ interface AppState {
 }
 
 type AppAction =
+  | { type: 'SET_USER'; payload: User | null }
+  | { type: 'MERGE_BUNDLE_CART_ITEMS'; payload: CartItem[] }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_PRODUCT_ADDONS'; payload: ProductAddon[] }
@@ -178,7 +180,7 @@ const getCachedCurrentUser = (): User | null => {
       if (parsed.lastLogin) parsed.lastLogin = new Date(parsed.lastLogin);
       return parsed;
     }
-  } catch (_) {}
+  } catch (_) { }
   return null;
 };
 
@@ -295,7 +297,7 @@ const getCachedSettings = (): AppState['settings'] => {
     if (cached) {
       return { ...defaultSettings, ...JSON.parse(cached) };
     }
-  } catch (_) {}
+  } catch (_) { }
   return defaultSettings;
 };
 
@@ -309,7 +311,7 @@ const getCachedSalesTabs = (): SalesTab[] => {
   try {
     const cached = localStorage.getItem('pos_sales_tabs');
     if (cached) return JSON.parse(cached);
-  } catch (_) {}
+  } catch (_) { }
   return [];
 };
 
@@ -438,6 +440,39 @@ function appReducer(state: AppState, action: AppAction): AppState {
         cart: newCart,
         salesTabs: state.salesTabs.map(tab =>
           tab.id === state.activeSalesTab ? { ...tab, cart: newCart } : tab
+        )
+      };
+    }
+    case 'MERGE_BUNDLE_CART_ITEMS': {
+      const itemsToDispatch = action.payload;
+      let updatedCart = [...state.cart];
+
+      for (const item of itemsToDispatch) {
+        const existingIndex = updatedCart.findIndex(
+          x => (x.bundleId === item.bundleId || x.bundle_id === item.bundleId) && x.product.id === item.product.id
+        );
+
+        if (existingIndex >= 0) {
+          const existing = updatedCart[existingIndex];
+          updatedCart[existingIndex] = {
+            ...existing,
+            quantity: existing.quantity + item.quantity,
+            discount: (existing.discount || 0) + (item.discount || 0),
+            subtotal: (existing.subtotal || 0) + (item.subtotal || 0),
+          };
+        } else {
+          updatedCart.push(item);
+        }
+      }
+
+      return {
+        ...state,
+        cart: updatedCart,
+        salesTabs: state.salesTabs.map(tab =>
+          tab.id === state.activeSalesTab ? { ...tab, cart: updatedCart } : tab
+        )
+      };
+    }
         )
       };
     }
@@ -1128,7 +1163,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const existsLocally = await localDb.sales.get(payload.new.id);
           const mapped = mapSale(payload.new);
           await localDb.sales.put(mapped);
-          
+
           // Play loud sound for new online orders (pending OR preparing)
           // Only trigger if this order was NOT created/edited locally by this device and not on storefront
           if (!existsLocally && mapped.saleType === 'estore' && ['pending', 'preparing'].includes(mapped.estoreStatus || '')) {
@@ -1182,7 +1217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             const mapped = mapSettings(payload.new);
             const localSettings = await localDb.appSettings.get(SETTINGS_ID);
-            
+
             let isRealChange = true;
             if (localSettings) {
               const { updatedAt: _, ...localContent } = localSettings as any;
@@ -1192,14 +1227,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
             // Always save to IndexedDB to keep timestamps synced
             await localDb.appSettings.put(mapped);
-            
+
             if (isRealChange) {
               dispatch({ type: 'SET_SETTINGS', payload: mapped });
             }
           }, 2000);
         }
       })
-        // product_batches realtime subscription removed — batch system deprecated
+      // product_batches realtime subscription removed — batch system deprecated
       .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, async (payload) => {
         if (payload.eventType === 'INSERT') {
           if (await isPendingDelete('expenses', payload.new.id)) return;
@@ -1359,56 +1394,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_order_items' }, async (payload) => {
         if (await isPendingDelete('purchase_order_items', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.purchaseOrderItems.put(payload.new).catch(() => {});
+          await localDb.purchaseOrderItems.put(payload.new).catch(() => { });
         } else if (payload.eventType === 'DELETE') {
-          await localDb.purchaseOrderItems.delete(payload.old.id).catch(() => {});
+          await localDb.purchaseOrderItems.delete(payload.old.id).catch(() => { });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bundles' }, async (payload) => {
         if (await isPendingDelete('bundles', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.bundles.put(payload.new).catch(() => {});
+          await localDb.bundles.put(payload.new).catch(() => { });
         } else if (payload.eventType === 'DELETE') {
-          await localDb.bundles.delete(payload.old.id).catch(() => {});
+          await localDb.bundles.delete(payload.old.id).catch(() => { });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bundle_items' }, async (payload) => {
         if (await isPendingDelete('bundle_items', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.bundleItems.put(payload.new).catch(() => {});
+          await localDb.bundleItems.put(payload.new).catch(() => { });
         } else if (payload.eventType === 'DELETE') {
-          await localDb.bundleItems.delete(payload.old.id).catch(() => {});
+          await localDb.bundleItems.delete(payload.old.id).catch(() => { });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bundle_slots' }, async (payload) => {
         if (await isPendingDelete('bundle_slots', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.bundleSlots.put(payload.new).catch(() => {});
+          await localDb.bundleSlots.put(payload.new).catch(() => { });
         } else if (payload.eventType === 'DELETE') {
-          await localDb.bundleSlots.delete(payload.old.id).catch(() => {});
+          await localDb.bundleSlots.delete(payload.old.id).catch(() => { });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bundle_slot_options' }, async (payload) => {
         if (await isPendingDelete('bundle_slot_options', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.bundleSlotOptions.put(payload.new).catch(() => {});
+          await localDb.bundleSlotOptions.put(payload.new).catch(() => { });
         } else if (payload.eventType === 'DELETE') {
-          await localDb.bundleSlotOptions.delete(payload.old.id).catch(() => {});
+          await localDb.bundleSlotOptions.delete(payload.old.id).catch(() => { });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'variant_stock_history' }, async (payload) => {
         if (await isPendingDelete('variant_stock_history', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await localDb.variantStockHistory.put(payload.new).catch(() => {});
+          await localDb.variantStockHistory.put(payload.new).catch(() => { });
         } else if (payload.eventType === 'DELETE') {
-          await localDb.variantStockHistory.delete(payload.old.id).catch(() => {});
+          await localDb.variantStockHistory.delete(payload.old.id).catch(() => { });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'salesmen' }, async (payload) => {
         if (await isPendingDelete('salesmen', payload.new?.id || payload.old?.id)) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
           const mapped = mapSalesman(payload.new);
-          await localDb.salesmen.put(mapped).catch(() => {});
+          await localDb.salesmen.put(mapped).catch(() => { });
           const exists = state.salesmen.some(s => s.id === mapped.id);
           if (payload.eventType === 'INSERT' && !exists) {
             dispatch({ type: 'ADD_SALESMAN', payload: mapped });
@@ -1416,14 +1451,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             dispatch({ type: 'UPDATE_SALESMAN', payload: mapped });
           }
         } else if (payload.eventType === 'DELETE') {
-          await localDb.salesmen.delete(payload.old.id).catch(() => {});
+          await localDb.salesmen.delete(payload.old.id).catch(() => { });
           dispatch({ type: 'DELETE_SALESMAN', payload: payload.old.id });
         }
       })
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.log(`[Realtime] Subscription status: ${status} — will retry in 5s.`);
-          supabase.removeChannel(channel).catch(() => {});
+          supabase.removeChannel(channel).catch(() => { });
           subscriptionsInitialized.current = false;
           subscriptionRef.current = null;
           retryTimer = setTimeout(() => {
@@ -1585,7 +1620,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.warn('[AppContext] Bundle local load failed', e);
       }
-      
+
       dispatch({ type: 'SET_VARIANT_STOCK_HISTORY', payload: localVariantStockHistory });
       dispatch({ type: 'SET_PRODUCT_ADDONS', payload: localProductAddons });
       dispatch({ type: 'SET_SALESMEN', payload: localSalesmen });
@@ -1623,7 +1658,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const fetchDeltasAndMerge = async (localTable: any, fetchFn: (ts?: Date) => Promise<any[]>) => {
           const remoteDeltas = await fetchFn(lastSyncTime);
           if (!lastSyncTime) return remoteDeltas;
-          
+
           const allLocal = await localTable.toArray();
           const mergedMap = new Map(allLocal.map((i: any) => [i.id, i]));
           remoteDeltas.forEach((r: any) => mergedMap.set(r.id, r));
@@ -1659,7 +1694,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (settings) {
           const local = await localDb.appSettings.get(SETTINGS_ID);
           const pendingSettingsOps = await localDb.pendingOps.where('entity').equals('app_settings').toArray();
-          
+
           if (!local || pendingSettingsOps.length === 0) {
             console.log(`[Handshake] Syncing settings from cloud`);
             dispatch({ type: 'SET_SETTINGS', payload: settings });
@@ -1762,7 +1797,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         // Phase 2: Sequential fetch from Supabase to seed local cache
         // PROGRESSIVE DISPATCH: We fetch, merge, and dispatch immediately to UI.
-        
+
         // ── PRODUCTS (Most important, do this first!) ──
         const products = await productsService.fetchRemote();
         const mergedProducts = await smartMerge('products', products, localDb.products);
@@ -1805,11 +1840,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           usersService.fetchRemote(),
           fetchDeltasAndMerge(localDb.salesmen, salesmenService.fetchRemote)
         ]);
-        
+
         const mergedUsers = await smartMerge('users', usersList, localDb.users);
         dispatch({ type: 'SET_USERS', payload: mergedUsers });
         await saveProgressively('users', localDb.users, mergedUsers);
-        
+
         const mergedSalesmen = await smartMerge('salesmen', salesmenData, localDb.salesmen);
         dispatch({ type: 'SET_SALESMEN', payload: mergedSalesmen });
         await saveProgressively('salesmen', localDb.salesmen, mergedSalesmen);
@@ -1840,25 +1875,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
           suppliersService.fetchRemote(), // Metadata
         ]);
-        
+
         const mergedDiscounts = await smartMerge('discounts', discounts, localDb.discounts);
         dispatch({ type: 'SET_DISCOUNTS', payload: mergedDiscounts });
         await saveProgressively('discounts', localDb.discounts, mergedDiscounts);
-        
+
         const mergedExpenses = (await smartMerge('expenses', expenses, localDb.expenses))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         dispatch({ type: 'SET_EXPENSES', payload: mergedExpenses });
         await saveProgressively('expenses', localDb.expenses, mergedExpenses);
-        
+
         const mergedPurchaseRecords = (await smartMerge('purchase_records', purchaseRecords, localDb.purchaseRecords))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         dispatch({ type: 'SET_PURCHASE_RECORDS', payload: mergedPurchaseRecords });
         await saveProgressively('purchase_records', localDb.purchaseRecords, mergedPurchaseRecords);
-        
+
         const mergedSuppliers = await smartMerge('suppliers', suppliersData, localDb.suppliers);
         dispatch({ type: 'SET_SUPPLIERS', payload: mergedSuppliers });
         await saveProgressively('suppliers', localDb.suppliers, mergedSuppliers);
-        
+
         updateStatus('Syncing marketing and procurement data...', discounts.length + expenses.length + purchaseRecords.length + suppliersData.length);
 
         // ── TABS, STOCK, PAYMENTS ──
@@ -1868,19 +1903,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote).catch(() => []),
           fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(() => [])
         ]);
-        
+
         if (supplierTxData.length > 0) {
           dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: supplierTxData });
           await saveProgressively('supplier_transactions', localDb.supplierTransactions, supplierTxData);
         }
-        
+
         const salesTabs = (salesTabsData.data || []).map(t => ({ ...t, userId: t.user_id, editingSaleId: t.editing_sale_id ?? null }));
         const mergedSalesTabs = (await smartMerge('sales_tabs', salesTabs as SalesTab[], localDb.salesTabs)).slice(0, 3);
         if (mergedSalesTabs.length > 0) {
           dispatch({ type: 'SET_SALES_TABS', payload: mergedSalesTabs as SalesTab[] });
           await saveProgressively('sales_tabs', localDb.salesTabs, mergedSalesTabs);
         }
-        
+
         const mergedPayments = await smartMerge('payments', remotePayments, localDb.payments);
         dispatch({ type: 'SET_PAYMENTS', payload: mergedPayments });
         await saveProgressively('payments', localDb.payments, mergedPayments);
@@ -1916,28 +1951,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           console.error('[loadData] Additive reconciliation failed (non-fatal):', reconErr);
         }
 
-          if (!silent) {
-            const bundleStatus = remoteBundles.length > 0
-              ? ` | ${remoteBundles.length} bundles restored`
-              : '';
-            dispatch({
-              type: 'SET_SYNC_PROGRESS',
-              payload: {
-                status: `System ready!${bundleStatus}`,
-                current: totalSteps,
-                total: totalSteps,
-                size: (totalBytes / 1024).toFixed(1) + ' KB'
-              }
-            });
-            setTimeout(() => dispatch({ type: 'SET_SYNC_PROGRESS', payload: null }), 1000);
-          }
-          
-          // Record successful sync timestamp for future delta syncs
-          await localDb.syncHistory.add({ timestamp: Date.now() });
+        if (!silent) {
+          const bundleStatus = remoteBundles.length > 0
+            ? ` | ${remoteBundles.length} bundles restored`
+            : '';
+          dispatch({
+            type: 'SET_SYNC_PROGRESS',
+            payload: {
+              status: `System ready!${bundleStatus}`,
+              current: totalSteps,
+              total: totalSteps,
+              size: (totalBytes / 1024).toFixed(1) + ' KB'
+            }
+          });
+          setTimeout(() => dispatch({ type: 'SET_SYNC_PROGRESS', payload: null }), 1000);
+        }
 
-          const remainingAfterFetch = await localDb.pendingOps.count();
-          if (remainingAfterFetch === 0) {
-            console.log(`✅ Full Sync Complete. ${remoteBundles.length > 0 ? `${remoteBundles.length} bundles restored` : ''}`);
+        // Record successful sync timestamp for future delta syncs
+        await localDb.syncHistory.add({ timestamp: Date.now() });
+
+        const remainingAfterFetch = await localDb.pendingOps.count();
+        if (remainingAfterFetch === 0) {
+          console.log(`✅ Full Sync Complete. ${remoteBundles.length > 0 ? `${remoteBundles.length} bundles restored` : ''}`);
         } else {
           console.log(`📋 Background fetch done (${remainingAfterFetch} pending ops still in queue).`);
         }
