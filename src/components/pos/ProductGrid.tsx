@@ -271,9 +271,8 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
-                  className={`w-full transition-all bg-gray-50 dark:bg-white/5 dark:text-white border border-gray-200/60 dark:border-white/10 focus:border-primary/50 focus:ring-4 focus:ring-primary/10 rounded-full pl-9 pr-16 lg:pl-11 lg:pr-20 outline-none ${
-                    isTouchMode ? 'h-9 lg:h-10 text-xs lg:text-sm' : 'h-9 lg:h-10 text-xs lg:text-sm'
-                  }`}
+                  className={`w-full transition-all bg-gray-50 dark:bg-white/5 dark:text-white border border-gray-200/60 dark:border-white/10 focus:border-primary/50 focus:ring-4 focus:ring-primary/10 rounded-full pl-9 pr-16 lg:pl-11 lg:pr-20 outline-none ${isTouchMode ? 'h-9 lg:h-10 text-xs lg:text-sm' : 'h-9 lg:h-10 text-xs lg:text-sm'
+                    }`}
                 />
 
                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -331,13 +330,12 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`whitespace-nowrap transition-all flex-shrink-0 flex items-center gap-1 px-3 sm:px-4 h-8 sm:h-9 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider active:scale-95 ${
-                      selectedCategory === category
+                    className={`whitespace-nowrap transition-all flex-shrink-0 flex items-center gap-1 px-3 sm:px-4 h-8 sm:h-9 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider active:scale-95 ${selectedCategory === category
                         ? category === '__BUNDLES__'
                           ? 'bg-violet-600 text-white font-black shadow-lg shadow-violet-500/20'
                           : 'bg-primary text-white font-black shadow-lg shadow-emerald-500/20'
                         : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
-                    }`}
+                      }`}
                   >
                     {category === 'Featured' && <Star className="w-2.5 h-2.5 lg:w-3 h-3 fill-current" />}
                     {category === '__BUNDLES__' && <Gift className="w-2.5 h-2.5 lg:w-3 h-3" />}
@@ -438,7 +436,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
           onScan={(code) => {
             const term = code.trim();
             setSearchTerm(term); // Always enter text in search bar
-            
+
             const normalizedCode = term.toUpperCase().replace(/O/g, '0');
 
             const product = state.products.find((p: Product) => {
@@ -607,7 +605,8 @@ const ProductCard = memo(function ProductCard({ product, onAddToCart, onUpdateQu
     prev.product.isFeatured === next.product.isFeatured &&
     prev.product.trackInventory === next.product.trackInventory &&
     prev.product.minStock === next.product.minStock
-  )});
+  )
+});
 
 // ─── BUNDLE CARD ─────────────────────────────────────────────────────────────
 interface BundleCardProps {
@@ -671,11 +670,11 @@ const BundleCard = memo(
                   <div key={product.id || idx} className={cellClasses}>
                     {product.image ? (
                       <img src={product.image} className="w-full h-full object-cover" loading="lazy" />
-            ) : item.bundleMinPrice !== null && item.bundleMaxPrice !== null && item.bundleMinPrice < item.bundleMaxPrice ? (
-              <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">
-                {currency}{item.bundleMinPrice.toLocaleString()} – {currency}{item.bundleMaxPrice.toLocaleString()}
-              </span>
-            ) : (
+                    ) : item.bundleMinPrice !== null && item.bundleMaxPrice !== null && item.bundleMinPrice < item.bundleMaxPrice ? (
+                      <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">
+                        {currency}{item.bundleMinPrice.toLocaleString()} – {currency}{item.bundleMaxPrice.toLocaleString()}
+                      </span>
+                    ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Package className="h-6 w-6 text-gray-300 dark:text-gray-600" />
                       </div>
@@ -716,7 +715,7 @@ const BundleCard = memo(
               -{item.discountValue}{item.discountType === 'percentage' ? '%' : ` ${currency}`}
             </div>
           )}
-          
+
           {isGroup && (
             <div className="absolute top-1 left-1 bg-gray-900 dark:bg-white text-white dark:text-black text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-lg z-10 uppercase tracking-widest">
               {item.bundles.length} Sizes
@@ -902,7 +901,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           maxSum += maxSorted.slice(-req).reduce((s: number, r: any) => s + r.max, 0);
         });
         if (minSum > 0) { bundleMinPrice = minSum; bundleMaxPrice = maxSum; }
-        
+
         // Collapse range to single price when name specifies the size
         const lowerName = bundle.name.toLowerCase();
         if (lowerName.includes(' - medium') || lowerName.includes(' - small') || lowerName.includes(' - large')) {
@@ -946,14 +945,14 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         bundleMinPrice = Math.max(0, bundle.discountType === 'percentage' ? itemMin * (1 - discPct) : itemMin - discFixed);
         bundleMaxPrice = Math.max(0, bundle.discountType === 'percentage' ? itemMax * (1 - discPct) : itemMax - discFixed);
       }
-      
+
       return {
-         ...bundle,
-         totalPrice,
-         finalPrice,
-         bundleMinPrice,
-         bundleMaxPrice,
-         bundleProducts
+        ...bundle,
+        totalPrice,
+        finalPrice,
+        bundleMinPrice,
+        bundleMaxPrice,
+        bundleProducts
       };
     });
 
@@ -984,8 +983,11 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
       if (d > 0) handleAddBundle(item);
       return;
     }
-    
-    const bundleItemsInCart = state.cart.filter((x: any) => (x.bundleId || x.bundle_id) === item.id);
+
+    const bundleItemsInCart = state.cart.filter((x: any) => {
+      const bId = x.bundleId || x.bundle_id;
+      return bId && bId.startsWith(item.id);
+    });
     if (bundleItemsInCart.length === 0) {
       if (d > 0) handleAddBundle(item);
       return;
@@ -1005,9 +1007,10 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
     const newBundleQty = currentQty + d;
 
     if (newBundleQty <= 0) {
-      const updatedCart = state.cart.filter(
-        (x: any) => (x.bundleId || x.bundle_id) !== item.id
-      );
+      const updatedCart = state.cart.filter((x: any) => {
+        const bId = x.bundleId || x.bundle_id;
+        return !(bId && bId.startsWith(item.id));
+      });
       dispatch({ type: 'SET_CART', payload: updatedCart });
       return;
     }
@@ -1015,13 +1018,14 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
     if (currentQty === 0) currentQty = 1; // Fallback to avoid division by zero
 
     const newCart = state.cart.map(cartItem => {
-      if ((cartItem.bundleId || cartItem.bundle_id) === item.id) {
+      const bId = cartItem.bundleId || cartItem.bundle_id;
+      if (bId && bId.startsWith(item.id)) {
         const itemBaseQty = cartItem.quantity / currentQty;
         const qty = isReturnMode ? -Math.abs(itemBaseQty * newBundleQty) : itemBaseQty * newBundleQty;
-        
+
         const itemBaseDiscount = (cartItem.discount || 0) / currentQty;
         const discount = isReturnMode ? -Math.abs(itemBaseDiscount * newBundleQty) : itemBaseDiscount * newBundleQty;
-        
+
         const toppingsTotal = (cartItem.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
         return {
           ...cartItem,
@@ -1042,7 +1046,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
         sonner.error('Bundle data is missing');
         return;
       }
-      
+
       const effectiveBundle = selectedItems ? { ...bundle, items: selectedItems } : bundle;
       let variantToSet: string | undefined;
       const lowerName = bundle.name.toLowerCase();
@@ -1069,11 +1073,11 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
 
       const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map((item, idx) => {
         let updatedItem = { ...item, bundleId: bundleInstanceId, bundle_id: bundleInstanceId };
-        
+
         if (variantToSet) {
           updatedItem.selectedVariant = variantToSet;
         }
-        
+
         if (toppingsMap && Object.keys(toppingsMap).length > 0 && toppingsMap[item.product.id] && toppingsMap[item.product.id].length > 0) {
           const toppingsArr = toppingsMap[item.product.id];
           updatedItem.displayToppings = toppingsArr;
@@ -1084,10 +1088,10 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
             updatedItem.subtotal = updatedItem.subtotal + toppingsPrice * updatedItem.quantity;
           }
         }
-        
+
         return updatedItem;
       });
-      
+
       if (!cartItems || cartItems.length === 0) {
         sonner.error(t('bundle_no_available_products', 'No products available in this bundle deal'));
         return;
@@ -1204,12 +1208,12 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           let displayName = item.name;
           let minPrice = 0;
           let maxPrice = 0;
-          
+
           if (isGroup) {
             const allProducts = item.bundles.flatMap((b: any) => b.bundleProducts || []);
             const uniqueProducts = Array.from(new Map(allProducts.map((p: any) => [p.id, p])).values());
             visibleProducts = uniqueProducts.slice(0, 4);
-            
+
             const prices = item.bundles.map((b: any) => b.finalPrice || 0);
             minPrice = Math.min(...prices);
             maxPrice = Math.max(...prices);
@@ -1220,7 +1224,10 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           // Check if bundle is in cart
           let bundleQty = 0;
           if (!isGroup) {
-            const bundleItemsInCart = state.cart.filter((x: any) => (x.bundleId || x.bundle_id) === item.id);
+            const bundleItemsInCart = state.cart.filter((x: any) => {
+              const bId = x.bundleId || x.bundle_id;
+              return bId && bId.startsWith(item.id);
+            });
             if (bundleItemsInCart.length > 0) {
               if (item.items && item.items.length > 0) {
                 const firstBi = item.items[0];
@@ -1264,7 +1271,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           onConfirm={(selectedItems, toppingsMap) => processBundleAdd(activeCombo, selectedItems, toppingsMap)}
         />
       )}
-      
+
       {activeGroup && (
         <DealSizeSelectorModal
           isOpen={true}

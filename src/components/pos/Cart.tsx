@@ -39,7 +39,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
 
   const isTouchMode = state.settings.interfaceMode === 'touch';
 
-  const showDiscount = state.settings.receiptShowDiscount !== false && 
+  const showDiscount = state.settings.receiptShowDiscount !== false &&
     !state.cart.some(item => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
 
   const updateQuantity = (index: number, newQuantity: number) => {
@@ -47,7 +47,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
     const price = item.product.price;
     const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
     const effectivePrice = price + toppingsTotal;
-    
+
     let updatedDiscount = item.discount || 0;
     if (item.discountValue && item.discountValue > 0) {
       if (item.discountType === 'percentage') {
@@ -77,7 +77,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
   const updateBundleQuantity = async (bundleId: string, newBundleQty: number) => {
     const originalBundleId = bundleId;
     const bundleItemsInCart = state.cart.filter(i => (i.bundleId || i.bundle_id) === bundleId);
-    
+
     if (bundleItemsInCart.length === 0) return;
 
     if (newBundleQty === 0) {
@@ -122,7 +122,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
       }
     }
     if (!bundleDef) {
-      console.warn(`[Cart] Cannot update bundle ${originalBundleId}: definition not found in state or localDb.`);
+      console.warn(`[Cart] Cannot update bundle ${originalBundleDefId}: definition not found in state or localDb.`);
       sonner.error('Bundle definition not found. Try refreshing.');
       return;
     }
@@ -143,10 +143,10 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
       if ((item.bundleId || item.bundle_id) === bundleId) {
         const itemBaseQty = item.quantity / oldBundleQty;
         const qty = itemBaseQty * newBundleQty;
-        
+
         const itemBaseDiscount = (item.discount || 0) / oldBundleQty;
         const discount = itemBaseDiscount * newBundleQty;
-        
+
         const toppingsTotal = (item.toppings || []).reduce((sum: number, t: any) => sum + t.price, 0);
         return {
           ...item,
@@ -256,9 +256,9 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
       {/* ══ HEADER ══ */}
       <div className="shrink-0 pl-4 pr-5 pt-3 pb-2 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-surface z-30 shadow-sm shadow-gray-200/50 dark:shadow-none">
         {/* Title row */}
-          <div className="flex items-start sm:items-center justify-between mb-2">
-            <div className="flex items-start sm:items-center gap-2 flex-wrap">
-              <h2 className={`font-black text-gray-900 dark:text-white flex items-center ${isTouchMode ? 'text-base' : 'text-sm'}`}>
+        <div className="flex items-start sm:items-center justify-between mb-2">
+          <div className="flex items-start sm:items-center gap-2 flex-wrap">
+            <h2 className={`font-black text-gray-900 dark:text-white flex items-center ${isTouchMode ? 'text-base' : 'text-sm'}`}>
               {t('cart', 'Cart')}
               <HelpTooltip position="bottom" content="Current active cart session. Items scanned or tapped from the catalog are accumulated here." />
             </h2>
@@ -294,7 +294,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
             )}
           </div>
         </div>
-        
+
         {/* Editing Sale Banner */}
         {state.editingSaleId && (
           <div className="mb-2 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-3 py-2 flex items-center justify-between">
@@ -310,7 +310,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
               </div>
               <HelpTooltip position="bottom" content="You are modifying an existing finalized sale. Canceling restores original. Saving replaces it with an atomic ledger update." />
             </div>
-            <button 
+            <button
               onClick={() => {
                 sonner.confirm('Cancel Edit?', 'The current changes will be lost and the original bill will remain as is.').then(r => {
                   if (r.isConfirmed) dispatch({ type: 'CLEAR_CART' });
@@ -552,8 +552,15 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 });
 
                 bundlesMap.forEach((b) => {
-                  const bundleDef = state.bundles?.find(x => x.id === b.bundleId);
+                  const originalBundleDefId = b.bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || b.bundleId;
+                  let bundleDef = state.bundles?.find(x => x.id === originalBundleDefId);
+                  
+                  if (!bundleDef) {
+                    bundleDef = state.products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
+                  }
+
                   if (bundleDef?.image) b.bundleImage = bundleDef.image;
+                  
                   let bundleQty = 1;
                   if (bundleDef && bundleDef.items && bundleDef.items.length > 0) {
                     const firstBi = bundleDef.items[0];
@@ -564,6 +571,8 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   } else if (b.items.length > 0) {
                     bundleQty = b.items[0].item.quantity;
                   }
+                  
+                  if (bundleQty === 0) bundleQty = 1; // Fallback
                   b.bundleQty = bundleQty;
                 });
 
@@ -635,9 +644,8 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                           updateBundleQuantity(b.bundleId, isNaN(val) ? 0 : val);
                         }}
                         onKeyDown={(e) => e.stopPropagation()}
-                        className={`w-6 bg-transparent text-center text-[8px] font-black focus:outline-none border-0 p-0 no-spinners select-all ${
-                          b.bundleQty < 0 ? 'text-red-500' : 'text-violet-600 dark:text-violet-400'
-                        }`}
+                        className={`w-6 bg-transparent text-center text-[8px] font-black focus:outline-none border-0 p-0 no-spinners select-all ${b.bundleQty < 0 ? 'text-red-500' : 'text-violet-600 dark:text-violet-400'
+                          }`}
                       />
                       <button
                         onClick={() => updateBundleQuantity(b.bundleId, b.bundleQty + 1)}
@@ -649,7 +657,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                     {/* Delete */}
                     <button
                       onClick={() =>
-                        sonner.confirm('Remove Bundle?', `Are you sure you want to remove the bundle "${b.bundleName}"?`).then((r) => { if (r.isConfirmed) updateBundleQuantity(b.bundleId, 0).catch(() => {}); })
+                        sonner.confirm('Remove Bundle?', `Are you sure you want to remove the bundle "${b.bundleName}"?`).then((r) => { if (r.isConfirmed) updateBundleQuantity(b.bundleId, 0).catch(() => { }); })
                       }
                       className="p-1 text-violet-400 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
                       title="Remove Entire Bundle"
@@ -923,7 +931,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
               className="w-full text-left p-5 bg-gray-50 dark:bg-white/5 hover:bg-emerald-50 dark:hover:bg-primary/10 border border-gray-200 dark:border-white/5 rounded-2xl transition-all active:scale-[0.98] group relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-8 -mt-8 group-hover:bg-primary/10 transition-colors" />
-              
+
               <div className="flex justify-between items-start mb-2 relative z-10">
                 <div className="space-y-0.5">
                   <p className="font-black text-[12px] text-gray-900 dark:text-white uppercase tracking-tight group-hover:text-primary transition-colors">{d.name}</p>
@@ -933,7 +941,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   {d.type === 'percentage' ? d.value + '%' : formatCurrency(d.value, state.settings.currency)} OFF
                 </span>
               </div>
-              
+
               {d.minAmount ? (
                 <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-white/5 relative z-10">
                   <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
@@ -949,7 +957,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
               )}
             </button>
           ))}
-          
+
           {state.discounts.filter(d => d.active).length === 0 && (
             <div className="py-12 text-center">
               <Gift className="w-12 h-12 text-gray-200 dark:text-gray-500 mx-auto mb-4" />
@@ -989,7 +997,7 @@ interface CartItemCardProps {
 
 function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, onApplyDiscount, currency, dispatch, profile, isNested, isFromBundle }: CartItemCardProps) {
   const { state } = useApp();
-  const showDiscount = state.settings.receiptShowDiscount !== false && 
+  const showDiscount = state.settings.receiptShowDiscount !== false &&
     !state.cart.some(cartItem => cartItem.bundleHideItemPrices === true || cartItem.bundle_hide_item_prices === true);
   const hidePrices = item.bundleHideItemPrices === true;
   const [showDiscountInput, setShowDiscountInput] = useState(false);
