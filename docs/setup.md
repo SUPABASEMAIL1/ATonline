@@ -1280,10 +1280,15 @@ Humne Prisma ORM aur direct Postgres connection strings (`DATABASE_URL`, `DIRECT
 
 ### 2. Supabase Realtime (WebSockets)
 POS multi-device support (e.g. 5 cashiers ek sath) ke liye **Supabase Realtime** use karta hai.
-- **Publication:** Master schema mein `supabase_realtime` publication banti hai aur **21 tables** usme add hote hain:
-  `ALTER PUBLICATION supabase_realtime ADD TABLE sales, products, customers...`
 - **Client Side:** `syncEngine.ts` mein Supabase JS SDK ke zariye `.channel('public:*').on('postgres_changes', ...).subscribe()` setup kiya gaya hai.
 - **Flow:** Jaise hi kisi device se koi row insert/update/delete hoti hai, cloud baqi sabhi connected devices ko milliseconds mein event push kar deta hai, jise local IndexedDB (Dexie) mein save karke React state update kar di jati hai.
+
+> ⚠️ **MANDATORY REALTIME AUDIT RULE (For AI Agents):**
+> Har naye clone/project setup ke baad, yeh verification lazmi hai:
+> - **Total Tables:** 29 (in public schema)
+> - **Realtime ENABLED (24 Tables):** `app_settings`, `categories`, `customers`, `suppliers`, `products`, `discounts`, `users`, `sales`, `expenses`, `sales_tabs`, `purchase_records`, `purchase_orders`, `purchase_order_items`, `supplier_transactions`, `payments`, `stock_history`, `bundles`, `bundle_items`, `bundle_slots`, `bundle_slot_options`, `variant_stock_history`, `product_addons`, `store_orders`, `salesmen`.
+> - **Realtime DISABLED (5 Tables):** `product_batches`, `toppings`, `product_toppings`, `bundle_slot_toppings`, `row_tombstones`.
+> - *Strict Rule:* Naya agent lazmi Management API se `pg_publication_tables` query kar ke check kare ke exact 24 tables `supabase_realtime` publication mein available hain.
 
 ### 3. Row-Level Security (RLS) & Permissions
 Kyunke Zaynahs POS ek **single-tenant** system hai (1 clone = 1 shop), hum complex Auth/RLS rules par rely nahi karte.
