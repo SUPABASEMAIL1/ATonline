@@ -1183,3 +1183,6 @@ Supabase ka free plan 1 hafte baad database pause kar deta hai. Isey 24/7 active
 Whenever a vision model (e.g. GPT-4o, Claude Sonnet) sends a prompt based on an image/screenshot, it MUST follow the master template. 
 
 > 👉 **START HERE:** Open and copy the complete prompt from [@docs/prompts/CLI_PROMPT_WRITER.md](docs/prompts/CLI_PROMPT_WRITER.md) when initializing a CLI Prompt Writer agent.
+## 🗣️ COMMUNICATION RULE (MANDATORY)
+- **Short & To the Point:** Always keep your answers extremely short and directly to the point. No long explanations.
+- **Language:** ALWAYS reply in **Roman Urdu** (e.g., "Han bhai, fix kar diya hai").
