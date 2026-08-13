@@ -35,7 +35,7 @@ import { OfflineBanner } from './components/OfflineBadge';
 
 const LoadingView = () => {
   return (
-    <div className="h-[100dvh] p-4 sm:p-6 space-y-6 bg-gray-50/50 dark:bg-app w-full overflow-hidden animate-pulse">
+    <div className="fixed inset-0 w-full p-4 sm:p-6 space-y-6 bg-gray-50/50 dark:bg-app w-full overflow-hidden animate-pulse">
       {/* Header Row Skeleton */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="space-y-2">
@@ -317,7 +317,7 @@ function AppContent() {
   // Intercept for password recovery mode
 
   return (
-    <div dir={isRtl ? 'rtl' : 'ltr'} className="h-[100dvh] bg-gray-50 dark:bg-app flex flex-col overflow-hidden">
+    <div dir={isRtl ? 'rtl' : 'ltr'} className="fixed inset-0 w-full bg-gray-50 dark:bg-app flex flex-col overflow-hidden">
       <Toaster
         position="top-center"
         expand={false}
