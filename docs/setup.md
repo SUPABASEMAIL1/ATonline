@@ -795,7 +795,7 @@ npm run build
 
 1. `env_backups/` se us shop ka `VITE_SUPABASE_URL` (ref) + `SUPABASE_MGMT_API_KEY` lo (kabhi doosre shop ka token na use karo)
 2. Full master schema via Management API push karo (Section "Database Push" command se)
-3. Is push se AUTO install hota hai: saare tables + post-launch ALTERs + **row_tombstones + guard_stale_write + record_row_tombstone triggers (F21)** + variant restock columns (F22) + sab updated_at/stock triggers + realtime publication (No RLS needed).
+3. Is push se AUTO install hota hai: saare tables + post-launch ALTERs + **row_tombstones + guard_stale_write + record_row_tombstone triggers (F21)** + variant restock columns (F22) + sab updated_at/stock triggers + RLS policies + realtime publication
 4. Verification chalao — Section "Post-Deployment Verification" + F21/F22 trigger check:
 
 ```bash
@@ -1291,7 +1291,23 @@ POS multi-device support (e.g. 5 cashiers ek sath) ke liye **Supabase Realtime**
 > - *Strict Rule:* Naya agent lazmi Management API se `pg_publication_tables` query kar ke check kare ke exact 24 tables `supabase_realtime` publication mein available hain.
 
 ### 3. Row-Level Security (RLS) & Permissions
-Kyunke Zaynahs POS ek **single-tenant** system hai (1 clone = 1 shop), complex Auth/RLS ki zaroorat nahi hoti. Isliye saari 29 tables par RLS **DISABLE** ki hui hai, aur `anon` role ko database operations perform karne ke liye public access diya gaya hai. Sync Engine aur localDB directly without RLS blockages kaam karte hain, isliye kisi bhi kism ka RLS-related "STUCK" error nahi aata.> - *Strict Rule:* Naya agent lazmi verify kare ke `pg_tables` mein sirf inhi 3 tables par `rowsecurity = true` ho.
+Kyunke Zaynahs POS ek **single-tenant** system hai (1 clone = 1 shop), aam taur par complex Auth/RLS ki zaroorat nahi hoti. Isliye 29 mein se 26 tables open access par hain.
+
+> ⚠️ **MANDATORY RLS AUDIT RULE (For AI Agents):**
+> Financial Integrity aur Audit-Grade track maintain karne ke liye strictly **3 tables** par RLS Policies ACTIVE honi chahiye:
+> 1. `stock_history` (Ledger of all stock movements)
+> 2. `variant_stock_history` (Ledger for variants)
+> 3. `row_tombstones` (System logic for preventing stale writes)
+>
+> **Why RLS is necessary on these 3? (Pros vs Cons)**
+> - **Pros (Unbreakable Lock):** Stock history aur tombstones aapka financial ledger hain. RLS lagane se in par ek unbreakable lock lag jata hai. Agar frontend app ya kisi cashier ke account se galti/bug ki wajah se history `DELETE` ya `UPDATE` hone ki koshish ho, toh RLS usay DB level par rok deta hai (Audit Immutability). Koi bhi data destroy nahi kar sakta. Galti theek karne ke liye nayi 'Adjustment' entry pass karni parti hai.
+> - **Cons:** RLS thori complexity add karta hai (syntax issues waghera) lekin data safety ke aagay yeh negligible hai.
+>
+> **Policy Enforcement:**
+> - `Public / Anon`: Sirf `SELECT` allowed hai.
+> - `Authenticated / Anon`: Sirf `INSERT` allowed hai (Append-Only). *Note: Zaynahs POS uses 'anon' for all connections, so 'anon' MUST be included in the INSERT policy.*
+> - `Service_Role`: `ALL` (Management API ke liye full access).
+> - *Strict Rule:* Naya agent lazmi verify kare ke `pg_tables` mein sirf inhi 3 tables par `rowsecurity = true` ho.
 
 ### 4. Cross-Device Deletion & Stale-Write Guards (F21 & F22 Rules)
 Offline-first apps ka sab se bada masla yeh hota hai ke agar Device A ne koi bill delete kiya, aur Device B offline thi. Jab Device B online aayegi toh woh delete shuda bill dubara upload kar degi (Resurrection/Ghost data).

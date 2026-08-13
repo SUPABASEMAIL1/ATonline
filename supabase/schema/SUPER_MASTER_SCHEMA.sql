@@ -1176,7 +1176,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION record_row_tombstone()
+CREATE OR REPLACE FUNCTION record_row_tombstone() SECURITY DEFINER
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO row_tombstones (table_name, ref_id, deleted_at)
@@ -2464,6 +2464,57 @@ CREATE TRIGGER on_store_order_cancelled
 AFTER UPDATE ON store_orders
 FOR EACH ROW
 EXECUTE FUNCTION trigger_release_estore_stock();
+
+-- Enable RLS on stock_history and variant_stock_history
+ALTER TABLE stock_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE variant_stock_history ENABLE ROW LEVEL SECURITY;
+
+-- 1. stock_history Policies
+-- Allow anyone to read (needed for POS devices sync)
+DROP POLICY IF EXISTS "Allow public read on stock_history" ON stock_history;
+CREATE POLICY "Allow public read on stock_history" 
+ON stock_history FOR SELECT 
+TO public 
+USING (true);
+
+-- Allow authenticated and anon users to insert (POS Cashiers/Admins)
+DROP POLICY IF EXISTS "Allow authenticated insert on stock_history" ON stock_history;
+CREATE POLICY "Allow authenticated insert on stock_history" 
+ON stock_history FOR INSERT 
+TO authenticated, anon 
+WITH CHECK (true);
+
+-- Allow service_role to do everything
+DROP POLICY IF EXISTS "Allow service_role ALL on stock_history" ON stock_history;
+CREATE POLICY "Allow service_role ALL on stock_history" 
+ON stock_history FOR ALL 
+TO service_role 
+USING (true) 
+WITH CHECK (true);
+
+-- 2. variant_stock_history Policies
+-- Allow anyone to read
+DROP POLICY IF EXISTS "Allow public read on variant_stock_history" ON variant_stock_history;
+CREATE POLICY "Allow public read on variant_stock_history" 
+ON variant_stock_history FOR SELECT 
+TO public 
+USING (true);
+
+-- Allow authenticated and anon users to insert
+DROP POLICY IF EXISTS "Allow authenticated insert on variant_stock_history" ON variant_stock_history;
+CREATE POLICY "Allow authenticated insert on variant_stock_history" 
+ON variant_stock_history FOR INSERT 
+TO authenticated, anon 
+WITH CHECK (true);
+
+-- Allow service_role to do everything
+DROP POLICY IF EXISTS "Allow service_role ALL on variant_stock_history" ON variant_stock_history;
+CREATE POLICY "Allow service_role ALL on variant_stock_history" 
+ON variant_stock_history FOR ALL 
+TO service_role 
+USING (true) 
+WITH CHECK (true);
+
 -- ════════════════════════════════════════════════════════════════
 -- POST-LAUNCH (F21/F22 — 2026-08-12): Stale-Write Guards + Variant Restock
 -- ════════════════════════════════════════════════════════════════
