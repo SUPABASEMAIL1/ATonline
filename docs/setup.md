@@ -1291,10 +1291,23 @@ POS multi-device support (e.g. 5 cashiers ek sath) ke liye **Supabase Realtime**
 > - *Strict Rule:* Naya agent lazmi Management API se `pg_publication_tables` query kar ke check kare ke exact 24 tables `supabase_realtime` publication mein available hain.
 
 ### 3. Row-Level Security (RLS) & Permissions
-Kyunke Zaynahs POS ek **single-tenant** system hai (1 clone = 1 shop), hum complex Auth/RLS rules par rely nahi karte.
-- **Access Level:** Har table par `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;` run kiya jata hai.
-- **No Restrictions:** App `VITE_SUPABASE_ANON_KEY` use karti hai. RLS policies ko intentionally *permissive* rakha gaya hai taake PWA offline/online mode mein smoothly sync kar sake.
-- **Tombstones RLS:** Nayi `row_tombstones` table par bhi RLS hai lekin usme `anon` aur `authenticated` roles ko `ALL` (insert/select) ki permission allow ki gayi hai taake POS delete operations track kar sake.
+Kyunke Zaynahs POS ek **single-tenant** system hai (1 clone = 1 shop), aam taur par complex Auth/RLS ki zaroorat nahi hoti. Isliye 29 mein se 26 tables open access par hain.
+
+> ⚠️ **MANDATORY RLS AUDIT RULE (For AI Agents):**
+> Financial Integrity aur Audit-Grade track maintain karne ke liye strictly **3 tables** par RLS Policies ACTIVE honi chahiye:
+> 1. `stock_history` (Ledger of all stock movements)
+> 2. `variant_stock_history` (Ledger for variants)
+> 3. `row_tombstones` (System logic for preventing stale writes)
+>
+> **Why RLS is necessary on these 3? (Pros vs Cons)**
+> - **Pros (Unbreakable Lock):** Stock history aur tombstones aapka financial ledger hain. RLS lagane se in par ek unbreakable lock lag jata hai. Agar frontend app ya kisi cashier ke account se galti/bug ki wajah se history `DELETE` ya `UPDATE` hone ki koshish ho, toh RLS usay DB level par rok deta hai (Audit Immutability). Koi bhi data destroy nahi kar sakta. Galti theek karne ke liye nayi 'Adjustment' entry pass karni parti hai.
+> - **Cons:** RLS thori complexity add karta hai (syntax issues waghera) lekin data safety ke aagay yeh negligible hai.
+>
+> **Policy Enforcement:**
+> - `Public / Anon`: Sirf `SELECT` allowed hai.
+> - `Authenticated / Anon`: Sirf `INSERT` allowed hai (Append-Only).
+> - `Service_Role`: `ALL` (Management API ke liye full access).
+> - *Strict Rule:* Naya agent lazmi verify kare ke `pg_tables` mein sirf inhi 3 tables par `rowsecurity = true` ho.
 
 ### 4. Cross-Device Deletion & Stale-Write Guards (F21 & F22 Rules)
 Offline-first apps ka sab se bada masla yeh hota hai ke agar Device A ne koi bill delete kiya, aur Device B offline thi. Jab Device B online aayegi toh woh delete shuda bill dubara upload kar degi (Resurrection/Ghost data).
