@@ -6,6 +6,14 @@
 
 ---
 
+## 🌍 UNIVERSAL REUSABILITY RULE (MANDATORY)
+
+- **Code is Universal:** This system is designed for **multiple clones/shops**. NEVER fix a bug, UI issue, or add a feature in a "shop-specific" or "one-off" way.
+- **Global Code Changes:** ALL fixes (whether it's CSS, layout, logic, or bug fixes) MUST be implemented in the core codebase (`src/`, `index.css`, `shared/`) so that the exact same code runs universally across all current and future clones.
+- **Future-Proofing:** Every time you write code, ask yourself: *"Will this work seamlessly on the next new clone without any manual changes?"* If the answer is no, your code is wrong.
+
+
+
 # ⛔ RULE #0 — ABSOLUTE PRIME DIRECTIVE
 
 ## 🏢 Business Scope & Safety Rules
