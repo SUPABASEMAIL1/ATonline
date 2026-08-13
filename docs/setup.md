@@ -987,10 +987,10 @@ curl -s -X POST "https://api.supabase.com/v1/projects/$SUPABASE_REF/database/que
 
 | env_backups File | Kiska | Keys Present |
 |------------------|-------|--------------|
-| `JEANZONE-ENV` / `jeanzone.env.local` | jeanzone (Zposdb1@gmail.com) | Supabase (URL/anon/service/mgmt), GitHub PAT ×2 (zposdb1-crypto + zaynahspos-hash), CF token + account `f61ce1b3c9f0a819714df802366c7248`, Vercel token + project + deploy hook |
-| `ATOLINE-ENV` | atonline (Supabasemail1@proton.me) | Supabase, GitHub PAT, CF token + account `43039ad79a149f127dc1c61725163ca6` (Vercel nahi hai) |
-| `minimahal-pos.env.local` | minimahal (infominimahal-1434) | Supabase, GitHub PAT, Vercel token + team + project + deploy hook |
-| `.env.local.pizza-milano.20260708_202548` | pizza (zaynahspk-7603) | Supabase, GitHub PAT, Vercel token |
+| `1_jeanzone_old.env.local` / `1_jeanzone.env.local` | jeanzone (Zposdb1@gmail.com) | Supabase (URL/anon/service/mgmt), GitHub PAT ×2 (zposdb1-crypto + zaynahspos-hash), CF token + account `f61ce1b3c9f0a819714df802366c7248`, Vercel token + project + deploy hook |
+| `2_atonline.env.local` | atonline (Supabasemail1@proton.me) | Supabase, GitHub PAT, CF token + account `43039ad79a149f127dc1c61725163ca6` (Vercel nahi hai) |
+| `3_minimahal.env.local` | minimahal (infominimahal-1434) | Supabase, GitHub PAT, Vercel token + team + project + deploy hook |
+| `4_pizzamilano.env.local` | pizza (zaynahspk-7603) | Supabase, GitHub PAT, Vercel token |
 
 > ⚠️ **Kabhi bhi** galat shop ka token use karke deploy mat karo (jeanzone token se atonline deploy karna = forbidden). Har file apni shop ka hai.
 

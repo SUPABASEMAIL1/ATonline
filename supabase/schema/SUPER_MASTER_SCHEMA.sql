@@ -971,6 +971,18 @@ CREATE POLICY "Allow service_role ALL on row_tombstones"
   TO service_role
   USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow anon ALL on row_tombstones" ON row_tombstones;
+CREATE POLICY "Allow anon ALL on row_tombstones"
+  ON row_tombstones FOR ALL
+  TO anon
+  USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow authenticated ALL on row_tombstones" ON row_tombstones;
+CREATE POLICY "Allow authenticated ALL on row_tombstones"
+  ON row_tombstones FOR ALL
+  TO authenticated
+  USING (true) WITH CHECK (true);
+
 -- ════════════════════════════════════════════════════════════════
 -- 28. PRODUCT ADDONS (Inventory-tracked add-on products)
 -- ════════════════════════════════════════════════════════════════
@@ -2516,8 +2528,20 @@ CREATE INDEX IF NOT EXISTS idx_row_tombstones_ref ON row_tombstones(ref_id);
 GRANT ALL ON row_tombstones TO anon, authenticated, service_role;
 ALTER TABLE row_tombstones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow service_role ALL on row_tombstones" ON row_tombstones;
-CREATE POLICY "Allow service_role ALL on row_tombstones"
+  TO service_role
+  USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon ALL on row_tombstones" ON row_tombstones;
+CREATE POLICY "Allow anon ALL on row_tombstones"
   ON row_tombstones FOR ALL
+  TO anon
+  USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow authenticated ALL on row_tombstones" ON row_tombstones;
+CREATE POLICY "Allow authenticated ALL on row_tombstones"
+  ON row_tombstones FOR ALL
+  TO authenticated
+  USING (true) WITH CHECK (true);
   TO service_role
   USING (true) WITH CHECK (true);
 
