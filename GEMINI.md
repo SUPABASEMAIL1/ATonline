@@ -6,6 +6,14 @@
 
 ---
 
+## 🚀 MANDATORY ALL-PROJECT PUSH RULE (MANDATORY)
+
+- **Push Everywhere:** Whenever you make ANY code change, bug fix, or schema update, you MUST ALWAYS push the updated code to ALL 4 projects immediately. 
+- **Command:** `git push origin main && git push atonline main && git push minimahalpos main && git push pizzamilano main`
+- **Never Skip:** Never assume a fix is just for one project. Code updates must be synced globally so all clones stay 100% identical.
+
+
+
 ## 🌍 UNIVERSAL REUSABILITY RULE (MANDATORY)
 
 - **Code is Universal:** This system is designed for **multiple clones/shops**. NEVER fix a bug, UI issue, or add a feature in a "shop-specific" or "one-off" way.

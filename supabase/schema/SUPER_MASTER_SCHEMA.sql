@@ -2480,7 +2480,7 @@ USING (true);
 DROP POLICY IF EXISTS "Allow authenticated insert on stock_history" ON stock_history;
 CREATE POLICY "Allow authenticated insert on stock_history" 
 ON stock_history FOR INSERT 
-TO authenticated 
+TO authenticated, anon 
 WITH CHECK (true);
 
 -- Allow service_role to do everything
@@ -2503,7 +2503,7 @@ USING (true);
 DROP POLICY IF EXISTS "Allow authenticated insert on variant_stock_history" ON variant_stock_history;
 CREATE POLICY "Allow authenticated insert on variant_stock_history" 
 ON variant_stock_history FOR INSERT 
-TO authenticated 
+TO authenticated, anon 
 WITH CHECK (true);
 
 -- Allow service_role to do everything

@@ -1185,22 +1185,25 @@ body[style*="overflow:hidden"] .md\:hidden.lg\:hidden.bg-white.dark\:bg-\[\#0A0A
   left: 16px;
 }
 
-/* --- Sonner Toaster Mobile Bottom Offset Fix & Size Optimization --- */
+/* --- Sonner Toaster Mobile Top Offset Fix & Size Optimization --- */
 @media (max-width: 640px) {
   [data-sonner-toaster] {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 82px) !important;
+    top: max(env(safe-area-inset-top, 16px), 64px) !important;
+    bottom: auto !important;
     right: 16px !important;
     left: 16px !important;
-    top: auto !important;
   }
   
   [data-sonner-toaster] [data-toast] {
     width: auto !important;
-    max-width: 320px !important;
+    max-width: 280px !important;
     margin: 0 auto !important;
-    border-radius: 1rem !important;
-    padding: 8px 12px !important;
-    font-size: 10px !important;
+    border-radius: 2rem !important;
+    padding: 6px 12px !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+    justify-content: center !important;
   }
 }
 
