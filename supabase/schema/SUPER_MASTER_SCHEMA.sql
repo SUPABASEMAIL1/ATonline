@@ -2470,18 +2470,21 @@ ALTER TABLE variant_stock_history ENABLE ROW LEVEL SECURITY;
 
 -- 1. stock_history Policies
 -- Allow anyone to read (needed for POS devices sync)
+DROP POLICY IF EXISTS "Allow public read on stock_history" ON stock_history;
 CREATE POLICY "Allow public read on stock_history" 
 ON stock_history FOR SELECT 
 TO public 
 USING (true);
 
 -- Allow authenticated users to insert (POS Cashiers/Admins)
+DROP POLICY IF EXISTS "Allow authenticated insert on stock_history" ON stock_history;
 CREATE POLICY "Allow authenticated insert on stock_history" 
 ON stock_history FOR INSERT 
 TO authenticated 
 WITH CHECK (true);
 
 -- Allow service_role to do everything
+DROP POLICY IF EXISTS "Allow service_role ALL on stock_history" ON stock_history;
 CREATE POLICY "Allow service_role ALL on stock_history" 
 ON stock_history FOR ALL 
 TO service_role 
@@ -2490,18 +2493,21 @@ WITH CHECK (true);
 
 -- 2. variant_stock_history Policies
 -- Allow anyone to read
+DROP POLICY IF EXISTS "Allow public read on variant_stock_history" ON variant_stock_history;
 CREATE POLICY "Allow public read on variant_stock_history" 
 ON variant_stock_history FOR SELECT 
 TO public 
 USING (true);
 
 -- Allow authenticated users to insert
+DROP POLICY IF EXISTS "Allow authenticated insert on variant_stock_history" ON variant_stock_history;
 CREATE POLICY "Allow authenticated insert on variant_stock_history" 
 ON variant_stock_history FOR INSERT 
 TO authenticated 
 WITH CHECK (true);
 
 -- Allow service_role to do everything
+DROP POLICY IF EXISTS "Allow service_role ALL on variant_stock_history" ON variant_stock_history;
 CREATE POLICY "Allow service_role ALL on variant_stock_history" 
 ON variant_stock_history FOR ALL 
 TO service_role 
@@ -2543,8 +2549,6 @@ DROP POLICY IF EXISTS "Allow authenticated ALL on row_tombstones" ON row_tombsto
 CREATE POLICY "Allow authenticated ALL on row_tombstones"
   ON row_tombstones FOR ALL
   TO authenticated
-  USING (true) WITH CHECK (true);
-  TO service_role
   USING (true) WITH CHECK (true);
 
 -- F21: guard + tombstone triggers (idempotent re-creation)
@@ -2711,92 +2715,6 @@ $$;
 
 -- Grant execute to anon
 GRANT EXECUTE ON FUNCTION place_estore_order(jsonb) TO anon;
--- Trigger to release stock when an estore order is cancelled
-CREATE OR REPLACE FUNCTION trigger_release_estore_stock()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    item jsonb;
-    product_rec record;
-BEGIN
-    -- If status changed to cancelled
-    IF NEW.status = 'cancelled' AND OLD.status != 'cancelled' THEN
-        -- Loop through items to restore stock
-        FOR item IN SELECT * FROM jsonb_array_elements(NEW.items)
-        LOOP
-            -- Check if product tracks inventory
-            SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
-            
-            IF product_rec.track_inventory = true THEN
-                INSERT INTO stock_history (
-                    product_id, change_qty, type, reference_id, note, cashier_name
-                ) VALUES (
-                    product_rec.id,
-                    (item->>'quantity')::integer,
-                    'return',
-                    NEW.id::text,
-                    'Estore Order Cancelled: ' || NEW.invoice_number,
-                    'System'
-                );
-            END IF;
-        END LOOP;
-    END IF;
-    
-    RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS on_store_order_cancelled ON store_orders;
-CREATE TRIGGER on_store_order_cancelled
-AFTER UPDATE ON store_orders
-FOR EACH ROW
-EXECUTE FUNCTION trigger_release_estore_stock();
--- Enable RLS on stock_history and variant_stock_history
-ALTER TABLE stock_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE variant_stock_history ENABLE ROW LEVEL SECURITY;
-
--- 1. stock_history Policies
--- Allow anyone to read (needed for POS devices sync)
-CREATE POLICY "Allow public read on stock_history" 
-ON stock_history FOR SELECT 
-TO public 
-USING (true);
-
--- Allow authenticated users to insert (POS Cashiers/Admins)
-CREATE POLICY "Allow authenticated insert on stock_history" 
-ON stock_history FOR INSERT 
-TO authenticated 
-WITH CHECK (true);
-
--- Allow service_role to do everything
-CREATE POLICY "Allow service_role ALL on stock_history" 
-ON stock_history FOR ALL 
-TO service_role 
-USING (true) 
-WITH CHECK (true);
-
--- 2. variant_stock_history Policies
--- Allow anyone to read
-CREATE POLICY "Allow public read on variant_stock_history" 
-ON variant_stock_history FOR SELECT 
-TO public 
-USING (true);
-
--- Allow authenticated users to insert
-CREATE POLICY "Allow authenticated insert on variant_stock_history" 
-ON variant_stock_history FOR INSERT 
-TO authenticated 
-WITH CHECK (true);
-
--- Allow service_role to do everything
-CREATE POLICY "Allow service_role ALL on variant_stock_history" 
-ON variant_stock_history FOR ALL 
-TO service_role 
-USING (true) 
-WITH CHECK (true);
--- 2026-08-12 Financial Integrity Sweep: Estore cancel double-release guard
 -- Issue: trigger_release_estore_stock released +qty on ANY transition to 'cancelled'.
 -- If an order was already FULFILLED (sale converted — goods sold, stock already
 -- deducted at sale commit / restored at sale refund), cancelling the order released
