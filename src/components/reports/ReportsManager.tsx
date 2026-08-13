@@ -248,7 +248,7 @@ export function ReportsManager() {
   const reportCache = useRef<Record<string, { sales: any[], refunds: any[], expenses: any[], timestamp: number }>>({});
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
 
-  // Invalidate cache on sync events so reports reflect latest data
+  // Invalidate cache on sync events OR realtime state changes so reports reflect latest data
   useEffect(() => {
     const handleSync = () => {
       reportCache.current = {};
@@ -257,6 +257,11 @@ export function ReportsManager() {
     window.addEventListener('pendingops-changed', handleSync);
     return () => window.removeEventListener('pendingops-changed', handleSync);
   }, []);
+
+  // Invalidate cache immediately when local state changes via realtime events
+  useEffect(() => {
+    reportCache.current = {};
+  }, [state.sales, state.expenses, state.payments]);
 
   useEffect(() => {
     const fetchReportData = async () => {
@@ -313,7 +318,7 @@ export function ReportsManager() {
       }
     };
     fetchReportData();
-  }, [validStartDate, validEndDate, state.sales.length, state.expenses.length, reportRefreshKey]);
+  }, [validStartDate, validEndDate, state.sales, state.expenses, reportRefreshKey]);
 
   // Fetch credit collections (payments received from customers) for the selected date range
   useEffect(() => {
