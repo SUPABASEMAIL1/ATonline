@@ -1264,3 +1264,41 @@ Har agent ke liye mandatory rules:
 - **Shift System Removed (Rule F7)**: The shift management logic and columns have been completely and permanently removed. The POS runs completely independent of shifts.
 - **Estore Oversell Fix**: Estore online orders NO LONGER reserve or deduct stock when placed. Stock is ONLY deducted when the order is fulfilled and billed via the POS terminal checkout.
 - **24-Hour Online Order Auto-Delete**: Cancelled online orders that are older than 24 hours are automatically deleted by the app's maintenance prune (syncEngine) to keep the cache and DB clean without affecting financials.
+
+---
+
+## 🔍 18. DEEP DIVE: DB Operations, Realtime, RLS & Tombstones
+
+Zaynah's POS is entirely powered by a **Local-First + Supabase Cloud Architecture**. Here is a complete guide to how the database and sync mechanics actually work under the hood.
+
+### 1. Database Operations via Management API (NO PRISMA)
+Humne Prisma ORM aur direct Postgres connection strings (`DATABASE_URL`, `DIRECT_URL`) completely **remove/ban** kar diye hain.
+- **Why?** Prisma connection pools limit scalability aur offline-first PWA mein direct connections secure/stable nahi hote.
+- **How we do it now:** Saari database schema changes (tables, columns, triggers) sirf aur sirf **Supabase Management API** ke zariye `curl` HTTP POST requests se hoti hain.
+- **Token Used:** `sbp_XXXXXXXXXXXXXXXXXXXXXXXXX` (`SUPABASE_MGMT_API_KEY`).
+- **Master Schema:** `SUPER_MASTER_SCHEMA.sql` hi wahid file hai. Jab bhi naya project banega ya update hoga, yehi file API ke zariye execute hogi. Yeh file *idempotent* hai (matlab isko baar baar chalane se error nahi aata, `IF NOT EXISTS` use hua hai).
+
+### 2. Supabase Realtime (WebSockets)
+POS multi-device support (e.g. 5 cashiers ek sath) ke liye **Supabase Realtime** use karta hai.
+- **Publication:** Master schema mein `supabase_realtime` publication banti hai aur **21 tables** usme add hote hain:
+  `ALTER PUBLICATION supabase_realtime ADD TABLE sales, products, customers...`
+- **Client Side:** `syncEngine.ts` mein Supabase JS SDK ke zariye `.channel('public:*').on('postgres_changes', ...).subscribe()` setup kiya gaya hai.
+- **Flow:** Jaise hi kisi device se koi row insert/update/delete hoti hai, cloud baqi sabhi connected devices ko milliseconds mein event push kar deta hai, jise local IndexedDB (Dexie) mein save karke React state update kar di jati hai.
+
+### 3. Row-Level Security (RLS) & Permissions
+Kyunke Zaynahs POS ek **single-tenant** system hai (1 clone = 1 shop), hum complex Auth/RLS rules par rely nahi karte.
+- **Access Level:** Har table par `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;` run kiya jata hai.
+- **No Restrictions:** App `VITE_SUPABASE_ANON_KEY` use karti hai. RLS policies ko intentionally *permissive* rakha gaya hai taake PWA offline/online mode mein smoothly sync kar sake.
+- **Tombstones RLS:** Nayi `row_tombstones` table par bhi RLS hai lekin usme `anon` aur `authenticated` roles ko `ALL` (insert/select) ki permission allow ki gayi hai taake POS delete operations track kar sake.
+
+### 4. Cross-Device Deletion & Stale-Write Guards (F21 & F22 Rules)
+Offline-first apps ka sab se bada masla yeh hota hai ke agar Device A ne koi bill delete kiya, aur Device B offline thi. Jab Device B online aayegi toh woh delete shuda bill dubara upload kar degi (Resurrection/Ghost data).
+Isay solve karne ke liye DB level par 3 specific cheezein add ki gayi hain:
+
+1. **Row Tombstones (Nishani):** Jab bhi koi financial record (sale, expense, stock_history) delete hota hai, ek database trigger `record_row_tombstone()` chalta hai aur us ID ko `row_tombstones` table mein daal deta hai.
+2. **Stale Write Guard:** Jab bhi koi device purana (stale) data UPDATE ya INSERT karne ki koshish karti hai, ek database trigger `guard_stale_write()` pehle check karta hai ke kya yeh ID tombstones mein hai? Agar hai, toh transaction ko block kar deta hai (Error `P0007`).
+3. **SyncEngine Resolution:** Agar SyncEngine ko cloud se `P0007` (Stale Write) error milta hai, toh woh samajh jata hai ke uski local queue outdated hai. Woh us operation ko queue se nikal deta hai aur cloud se fresh state fetch kar leta hai.
+
+**F22 Variant Ledger:** Variants (Sizes/Colors) ke stock restock ko properly track karne ke liye hamesha `variant_stock_history` table use hota hai. JSON arrays directly replace nahi kiye jate taake ledger maintain rahay.
+
+---

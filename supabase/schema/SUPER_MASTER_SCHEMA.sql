@@ -2528,6 +2528,8 @@ CREATE INDEX IF NOT EXISTS idx_row_tombstones_ref ON row_tombstones(ref_id);
 GRANT ALL ON row_tombstones TO anon, authenticated, service_role;
 ALTER TABLE row_tombstones ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow service_role ALL on row_tombstones" ON row_tombstones;
+CREATE POLICY "Allow service_role ALL on row_tombstones"
+  ON row_tombstones FOR ALL
   TO service_role
   USING (true) WITH CHECK (true);
 
