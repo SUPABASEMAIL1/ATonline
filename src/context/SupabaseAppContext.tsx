@@ -35,6 +35,7 @@ import {
   mapStockHistory,
   storeOrdersService,
   salesmenService,
+  seedMissingBarcodes,
   getNextInvoiceNumber,
   generateNextInvoiceNumber,
   fetchAllPages
@@ -1019,6 +1020,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setInitialized(false);
     }
   }, [user, profile, initialized]);
+
+  // Auto-seed missing barcodes on app load (once per session) so products are always scannable
+  const autoSeedDone = useRef(false);
+  useEffect(() => {
+    if (user && profile && state.products.length > 0 && !autoSeedDone.current) {
+      autoSeedDone.current = true;
+      seedMissingBarcodes()
+        .then((res) => {
+          if (res && res.updated.length > 0) {
+            localDb.products.toArray()
+              .then((all) => dispatch({ type: 'SET_PRODUCTS', payload: all as any }))
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user, profile, state.products]);
 
   // Auto-Pull on Reconnect
   useEffect(() => {

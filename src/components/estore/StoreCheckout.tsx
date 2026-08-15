@@ -256,17 +256,21 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         customerId = newCust?.id;
       }
 
-      let generatedInvoice = `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+      // Unified INV- sequence shared with POS (no WEB-/INV- mix)
+      let generatedInvoice = '';
       try {
         if (navigator.onLine) {
-           const { data, error } = await supabase.rpc('get_next_invoice_number');
-           if (!error && data && typeof data === 'string') {
-              const parts = data.split('-');
-              generatedInvoice = `WEB-${parts.length > 1 ? parts[1] : data}`;
-           }
+          const { data, error } = await supabase.rpc('get_next_invoice_number');
+          if (!error && data && typeof data === 'string') {
+            generatedInvoice = data;
+          }
         }
       } catch (e) {
         console.warn('Failed to get atomic e-store invoice number', e);
+      }
+      // Offline fallback: locally-unique INV number (syncEngine reassigns on collision)
+      if (!generatedInvoice) {
+        generatedInvoice = `INV-${Date.now().toString(36).toUpperCase()}`;
       }
 
       const orderData: Partial<StoreOrder> = {

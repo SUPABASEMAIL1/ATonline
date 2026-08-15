@@ -17,6 +17,21 @@ export function isSyncEngineBusy(): boolean {
     return _isSyncing;
 }
 
+export async function clearReconcileGarbageOps() {
+    try {
+        const pending = await localDb.pendingOps.toArray();
+        for (const op of pending) {
+            if (op.payload && op.payload.reference_id && typeof op.payload.reference_id === 'string' && op.payload.reference_id.startsWith('RECONCILE-')) {
+                await localDb.pendingOps.delete(op.id);
+                console.log(`[POS MAINT] Cleaned up garbage RECONCILE op: ${op.id}`);
+            }
+        }
+        window.dispatchEvent(new Event('pendingops-changed'));
+    } catch (e) {
+        console.error('Failed to clean garbage reconcile ops', e);
+    }
+}
+
 export function clearBlacklist(entity?: string) {
     if (entity) {
         delete COLUMN_BLACKLIST[entity];
@@ -930,6 +945,7 @@ async function pruneGhostSales() {
 }
 
 export function startSyncEngine() {
+    clearReconcileGarbageOps();
     clearBlacklist();
     pruneStaleOps();
     pruneOldStockHistory();

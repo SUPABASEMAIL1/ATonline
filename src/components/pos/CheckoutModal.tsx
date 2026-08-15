@@ -34,6 +34,31 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const generateInvoice = useInvoiceGeneration();
+
+  // Refresh in-session product stock (incl. variants + addons) from localDb after a sale so
+  // reports/inventory reflect the deduction immediately instead of showing pre-sale stock.
+  const refreshAffectedProducts = async (sales: (Sale | undefined)[]) => {
+    const ids = new Set<string>();
+    for (const sale of sales) {
+      if (!sale) continue;
+      for (const it of sale.items || []) {
+        const pid = (it as any).product?.id || (it as any).productId;
+        if (pid) ids.add(pid);
+        const addons = (it as any).addonItems || [];
+        for (const a of addons) {
+          const aid = a.addon?.id || a.productId || a.id;
+          if (aid) ids.add(aid);
+        }
+      }
+    }
+    if (ids.size === 0) return;
+    for (const id of ids) {
+      try {
+        const p = await localDb.products.get(id);
+        if (p) dispatch({ type: 'UPDATE_PRODUCT', payload: p as any });
+      } catch { /* ignore */ }
+    }
+  };
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [amountPaid, setAmountPaid] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -351,6 +376,8 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
             }
             dispatch({ type: 'SET_EDITING_STORE_ORDER_ID', payload: null });
           }
+          await refreshAffectedProducts([savedSale, oldSale]);
+
           dispatch({ type: 'ADD_SALE', payload: savedSale });
           dispatch({ type: 'CLEAR_CART' });
           dispatch({ type: 'SET_EDITING_SALE_ID', payload: null });
@@ -397,6 +424,8 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         }
         dispatch({ type: 'SET_EDITING_STORE_ORDER_ID', payload: null });
       }
+
+      await refreshAffectedProducts([savedSale, oldSale]);
 
       dispatch({ type: 'ADD_SALE', payload: savedSale });
 

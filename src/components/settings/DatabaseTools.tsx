@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { localDb, queueOp, purgeLocalData, SETTINGS_ID } from '../../lib/localDb';
 import { seedMissingBarcodes } from '../../lib/services';
+import { generateBarcodeValue } from '../../utils/barcode';
 import { useApp } from '../../context/SupabaseAppContext';
 import { sonner } from '../../lib/sonner';
 import { Button } from '../../shared/ui';
@@ -346,6 +347,11 @@ export function DatabaseTools() {
               skipped++;
               duplicate++;
               continue;
+            }
+
+            // Assign a barcode for products so they sync without colliding on the UNIQUE index
+            if (storeKey === 'products' && !record.barcode) {
+              record.barcode = generateBarcodeValue(record.name || record.id, record.id);
             }
 
             // Save locally

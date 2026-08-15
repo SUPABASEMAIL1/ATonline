@@ -403,56 +403,57 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                     {/* Barcode / QR */}
                     {val ? (
                         <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', minHeight: 0 }}>
-                            {barcodeType === 'BARCODE' ? (
+                            {/* Printed labels ALWAYS render 1D CODE128 so laser scanners can read them.
+                                QR (when selected) is rendered as a secondary camera-only element. */}
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '100%',
+                                minHeight: 0,
+                                flex: 1,
+                                overflow: 'hidden'
+                            }}>
                                 <div style={{
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     width: '100%',
+                                    height: `${barH * barcodeZoom}px`,
+                                    maxHeight: '75%',
                                     minHeight: 0,
-                                    flex: 1,
                                     overflow: 'hidden'
                                 }}>
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        flexDirection: 'column', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center', 
-                                        width: '100%',
-                                        height: `${barH * barcodeZoom}px`,
-                                        maxHeight: '75%',
-                                        minHeight: 0,
-                                        overflow: 'hidden'
-                                    }}>
-                                        <BarcodeSVG 
-                                            value={val} 
-                                            barWidth={barcodeBarWidth} 
-                                            height={barH}
-                                            barcodeScale={barcodeScale}
-                                            barcodeZoom={barcodeZoom}
-                                        />
-                                    </div>
-                                    <p style={{
-                                        fontSize: `${Math.max(5, Math.round(barcodeFontSize * ratio))}px`,
-                                        fontFamily: 'monospace',
-                                        fontWeight: 750,
-                                        color: '#000000',
-                                        margin: 0,
-                                        marginTop: `${Math.max(1, Math.round(2 * ratio))}px`,
-                                        textTransform: 'uppercase',
-                                        textAlign: 'center',
-                                        width: '100%',
-                                        letterSpacing: '0.05em',
-                                        flexShrink: 0,
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {val}
-                                    </p>
+                                    <BarcodeSVG
+                                        value={val}
+                                        barWidth={barcodeBarWidth}
+                                        height={barH}
+                                        barcodeScale={barcodeScale}
+                                        barcodeZoom={barcodeZoom}
+                                    />
                                 </div>
-                            ) : (
+                                <p style={{
+                                    fontSize: `${Math.max(5, Math.round(barcodeFontSize * ratio))}px`,
+                                    fontFamily: 'monospace',
+                                    fontWeight: 750,
+                                    color: '#000000',
+                                    margin: 0,
+                                    marginTop: `${Math.max(1, Math.round(2 * ratio))}px`,
+                                    textTransform: 'uppercase',
+                                    textAlign: 'center',
+                                    width: '100%',
+                                    letterSpacing: '0.05em',
+                                    flexShrink: 0,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {val}
+                                </p>
+                            </div>
+                            {barcodeType === 'QR' && (
                                 <div style={{
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -473,11 +474,11 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                                         minHeight: 0,
                                         overflow: 'hidden'
                                     }}>
-                                        <QRCodeSVG 
-                                            value={val} 
-                                            size={Math.max(20, Math.round(qrSz * barcodeZoom * barcodeScale))} 
-                                            level="L" 
-                                            includeMargin={false} 
+                                        <QRCodeSVG
+                                            value={val}
+                                            size={Math.max(20, Math.round(qrSz * barcodeZoom * barcodeScale))}
+                                            level="L"
+                                            includeMargin={false}
                                             style={{
                                                 width: 'auto',
                                                 height: '100%',
@@ -504,7 +505,7 @@ export function BarcodeGenerator({ products, onClose, onProductsChange }: Barcod
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap'
                                     }}>
-                                        {val}
+                                        SCAN WITH CAMERA
                                     </p>
                                 </div>
                             )}
