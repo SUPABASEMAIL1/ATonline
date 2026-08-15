@@ -1710,6 +1710,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
           if (!local || pendingSettingsOps.length === 0) {
             console.log(`[Handshake] Syncing settings from cloud`);
+            
+            // Reconcile the invoice counter with Math.max to prevent stale cloud values from resetting the local sequence
+            if (local && typeof local.invoiceCounter === 'number' && typeof settings.invoiceCounter === 'number') {
+                settings.invoiceCounter = Math.max(local.invoiceCounter, settings.invoiceCounter);
+            }
+
             dispatch({ type: 'SET_SETTINGS', payload: settings });
             await localDb.appSettings.put(settings);
           } else {
@@ -2194,18 +2200,39 @@ export function useInvoiceGeneration() {
   const { state, dispatch } = useApp();
 
   return async () => {
-    // 1. Immediately calculate the new invoice number and counter
+    // 1. Attempt Server-Side Atomic Generation First (Prevention of collisions)
+    try {
+       if (navigator.onLine) {
+           const { data, error } = await supabase.rpc('get_next_invoice_number');
+           if (!error && data && typeof data === 'string') {
+               const invoiceNumber = data;
+               const parts = invoiceNumber.split('-');
+               if (parts.length > 1) {
+                   const newCounter = parseInt(parts[1], 10);
+                   if (!isNaN(newCounter)) {
+                       dispatch({ type: 'INCREMENT_INVOICE_COUNTER', payload: newCounter });
+                       localDb.settings.update('00000000-0000-4000-8000-000000000001', { invoiceCounter: newCounter }).catch(() => {});
+                   }
+               }
+               return invoiceNumber;
+           }
+       }
+    } catch (e) {
+       console.warn('[Invoice] Server-side generation failed, falling back to local counter', e);
+    }
+
+    // 2. Fallback: Local optimistic generation (SyncEngine will handle collisions when online)
     const { invoiceNumber, newCounter } = generateNextInvoiceNumber(state.settings);
 
-    // 2. Dispatch to local React state INSTANTLY so the UI knows the counter increased
+    // 3. Dispatch to local React state INSTANTLY so the UI knows the counter increased
     dispatch({ type: 'INCREMENT_INVOICE_COUNTER', payload: newCounter });
 
-    // 3. Fire-and-forget the database settings update (don't await it, don't block checkouts)
+    // 4. Fire-and-forget the database settings update (don't await it, don't block checkouts)
     settingsService.update({ invoiceCounter: newCounter }).catch(error => {
       console.error('Error background-syncing invoice counter:', error);
     });
 
-    // 4. Return the brand new invoice immediately
+    // 5. Return the brand new invoice immediately
     return invoiceNumber;
   };
 }

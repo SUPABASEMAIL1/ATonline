@@ -632,6 +632,10 @@ Whenever a database change is made, it MUST be recorded here.
 
 > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
 
+### [2026-08-15] Add Missing store_orders updated_at Trigger
+**Files:** `supabase/migrations/20260815152500_add_store_orders_updated_at_trigger.sql`, `SUPER_MASTER_SCHEMA.sql`
+**Context:** The `update_updated_at_column` trigger was missing for `store_orders` in the schema, which is required for the F21 stale-write guard pattern. Added the trigger to complete the guard pattern.
+
 ### [2026-08-12] Full-Project Audit Fixes — F12-F20 + Universal Branding
 **Files:** `supabase/migrations/20260812215000_estore_cancel_double_release_guard.sql`, `SUPER_MASTER_SCHEMA.sql`, `src/lib/services.ts`, `src/lib/syncEngine.ts`, `src/lib/localDb.ts`, `src/context/SupabaseAppContext.tsx`, `src/components/reports/ReportsManager.tsx`, `src/components/dashboard/DashboardManager.tsx`, `src/components/transactions/TransactionsManager.tsx`, `src/components/transactions/RefundSaleModal.tsx`, `src/components/inventory/PurchaseHistory.tsx`, `src/components/pos/POSTerminal.tsx`, `AGENTS.md`, `GEMINI.md`, `docs/setup.md`
 **Context:** 3 parallel audits (stock ledger integrity, sync engine, money math) found 15 issues — all fixed. Universal rules F12-F20 written into AGENTS.md + GEMINI.md.

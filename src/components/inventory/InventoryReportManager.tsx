@@ -113,8 +113,8 @@ export default function InventoryReportManager({
         isInfinite ? 'Infinity Mode' : (product.stock <= 0 ? 'Out of Stock' :
           product.stock <= (product.minStock || 5) ? 'Low Stock' : 'In Stock');
 
-      // Robust Sale Data Integration
-      const salesSource = sales || state.sales; // Use provided sales or fallback to state
+      // Robust Sale Data Integration (Strictly use DB-fetched sales, no memory cap fallback)
+      const salesSource = sales || []; // NEVER fallback to state.sales (1000 limit)
       const filteredSales = salesSource.filter(s => {
         const sStatus = (s.status || 'completed').toLowerCase();
         // Count all official transactions

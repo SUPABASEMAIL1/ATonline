@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect } from 'react';
+import { useMemo, useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Wallet,
@@ -31,41 +31,59 @@ export function DashboardManager() {
 
   const timezone = getTimezone(state.settings.country);
 
+  const [dashboardSales, setDashboardSales] = useState([]);
+  const [recentSales, setRecentSales] = useState([]);
 
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      const now = new Date();
+      const todayStart = getStartOfDayInTimezone(now, timezone).getTime();
+      const todayEnd = getEndOfDayInTimezone(now, timezone).getTime();
+      
+      // Fetch today's sales from localDb
+      const today = await localDb.sales
+        .filter(s => {
+          const ts = new Date(s.createdAt || s.timestamp || 0).getTime();
+          return ts >= todayStart && ts <= todayEnd;
+        })
+        .toArray();
+      setDashboardSales(today);
 
-  const walletStats = useMemo(() => {
-    const now = new Date();
-    const todayStart = getStartOfDayInTimezone(now, timezone).getTime();
-    const todayEnd = getEndOfDayInTimezone(now, timezone).getTime();
-    const todaySales = state.sales.filter(s => {
-      const ts = new Date(s.createdAt || s.timestamp || 0).getTime();
-      return ts >= todayStart && ts <= todayEnd;
-    });
+      // Fetch recent 5 sales
+      const recent = await localDb.sales
+        .orderBy('timestamp')
+        .reverse()
+        .limit(5)
+        .toArray();
+      setRecentSales(recent);
+    };
 
+    fetchDashboardData();
+  }, [state.sales, timezone]); // Re-run when state.sales changes so it stays live
+
+  const todaySalesStats = useMemo(() => {
     return {
-      total: todaySales.reduce((sum, s) => {
-        // UNIVERSAL REVENUE RULE: revenue = money actually collected. Credit sales are
-        // NOT revenue until collected — must match ReportsManager exactly.
-        if (s.status === 'completed') return sum + s.total;
+      revenue: dashboardSales.reduce((sum, s) => {
+        if (s.status === 'completed' || s.status === 'credit') return sum + s.total;
         if (s.status === 'refunded') return sum - (s.total || 0);
-    if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
+        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
         return sum;
       }, 0),
-      cash: todaySales.reduce((sum, s) => {
+      cash: dashboardSales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'cash');
         if (s.status === 'completed') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
         if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
       }, 0),
-      card: todaySales.reduce((sum, s) => {
+      card: dashboardSales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'card');
         if (s.status === 'completed') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
         if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
         return sum;
       }, 0),
-      digital: todaySales.reduce((sum, s) => {
+      digital: dashboardSales.reduce((sum, s) => {
         const amt = getAmountByMethod(s, 'digital');
         if (s.status === 'completed') return sum + amt;
         if (s.status === 'refunded') return sum - amt;
@@ -73,41 +91,22 @@ export function DashboardManager() {
         return sum;
       }, 0),
     };
-  }, [state.sales, timezone]);
+  }, [dashboardSales]);
 
   const todayStats = useMemo(() => {
-    const now = new Date();
-    const todayStart = getStartOfDayInTimezone(now, timezone).getTime();
-    const todayEnd = getEndOfDayInTimezone(now, timezone).getTime();
     return {
-      sales: state.sales.filter(s => {
-        const ts = new Date(s.createdAt || s.timestamp || 0).getTime();
-        return ts >= todayStart && ts <= todayEnd;
-      }).reduce((sum, s) => {
-        if (s.status === 'completed' || s.status === 'credit') return sum + s.total;
-        if (s.status === 'refunded') return sum - (s.total || 0);
-    if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
-        return sum;
-      }, 0),
+      sales: todaySalesStats.revenue,
       purchases: 0,
     };
-  }, [state.sales, timezone]);
+  }, [todaySalesStats.revenue]);
 
   const hourlyData = useMemo(() => {
-    const now = new Date();
-    const todayStart = getStartOfDayInTimezone(now, timezone).getTime();
-    const todayEnd = getEndOfDayInTimezone(now, timezone).getTime();
-    const todaySales = state.sales.filter(s => {
-      const ts = new Date(s.createdAt || s.timestamp || 0).getTime();
-      return ts >= todayStart && ts <= todayEnd;
-    });
-
     const hours = Array.from({ length: 24 }, (_, i) => ({
       name: `${i.toString().padStart(2, '0')}:00`,
       value: 0
     }));
 
-    todaySales.forEach(sale => {
+    dashboardSales.forEach(sale => {
       const date = new Date(sale.createdAt || sale.timestamp || new Date());
       const hour = date.getUTCHours();
       let amount = 0;
@@ -120,16 +119,11 @@ export function DashboardManager() {
     const currentHour = new Date().getUTCHours();
     const startHour = Math.max(0, currentHour - 11);
     return hours.slice(startHour, currentHour + 1);
-  }, [state.sales, timezone]);
+  }, [dashboardSales]);
 
   const recentActivity = useMemo(() => {
-    const all = [...state.sales].sort((a, b) => {
-      const dateA = new Date(a.createdAt || a.timestamp || 0).getTime();
-      const dateB = new Date(b.createdAt || b.timestamp || 0).getTime();
-      return dateB - dateA;
-    });
-    return all.slice(0, 5); // Latest 5
-  }, [state.sales]);
+    return recentSales;
+  }, [recentSales]);
 
   const customerReceivableStats = useMemo(() => {
     const toReceive = state.customers.reduce((sum, c) => sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);

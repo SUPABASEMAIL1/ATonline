@@ -1746,7 +1746,7 @@ if (!skipStockEffects) {
     // DRAFT RULE: pending drafts never deducted stock either — deleting a draft must
     // NOT restore anything (that would create a phantom +Q in the ledger).
     const isDraftSale = sale.status === 'pending' || !!sale.notes?.includes('DRAFT_SALE');
-    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'credit')) {
+    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'credit' || sale.status === 'partially_refunded')) {
       for (const item of sale.items) {
         const product = await localDb.products.get(item.product.id);
       if (product && product.trackInventory) {
@@ -3855,7 +3855,16 @@ export const productToppingsService = {
 
 export interface ReconcileResult {
   ok: boolean;
-  mismatches: { productId: string; name: string; expected: number; actual: number; diff: number }[];
+  mismatches: { 
+    productId: string; 
+    name: string; 
+    expected: number; 
+    actual: number; 
+    diff: number;
+    isVariant?: boolean;
+    parentProductId?: string;
+    variantId?: string;
+  }[];
   totalChecked: number;
   fixed: number;
 }
@@ -3885,20 +3894,53 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
     expectedByProduct.set(row.product_id, (expectedByProduct.get(row.product_id) || 0) + qty);
   }
 
-  // 3. Fetch cloud products
+  // 1b. Fetch FULL cloud variant_stock_history
+  const { data: variantHistoryRows } = await supabase
+    .from('variant_stock_history')
+    .select('variant_id, change_qty');
+
+  const expectedByVariant = new Map<string, number>();
+  for (const row of variantHistoryRows || []) {
+    const qty = Number(row.change_qty) || 0;
+    expectedByVariant.set(row.variant_id, (expectedByVariant.get(row.variant_id) || 0) + qty);
+  }
+
+  // 3. Fetch cloud products (including variant_data)
   const { data: productRows, error: pErr } = await supabase
     .from('products')
-    .select('id, name, stock');
+    .select('id, name, stock, variant_data');
   if (pErr) throw new Error(`Cannot fetch products for audit: ${pErr.message}`);
 
   const mismatches: ReconcileResult['mismatches'] = [];
   let fixed = 0;
 
   for (const prod of productRows || []) {
+    // 1. Check main product stock
     const expected = expectedByProduct.get(prod.id) ?? 0;
     const actual = Number(prod.stock) || 0;
     if (expected !== actual) {
       mismatches.push({ productId: prod.id, name: prod.name || 'Unknown', expected, actual, diff: expected - actual });
+    }
+
+    // 2. Check variant stock
+    if (prod.variant_data && Array.isArray(prod.variant_data)) {
+      for (const variant of prod.variant_data) {
+        if (!variant.id) continue;
+        const vExpected = expectedByVariant.get(variant.id) ?? 0;
+        const vActual = Number(variant.stock) || 0;
+        if (vExpected !== vActual) {
+          mismatches.push({
+            productId: variant.id,
+            name: `${prod.name} - ${variant.label || 'Variant'}`,
+            expected: vExpected,
+            actual: vActual,
+            diff: vExpected - vActual,
+            isVariant: true,
+            parentProductId: prod.id,
+            variantId: variant.id
+          });
+        }
+      }
     }
   }
 
@@ -3912,35 +3954,99 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
       const changeQty = m.expected - m.actual;
       if (changeQty === 0) continue;
       const histId = generateId();
-      const remoteEntry = {
-        id: histId,
-        product_id: m.productId,
-        change_qty: changeQty,
-        type: 'adjustment',
-        reference_id: `RECONCILE-${now.getTime()}`,
-        note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
-        balance_after: m.expected,
-        cashier_name: 'System',
-        created_at: now.toISOString(),
-      };
-      // Mirror the correction locally — the queued op applies it on the cloud too
-      const localEntry = {
-        id: histId,
-        productId: m.productId,
-        changeQty,
-        type: 'adjustment' as const,
-        referenceId: `RECONCILE-${now.getTime()}`,
-        note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
-        balanceAfter: m.expected,
-        cashierName: 'System',
-        createdAt: now,
-      };
-      await localDb.stockHistory.add(localEntry);
-      await queueOp('stock_history', 'create', histId, remoteEntry);
-      // Align local product stock to the corrected value
-      const localProd = await localDb.products.get(m.productId);
-      if (localProd) {
-        await localDb.products.update(m.productId, { stock: m.expected, updatedAt: now });
+
+      if (m.isVariant) {
+        // Variant autofix
+        const remoteEntry = {
+          id: histId,
+          variant_id: m.variantId,
+          product_id: m.parentProductId,
+          change_qty: changeQty,
+          type: 'adjustment',
+          reference_id: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] auto-fix variant: expected ${m.expected}, was ${m.actual}`,
+          balance_after: m.expected,
+          cashier_name: 'System',
+          created_at: now.toISOString(),
+        };
+        const localEntry = {
+          id: histId,
+          variantId: m.variantId!,
+          productId: m.parentProductId!,
+          changeQty,
+          type: 'adjustment' as const,
+          referenceId: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] auto-fix variant: expected ${m.expected}, was ${m.actual}`,
+          balanceAfter: m.expected,
+          cashierName: 'System',
+          createdAt: now,
+        };
+        await localDb.variantStockHistory.add(localEntry);
+        await queueOp('variant_stock_history', 'create', histId, remoteEntry);
+
+        // Update local variant stock safely
+        const pendingOps = await localDb.pendingOps
+          .filter(op => op.table === 'variant_stock_history' && op.status === 'pending')
+          .toArray();
+        const hasPending = pendingOps.some(op => {
+          try { return JSON.parse(op.payload).variant_id === m.variantId; }
+          catch { return false; }
+        });
+
+        if (!hasPending && m.parentProductId) {
+          const localProd = await localDb.products.get(m.parentProductId);
+          if (localProd && localProd.variant_data) {
+            const newVarData = localProd.variant_data.map(v => 
+              v.id === m.variantId ? { ...v, stock: m.expected } : v
+            );
+            await localDb.products.update(m.parentProductId, { variant_data: newVarData, updatedAt: now });
+          }
+        }
+      } else {
+        // Main product autofix
+        const remoteEntry = {
+          id: histId,
+          product_id: m.productId,
+          change_qty: changeQty,
+          type: 'adjustment',
+          reference_id: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
+          balance_after: m.expected,
+          cashier_name: 'System',
+          created_at: now.toISOString(),
+        };
+        const localEntry = {
+          id: histId,
+          productId: m.productId,
+          changeQty,
+          type: 'adjustment' as const,
+          referenceId: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
+          balanceAfter: m.expected,
+          cashierName: 'System',
+          createdAt: now,
+        };
+        await localDb.stockHistory.add(localEntry);
+        await queueOp('stock_history', 'create', histId, remoteEntry);
+        
+        // FIX (F21/F22) - Don't overwrite local stock if there are pending offline ops
+        const pendingOps = await localDb.pendingOps
+          .filter(op => op.table === 'stock_history' && op.status === 'pending')
+          .toArray();
+        const hasPendingForProduct = pendingOps.some(op => {
+          try { return JSON.parse(op.payload).product_id === m.productId; }
+          catch { return false; }
+        });
+
+        if (!hasPendingForProduct) {
+          // Align local product stock to the corrected value ONLY if no pending ops
+          const localProd = await localDb.products.get(m.productId);
+          if (localProd) {
+            await localDb.products.update(m.productId, { stock: m.expected, updatedAt: now });
+          }
+        } else {
+          console.warn(`[RECONCILE] Skipped local overwrite for ${m.productId} due to pending ops`);
+        }
       }
       fixed++;
     }

@@ -125,17 +125,39 @@ export function BatchStockInSystem({ onClose, initialProduct }: BatchStockInSyst
 
         // Preserve infinite-baseline behaviour: non-tracked products (999999 baseline) reset to 0 first
         if (currentProduct && (currentProduct.stock >= 990000 || currentProduct.trackInventory === false)) {
-          await productsService.update(item.id, { stock: 0, trackInventory: true });
-        }
-
-        // Sync retail price + tracking metadata (stock is stripped inside productsService.update —
-        // cloud stock is updated ONLY via stock_history/variant_stock_history triggers)
-        if (currentProduct && (retail > 0 && retail !== currentProduct.price)) {
-          await productsService.update(item.id, {
-            price: retail,
-            trackInventory: true,
-            supplier: item.batchSupplier || currentProduct.supplier
-          });
+          const qtyToRemove = currentProduct.stock;
+          if (qtyToRemove > 0) {
+            const histId = `adj-${Date.now()}-${item.id}`;
+            const localEntry = {
+              id: histId,
+              productId: currentProduct.id,
+              changeQty: -qtyToRemove,
+              type: 'adjustment_out' as const,
+              referenceId: `RESET-${Date.now()}`,
+              note: `System: Reset infinite baseline to start tracking`,
+              balanceAfter: 0,
+              cashierName: 'System',
+              createdAt: new Date(),
+            };
+            const remoteEntry = {
+              id: histId,
+              product_id: currentProduct.id,
+              change_qty: -qtyToRemove,
+              type: 'adjustment_out',
+              reference_id: `RESET-${Date.now()}`,
+              note: `System: Reset infinite baseline to start tracking`,
+              balance_after: 0,
+              cashier_name: 'System',
+              created_at: new Date().toISOString(),
+            };
+            
+            const { localDb, queueOp } = await import('../../lib/localDb');
+            await localDb.stockHistory.add(localEntry);
+            await queueOp('stock_history', 'create', histId, remoteEntry);
+            
+            // Now safe to update local stock knowing history will sync it to cloud
+            await productsService.update(item.id, { stock: 0, trackInventory: true });
+          }
         }
 
         // SHARED COMMIT PATH — single source of truth for stock-in (never a parallel

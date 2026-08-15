@@ -710,6 +710,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       <TwoCol left={`TIME: ${new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`} right={`OP: ${sale.cashier?.split(' ')[0] || profile?.name?.split(' ')[0] || 'SYS'}`} />
       {sale.salesmanName && <TwoCol left={`SM: ${sale.salesmanName}`} right="" />}
       {sale.dcNumber && <TwoCol left={`DC#: ${sale.dcNumber}`} right="" />}
+      {settings.receiptShowTax && settings.taxId && <TwoCol left={`TAX/NTN ID: ${settings.taxId}`} right="" />}
       {settings.receiptShowCustomerName && sale.customerName && (
         <TwoCol left={`CUST: ${sale.customerName}`} right={settings.receiptShowCustomerPhone && sale.customerPhone ? `PH: ${sale.customerPhone}` : ""} />
       )}
@@ -830,6 +831,15 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {bd.dealsCount === 0 && bd.standaloneCount === 0 && <div>0 ITEMS</div>}
       </div>
       <TwoCol left="GRAND TOTAL" right={formatCurrency(sale.total, currencyCode)} bold lg style={{ padding: '4px 0' }} />
+      {sale.status === 'partially_refunded' && sale.refundedAmount > 0 && (
+        <>
+          <TwoCol left="REFUNDED" right={`-${formatCurrency(sale.refundedAmount, currencyCode)}`} />
+          <TwoCol left="NET AMOUNT" right={formatCurrency(sale.total - sale.refundedAmount, currencyCode)} bold lg style={{ padding: '4px 0' }} />
+        </>
+      )}
+      {sale.status === 'refunded' && (
+        <TwoCol left="REFUNDED" right={`-${formatCurrency(sale.total, currencyCode)}`} bold lg style={{ padding: '4px 0' }} />
+      )}
     </>
   );
 
@@ -1240,6 +1250,20 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           <span style={{ fontSize: '11px' }}>GRAND TOTAL</span>
           <span style={{ fontWeight: 'bold' }}>{formatCurrency(sale.total, currencyCode)}</span>
         </div>
+        {sale.status === 'partially_refunded' && sale.refundedAmount > 0 && (
+          <div style={{ border: '2px solid #000', padding: '10px', textAlign: 'center', fontSize: '18px', display: 'flex', flexDirection: 'column', margin: '8px 0' }}>
+            <span style={{ fontSize: '11px' }}>REFUNDED</span>
+            <span style={{ fontWeight: 'bold' }}>-{formatCurrency(sale.refundedAmount, currencyCode)}</span>
+            <span style={{ fontSize: '11px', marginTop: '4px' }}>NET AMOUNT</span>
+            <span style={{ fontWeight: 'bold' }}>{formatCurrency(sale.total - sale.refundedAmount, currencyCode)}</span>
+          </div>
+        )}
+        {sale.status === 'refunded' && (
+          <div style={{ border: '2px solid #000', padding: '10px', textAlign: 'center', fontSize: '18px', display: 'flex', flexDirection: 'column', margin: '8px 0' }}>
+            <span style={{ fontSize: '11px' }}>REFUNDED</span>
+            <span style={{ fontWeight: 'bold' }}>-{formatCurrency(sale.total, currencyCode)}</span>
+          </div>
+        )}
         {renderPaymentSection()}
         {notesBox}
       </div>
@@ -1689,6 +1713,16 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           {template !== 'minimal' && <div style={dividerStyle} />}
 
           <TwoCol left="GRAND TOTAL" right={formatCurrency(sale.total, currencyCode)} bold lg style={{ padding: '4px 0' }} />
+          
+          {sale.status === 'partially_refunded' && sale.refundedAmount > 0 && (
+            <>
+              <TwoCol left="REFUNDED" right={`-${formatCurrency(sale.refundedAmount, currencyCode)}`} />
+              <TwoCol left="NET AMOUNT" right={formatCurrency(sale.total - sale.refundedAmount, currencyCode)} bold lg style={{ padding: '4px 0' }} />
+            </>
+          )}
+          {sale.status === 'refunded' && (
+            <TwoCol left="REFUNDED" right={`-${formatCurrency(sale.total, currencyCode)}`} bold lg style={{ padding: '4px 0' }} />
+          )}
 
           {template !== 'minimal' && <div style={dividerStyle} />}
 

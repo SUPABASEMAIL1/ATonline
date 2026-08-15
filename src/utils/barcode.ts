@@ -52,9 +52,29 @@ export function generateBarcodeValue(
     namePart = 'PR';
   }
 
-  // Generate a random 4-digit number (1000 to 9999)
-  const randomNum = Math.floor(1000 + Math.random() * 9000);
-  return `${namePart}${randomNum}`;
+  // Generate a monotonic unique string based on time to prevent database UNIQUE constraint collisions
+  const uniquePart = Date.now().toString(36).toUpperCase();
+  
+  // If we have a fallbackId (UUID), we can also mix in a tiny hash of it for extra safety
+  let hashPart = '';
+  if (typeof fallbackId === 'string' && fallbackId.length > 10) {
+    hashPart = fallbackId.substring(0, 3).toUpperCase();
+  }
+  
+  return `${namePart}${hashPart}${uniquePart}`;
+}
+
+/**
+ * OCR / Scanner Normalizer
+ * Normalizes common scanner misreads (O vs 0) and formats barcodes uniformly.
+ */
+export function normalizeBarcodeValue(val: string | undefined): string {
+  if (!val) return '';
+  return val
+    .trim()
+    .toUpperCase()
+    .replace(/O/g, '0') // Common letter O to number 0 mistake
+    .replace(/[^A-Z0-9-]/g, ''); // Keep only alphanumeric and hyphen
 }
 
 /**

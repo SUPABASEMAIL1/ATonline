@@ -50,7 +50,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   ]);
 
   const { retailEnabled, wholesaleEnabled, estoreEnabled } = state.settings;
-  const { subtotal, totalDiscount, taxAmount, total: baseTotal, activePromotions: appliedDiscounts, freeGifts } = useCartCalculations(paymentMethod);
+  const { subtotal, totalDiscount, taxAmount, total: baseTotal, activePromotions: appliedDiscounts, freeGifts } = useCartCalculations(paymentMethod === 'split' ? 'cash' : paymentMethod);
 
   const checkoutCartItems = useMemo(() => {
     return state.cart.filter(item => item.quantity !== 0);
@@ -60,7 +60,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     extraCharges.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0)
     , [extraCharges]);
 
-  const finalTotal = baseTotal + extraChargesTotal;
+  const finalTotal = Number(Math.round(Number((baseTotal + extraChargesTotal) + 'e2')) + 'e-2');
 
   const showDiscount = state.settings.receiptShowDiscount !== false &&
     !checkoutCartItems.some(item => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
@@ -286,8 +286,8 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         notes: saleNotes,
         appliedDiscounts,
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
-        receivedAmount: paymentMethod === 'cash' ? parseFloat(amountPaid) || undefined : undefined,
-        changeAmount: paymentMethod === 'cash' ? change || undefined : undefined,
+        receivedAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? parseFloat(amountPaid) || undefined : undefined,
+        changeAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? change || undefined : undefined,
         saleType: (editingStoreOrder ? 'estore' : (editingSale?.saleType as any) || saleType),
         sourceOrderId: state.editingStoreOrderId || undefined,
         saleDate: new Date().toLocaleDateString('en-CA'),

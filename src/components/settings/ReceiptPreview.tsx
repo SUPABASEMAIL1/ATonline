@@ -209,7 +209,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
     <div style={{ textAlign: 'center', marginTop: '16px', marginBottom: '24px', textTransform: 'uppercase', color: 'black', position: 'relative', left: `${settings.receiptFooterOffsetX || 0}mm`, width: '100%', display: 'block' }}>
       {settings.receiptShowBarcode !== false && (
         <div style={{ margin: '12px auto', display: 'flex', justifyContent: 'center' }}>
-          <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+          <BarcodePreview value={`${settings.invoicePrefix || "INV"}-001234`} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
         </div>
       )}
       {settings.receiptShowFooter !== false && settings.receiptFooter && (
@@ -320,7 +320,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
     <div style={{ textAlign: 'center', marginTop: '16px', marginBottom: '24px', textTransform: 'uppercase', color: 'black', position: 'relative', left: `${settings.receiptFooterOffsetX || 0}mm`, width: '100%', display: 'block' }}>
       {settings.receiptShowBarcode !== false && (
         <div style={{ margin: '12px auto', display: 'flex', justifyContent: 'center' }}>
-          <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+          <BarcodePreview value={`${settings.invoicePrefix || "INV"}-001234`} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
         </div>
       )}
       {settings.receiptShowFooter !== false && settings.receiptFooter && (
@@ -380,7 +380,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
           <div style={{ textAlign: 'center' }}>
             {settings.receiptShowBarcode !== false && (
               <div style={{ margin: '10px 0', display: 'flex', justifyContent: 'center' }}>
-                <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+                <BarcodePreview value={`${settings.invoicePrefix || "INV"}-001234`} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
               </div>
             )}
             {renderLogo({ width: '50px', height: '50px', border: '2px solid #000', borderRadius: '50%', margin: '0 auto 5px' })}
@@ -440,7 +440,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             </div>
             {settings.receiptShowBarcode !== false && (
               <div style={{ textAlign: 'left', margin: '10px 0' }}>
-                <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+                <BarcodePreview value={`${settings.invoicePrefix || "INV"}-001234`} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
               </div>
             )}
             {settings.receiptShowFooter !== false && settings.receiptFooter && (
@@ -561,7 +561,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
             </div>
             {settings.receiptShowBarcode !== false && (
               <div style={{ border: '1px solid #000', padding: '10px 0', marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
-                <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+                <BarcodePreview value={`${settings.invoicePrefix || "INV"}-001234`} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
               </div>
             )}
             {settings.receiptShowFooter !== false && settings.receiptFooter && (

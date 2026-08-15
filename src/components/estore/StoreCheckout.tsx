@@ -256,9 +256,18 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         customerId = newCust?.id;
       }
 
-      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const randomInt = Math.floor(1000 + Math.random() * 9000);
-      const generatedInvoice = `WEB-${dateStr}-${randomInt}`;
+      let generatedInvoice = `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+      try {
+        if (navigator.onLine) {
+           const { data, error } = await supabase.rpc('get_next_invoice_number');
+           if (!error && data && typeof data === 'string') {
+              const parts = data.split('-');
+              generatedInvoice = `WEB-${parts.length > 1 ? parts[1] : data}`;
+           }
+        }
+      } catch (e) {
+        console.warn('Failed to get atomic e-store invoice number', e);
+      }
 
       const orderData: Partial<StoreOrder> = {
         id: crypto.randomUUID(),

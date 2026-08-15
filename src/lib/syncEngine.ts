@@ -417,9 +417,18 @@ async function executeOp(op: PendingOp): Promise<void> {
                     console.warn(`[SyncEngine] Invoice collision detected for ${entityId}. Fetching fresh number from cloud...`);
                     try {
                         const { data, error: rpcError } = await supabase.rpc('get_next_invoice_number');
-                        if (!rpcError && data?.invoiceNumber) {
-                            const newInvoiceNumber = data.invoiceNumber;
+                        if (!rpcError && data && typeof data === 'string') {
+                            const newInvoiceNumber = data;
                             const updatedPayload = { ...payload, invoice_number: newInvoiceNumber };
+
+                            // Extract the new counter value and update localDb to prevent immediate re-collision
+                            const parts = newInvoiceNumber.split('-');
+                            if (parts.length > 1) {
+                                const newCounter = parseInt(parts[1], 10);
+                                if (!isNaN(newCounter)) {
+                                    await localDb.settings.update('00000000-0000-4000-8000-000000000001', { invoiceCounter: newCounter });
+                                }
+                            }
 
                             // Update local record so it matches the cloud (otherwise local reports won't match cloud)
                             await localDb.sales.update(entityId, { invoiceNumber: newInvoiceNumber });

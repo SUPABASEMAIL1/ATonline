@@ -7,7 +7,7 @@ import { AppliedDiscount, CartItem } from '../types';
  * Prevents floating point errors (e.g. 0.00000001) that cause mismatches.
  */
 const roundTo2 = (num: number) => {
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+  return Number(Math.round(Number(num + 'e2')) + 'e-2');
 };
 
 export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?: any) {
