@@ -260,6 +260,7 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
         {settings.receiptShowStorePhone && <span>T: {settings.storePhone || '+92 300 0000000'}</span>}
         {settings.receiptShowStoreEmail && <span style={{ marginLeft: '6px' }}>E: {settings.storeEmail || 'contact@mystore.com'}</span>}
       </div>
+      {settings.receiptHeader && <div style={{ marginTop: '8px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: `${fs.body}px` }}>{settings.receiptHeader}</div>}
     </>
   );
 
@@ -437,9 +438,11 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
               {paymentBlock}
               {notesBlock}
             </div>
-            <div style={{ textAlign: 'left', margin: '10px 0' }}>
-              <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
-            </div>
+            {settings.receiptShowBarcode !== false && (
+              <div style={{ textAlign: 'left', margin: '10px 0' }}>
+                <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+              </div>
+            )}
             {settings.receiptShowFooter !== false && settings.receiptFooter && (
               <div style={{ textAlign: 'left', marginTop: '8px', whiteSpace: 'pre-wrap', fontSize: `${fs.footer}px` }}>{settings.receiptFooter}</div>
             )}
@@ -556,9 +559,11 @@ export function ReceiptPreview({ settings }: ReceiptPreviewProps) {
               {paymentBlock}
               {notesBlock}
             </div>
-            <div style={{ border: '1px solid #000', padding: '10px 0', marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
-              <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
-            </div>
+            {settings.receiptShowBarcode !== false && (
+              <div style={{ border: '1px solid #000', padding: '10px 0', marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
+                <BarcodePreview value="INV-001234" height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+              </div>
+            )}
             {settings.receiptShowFooter !== false && settings.receiptFooter && (
               <div style={{ textAlign: 'center', marginTop: '8px', whiteSpace: 'pre-wrap', fontSize: `${fs.footer}px` }}>{settings.receiptFooter}</div>
             )}

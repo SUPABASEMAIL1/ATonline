@@ -37,9 +37,14 @@ export { generateId };
  * Generic helper to fetch all rows across pagination limits (default 1000) for full cache initialization or delta sync.
  */
 export async function fetchAllPages(queryFn: () => any, limit = 1000): Promise<any[]> {
+  // SAFEGUARD: Supabase PostgREST default max_rows is 1000.
+  // Passing a limit > 1000 will cause premature termination because data.length (1000) will be < limit,
+  // making the loop think it has reached the last page.
+  const actualLimit = Math.min(limit, 1000);
+  
   let allData: any[] = [];
   let from = 0;
-  let to = limit - 1;
+  let to = actualLimit - 1;
   let hasMore = true;
 
   while (hasMore) {
@@ -48,11 +53,11 @@ export async function fetchAllPages(queryFn: () => any, limit = 1000): Promise<a
     
     if (data && data.length > 0) {
       allData = [...allData, ...data];
-      if (data.length < limit) {
+      if (data.length < actualLimit) {
         hasMore = false;
       } else {
-        from += limit;
-        to += limit;
+        from += actualLimit;
+        to += actualLimit;
       }
     } else {
       hasMore = false;
@@ -1438,7 +1443,7 @@ export const salesService = {
         .from('sales')
         .select('*')
         .order('created_at', { ascending: false });
-      const data = await fetchAllPages(queryFn, 5000);
+      const data = await fetchAllPages(queryFn, 1000);
       return (data || []).map(mapSale);
     }
   },

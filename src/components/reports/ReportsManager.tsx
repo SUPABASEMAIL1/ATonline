@@ -749,13 +749,14 @@ export function ReportsManager() {
 
   const walletStats = useMemo(() => {
     return ['cash', 'card', 'digital'].map(method => {
-      // Amount from regular sales
-      const sales = filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').reduce((a, x) => a + getAmountByMethod(x, method), 0);
+      // Amount from regular sales (including refunded so we get the initial collection before refund subtraction)
+      const validSales = filteredSales.filter(s => s.status === 'completed' || s.status === 'credit' || s.status === 'refunded' || s.status === 'partially_refunded');
+      const sales = validSales.reduce((a, x) => a + getAmountByMethod(x, method), 0);
       
       // Breakdown of sales by type
-      const retailSales = filteredSales.filter(s => (s.status === 'completed' || s.status === 'credit') && (!s.saleType || s.saleType === 'retail')).reduce((a, x) => a + getAmountByMethod(x, method), 0);
-      const wholesaleSales = filteredSales.filter(s => (s.status === 'completed' || s.status === 'credit') && s.saleType === 'wholesale').reduce((a, x) => a + getAmountByMethod(x, method), 0);
-      const estoreSales = filteredSales.filter(s => (s.status === 'completed' || s.status === 'credit') && s.saleType === 'estore').reduce((a, x) => a + getAmountByMethod(x, method), 0);
+      const retailSales = validSales.filter(s => (!s.saleType || s.saleType === 'retail')).reduce((a, x) => a + getAmountByMethod(x, method), 0);
+      const wholesaleSales = validSales.filter(s => s.saleType === 'wholesale').reduce((a, x) => a + getAmountByMethod(x, method), 0);
+      const estoreSales = validSales.filter(s => s.saleType === 'estore').reduce((a, x) => a + getAmountByMethod(x, method), 0);
 
       // Amount from credit collections (payments received)
       // Universal rule: exclude refund payouts (direction:'out') from collections.

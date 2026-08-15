@@ -298,6 +298,12 @@ export function TransactionsManager() {
         totals[method] = Math.round((totals[method] + amt) * 100) / 100;
       };
 
+      if (t.status !== 'pending') {
+        addToWallet('cash', getAmountByMethod(t, 'cash'));
+        addToWallet('card', getAmountByMethod(t, 'card'));
+        addToWallet('digital', getAmountByMethod(t, 'digital'));
+      }
+      
       if (t.status === 'refunded') {
         addToWallet('cash', -getAmountByMethod(t, 'cash'));
         addToWallet('card', -getAmountByMethod(t, 'card'));
@@ -313,10 +319,6 @@ export function TransactionsManager() {
         addToWallet('digital', -(t.paymentMethod === 'split'
           ? refundedAmt * (getAmountByMethod(t, 'digital') / (t.total || 1))
           : (t.paymentMethod === 'digital' ? refundedAmt : 0)));
-      } else {
-        addToWallet('cash', getAmountByMethod(t, 'cash'));
-        addToWallet('card', getAmountByMethod(t, 'card'));
-        addToWallet('digital', getAmountByMethod(t, 'digital'));
       }
       totals.credit += getAmountByMethod(t, 'credit');
     });
@@ -483,7 +485,7 @@ export function TransactionsManager() {
           <div className="shrink-0 flex flex-col">
             <h1 className="text-2xl xl:text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter leading-none">{t("sales", "Sales")}</h1>
             <p className="text-gray-600 dark:text-gray-400 text-[9px] font-black uppercase tracking-[0.2em] mt-2 opacity-60">
-              {isSearchingRemote ? t("searching_all_records", "Searching all records...") : isCloudSearch ? `Showing ${state.sales.length} results` : `Management Hub • ${state.sales.length} Records`}
+              {isSearchingRemote ? t("searching_all_records", "Searching all records...") : isCloudSearch ? `Showing ${cloudResults.length} results` : `Management Hub • ${filteredTransactions.length} Records`}
             </p>
           </div>
         </div>

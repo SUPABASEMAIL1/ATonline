@@ -14,7 +14,6 @@ import { useTouchKeyboard } from '@/providers/TouchKeyboardProvider';
 import { useSoundFeedback } from '../../hooks/useSoundFeedback';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { sonner } from '../../lib/sonner';
 
 // Responsive receipt scaler – shrinks the receipt preview to fit mobile screens
 function ReceiptScaler({ paperWidthPx, children }: { paperWidthPx: string; children: React.ReactNode }) {
@@ -925,6 +924,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           {settings.receiptShowStoreName && <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.shopName}px`, textTransform: 'uppercase' }}>{settings.storeName}</div>}
           {settings.receiptShowStoreAddress && <div>{settings.storeAddress}</div>}
           <div>{settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}{settings.receiptShowStoreEmail && <span> E: {settings.storeEmail}</span>}</div>
+          {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
         </div>
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
@@ -1004,6 +1004,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         <div style={{ borderBottom: '3px solid #000', width: '100%', paddingBottom: '5px', fontSize: '16px', fontWeight: 'bold' }}>{settings.storeName || 'STORE NAME'}</div>
         {settings.receiptShowStoreAddress && <div style={{ marginTop: '4px' }}>{settings.storeAddress}</div>}
         <div style={{ marginTop: '2px' }}>{settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}{settings.receiptShowStoreEmail && <span> E: {settings.storeEmail}</span>}</div>
+        {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1015,9 +1016,11 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {renderPaymentSection()}
         {notesBox}
       </div>
-      <div style={{ textAlign: 'left', margin: '10px 0' }}>
-        <BarcodePreview value={sale.invoiceNumber} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
-      </div>
+      {settings.receiptShowBarcode !== false && (
+        <div style={{ textAlign: 'left', margin: '10px 0' }}>
+          <BarcodePreview value={sale.invoiceNumber} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+        </div>
+      )}
       {settings.receiptShowFooter !== false && settings.receiptFooter && (
         <div style={{ textAlign: 'left', marginTop: '8px', whiteSpace: 'pre-wrap', fontSize: '10px' }}>{settings.receiptFooter}</div>
       )}
@@ -1042,6 +1045,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             {settings.receiptShowStoreEmail && ` | ${settings.storeEmail}`}
           </span>
         </div>
+        {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1065,6 +1069,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
       <div style={{ marginBottom: '15px' }}>
         {settings.receiptShowStoreAddress && <div>{settings.storeAddress}</div>}
         <div>{settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}{settings.receiptShowStoreEmail && <span> E: {settings.storeEmail}</span>}</div>
+        {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1096,6 +1101,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {settings.receiptShowStoreName && <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.shopName}px`, textTransform: 'uppercase' }}>{settings.storeName}</div>}
         {settings.receiptShowStoreAddress && <div style={{ marginTop: '4px' }}>{settings.storeAddress}</div>}
         <div style={{ marginTop: '2px' }}>{settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}{settings.receiptShowStoreEmail && <span> E: {settings.storeEmail}</span>}</div>
+        {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1120,6 +1126,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {settings.receiptShowStoreName && <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.shopName}px`, textTransform: 'uppercase' }}>{settings.storeName}</div>}
         {settings.receiptShowStoreAddress && <div style={{ marginTop: '4px' }}>{settings.storeAddress}</div>}
         <div style={{ marginTop: '2px' }}>{settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}{settings.receiptShowStoreEmail && <span> E: {settings.storeEmail}</span>}</div>
+        {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1132,9 +1139,11 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {renderPaymentSection()}
         {notesBox}
       </div>
-      <div style={{ border: '1px solid #000', padding: '10px 0', marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
-        <BarcodePreview value={sale.invoiceNumber} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
-      </div>
+      {settings.receiptShowBarcode !== false && (
+        <div style={{ border: '1px solid #000', padding: '10px 0', marginTop: '10px', display: 'flex', justifyContent: 'center' }}>
+          <BarcodePreview value={sale.invoiceNumber} height={40} showValue={true} options={{ width: is58mm ? 1.1 : 1.4, margin: 4 }} />
+        </div>
+      )}
       {settings.receiptShowFooter !== false && settings.receiptFooter && (
         <div style={{ textAlign: 'center', marginTop: '8px', whiteSpace: 'pre-wrap', fontSize: '10px' }}>{settings.receiptFooter}</div>
       )}
@@ -1157,6 +1166,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           {settings.receiptShowStorePhone && ` | T: ${settings.storePhone}`}
           {settings.receiptShowStoreEmail && ` | E: ${settings.storeEmail}`}
         </div>
+        {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1190,6 +1200,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           {settings.receiptShowStoreName && <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.shopName}px`, textTransform: 'uppercase' }}>{settings.storeName}</div>}
           {settings.receiptShowStoreAddress && <div>{settings.storeAddress}</div>}
           <div>{settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}{settings.receiptShowStoreEmail && <span> E: {settings.storeEmail}</span>}</div>
+          {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
         </div>
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
@@ -1215,6 +1226,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         {settings.receiptShowStoreName && <div style={{ fontWeight: clamp(baseWeight + 300), fontSize: `${fs.shopName}px`, textTransform: 'uppercase' }}>{settings.storeName}</div>}
         {settings.receiptShowStoreAddress && <div style={{ marginTop: '4px' }}>{settings.storeAddress}</div>}
         <div style={{ marginTop: '2px' }}>{settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}{settings.receiptShowStoreEmail && <span> E: {settings.storeEmail}</span>}</div>
+        {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
       </div>
       <div style={{ paddingLeft: bodyPadL, paddingRight: bodyPadR }}>
         {renderMetaSection()}
@@ -1329,7 +1341,6 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           display: 'block'
         }}>
           {(settings.receiptShowLogo && settings.storeLogo) ? (
-            <img src={settings.storeLogo} alt="" style={{ display: 'block', margin: '0 auto', maxHeight: '80px', maxWidth: '80%', objectFit: 'contain' }} />
           ) : (
             <div style={{ margin: '0 auto', marginBottom: '8px', width: '100%', textAlign: 'center' }}>
               <QRCodeSVG value={sale.invoiceNumber} size={80} level="M" aria-hidden="true" style={{ margin: '0 auto' }} />
@@ -1347,6 +1358,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             {settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}
             {settings.receiptShowStoreEmail && <span style={{ marginLeft: '6px' }}>E: {settings.storeEmail}</span>}
           </div>
+          {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
           {settings.receiptHeader && (
             <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100) }}>
               {settings.receiptHeader}
