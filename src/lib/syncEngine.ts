@@ -880,7 +880,7 @@ async function pruneExpiredCancelledOrders() {
         if (pendingIds.has(order.id)) continue; // leave for the sync queue to finish
         await localDb.storeOrders.delete(order.id);
         // Permanent delete on the cloud (tombstone-guarded, F21)
-        await queueOp('store_orders', 'delete', order.id, {});
+        await localDb.queueOp('store_orders', 'delete', order.id, {});
         pruned++;
         console.log(`[POS MAINT] Cancelled order #${order.invoiceNumber} pruned (24h) + cloud delete queued.`);
     }
