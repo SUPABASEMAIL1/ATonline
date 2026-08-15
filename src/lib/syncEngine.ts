@@ -1,6 +1,6 @@
 import { supabase, enableFullAuthInit } from './supabase';
 import { localDb, PendingOp, SETTINGS_ID } from './localDb';
-import { mapProduct, mapCustomer } from './services';
+import { mapProduct, mapCustomer, salesService, reconcileAllStock } from './services';
 
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
 const BACKOFF_INITIAL = 5 * 1000; // 5s
@@ -926,6 +926,13 @@ export function startSyncEngine() {
     pruneOldStockHistory();
     pruneExpiredCancelledOrders();
     pruneGhostSales();
+    
+    // Auto-maintenance: Repair legacy sales data and auto-reconcile stock silently in background
+    setTimeout(() => {
+        salesService.patchLegacySales().catch(() => {});
+        reconcileAllStock(true).catch(() => {});
+    }, 5000); // 5 seconds delay to not block UI load
+
     syncToCloud().catch(() => { });
 
     window.addEventListener('online', () => {

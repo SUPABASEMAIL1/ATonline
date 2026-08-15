@@ -81,16 +81,14 @@ export const getDeviceId = (): string => {
 
 // Generate invoice number utility
 export function getNextInvoiceNumber(settings: AppSettings): string {
-  const deviceId = getDeviceId();
   const nextCounter = settings.invoiceCounter + 1;
-  return `${settings.invoicePrefix}-${deviceId}-${nextCounter.toString().padStart(6, '0')}`;
+  return `${settings.invoicePrefix}-${nextCounter.toString().padStart(6, '0')}`;
 }
 
 // Generate next invoice number and return data for updating settings
 export function generateNextInvoiceNumber(settings: AppSettings): { invoiceNumber: string; newCounter: number } {
-  const deviceId = getDeviceId();
   const newCounter = settings.invoiceCounter + 1;
-  const invoiceNumber = `${settings.invoicePrefix}-${deviceId}-${newCounter.toString().padStart(6, '0')}`;
+  const invoiceNumber = `${settings.invoicePrefix}-${newCounter.toString().padStart(6, '0')}`;
   return { invoiceNumber, newCounter };
 }
 
@@ -277,6 +275,7 @@ export const mapSettings = (item: any): AppSettings => {
     receiptShowNotes: s.receipt_show_notes ?? s.receiptShowNotes ?? true,
     receiptShowDeliveryAddress: s.receipt_show_delivery_address ?? s.receiptShowDeliveryAddress ?? true,
     receiptShowQrCode: s.receipt_show_qr_code ?? s.receiptShowQrCode ?? true,
+    receiptShowBarcode: s.receipt_show_barcode ?? s.receiptShowBarcode ?? true,
     receiptTemplate: s.receipt_template ?? s.receiptTemplate ?? 'modern',
     receiptFontScale: s.receipt_font_scale ?? s.receiptFontScale ?? 1.0,
     receiptFontBold: s.receipt_font_bold ?? s.receiptFontBold ?? false,

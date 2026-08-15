@@ -1059,19 +1059,6 @@ export function ReportsManager() {
             </Button>
             <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block" />
 
-            {userRole === 'admin' && (
-              <Button
-                onClick={handleRepairData}
-                disabled={repairing}
-                title="Repair legacy sales data (Audit cost/profit)"
-                icon={<RefreshCw className={`h-3 w-3 ${repairing ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />}
-                className="group !min-h-0 !px-3 !py-1.5 !rounded-lg !gap-2 !bg-rose-500/10 !hover:bg-rose-500/20 !text-rose-500 !border !border-rose-500/20 !shadow-none disabled:!opacity-50"
-              >
-                <span className="text-[8px] font-black uppercase tracking-widest hidden sm:inline">
-                  {repairing ? `Auditing... ${repairProgress !== null ? `${repairProgress}%` : ''}` : 'Repair Data'}
-                </span>
-              </Button>
-            )}
 
             <div className="h-6 w-px bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block" />
             <div className="h-8 w-8 bg-primary/10 rounded-lg flex items-center justify-center shadow-inner border border-primary/10">
