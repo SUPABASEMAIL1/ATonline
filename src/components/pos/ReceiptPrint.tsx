@@ -1341,6 +1341,7 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
           display: 'block'
         }}>
           {(settings.receiptShowLogo && settings.storeLogo) ? (
+            <img src={settings.storeLogo} alt="" style={{ display: 'block', margin: '0 auto', maxHeight: '80px', maxWidth: '80%', objectFit: 'contain' }} />
           ) : (
             <div style={{ margin: '0 auto', marginBottom: '8px', width: '100%', textAlign: 'center' }}>
               <QRCodeSVG value={sale.invoiceNumber} size={80} level="M" aria-hidden="true" style={{ margin: '0 auto' }} />
@@ -1358,7 +1359,6 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
             {settings.receiptShowStorePhone && <span>T: {settings.storePhone}</span>}
             {settings.receiptShowStoreEmail && <span style={{ marginLeft: '6px' }}>E: {settings.storeEmail}</span>}
           </div>
-          {settings.receiptHeader && <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100), fontSize: '10px' }}>{settings.receiptHeader}</div>}
           {settings.receiptHeader && (
             <div style={{ marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: clamp(baseWeight + 100) }}>
               {settings.receiptHeader}
