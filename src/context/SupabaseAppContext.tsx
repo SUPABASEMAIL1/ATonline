@@ -40,7 +40,7 @@ import {
   generateNextInvoiceNumber,
   fetchAllPages
 } from '../lib/services';
-import { localDb, seedLocalDb, isPendingDelete, SETTINGS_ID } from '../lib/localDb';
+import { localDb, seedLocalDb, isPendingDelete, isPendingChange, SETTINGS_ID } from '../lib/localDb';
 import { playOnlineOrderSound } from '../lib/sounds';
 import { sonner } from '../lib/sonner';
 import { supabase } from '../lib/supabase';
@@ -1151,6 +1151,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Guard: Ignore updates for items pending local deletion
           if (await isPendingDelete('products', payload.new.id)) {
             console.log(`[Realtime] Ignoring update for pending-delete product: ${payload.new.id}`);
+            return;
+          }
+          // Guard: do NOT clobber a locally-unsynced edit with a remote update —
+          // the queued op will sync the local value and win (preserves offline edits).
+          if (await isPendingChange('products', payload.new.id)) {
+            console.log(`[Realtime] Skipping remote product update (local pending edit): ${payload.new.id}`);
             return;
           }
           const mapped = mapProduct(payload.new);

@@ -5,7 +5,6 @@ import { User as UserType } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { usersService } from '../../lib/services';
-import { createClient } from '@supabase/supabase-js';
 import { supabase, adminSupabase } from '../../lib/supabase';
 import { sonner } from '../../lib/sonner';
 import { hashPasswordString } from '../../context/AuthContext';

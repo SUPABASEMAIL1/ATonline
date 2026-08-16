@@ -636,6 +636,19 @@ Whenever a database change is made, it MUST be recorded here.
 **Files:** `supabase/migrations/20260815152500_add_store_orders_updated_at_trigger.sql`, `SUPER_MASTER_SCHEMA.sql`
 **Context:** The `update_updated_at_column` trigger was missing for `store_orders` in the schema, which is required for the F21 stale-write guard pattern. Added the trigger to complete the guard pattern.
 
+### [2026-08-16] Atomic Delete/Refund RPCs + SyncEngine Self-Heal + Audit Accuracy Fixes
+**Files:**
+- `supabase/migrations/20260816010000_atomic_delete_refund_rpc.sql` (+ appended to `SUPER_MASTER_SCHEMA.sql`) — new `delete_sale_atomic(p_sale_id, p_history)` and `refund_sale_atomic(p_sale_id, p_history, p_status, p_refunded_amount)` RPCs. Stock reversal + sale mutation in ONE tx (idempotent via ON CONFLICT DO NOTHING + EXISTS guards). Deployed jeanzone + minimahal.
+- `supabase/migrations/20260816020000_role_narrowing.sql` (+ `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`) — role CHECK narrowed to `(cashier, salesman)`; `handle_new_user` first-user no longer auto-admin; legacy rows migrated. Deployed jeanzone + minimahal. TS `User.role` is now `'cashier' | 'salesman'`.
+- `src/lib/services.ts` — `deleteSaleAtomic`/`refundSaleAtomic` wrappers; `salesService.delete` now atomic (adds `partially_refunded` to stock-restore guard → fixes leak); `returnSale` atomic + re-entrancy mutex (`activeReturns`) + `status==='refunded'` no-op; `reconcileAllStock` now audits+fixes BOTH scalar `stock_history` AND `variant_stock_history`/variant_data (F22); `productsService.update` strips stock (scalar+variant) so generic updates can't desync the ledger.
+- `src/lib/syncEngine.ts` — invoice-collision recovery fixed (`data` is scalar TEXT, not `data.invoiceNumber` → previously silently dropped colliding sales); `reconcileStuckOps()` self-heal re-queues exhausted ops every 15 min; boot `reconcileAllStock(false)` (report-only, no silent offline-stock erasure).
+- `src/lib/localDb.ts` — `isPendingChange()` helper (mirrors `isPendingDelete`).
+- `src/context/SupabaseAppContext.tsx` — products realtime UPDATE no longer clobbers a locally-pending edit.
+- `src/components/reports/ReportsManager.tsx` — report cache TTL 30s→10s + window-focus/visibility force-refresh.
+- `src/components/users/UserModal.tsx` — removed unused `createClient` import.
+**Context:** Deep audit confirmed 4 real gaps (CRITICAL #1 partial-refund delete leak, CRITICAL #2 dead invoice-collision recovery, HIGH #3 variant ledger ignored by reconcile, HIGH #4 returnSale re-entrancy) plus boot autoFix data-loss + role-DB gap + products.update stock footgun. All fixed. Self-heal guarantees no op is ever permanently stuck.
+**Remaining (deferred, non-corruption):** #6 local↔cloud reconcile compare; #8 `device_id` column; #10 schema dedup; #12 online-order reservation; #14 `product_batches` removal; #7 `adminSupabase` service_role client needs server-side refactor (route blocked, currently null-guarded).
+
 ### [2026-08-12] Full-Project Audit Fixes — F12-F20 + Universal Branding
 **Files:** `supabase/migrations/20260812215000_estore_cancel_double_release_guard.sql`, `SUPER_MASTER_SCHEMA.sql`, `src/lib/services.ts`, `src/lib/syncEngine.ts`, `src/lib/localDb.ts`, `src/context/SupabaseAppContext.tsx`, `src/components/reports/ReportsManager.tsx`, `src/components/dashboard/DashboardManager.tsx`, `src/components/transactions/TransactionsManager.tsx`, `src/components/transactions/RefundSaleModal.tsx`, `src/components/inventory/PurchaseHistory.tsx`, `src/components/pos/POSTerminal.tsx`, `AGENTS.md`, `GEMINI.md`, `docs/setup.md`
 **Context:** 3 parallel audits (stock ledger integrity, sync engine, money math) found 15 issues — all fixed. Universal rules F12-F20 written into AGENTS.md + GEMINI.md.

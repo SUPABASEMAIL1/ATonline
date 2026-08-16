@@ -255,7 +255,16 @@ export function ReportsManager() {
       setReportRefreshKey(k => k + 1);
     };
     window.addEventListener('pendingops-changed', handleSync);
-    return () => window.removeEventListener('pendingops-changed', handleSync);
+    // Force-refresh on window focus / tab visible so figures never go stale
+    const handleFocus = () => { reportCache.current = {}; setReportRefreshKey(k => k + 1); };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    });
+    return () => {
+      window.removeEventListener('pendingops-changed', handleSync);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Invalidate cache immediately when local state changes via realtime events
@@ -268,7 +277,7 @@ export function ReportsManager() {
       const cacheKey = `${validStartDate.toISOString()}-${validEndDate.toISOString()}`;
 
       // 1. Check Memory Cache (Instant)
-      if (reportCache.current[cacheKey] && Date.now() - reportCache.current[cacheKey].timestamp < 30000) {
+      if (reportCache.current[cacheKey] && Date.now() - reportCache.current[cacheKey].timestamp < 10000) {
         console.log('[Reports] Using cached data for range:', cacheKey);
         setReportSales(reportCache.current[cacheKey].sales);
         setReportRefunds(reportCache.current[cacheKey].refunds);

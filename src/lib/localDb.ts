@@ -611,6 +611,19 @@ export async function isPendingDelete(entity: PendingOpEntity, entityId: string)
 }
 
 /**
+ * True when a locally-unsynced (non-delete, non-error) op exists for this entity.
+ * Used to avoid realtime updates clobbering pending local edits — the queued op
+ * will sync the local value and win, so we must not overwrite it mid-flight.
+ */
+export async function isPendingChange(entity: PendingOpEntity, entityId: string): Promise<boolean> {
+  const op = await localDb.pendingOps
+    .where('[entity+entityId]')
+    .equals([entity, entityId])
+    .first();
+  return !!op && op.opType !== 'delete' && op.status !== 'error';
+}
+
+/**
  * Map Dexie table names to Sync Engine Entity names
  */
 export const TABLE_TO_ENTITY: Record<string, PendingOpEntity> = {
