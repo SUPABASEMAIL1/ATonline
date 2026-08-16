@@ -7,6 +7,12 @@ const BACKOFF_INITIAL = 5 * 1000; // 5s
 const BACKOFF_MAX = 60 * 1000; // 60s
 const SYNC_TIMEOUT = 120 * 1000; // 120s
 
+// Retry caps — keep ops alive far longer than the old hard cap of 5 so a
+// transient failure (network blip, token refresh, locked row) NEVER becomes a
+// permanent cloud divergence. Financial ops are NEVER silently dropped (F20).
+const MAX_RETRIES = 25;
+const MAX_AUTO_RETRY = 12;
+
 let _isSyncing = false;
 let _syncNeeded = false;
 let _offlineBackoff = 0;
@@ -15,21 +21,6 @@ let _offlineMode = false;
 
 export function isSyncEngineBusy(): boolean {
     return _isSyncing;
-}
-
-export async function clearReconcileGarbageOps() {
-    try {
-        const pending = await localDb.pendingOps.toArray();
-        for (const op of pending) {
-            if (op.payload && op.payload.reference_id && typeof op.payload.reference_id === 'string' && op.payload.reference_id.startsWith('RECONCILE-')) {
-                await localDb.pendingOps.delete(op.id);
-                console.log(`[POS MAINT] Cleaned up garbage RECONCILE op: ${op.id}`);
-            }
-        }
-        window.dispatchEvent(new Event('pendingops-changed'));
-    } catch (e) {
-        console.error('Failed to clean garbage reconcile ops', e);
-    }
 }
 
 export function clearBlacklist(entity?: string) {
@@ -432,18 +423,9 @@ async function executeOp(op: PendingOp): Promise<void> {
                     console.warn(`[SyncEngine] Invoice collision detected for ${entityId}. Fetching fresh number from cloud...`);
                     try {
                         const { data, error: rpcError } = await supabase.rpc('get_next_invoice_number');
-                        if (!rpcError && data && typeof data === 'string') {
-                            const newInvoiceNumber = data;
+                        if (!rpcError && data?.invoiceNumber) {
+                            const newInvoiceNumber = data.invoiceNumber;
                             const updatedPayload = { ...payload, invoice_number: newInvoiceNumber };
-
-                            // Extract the new counter value and update localDb to prevent immediate re-collision
-                            const parts = newInvoiceNumber.split('-');
-                            if (parts.length > 1) {
-                                const newCounter = parseInt(parts[1], 10);
-                                if (!isNaN(newCounter)) {
-                                    await localDb.settings.update('00000000-0000-4000-8000-000000000001', { invoiceCounter: newCounter });
-                                }
-                            }
 
                             // Update local record so it matches the cloud (otherwise local reports won't match cloud)
                             await localDb.sales.update(entityId, { invoiceNumber: newInvoiceNumber });
@@ -653,7 +635,10 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
                 break;
             }
 
-            const processableItems = pending.filter(op => op.status !== 'error' && (op.retries || 0) < 5);
+            const processableItems = pending.filter(op =>
+                (op.retries || 0) < MAX_RETRIES &&
+                (op.status !== 'error' || ((op as any).autoRetryCount || 0) < MAX_AUTO_RETRY)
+            );
 
             if (processableItems.length === 0) {
                 if (_syncNeeded) {
@@ -774,13 +759,14 @@ export async function syncToCloud(options: { resetRetries?: boolean } = {}) {
 
                     // Only increment retries for real API/Logic errors
                     const newRetries = (op.retries || 0) + 1;
-                    const status = newRetries >= 5 ? 'error' : 'failed';
+                    const status = newRetries >= MAX_RETRIES ? 'error' : 'failed';
                     const isPermissionDenied = errorMsg.toLowerCase().includes('permission denied') ||
                         errorMsg.toLowerCase().includes('permission_denied');
 
                     await localDb.pendingOps.update(op.id!, {
                         retries: newRetries,
                         status,
+                        autoRetryCount: ((op as any).autoRetryCount || 0) + 1,
                         lastError: isPermissionDenied ? 'Permission denied — contact admin.' : errorMsg
                     });
 
@@ -829,7 +815,7 @@ async function autoRecoverErrors() {
         // We use a custom field in the record if it doesn't exist, to track auto recoveries
         const autoRetryCount = (op as any).autoRetryCount || 0;
 
-        if (!isPermanent && autoRetryCount < 3) {
+        if (!isPermanent && autoRetryCount < MAX_AUTO_RETRY) {
             await localDb.pendingOps.update(op.id!, {
                 status: 'pending',
                 retries: 0,
@@ -945,17 +931,16 @@ async function pruneGhostSales() {
 }
 
 export function startSyncEngine() {
-    clearReconcileGarbageOps();
     clearBlacklist();
     pruneStaleOps();
     pruneOldStockHistory();
     pruneExpiredCancelledOrders();
     pruneGhostSales();
-    
+
     // Auto-maintenance: Repair legacy sales data and auto-reconcile stock silently in background
     setTimeout(() => {
-        salesService.patchLegacySales().catch(() => {});
-        reconcileAllStock(true).catch(() => {});
+        salesService.patchLegacySales().catch(() => { });
+        reconcileAllStock(true).catch(() => { });
     }, 5000); // 5 seconds delay to not block UI load
 
     syncToCloud().catch(() => { });
@@ -1057,9 +1042,13 @@ export async function retrySyncAll() {
 }
 
 /**
- * Removes all items from the queue that have failed 5+ times
+ * Re-queues stuck items instead of deleting them.
+ * FINANCIAL SAFETY (F20): queued financial ops must NEVER be hard-deleted.
+ * Resetting to 'pending' gives them another full retry cycle so cloud stays
+ * consistent with local — no silent data loss.
  */
 export async function clearStuckOps() {
-    await localDb.pendingOps.where('retries').aboveOrEqual(5).delete();
+    await localDb.pendingOps.where('retries').aboveOrEqual(MAX_RETRIES)
+        .modify({ status: 'pending', retries: 0, autoRetryCount: 0 });
     window.dispatchEvent(new Event('pendingops-changed'));
 }
