@@ -1,6 +1,6 @@
 import { supabase, enableFullAuthInit } from './supabase';
 import { localDb, PendingOp, SETTINGS_ID } from './localDb';
-import { mapProduct, mapCustomer, salesService, reconcileAllStock } from './services';
+import { mapProduct, mapCustomer, salesService, reconcileAllStock, commitSaleAuthoritative } from './services';
 
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
 const BACKOFF_INITIAL = 5 * 1000; // 5s
@@ -336,6 +336,31 @@ async function executeOp(op: PendingOp): Promise<void> {
                 // Safety net: if timestamp is null (legacy queued item), patch it
                 if (!payload.timestamp) {
                     payload.timestamp = new Date().toISOString();
+                }
+                // (A) HARDENING — flush offline-buffered sale + ALL its stock movements in ONE
+                // transaction via commit_sale RPC (same path as online sales) so cloud stock can
+                // NEVER diverge from the sale. Sibling stock_history / variant_stock_history ops
+                // (same batchId) are committed together, then dropped (idempotent ids make any
+                // accidental re-apply a no-op). Falls back to the legacy process_sale path on any error.
+                if (typeof navigator === 'undefined' || navigator.onLine) {
+                    try {
+                        const siblings = await localDb.pendingOps.where('batchId').equals(op.entityId).toArray();
+                        const movementOps = siblings.filter(
+                            s => (s.entity === 'stock_history' || s.entity === 'variant_stock_history') && s.id !== op.id
+                        );
+                        const movements = movementOps.map(m => m.payload);
+                        const committed = await commitSaleAuthoritative(payload, movements);
+                        if (committed) {
+                            const idsToDelete = [op.id, ...movementOps.map(m => m.id)].filter(
+                                (x): x is number => typeof x === 'number'
+                            );
+                            if (idsToDelete.length) await localDb.pendingOps.bulkDelete(idsToDelete);
+                            console.log(`[SyncEngine] Atomic flush of buffered sale ${op.entityId} (sale + ${movements.length} stock movements).`);
+                            return; // success — skip legacy process_sale path
+                        }
+                    } catch (atomicErr) {
+                        console.warn('[SyncEngine] Atomic buffered-sale flush failed, falling back to process_sale:', atomicErr);
+                    }
                 }
                 const result = await supabase.rpc('process_sale', { sale_data: payload });
                 error = result.error;

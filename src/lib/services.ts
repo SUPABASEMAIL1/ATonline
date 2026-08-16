@@ -2821,7 +2821,7 @@ export const purchaseRecordsService = {
           await queueOp('products', 'update', product.id, remotePurchaseCostPayload);
         }
 
-        // Log stock movement to stock_history for full audit trail
+        // Log stock movement to stock_history for full audit trail (local first, always)
         const histId = generateId();
         const histEntry = {
           id: histId,
@@ -2835,7 +2835,28 @@ export const purchaseRecordsService = {
           createdAt: now
         };
         await localDb.stockHistory.add(histEntry);
-        await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
+
+        // (B) HARDENING: commit the stock movement atomically via RPC when online
+        // (trigger updates cloud product.stock). Falls back to the reliable queue
+        // when offline / RPC unavailable. Idempotent ids make any re-apply a no-op.
+        const onlinePurchase = typeof navigator === 'undefined' || navigator.onLine;
+        if (onlinePurchase) {
+          const committed = await applyStockMovementsRemote([{
+            id: histId,
+            product_id: product.id,
+            change_qty: record.quantity,
+            type: record.quantity > 0 ? 'stock_in' : 'adjustment_out',
+            note: histEntry.note,
+            variant_id: '',
+            variant_label: '',
+            cashier_name: record.addedBy || 'System',
+          }]);
+          if (!committed) {
+            await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
+          }
+        } else {
+          await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry));
+        }
       }
 
       // F22 — VARIANT-TARGETED RESTOCK: mirror the same change at variant level.
