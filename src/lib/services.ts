@@ -33,6 +33,53 @@ import { generateBarcodeValue } from '../utils/barcode';
  */
 export { generateId };
 
+// ============================================================================
+// ATOMIC COMMIT HELPERS (Phase 1 — Online-authoritative + offline buffer)
+// These wrap the server-side `commit_sale` / `apply_stock_movements` RPCs so a
+// sale + ALL its stock movements are written in ONE Postgres transaction. This
+// guarantees products.stock / variant_data can NEVER diverge from sales.
+// Returns `true` only when the cloud write actually succeeded, so the caller can
+// skip the legacy per-op queue path (idempotent ids prevent double writes).
+// ============================================================================
+
+export async function commitSaleAuthoritative(
+  remoteSale: any,
+  movements: any[]
+): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    const { data, error } = await (supabase as any).rpc('commit_sale', {
+      p_sale: remoteSale,
+      p_history: movements,
+    });
+    if (error) {
+      console.error('[commit_sale] RPC error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e: any) {
+    console.error('[commit_sale] exception:', e?.message || e);
+    return false;
+  }
+}
+
+export async function applyStockMovementsRemote(movements: any[]): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    const { error } = await (supabase as any).rpc('apply_stock_movements', {
+      p_history: movements,
+    });
+    if (error) {
+      console.error('[apply_stock_movements] RPC error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e: any) {
+    console.error('[apply_stock_movements] exception:', e?.message || e);
+    return false;
+  }
+}
+
 /**
  * Generic helper to fetch all rows across pagination limits (default 1000) for full cache initialization or delta sync.
  */
@@ -41,7 +88,7 @@ export async function fetchAllPages(queryFn: () => any, limit = 1000): Promise<a
   // Passing a limit > 1000 will cause premature termination because data.length (1000) will be < limit,
   // making the loop think it has reached the last page.
   const actualLimit = Math.min(limit, 1000);
-  
+
   let allData: any[] = [];
   let from = 0;
   let to = actualLimit - 1;
@@ -50,7 +97,7 @@ export async function fetchAllPages(queryFn: () => any, limit = 1000): Promise<a
   while (hasMore) {
     const { data, error } = await queryFn().range(from, to);
     if (error) throw error;
-    
+
     if (data && data.length > 0) {
       allData = [...allData, ...data];
       if (data.length < actualLimit) {
@@ -73,7 +120,7 @@ export async function fetchAllPages(queryFn: () => any, limit = 1000): Promise<a
 export const getDeviceId = (): string => {
   const existing = localStorage.getItem('deviceId');
   if (existing) return existing;
-  
+
   const newId = Math.random().toString(36).substring(2, 6).toUpperCase();
   localStorage.setItem('deviceId', newId);
   return newId;
@@ -174,13 +221,13 @@ export function getAmountByMethod(sale: any, method: string): number {
       .filter((sp: any) => sp.method === method)
       .reduce((sum: number, sp: any) => sum + (Number(sp.amount) || 0), 0);
   }
-  
+
   if (sale.paymentMethod === 'credit') {
     if (method === 'cash') return sale.receivedAmount || 0; // Advance paid in cash
     if (method === 'credit') return (Number(sale.total) || 0) - (sale.receivedAmount || 0); // Remaining debt
     return 0;
   }
-  
+
   return sale.paymentMethod === method ? (Number(sale.total) || 0) : 0;
 }
 
@@ -464,25 +511,25 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('estoreCardBgColor' in s) { remote.estore_card_bg_color = s.estoreCardBgColor; }
   if ('estoreOrderTimerEnabled' in s) { remote.estore_order_timer_enabled = s.estoreOrderTimerEnabled; }
   if ('estoreOrderTimerMinutes' in s) { remote.estore_order_timer_minutes = s.estoreOrderTimerMinutes; }
-  if ('estoreDeliveryFee' in s) { 
-    remote.estore_delivery_fee = s.estoreDeliveryFee === '' || s.estoreDeliveryFee === null || s.estoreDeliveryFee === undefined ? 0 : Number(s.estoreDeliveryFee); 
+  if ('estoreDeliveryFee' in s) {
+    remote.estore_delivery_fee = s.estoreDeliveryFee === '' || s.estoreDeliveryFee === null || s.estoreDeliveryFee === undefined ? 0 : Number(s.estoreDeliveryFee);
   }
-  if ('estoreMinOrder' in s) { 
-    remote.estore_min_order = s.estoreMinOrder === '' || s.estoreMinOrder === null || s.estoreMinOrder === undefined ? 0 : Number(s.estoreMinOrder); 
+  if ('estoreMinOrder' in s) {
+    remote.estore_min_order = s.estoreMinOrder === '' || s.estoreMinOrder === null || s.estoreMinOrder === undefined ? 0 : Number(s.estoreMinOrder);
   }
   if ('estoreCodEnabled' in s) { remote.estore_cod_enabled = s.estoreCodEnabled; }
   if ('estoreCustomPaymentEnabled' in s) { remote.estore_custom_payment_enabled = s.estoreCustomPaymentEnabled; }
   if ('estoreCustomPaymentName' in s) { remote.estore_custom_payment_name = s.estoreCustomPaymentName; }
   if ('estoreCustomPaymentDetail' in s) { remote.estore_custom_payment_detail = s.estoreCustomPaymentDetail; }
   if ('estoreCustomPaymentNote' in s) { remote.estore_custom_payment_note = s.estoreCustomPaymentNote; }
-  if ('estoreLocationLat' in s) { 
-    remote.estore_location_lat = s.estoreLocationLat === '' || s.estoreLocationLat === null || s.estoreLocationLat === undefined ? null : Number(s.estoreLocationLat); 
+  if ('estoreLocationLat' in s) {
+    remote.estore_location_lat = s.estoreLocationLat === '' || s.estoreLocationLat === null || s.estoreLocationLat === undefined ? null : Number(s.estoreLocationLat);
   }
-  if ('estoreLocationLng' in s) { 
-    remote.estore_location_lng = s.estoreLocationLng === '' || s.estoreLocationLng === null || s.estoreLocationLng === undefined ? null : Number(s.estoreLocationLng); 
+  if ('estoreLocationLng' in s) {
+    remote.estore_location_lng = s.estoreLocationLng === '' || s.estoreLocationLng === null || s.estoreLocationLng === undefined ? null : Number(s.estoreLocationLng);
   }
-  if ('estoreDeliveryRadius' in s) { 
-    remote.estore_delivery_radius = s.estoreDeliveryRadius === '' || s.estoreDeliveryRadius === null || s.estoreDeliveryRadius === undefined ? null : Number(s.estoreDeliveryRadius); 
+  if ('estoreDeliveryRadius' in s) {
+    remote.estore_delivery_radius = s.estoreDeliveryRadius === '' || s.estoreDeliveryRadius === null || s.estoreDeliveryRadius === undefined ? null : Number(s.estoreDeliveryRadius);
   }
   if ('estoreWhatsappEnabled' in s) { remote.estore_whatsapp_enabled = s.estoreWhatsappEnabled; }
   if ('estoreWhatsappNumber' in s) { remote.estore_whatsapp_number = s.estoreWhatsappNumber; }
@@ -646,12 +693,12 @@ export const toRemoteProduct = (p: Partial<Product>) => {
   delete remote.batches;
   delete remote.product_batches;
   delete remote.productBatches;
-  
+
   // Enforce NOT NULL constraint for sku
   if (!remote.sku) {
     remote.sku = p.id || remote.id || remote.barcode_value || `SKU-${Date.now()}`;
   }
-  
+
   return remote;
 };
 
@@ -808,7 +855,7 @@ export const toRemotePayment = (p: any) => {
   if ('payment_type' in p) remote.payment_type = p.payment_type;
   if ('notes' in p) remote.note = p.notes;
   if ('note' in p) remote.note = p.note;
-  
+
   if ('direction' in p) {
     remote.direction = p.direction;
   } else if (p.customerId || p.customer_id) {
@@ -816,7 +863,7 @@ export const toRemotePayment = (p: any) => {
   } else if (p.supplierId || p.supplier_id) {
     remote.direction = 'out';
   }
-  
+
   if ('createdAt' in p) {
     remote.created_at = p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt;
   } else if ('created_at' in p) {
@@ -884,7 +931,7 @@ export const productsService = {
       const localExisting = await localDb.products
         .filter(p => p.name.trim().toLowerCase() === product.name.trim().toLowerCase())
         .first();
-      
+
       if (localExisting) {
         existing = {
           id: localExisting.id,
@@ -953,10 +1000,10 @@ export const productsService = {
       for (const vd of newProduct.variantData) {
         const childId = (vd.id && vd.id.length > 10) ? vd.id : generateId();
         const childName = `${newProduct.name} - ${vd.option1}${vd.option2 ? ` / ${vd.option2}` : ''}`;
-        
+
         // Prevent duplicate child creation error
         const existingChild = await localDb.products.where('name').equalsIgnoreCase(childName.trim()).first();
-        
+
         if (!existingChild) {
           const childProduct: Product = {
             ...newProduct,
@@ -977,7 +1024,7 @@ export const productsService = {
             batches: [],
             trackInventory: true
           };
-          
+
           await productsService.create(childProduct);
         }
       }
@@ -1000,7 +1047,7 @@ export const productsService = {
     const remotePayload = toRemoteProduct(updated);
     delete remotePayload.stock;
     delete remotePayload.variant_data; // Let variant_stock_history triggers handle variant stock
-    
+
     // We must re-include variant_data WITHOUT stock fields if we want to sync other variant properties (like price/cost)
     if (updated.variantData) {
       remotePayload.variant_data = updated.variantData.map(v => {
@@ -1020,10 +1067,10 @@ export const productsService = {
       for (const vd of updated.variantData) {
         const childName = `${updated.name} - ${vd.option1}${vd.option2 ? ` / ${vd.option2}` : ''}`;
         childNamesKeep.add(childName);
-        
+
         // Find existing child by ID or Name
         const existingChild = existingChildren.find(c => c.id === vd.id || c.name === childName);
-        
+
         if (existingChild) {
           // Update child (don't override stock directly here, stock is managed by stock history)
           await productsService.update(existingChild.id, {
@@ -1057,11 +1104,11 @@ export const productsService = {
             batches: [],
             trackInventory: true
           };
-          
+
           await productsService.create(childProduct);
         }
       }
-      
+
       // Delete removed variations
       for (const child of existingChildren) {
         if (!childNamesKeep.has(child.name)) {
@@ -1268,7 +1315,7 @@ export const salesmenService = {
     if ('name' in updates) remote.name = updates.name;
     if ('phone' in updates) remote.phone = updates.phone;
     if ('active' in updates) remote.active = updates.active;
-    
+
     await localDb.salesmen.update(id, { ...updates, updatedAt: new Date() });
     await queueOp('salesmen', 'update', id, remote);
     const updated = await localDb.salesmen.get(id);
@@ -1481,12 +1528,12 @@ export const salesService = {
     } catch (e) {
       console.warn("Cloud search failed, falling back to localDb", e);
       let sales = await localDb.sales.toArray();
-      
+
       if (filters.startDate) sales = sales.filter(s => new Date(s.timestamp).getTime() >= filters.startDate!.getTime());
       if (filters.endDate) sales = sales.filter(s => new Date(s.timestamp).getTime() <= filters.endDate!.getTime());
       if (filters.invoiceNumber) {
         const query = filters.invoiceNumber.toLowerCase();
-        sales = sales.filter(s => 
+        sales = sales.filter(s =>
           (s.invoiceNumber || '').toLowerCase().includes(query) ||
           (s.receiptNumber || '').toLowerCase().includes(query) ||
           (s.customerName || '').toLowerCase().includes(query)
@@ -1498,7 +1545,7 @@ export const salesService = {
       if (filters.cashier) sales = sales.filter(s => s.cashier === filters.cashier);
       if (filters.salesman) sales = sales.filter(s => s.salesmanName === filters.salesman);
       if (filters.saleType) sales = sales.filter(s => s.saleType === filters.saleType);
-      
+
       return sales.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 200);
     }
   },
@@ -1527,6 +1574,11 @@ export const salesService = {
     const isDraftSale = sale.status === 'pending' || !!sale.notes?.includes('DRAFT_SALE');
     const skipStockEffects = isDraftSale;
 
+    // Phase 1: collect stock movements so the sale + all of them can be committed
+    // to the cloud atomically via `commit_sale` (no per-op queue → no divergence).
+    const movements: any[] = [];
+    const historyQueue: Array<{ entity: string; histId: string; remote: any; opts: any }> = [];
+
     for (let i = 0; i < newSale.items.length; i++) {
       const item = newSale.items[i];
       const product = await localDb.products.get(item.product.id);
@@ -1552,7 +1604,7 @@ export const salesService = {
           for (const addonItem of item.addonItems) {
             const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
             if (addonProduct) {
-               addonCostTotal += (Number(addonProduct.cost) || 0) * addonItem.quantity * Math.abs(qty);
+              addonCostTotal += (Number(addonProduct.cost) || 0) * addonItem.quantity * Math.abs(qty);
             }
           }
         }
@@ -1589,7 +1641,17 @@ export const salesService = {
             ...(newStock < 0 ? { wasOversold: true } : {}),
           };
           await localDb.stockHistory.add(histEntry);
-          await queueOp('stock_history', 'create', histId, toRemoteStockHistory(histEntry), { batchId: id });
+          movements.push({
+            id: histId,
+            product_id: product.id,
+            change_qty: -qty,
+            type: 'sale',
+            note: `Sale ${sale.invoiceNumber}`,
+            variant_id: '',
+            variant_label: '',
+            cashier_name: sale.cashier || 'System',
+          });
+          historyQueue.push({ entity: 'stock_history', histId, remote: toRemoteStockHistory(histEntry), opts: { batchId: id } });
         }
 
         // --- VARIANT-LEVEL STOCK DEDUCTION ---
@@ -1597,13 +1659,13 @@ export const salesService = {
           const variant = product.variantData.find(v => v.id === item.selectedVariantId);
           if (variant) {
             const newVariantStock = (variant.stock || 0) - qty;
-            
+
             {
               // Update local variant data (cloud handled by variant_stock_history trigger)
-              const updatedVariantData = product.variantData.map(v => 
+              const updatedVariantData = product.variantData.map(v =>
                 v.id === variant.id ? { ...v, stock: newVariantStock } : v
               );
-              
+
               await localDb.products.update(product.id, {
                 variantData: updatedVariantData,
                 updatedAt: now
@@ -1625,7 +1687,17 @@ export const salesService = {
                 createdAt: now,
               };
               await localDb.variantStockHistory.add(vHistEntry);
-              await queueOp('variant_stock_history', 'create', vHistId, toRemoteVariantStockHistory(vHistEntry), { batchId: id });
+              movements.push({
+                id: vHistId,
+                product_id: product.id,
+                change_qty: -qty,
+                type: 'sale',
+                note: `Sale ${sale.invoiceNumber}`,
+                variant_id: item.selectedVariantId,
+                variant_label: item.selectedVariantLabel || variant.cardTitle || variant.option1,
+                cashier_name: sale.cashier || 'System',
+              });
+              historyQueue.push({ entity: 'variant_stock_history', histId: vHistId, remote: toRemoteVariantStockHistory(vHistEntry), opts: { batchId: id } });
             }
           }
         }
@@ -1637,8 +1709,8 @@ export const salesService = {
             if (addonProduct && addonProduct.trackInventory) {
               const addonQty = addonItem.quantity * Math.abs(item.quantity);
               const newAddonStock = (addonProduct.stock || 0) - addonQty;
-              
-if (!skipStockEffects) {
+
+              if (!skipStockEffects) {
                 await localDb.products.update(addonProduct.id, { stock: newAddonStock, updatedAt: now });
 
                 const aHistId = generateId();
@@ -1654,7 +1726,17 @@ if (!skipStockEffects) {
                   createdAt: now,
                 };
                 await localDb.stockHistory.add(aHistEntry);
-                await queueOp('stock_history', 'create', aHistId, toRemoteStockHistory(aHistEntry), { batchId: id });
+                movements.push({
+                  id: aHistId,
+                  product_id: addonProduct.id,
+                  change_qty: -addonQty,
+                  type: 'sale',
+                  note: `Add-on for Sale ${sale.invoiceNumber} (${addonItem.addon.name})`,
+                  variant_id: '',
+                  variant_label: '',
+                  cashier_name: sale.cashier || 'System',
+                });
+                historyQueue.push({ entity: 'stock_history', histId: aHistId, remote: toRemoteStockHistory(aHistEntry), opts: { batchId: id } });
               }
             }
           }
@@ -1675,7 +1757,7 @@ if (!skipStockEffects) {
           for (const addonItem of item.addonItems) {
             const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
             if (addonProduct) {
-               addonCostTotal += (Number(addonProduct.cost) || 0) * addonItem.quantity * Math.abs(item.weight || item.quantity);
+              addonCostTotal += (Number(addonProduct.cost) || 0) * addonItem.quantity * Math.abs(item.weight || item.quantity);
             }
           }
         }
@@ -1692,8 +1774,22 @@ if (!skipStockEffects) {
     // 1. Local Write (Now contains precise purchaseCost per item)
     await localDb.sales.add(newSale);
 
-    // 2. Queue for Sync (Uses Server RPC 'process_sale' for atomicity)
-    await queueOp('sales', 'create', id, toRemoteSale(newSale), { batchId: id });
+    // 2. Atomic cloud commit (online) OR legacy per-op queue fallback.
+    // Phase 1: commit the sale + ALL stock movements in ONE transaction via the
+    // `commit_sale` RPC so products.stock / variant_data can NEVER diverge from
+    // sales. If the RPC succeeds, the legacy 'sales' + 'stock_history' queue ops
+    // are SKIPPED (ids are idempotent, so any retry/fallback insert is ignored).
+    const onlineNow = typeof navigator === 'undefined' || navigator.onLine;
+    let cloudCommitted = false;
+    if (onlineNow && !skipStockEffects && !isDraftSale && movements.length > 0) {
+      cloudCommitted = await commitSaleAuthoritative(toRemoteSale(newSale), movements);
+    }
+    if (!cloudCommitted) {
+      await queueOp('sales', 'create', id, toRemoteSale(newSale), { batchId: id });
+      for (const q of historyQueue) {
+        await queueOp(q.entity, 'create', q.histId, q.remote, q.opts);
+      }
+    }
 
     // 3. Update Customer Credit/Stats if identified (NEVER for drafts — drafts are not revenue)
     if (newSale.customerId && !isDraftSale) {
@@ -1701,7 +1797,7 @@ if (!skipStockEffects) {
       if (customer) {
         const isCreditSale = newSale.paymentMethod === 'credit' || newSale.status === 'credit';
         const netCreditDebt = isCreditSale ? getAmountByMethod(newSale, 'credit') : 0;
-        
+
         const updatedCustomer = {
           ...customer,
           creditUsed: (customer.creditUsed || 0) + netCreditDebt,
@@ -1724,10 +1820,10 @@ if (!skipStockEffects) {
 
     const updated = { ...existing, ...updates, updatedAt: new Date() };
     await localDb.sales.put(updated);
-    
+
     // Process status changes for stock restoration if needed
     if (updates.status === 'refunded' && existing.status !== 'refunded') {
-       // Stock restoration is handled in returnSale, but this handles direct updates
+      // Stock restoration is handled in returnSale, but this handles direct updates
     }
 
     await queueOp('sales', 'update', id, toRemoteSale(updated));
@@ -1741,122 +1837,169 @@ if (!skipStockEffects) {
     const now = new Date();
     const affectedProducts: Product[] = [];
 
+    // Phase 1: collect reverse-stock movements so they commit atomically via
+    // `apply_stock_movements` (no per-op queue → no divergence on deletes/returns).
+    const returnMovements: any[] = [];
+    const returnQueue: Array<{ entity: string; histId: string; remote: any; opts: any }> = [];
+
     // 1. Reverse Stock (Only restore what has not been refunded/returned yet)
     // E-store pending sales never deducted stock initially, so we don't restore it.
     // DRAFT RULE: pending drafts never deducted stock either — deleting a draft must
     // NOT restore anything (that would create a phantom +Q in the ledger).
     const isDraftSale = sale.status === 'pending' || !!sale.notes?.includes('DRAFT_SALE');
-    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'credit' || sale.status === 'partially_refunded')) {
+    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'credit')) {
       for (const item of sale.items) {
         const product = await localDb.products.get(item.product.id);
-      if (product && product.trackInventory) {
-        const qty = (item.weight || item.quantity) - (item.refundedQuantity || 0);
-        if (qty <= 0) continue;
-        const newStock = (product.stock || 0) + qty;
+        if (product && product.trackInventory) {
+          const qty = (item.weight || item.quantity) - (item.refundedQuantity || 0);
+          if (qty <= 0) continue;
+          const newStock = (product.stock || 0) + qty;
 
-        // Update Local Product
-        await localDb.products.update(product.id, {
-          stock: newStock,
-          updatedAt: now
-        });
-        const updatedProduct = { ...product, stock: newStock, updatedAt: now };
-        affectedProducts.push(updatedProduct);
+          // Update Local Product
+          await localDb.products.update(product.id, {
+            stock: newStock,
+            updatedAt: now
+          });
+          const updatedProduct = { ...product, stock: newStock, updatedAt: now };
+          affectedProducts.push(updatedProduct);
 
-        // Queue Product Sync — STRIP stock: cloud stock is updated ONLY via stock_history trigger
-        // (absolute stock here would double-count with the trigger on the history insert below)
-        const remoteDeleteProduct = toRemoteProduct(updatedProduct);
-        delete remoteDeleteProduct.stock;
-        await queueOp('products', 'update', product.id, remoteDeleteProduct);
+          // Queue Product Sync — STRIP stock: cloud stock is updated ONLY via stock_history trigger
+          // (absolute stock here would double-count with the trigger on the history insert below)
+          const remoteDeleteProduct = toRemoteProduct(updatedProduct);
+          delete remoteDeleteProduct.stock;
+          await queueOp('products', 'update', product.id, remoteDeleteProduct);
 
-        // Log stock restoration as 'return' (delete is treated same as return for stock)
-        const histId = generateId();
-        const historyEntry = {
-          id: histId,
-          productId: product.id,
-          changeQty: qty,
-          type: 'return' as const,
-          referenceId: id,
-          note: `Sale #${sale.invoiceNumber} Deleted`,
-          balanceAfter: newStock,
-          cashierName: currentCashierName || sale.cashier || 'System',
-          createdAt: now
-        };
-        await localDb.stockHistory.add(historyEntry);
-        await queueOp('stock_history', 'create', histId, toRemoteStockHistory(historyEntry));
+          // Log stock restoration as 'return' (delete is treated same as return for stock)
+          const histId = generateId();
+          const historyEntry = {
+            id: histId,
+            productId: product.id,
+            changeQty: qty,
+            type: 'return' as const,
+            referenceId: id,
+            note: `Sale #${sale.invoiceNumber} Deleted`,
+            balanceAfter: newStock,
+            cashierName: currentCashierName || sale.cashier || 'System',
+            createdAt: now
+          };
+          await localDb.stockHistory.add(historyEntry);
+          returnMovements.push({
+            id: histId,
+            product_id: product.id,
+            change_qty: qty,
+            type: 'return',
+            note: `Sale #${sale.invoiceNumber} Deleted`,
+            variant_id: '',
+            variant_label: '',
+            cashier_name: currentCashierName || sale.cashier || 'System',
+          });
+          returnQueue.push({ entity: 'stock_history', histId, remote: toRemoteStockHistory(historyEntry), opts: undefined });
 
-        // --- VARIANT-LEVEL STOCK RESTORATION (mirror of sale deduction; cloud handled by variant trigger) ---
-        if (item.selectedVariantId && product.variantData) {
-          const variant = product.variantData.find(v => v.id === item.selectedVariantId);
-          if (variant) {
-            const newVariantStock = (variant.stock || 0) + qty;
-            const updatedVariantData = product.variantData.map(v =>
-              v.id === variant.id ? { ...v, stock: newVariantStock } : v
-            );
-            await localDb.products.update(product.id, {
-              variantData: updatedVariantData,
-              updatedAt: now
-            });
-            const vHistId = generateId();
-            const vHistEntry: VariantStockHistory = {
-              id: vHistId,
-              productId: product.id,
-              variantId: item.selectedVariantId,
-              variantLabel: item.selectedVariantLabel || variant.cardTitle || variant.option1,
-              changeQty: qty,
-              type: 'return',
-              referenceId: id,
-              note: `Sale #${sale.invoiceNumber} Deleted (Variant)`,
-              balanceAfter: newVariantStock,
-              cashierName: currentCashierName || sale.cashier || 'System',
-              createdAt: now,
-            };
-            await localDb.variantStockHistory.add(vHistEntry);
-            await queueOp('variant_stock_history', 'create', vHistId, toRemoteVariantStockHistory(vHistEntry));
+          // --- VARIANT-LEVEL STOCK RESTORATION (mirror of sale deduction; cloud handled by variant trigger) ---
+          if (item.selectedVariantId && product.variantData) {
+            const variant = product.variantData.find(v => v.id === item.selectedVariantId);
+            if (variant) {
+              const newVariantStock = (variant.stock || 0) + qty;
+              const updatedVariantData = product.variantData.map(v =>
+                v.id === variant.id ? { ...v, stock: newVariantStock } : v
+              );
+              await localDb.products.update(product.id, {
+                variantData: updatedVariantData,
+                updatedAt: now
+              });
+              const vHistId = generateId();
+              const vHistEntry: VariantStockHistory = {
+                id: vHistId,
+                productId: product.id,
+                variantId: item.selectedVariantId,
+                variantLabel: item.selectedVariantLabel || variant.cardTitle || variant.option1,
+                changeQty: qty,
+                type: 'return',
+                referenceId: id,
+                note: `Sale #${sale.invoiceNumber} Deleted (Variant)`,
+                balanceAfter: newVariantStock,
+                cashierName: currentCashierName || sale.cashier || 'System',
+                createdAt: now,
+              };
+              await localDb.variantStockHistory.add(vHistEntry);
+              returnMovements.push({
+                id: vHistId,
+                product_id: product.id,
+                change_qty: qty,
+                type: 'return',
+                note: `Sale #${sale.invoiceNumber} Deleted (Variant)`,
+                variant_id: item.selectedVariantId,
+                variant_label: item.selectedVariantLabel || variant.cardTitle || variant.option1,
+                cashier_name: currentCashierName || sale.cashier || 'System',
+              });
+              returnQueue.push({ entity: 'variant_stock_history', histId: vHistId, remote: toRemoteVariantStockHistory(vHistEntry), opts: undefined });
+            }
           }
+        } else if (product) {
+          affectedProducts.push(product);
         }
-      } else if (product) {
-        affectedProducts.push(product);
-      }
-      
-      // --- ADD-ON STOCK RESTORATION ---
-      if (item.addonItems && item.addonItems.length > 0) {
-        for (const addonItem of item.addonItems) {
-          const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
-          if (addonProduct && addonProduct.trackInventory) {
-            const addonQty = (addonItem.quantity * item.quantity) - (item.refundedQuantity ? addonItem.quantity * item.refundedQuantity : 0);
-            if (addonQty <= 0) continue;
-            
-            const newAddonStock = (addonProduct.stock || 0) + addonQty;
-            
-            await localDb.products.update(addonProduct.id, {
-              stock: newAddonStock,
-              updatedAt: now
-            });
-            const updatedAddonProduct = { ...addonProduct, stock: newAddonStock, updatedAt: now };
-            affectedProducts.push(updatedAddonProduct);
-            // STRIP stock — cloud stock is updated ONLY via stock_history trigger (avoids double-count)
-            const remoteDeleteAddon = toRemoteProduct(updatedAddonProduct);
-            delete remoteDeleteAddon.stock;
-            await queueOp('products', 'update', addonProduct.id, remoteDeleteAddon);
-            
-            const aHistId = generateId();
-            const aHistoryEntry = {
-              id: aHistId,
-              productId: addonProduct.id,
-              changeQty: addonQty,
-              type: 'return' as const,
-              referenceId: id,
-              note: `Sale #${sale.invoiceNumber} Deleted (Add-on)`,
-              balanceAfter: newAddonStock,
-              cashierName: currentCashierName || sale.cashier || 'System',
-              createdAt: now
-            };
-            await localDb.stockHistory.add(aHistoryEntry);
-            await queueOp('stock_history', 'create', aHistId, toRemoteStockHistory(aHistoryEntry));
+
+        // --- ADD-ON STOCK RESTORATION ---
+        if (item.addonItems && item.addonItems.length > 0) {
+          for (const addonItem of item.addonItems) {
+            const addonProduct = await localDb.products.get(addonItem.addon.addonProductId);
+            if (addonProduct && addonProduct.trackInventory) {
+              const addonQty = (addonItem.quantity * item.quantity) - (item.refundedQuantity ? addonItem.quantity * item.refundedQuantity : 0);
+              if (addonQty <= 0) continue;
+
+              const newAddonStock = (addonProduct.stock || 0) + addonQty;
+
+              await localDb.products.update(addonProduct.id, {
+                stock: newAddonStock,
+                updatedAt: now
+              });
+              const updatedAddonProduct = { ...addonProduct, stock: newAddonStock, updatedAt: now };
+              affectedProducts.push(updatedAddonProduct);
+              // STRIP stock — cloud stock is updated ONLY via stock_history trigger (avoids double-count)
+              const remoteDeleteAddon = toRemoteProduct(updatedAddonProduct);
+              delete remoteDeleteAddon.stock;
+              await queueOp('products', 'update', addonProduct.id, remoteDeleteAddon);
+
+              const aHistId = generateId();
+              const aHistoryEntry = {
+                id: aHistId,
+                productId: addonProduct.id,
+                changeQty: addonQty,
+                type: 'return' as const,
+                referenceId: id,
+                note: `Sale #${sale.invoiceNumber} Deleted (Add-on)`,
+                balanceAfter: newAddonStock,
+                cashierName: currentCashierName || sale.cashier || 'System',
+                createdAt: now
+              };
+              await localDb.stockHistory.add(aHistoryEntry);
+              returnMovements.push({
+                id: aHistId,
+                product_id: addonProduct.id,
+                change_qty: addonQty,
+                type: 'return',
+                note: `Sale #${sale.invoiceNumber} Deleted (Add-on)`,
+                variant_id: '',
+                variant_label: '',
+                cashier_name: currentCashierName || sale.cashier || 'System',
+              });
+              returnQueue.push({ entity: 'stock_history', histId: aHistId, remote: toRemoteStockHistory(aHistoryEntry), opts: undefined });
+            }
           }
         }
       }
     }
+
+    // 1b. Atomic cloud commit of reverse-stock movements (online) or fallback queue.
+    const onlineDel = typeof navigator === 'undefined' || navigator.onLine;
+    let returnsCommitted = false;
+    if (onlineDel && returnMovements.length > 0) {
+      returnsCommitted = await applyStockMovementsRemote(returnMovements);
+    }
+    if (!returnsCommitted) {
+      for (const q of returnQueue) {
+        await queueOp(q.entity, 'create', q.histId, q.remote, q.opts);
+      }
     }
 
     // 2. Hard-Delete: Permanently remove from local database
@@ -1965,7 +2108,11 @@ if (!skipStockEffects) {
     if (!sale) throw new Error('Sale not found');
 
     const now = new Date();
-    
+
+    // Phase 1: collect reverse-stock movements for atomic cloud commit.
+    const returnMovements: any[] = [];
+    const returnQueue: Array<{ entity: string; histId: string; remote: any; opts: any }> = [];
+
     const isFullRefund = !request || request.type === 'full';
     const itemsToReverse = isFullRefund ? sale.items.map((item, index) => {
       const originalQty = item.weight || item.quantity;
@@ -1983,10 +2130,10 @@ if (!skipStockEffects) {
     // 1. Reverse Stock Locally & Update Sale Items
     for (const reqItem of itemsToReverse) {
       if (reqItem.qty <= 0) continue;
-      
+
       const item = sale.items[reqItem.index];
       if (!item) continue;
-      
+
       // Update item's refunded quantity
       item.refundedQuantity = (item.refundedQuantity || 0) + reqItem.qty;
 
@@ -2013,7 +2160,17 @@ if (!skipStockEffects) {
           createdAt: now
         };
         await localDb.stockHistory.add(retHistEntry);
-        await queueOp('stock_history', 'create', retHistId, toRemoteStockHistory(retHistEntry), { batchId: id });
+        returnMovements.push({
+          id: retHistId,
+          product_id: product.id,
+          change_qty: qty,
+          type: 'return',
+          note: `Sale #${sale.invoiceNumber} Refunded`,
+          variant_id: '',
+          variant_label: '',
+          cashier_name: currentCashierName || sale.cashier || 'System',
+        });
+        returnQueue.push({ entity: 'stock_history', histId: retHistId, remote: toRemoteStockHistory(retHistEntry), opts: { batchId: id } });
 
         // --- VARIANT-LEVEL STOCK RESTORATION (mirror of sale deduction) ---
         if (item.selectedVariantId && product.variantData) {
@@ -2042,11 +2199,21 @@ if (!skipStockEffects) {
               createdAt: now,
             };
             await localDb.variantStockHistory.add(vRetHistEntry);
-            await queueOp('variant_stock_history', 'create', vRetHistId, toRemoteVariantStockHistory(vRetHistEntry), { batchId: id });
+            returnMovements.push({
+              id: vRetHistId,
+              product_id: product.id,
+              change_qty: reqItem.qty,
+              type: 'return',
+              note: `Sale #${sale.invoiceNumber} Refunded (Variant)`,
+              variant_id: item.selectedVariantId,
+              variant_label: item.selectedVariantLabel || variant.cardTitle || variant.option1,
+              cashier_name: currentCashierName || sale.cashier || 'System',
+            });
+            returnQueue.push({ entity: 'variant_stock_history', histId: vRetHistId, remote: toRemoteVariantStockHistory(vRetHistEntry), opts: { batchId: id } });
           }
         }
       }
-      
+
       // --- ADD-ON STOCK RESTORATION ---
       if (item.addonItems && item.addonItems.length > 0) {
         for (const addonItem of item.addonItems) {
@@ -2054,9 +2221,9 @@ if (!skipStockEffects) {
           if (addonProduct && addonProduct.trackInventory) {
             const addonQtyToRestore = reqItem.qty * addonItem.quantity;
             if (addonQtyToRestore <= 0) continue;
-            
+
             const newAddonStock = (addonProduct.stock || 0) + addonQtyToRestore;
-await localDb.products.update(addonProduct.id, {
+            await localDb.products.update(addonProduct.id, {
               stock: newAddonStock,
               updatedAt: now
             });
@@ -2064,7 +2231,7 @@ await localDb.products.update(addonProduct.id, {
             const remoteRefundAddon = toRemoteProduct({ ...addonProduct, stock: newAddonStock, updatedAt: now });
             delete remoteRefundAddon.stock;
             await queueOp('products', 'update', addonProduct.id, remoteRefundAddon, { batchId: id });
-            
+
             const aHistId = generateId();
             const aHistoryEntry = {
               id: aHistId,
@@ -2078,15 +2245,37 @@ await localDb.products.update(addonProduct.id, {
               createdAt: now
             };
             await localDb.stockHistory.add(aHistoryEntry);
-            await queueOp('stock_history', 'create', aHistId, toRemoteStockHistory(aHistoryEntry), { batchId: id });
+            returnMovements.push({
+              id: aHistId,
+              product_id: addonProduct.id,
+              change_qty: addonQtyToRestore,
+              type: 'return',
+              note: `Sale #${sale.invoiceNumber} Refunded (Add-on)`,
+              variant_id: '',
+              variant_label: '',
+              cashier_name: currentCashierName || sale.cashier || 'System',
+            });
+            returnQueue.push({ entity: 'stock_history', histId: aHistId, remote: toRemoteStockHistory(aHistoryEntry), opts: { batchId: id } });
           }
         }
       }
     }
-    
+
+    // 1b. Atomic cloud commit of reverse-stock movements (online) or fallback queue.
+    const onlineRet = typeof navigator === 'undefined' || navigator.onLine;
+    let returnsCommitted = false;
+    if (onlineRet && returnMovements.length > 0) {
+      returnsCommitted = await applyStockMovementsRemote(returnMovements);
+    }
+    if (!returnsCommitted) {
+      for (const q of returnQueue) {
+        await queueOp(q.entity, 'create', q.histId, q.remote, q.opts);
+      }
+    }
+
     // 2. Update sale record
     const newRefundedAmount = (sale.refundedAmount || 0) + totalRefundAmount;
-    
+
     // Check if fully refunded
     let allItemsFullyRefunded = true;
     for (const item of sale.items) {
@@ -2096,9 +2285,9 @@ await localDb.products.update(addonProduct.id, {
         break;
       }
     }
-    
+
     const finalStatus = allItemsFullyRefunded ? 'refunded' : 'partially_refunded';
-    
+
     const returnUpdate = {
       ...sale,
       items: sale.items, // updated with refundedQuantity
@@ -2106,7 +2295,7 @@ await localDb.products.update(addonProduct.id, {
       status: finalStatus as any,
       updatedAt: now
     };
-    
+
     await localDb.sales.put(returnUpdate); // use put instead of update to overwrite fully
 
     // 3. Queue RPC Sync
@@ -2152,7 +2341,7 @@ await localDb.products.update(addonProduct.id, {
   async patchLegacySales(onProgress?: (percent: number) => void): Promise<number> {
     const allSales = await localDb.sales.toArray();
     const toUpdate: any[] = [];
-    
+
     for (let i = 0; i < allSales.length; i++) {
       const sale = allSales[i];
       let needsPatch = false;
@@ -2185,7 +2374,7 @@ await localDb.products.update(addonProduct.id, {
     for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
       const chunk = toUpdate.slice(i, i + CHUNK_SIZE);
       await localDb.sales.bulkPut(chunk);
-      
+
       const remoteChunk = chunk
         .filter(sale => !sale.invoiceNumber?.startsWith('DRAFT-'))
         .map(toRemoteSale);
@@ -2195,15 +2384,15 @@ await localDb.products.update(addonProduct.id, {
         const { error } = await supabase.from('sales').upsert(remoteChunk, { onConflict: 'id' });
         if (error) console.error('Bulk sync failed for chunk:', error);
       }
-      
+
       if (onProgress) {
         onProgress(Math.floor(((i + chunk.length) / toUpdate.length) * 100));
       }
-      
+
       // Add a small delay to allow UI to breathe
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-    
+
     // Clear any stuck pending ops for sales updates to recover browsers that got locked up in previous repair attempts
     const pendingSalesUpdates = await localDb.pendingOps
       .filter(op => op.table === 'sales' && op.action === 'update')
@@ -2619,18 +2808,18 @@ export const purchaseRecordsService = {
       const product = await localDb.products.get(record.productId);
       if (product && record.type !== 'Adjustment') {
         const newStock = (product.stock || 0) + record.quantity;
-        
+
         // If it's a stock-in purchase, update the product's last cost price
-        const costUpdate = record.quantity > 0 && record.costPrice > 0 
-          ? { cost: record.costPrice } 
+        const costUpdate = record.quantity > 0 && record.costPrice > 0
+          ? { cost: record.costPrice }
           : {};
 
-        await localDb.products.update(product.id, { 
-          stock: newStock, 
+        await localDb.products.update(product.id, {
+          stock: newStock,
           ...costUpdate,
-          updatedAt: now 
+          updatedAt: now
         });
-        
+
         if (Object.keys(costUpdate).length > 0) {
           // STRIP stock — cloud stock is updated ONLY via stock_history trigger (avoids double-count)
           const remotePurchaseCostPayload = toRemoteProduct(
@@ -3144,7 +3333,7 @@ export const bundlesService = {
           const localItems = await localDb.bundleItems.toArray();
           const localSlots = await localDb.bundleSlots.toArray();
           const localSlotOptions = await localDb.bundleSlotOptions.toArray();
-          
+
           return local.map((b: any): Bundle => {
             const bundleSlots = localSlots
               .filter((s: any) => s.bundleId === b.id)
@@ -3152,13 +3341,13 @@ export const bundlesService = {
                 ...s,
                 options: localSlotOptions
                   .filter((opt: any) => opt.slotId === s.id)
-                .map((opt: any) => ({
+                  .map((opt: any) => ({
                     id: opt.id,
                     slotId: opt.slotId,
                     productId: opt.productId,
                     sortOrder: opt.sortOrder ?? 0,
                   }))
-                .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+                  .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
               }));
 
             return {
@@ -3205,7 +3394,7 @@ export const bundlesService = {
         await localDb.bundleItems.clear();
         await localDb.bundleSlots.clear();
         await localDb.bundleSlotOptions.clear();
-        
+
         if (bundles.length > 0) {
           await localDb.bundles.bulkPut(bundles.map((b: Bundle) => ({
             id: b.id,
@@ -3314,7 +3503,7 @@ export const bundlesService = {
 
     const slotRows: any[] = [];
     const optionRows: any[] = [];
-    
+
     if (data.slots) {
       data.slots.forEach(slot => {
         const slotId = generateId();
@@ -3639,7 +3828,7 @@ export const bundlesService = {
           }));
           const { error: insSlotsErr } = await supabase.from('bundle_slots').insert(insertSlotRows);
           if (insSlotsErr) throw insSlotsErr;
-          
+
           if (optionRows.length > 0) {
             const insertOptRows = optionRows.map(r => ({
               id: r.id, slot_id: r.slotId, product_id: r.productId, sort_order: r.sortOrder ?? 0, created_at: now
@@ -3655,26 +3844,26 @@ export const bundlesService = {
         if (Object.keys(updates).length > 1) {
           await queueOp('bundles', 'update', bundleId, updates);
         }
-        
+
         if (itemRows !== undefined) {
-           console.warn('Nested arrays (items) update offline may cause duplicates upon sync if not carefully handled.');
-           for (const item of itemRows) {
-             await queueOp('bundle_items', 'create', item.id, {
-               id: item.id, bundle_id: bundleId, product_id: item.productId, quantity: item.quantity, created_at: now
-             });
-           }
+          console.warn('Nested arrays (items) update offline may cause duplicates upon sync if not carefully handled.');
+          for (const item of itemRows) {
+            await queueOp('bundle_items', 'create', item.id, {
+              id: item.id, bundle_id: bundleId, product_id: item.productId, quantity: item.quantity, created_at: now
+            });
+          }
         }
         if (slotRows !== undefined && optionRows !== undefined) {
-           for (const slot of slotRows) {
-             await queueOp('bundle_slots', 'create', slot.id, {
-               id: slot.id, bundle_id: bundleId, name: slot.name, required_quantity: slot.requiredQuantity, order_index: slot.orderIndex, created_at: now
-             });
-           }
-           for (const opt of optionRows) {
-              await queueOp('bundle_slot_options', 'create', opt.id, {
-                id: opt.id, slot_id: opt.slotId, product_id: opt.productId, sort_order: opt.sortOrder ?? 0, created_at: now
-              });
-           }
+          for (const slot of slotRows) {
+            await queueOp('bundle_slots', 'create', slot.id, {
+              id: slot.id, bundle_id: bundleId, name: slot.name, required_quantity: slot.requiredQuantity, order_index: slot.orderIndex, created_at: now
+            });
+          }
+          for (const opt of optionRows) {
+            await queueOp('bundle_slot_options', 'create', opt.id, {
+              id: opt.id, slot_id: opt.slotId, product_id: opt.productId, sort_order: opt.sortOrder ?? 0, created_at: now
+            });
+          }
         }
       } else {
         throw e;
@@ -3855,16 +4044,7 @@ export const productToppingsService = {
 
 export interface ReconcileResult {
   ok: boolean;
-  mismatches: { 
-    productId: string; 
-    name: string; 
-    expected: number; 
-    actual: number; 
-    diff: number;
-    isVariant?: boolean;
-    parentProductId?: string;
-    variantId?: string;
-  }[];
+  mismatches: { productId: string; name: string; expected: number; actual: number; diff: number }[];
   totalChecked: number;
   fixed: number;
 }
@@ -3894,53 +4074,20 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
     expectedByProduct.set(row.product_id, (expectedByProduct.get(row.product_id) || 0) + qty);
   }
 
-  // 1b. Fetch FULL cloud variant_stock_history
-  const { data: variantHistoryRows } = await supabase
-    .from('variant_stock_history')
-    .select('variant_id, change_qty');
-
-  const expectedByVariant = new Map<string, number>();
-  for (const row of variantHistoryRows || []) {
-    const qty = Number(row.change_qty) || 0;
-    expectedByVariant.set(row.variant_id, (expectedByVariant.get(row.variant_id) || 0) + qty);
-  }
-
-  // 3. Fetch cloud products (including variant_data)
+  // 3. Fetch cloud products
   const { data: productRows, error: pErr } = await supabase
     .from('products')
-    .select('id, name, stock, variant_data');
+    .select('id, name, stock');
   if (pErr) throw new Error(`Cannot fetch products for audit: ${pErr.message}`);
 
   const mismatches: ReconcileResult['mismatches'] = [];
   let fixed = 0;
 
   for (const prod of productRows || []) {
-    // 1. Check main product stock
     const expected = expectedByProduct.get(prod.id) ?? 0;
     const actual = Number(prod.stock) || 0;
     if (expected !== actual) {
       mismatches.push({ productId: prod.id, name: prod.name || 'Unknown', expected, actual, diff: expected - actual });
-    }
-
-    // 2. Check variant stock
-    if (prod.variant_data && Array.isArray(prod.variant_data)) {
-      for (const variant of prod.variant_data) {
-        if (!variant.id) continue;
-        const vExpected = expectedByVariant.get(variant.id) ?? 0;
-        const vActual = Number(variant.stock) || 0;
-        if (vExpected !== vActual) {
-          mismatches.push({
-            productId: variant.id,
-            name: `${prod.name} - ${variant.label || 'Variant'}`,
-            expected: vExpected,
-            actual: vActual,
-            diff: vExpected - vActual,
-            isVariant: true,
-            parentProductId: prod.id,
-            variantId: variant.id
-          });
-        }
-      }
     }
   }
 
@@ -3954,99 +4101,35 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
       const changeQty = m.expected - m.actual;
       if (changeQty === 0) continue;
       const histId = generateId();
-
-      if (m.isVariant) {
-        // Variant autofix
-        const remoteEntry = {
-          id: histId,
-          variant_id: m.variantId,
-          product_id: m.parentProductId,
-          change_qty: changeQty,
-          type: 'adjustment',
-          reference_id: null,
-          note: `[RECONCILE] auto-fix variant: expected ${m.expected}, was ${m.actual}`,
-          balance_after: m.expected,
-          cashier_name: 'System',
-          created_at: now.toISOString(),
-        };
-        const localEntry = {
-          id: histId,
-          variantId: m.variantId!,
-          productId: m.parentProductId!,
-          changeQty,
-          type: 'adjustment' as const,
-          referenceId: undefined,
-          note: `[RECONCILE] auto-fix variant: expected ${m.expected}, was ${m.actual}`,
-          balanceAfter: m.expected,
-          cashierName: 'System',
-          createdAt: now,
-        };
-        await localDb.variantStockHistory.add(localEntry);
-        await queueOp('variant_stock_history', 'create', histId, remoteEntry);
-
-        // Update local variant stock safely
-        const pendingOps = await localDb.pendingOps
-          .filter(op => op.table === 'variant_stock_history' && op.status === 'pending')
-          .toArray();
-        const hasPending = pendingOps.some(op => {
-          try { return JSON.parse(op.payload).variant_id === m.variantId; }
-          catch { return false; }
-        });
-
-        if (!hasPending && m.parentProductId) {
-          const localProd = await localDb.products.get(m.parentProductId);
-          if (localProd && localProd.variant_data) {
-            const newVarData = localProd.variant_data.map(v => 
-              v.id === m.variantId ? { ...v, stock: m.expected } : v
-            );
-            await localDb.products.update(m.parentProductId, { variant_data: newVarData, updatedAt: now });
-          }
-        }
-      } else {
-        // Main product autofix
-        const remoteEntry = {
-          id: histId,
-          product_id: m.productId,
-          change_qty: changeQty,
-          type: 'adjustment',
-          reference_id: null,
-          note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
-          balance_after: m.expected,
-          cashier_name: 'System',
-          created_at: now.toISOString(),
-        };
-        const localEntry = {
-          id: histId,
-          productId: m.productId,
-          changeQty,
-          type: 'adjustment' as const,
-          referenceId: undefined,
-          note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
-          balanceAfter: m.expected,
-          cashierName: 'System',
-          createdAt: now,
-        };
-        await localDb.stockHistory.add(localEntry);
-        await queueOp('stock_history', 'create', histId, remoteEntry);
-        
-        // FIX (F21/F22) - Don't overwrite local stock if there are pending offline ops
-        const pendingOps = await localDb.pendingOps
-          .filter(op => op.table === 'stock_history' && op.status === 'pending')
-          .toArray();
-        const hasPendingForProduct = pendingOps.some(op => {
-          try { return JSON.parse(op.payload).product_id === m.productId; }
-          catch { return false; }
-        });
-
-        if (!hasPendingForProduct) {
-          // Align local product stock to the corrected value ONLY if no pending ops
-          const localProd = await localDb.products.get(m.productId);
-          if (localProd) {
-            await localDb.products.update(m.productId, { stock: m.expected, updatedAt: now });
-          }
-        } else {
-          console.warn(`[RECONCILE] Skipped local overwrite for ${m.productId} due to pending ops`);
-        }
+      const remoteEntry = {
+        id: histId,
+        product_id: m.productId,
+        change_qty: changeQty,
+        type: 'adjustment',
+        reference_id: `RECONCILE-${now.getTime()}`,
+        note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
+        balance_after: m.expected,
+        cashier_name: 'System',
+        created_at: now.toISOString(),
+      };
+      // Mirror the correction locally — the queued op applies it on the cloud too
+      const localEntry = {
+        id: histId,
+        productId: m.productId,
+        changeQty,
+        type: 'adjustment' as const,
+        referenceId: `RECONCILE-${now.getTime()}`,
+        note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
+        balanceAfter: m.expected,
+        cashierName: 'System',
+        createdAt: now,
+      };
+      await localDb.stockHistory.add(localEntry);
+      await queueOp('stock_history', 'create', histId, remoteEntry);
+      // Align local product stock to the corrected value
+      const localProd = await localDb.products.get(m.productId);
+      if (localProd) {
+        await localDb.products.update(m.productId, { stock: m.expected, updatedAt: now });
       }
       fixed++;
     }
