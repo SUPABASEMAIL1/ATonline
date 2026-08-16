@@ -858,6 +858,47 @@ async function autoRecoverErrors() {
 }
 
 /**
+ * SELF-HEAL (Fix #3): ops that exhausted BOTH the 25-retry attempt AND the
+ * 12 auto-recoveries (status 'error', autoRetryCount >= MAX_AUTO_RETRY) are
+ * re-queued for ANOTHER full cycle. This guarantees an op is NEVER permanently
+ * stuck — transient server hiccups eventually clear, so cloud can never
+ * diverge from local (no long-term audit/ledger gap).
+ *
+ * Genuinely permanent errors (orphaned FK, permission denied, constraint /
+ * RLS violations) are intentionally left for manual review (F20) — re-queuing
+ * them can never succeed and they never corrupt the cloud ledger anyway.
+ */
+async function reconcileStuckOps() {
+    const stuck = await localDb.pendingOps
+        .where('status').equals('error')
+        .filter(op => ((op as any).autoRetryCount || 0) >= MAX_AUTO_RETRY)
+        .toArray();
+
+    let reQueued = 0;
+    for (const op of stuck) {
+        const msg = (op.lastError || op.errorMessage || '').toLowerCase();
+        const isPermanent = msg.includes('orphaned record') ||
+            msg.includes('permission denied') ||
+            msg.includes('permission_denied') ||
+            msg.includes('foreign key') ||
+            msg.includes('check constraint') ||
+            msg.includes('invalid input syntax') ||
+            msg.includes('violates check constraint') ||
+            msg.includes('rls policy');
+        if (isPermanent) continue; // leave for manual review
+
+        await localDb.pendingOps.update(op.id!, { status: 'pending', retries: 0 });
+        reQueued++;
+    }
+
+    if (reQueued > 0) {
+        console.log(`[POS SYNC] Self-heal re-queued ${reQueued} stuck ops for another retry cycle.`);
+        window.dispatchEvent(new Event('pendingops-changed'));
+        syncToCloud().catch(() => { });
+    }
+}
+
+/**
  * Removes pending ops older than 7 days and enforces a hard size cap.
  * FINANCIAL SAFETY: only 'error' status ops are ever pruned — a pending
  * unsynced sale/bill must NEVER be silently dropped (would corrupt the cloud ledger).
@@ -1028,10 +1069,19 @@ export function startSyncEngine() {
         }
     }, 8000); // Fast 8-second polling when offline for true instant recovery
 
+    // SELF-HEAL: re-queue permanently-stuck ops every 15 minutes so cloud can
+    // never diverge from local on transient failures.
+    setInterval(() => {
+        if (navigator.onLine) {
+            reconcileStuckOps();
+        }
+    }, 15 * 60 * 1000);
+
     // 1-hour auto-recovery and maintenance timer
     setInterval(() => {
         if (navigator.onLine) {
             autoRecoverErrors();
+            reconcileStuckOps();
             pruneStaleOps();
             pruneOldStockHistory();
             pruneExpiredCancelledOrders();

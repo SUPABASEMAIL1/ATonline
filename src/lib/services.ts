@@ -81,6 +81,55 @@ export async function applyStockMovementsRemote(movements: any[]): Promise<boole
 }
 
 /**
+ * Atomic sale delete: reverse stock (stock_history/variant_stock_history) AND
+ * hard-delete the sale in ONE cloud transaction. Idempotent via RPC.
+ * p_history may be [] for sales that need no stock reversal (e.g. drafts).
+ */
+export async function deleteSaleAtomic(saleId: string, movements: any[]): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    if (movements.length === 0) {
+      const { error } = await (supabase as any).rpc('delete_sale_atomic', {
+        p_sale_id: saleId,
+        p_history: [],
+      });
+      if (error) { console.error('[delete_sale_atomic] RPC error:', error.message); return false; }
+      return true;
+    }
+    const { error } = await (supabase as any).rpc('delete_sale_atomic', {
+      p_sale_id: saleId,
+      p_history: movements,
+    });
+    if (error) { console.error('[delete_sale_atomic] RPC error:', error.message); return false; }
+    return true;
+  } catch (e: any) {
+    console.error('[delete_sale_atomic] exception:', e?.message || e);
+    return false;
+  }
+}
+
+/**
+ * Atomic refund: reverse stock AND update sale status/refunded_amount in ONE
+ * cloud transaction. p_refunded_amount is the ABSOLUTE new total (idempotent on retry).
+ */
+export async function refundSaleAtomic(saleId: string, movements: any[], status: string, refundedAmount: number): Promise<boolean> {
+  try {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    const { error } = await (supabase as any).rpc('refund_sale_atomic', {
+      p_sale_id: saleId,
+      p_history: movements,
+      p_status: status,
+      p_refunded_amount: refundedAmount,
+    });
+    if (error) { console.error('[refund_sale_atomic] RPC error:', error.message); return false; }
+    return true;
+  } catch (e: any) {
+    console.error('[refund_sale_atomic] exception:', e?.message || e);
+    return false;
+  }
+}
+
+/**
  * Generic helper to fetch all rows across pagination limits (default 1000) for full cache initialization or delta sync.
  */
 export async function fetchAllPages(queryFn: () => any, limit = 1000): Promise<any[]> {
@@ -1986,23 +2035,27 @@ export const salesService = {
       }
     }
 
-    // 1b. Atomic cloud commit of reverse-stock movements (online) or fallback queue.
+    // 1b. Atomic cloud commit: reverse stock + hard-delete sale in ONE tx (online).
     const onlineDel = typeof navigator === 'undefined' || navigator.onLine;
-    let returnsCommitted = false;
-    if (onlineDel && returnMovements.length > 0) {
-      returnsCommitted = await applyStockMovementsRemote(returnMovements);
+    let deleteCommitted = false;
+    if (onlineDel) {
+      deleteCommitted = await deleteSaleAtomic(id, returnMovements);
     }
-    if (!returnsCommitted) {
-      for (const q of returnQueue) {
-        await queueOp(q.entity, 'create', q.histId, q.remote, q.opts);
+    if (!deleteCommitted) {
+      // Fallback: reverse stock via RPC-or-queue, then queue the sale hard-delete.
+      if (returnMovements.length > 0) {
+        const stockOk = await applyStockMovementsRemote(returnMovements);
+        if (!stockOk) {
+          for (const q of returnQueue) {
+            await queueOp(q.entity, 'create', q.histId, q.remote, q.opts);
+          }
+        }
       }
+      await queueOp('sales', 'delete', id, {});
     }
 
     // 2. Hard-Delete: Permanently remove from local database
     await localDb.sales.delete(id);
-
-    // 3. Queue Sync for Sale Hard-Deletion
-    await queueOp('sales', 'delete', id, {});
 
     // 4. Reverse Customer Credit/Stats if it was a credit sale (Only if not already deleted)
     //    Drafts never touched customer stats, so they must not be reversed either.
@@ -2255,17 +2308,7 @@ export const salesService = {
       }
     }
 
-    // 1b. Atomic cloud commit of reverse-stock movements (online) or fallback queue.
-    const onlineRet = typeof navigator === 'undefined' || navigator.onLine;
-    let returnsCommitted = false;
-    if (onlineRet && returnMovements.length > 0) {
-      returnsCommitted = await applyStockMovementsRemote(returnMovements);
-    }
-    if (!returnsCommitted) {
-      for (const q of returnQueue) {
-        await queueOp(q.entity, 'create', q.histId, q.remote, q.opts);
-      }
-    }
+    // (stock + status are committed atomically further below, after finalStatus is known)
 
     // 2. Update sale record
     const newRefundedAmount = (sale.refundedAmount || 0) + totalRefundAmount;
@@ -2292,12 +2335,31 @@ export const salesService = {
 
     await localDb.sales.put(returnUpdate); // use put instead of update to overwrite fully
 
-    // 3. Queue RPC Sync
-    await queueOp('sales', 'update', id, {
-      ...toRemoteSale(returnUpdate),
-      status: finalStatus,
-      updated_at: now.toISOString()
-    }, { batchId: id });
+    // 1b. Atomic cloud commit: reverse stock + update status in ONE tx (online).
+    const onlineRet = typeof navigator === 'undefined' || navigator.onLine;
+    let returnsCommitted = false;
+    if (onlineRet) {
+      returnsCommitted = await refundSaleAtomic(id, returnMovements, finalStatus, newRefundedAmount);
+    }
+    if (!returnsCommitted) {
+      if (returnMovements.length > 0) {
+        const stockOk = await applyStockMovementsRemote(returnMovements);
+        if (!stockOk) {
+          for (const q of returnQueue) {
+            await queueOp(q.entity, 'create', q.histId, q.remote, q.opts);
+          }
+        }
+      }
+    }
+
+    // 3. Queue RPC Sync (legacy fallback only — atomic refund already handled cloud)
+    if (!returnsCommitted) {
+      await queueOp('sales', 'update', id, {
+        ...toRemoteSale(returnUpdate),
+        status: finalStatus,
+        updated_at: now.toISOString()
+      }, { batchId: id });
+    }
 
     // 4. Reverse Customer Stats
     if (sale.customerId && totalRefundAmount > 0) {
