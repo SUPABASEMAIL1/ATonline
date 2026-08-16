@@ -32,9 +32,9 @@
 --   18. toppings               Pizza topping add-ons (Cheese/Chicken/Veggie)
 --   19. product_toppings        Per-product topping availability
 --   20. bundle_slot_toppings    Per-slot topping availability
--- FUNCTIONS (9): update_updated_at_column, generate_invoice_number,
+-- FUNCTIONS (8): update_updated_at_column, generate_invoice_number,
 --                 auto_generate_invoice_number, update_customer_stats,
---                 handle_new_user, is_admin, get_my_workspace_id,
+--                 handle_new_user, get_my_workspace_id,
 --                 audit_stock_integrity, audit_missing_purchase_cost
 -- ================================================================
 --
@@ -1034,6 +1034,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_status             ON sales(status);
 CREATE INDEX IF NOT EXISTS idx_sales_payment_method     ON sales(payment_method);
 CREATE INDEX IF NOT EXISTS idx_sales_cashier            ON sales(cashier);
 CREATE INDEX IF NOT EXISTS idx_sales_created_at_status  ON sales(created_at, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_source_order_id ON sales(source_order_id) WHERE source_order_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_sale_date          ON sales(sale_date);
 
 
@@ -1259,23 +1260,18 @@ DECLARE
     counter INTEGER;
     new_invoice_number TEXT;
 BEGIN
-    SELECT invoice_prefix, invoice_counter
-    INTO prefix, counter
-    FROM app_settings LIMIT 1;
+    -- Atomic increment: a single UPDATE...RETURNING locks the row and assigns a
+    -- unique, monotonic counter even under concurrent callers (no SELECT-then-UPDATE
+    -- race that could hand out the same invoice number twice).
+    UPDATE app_settings
+    SET invoice_counter = COALESCE(invoice_counter, 1000) + 1,
+        updated_at = timezone('utc'::text, now())
+    WHERE id = '00000000-0000-4000-8000-000000000001'
+    RETURNING invoice_counter, invoice_prefix
+    INTO counter, prefix;
 
     IF prefix IS NULL THEN prefix := 'INV'; END IF;
-    IF counter IS NULL THEN counter := 1000; END IF;
-
-    loop
-        new_invoice_number := prefix || '-' || LPAD(counter::TEXT, 6, '0');
-        -- Advance the counter every call so concurrent callers never collide
-        UPDATE app_settings
-        SET invoice_counter = counter + 1,
-            updated_at = timezone('utc'::text, now());
-        counter := counter + 1;
-        EXIT;
-    end loop;
-
+    new_invoice_number := prefix || '-' || LPAD(counter::TEXT, 6, '0');
     RETURN new_invoice_number;
 END;
 $$ LANGUAGE plpgsql;
@@ -1362,18 +1358,6 @@ DO $$ BEGIN
       FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-
--- ── Admin-check helper (avoids RLS recursion on users table) ──
-CREATE OR REPLACE FUNCTION is_admin()
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN (
-    SELECT role = 'admin'
-    FROM users
-    WHERE id = auth.uid()
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ── Workspace-check helper (single-tenant: returns current user id) ──
 CREATE OR REPLACE FUNCTION get_my_workspace_id()
@@ -2171,50 +2155,6 @@ ALTER TABLE bundles
   ADD COLUMN IF NOT EXISTS badge_bg_color TEXT DEFAULT '#1A1A1A',
   ADD COLUMN IF NOT EXISTS badge_text_color TEXT DEFAULT '#D4AF37';
 
--- ════════════════════════════════════════════════════════════════
--- IDEMPOTENT: Create new tables for existing DBs
--- ════════════════════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS variant_stock_history (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  variant_id TEXT NOT NULL,
-  variant_label TEXT,
-  change_qty INTEGER NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('sale', 'return', 'adjustment', 'initial', 'purchase', 'stock_in', 'adjustment_out')),
-  reference_id UUID,
-  note TEXT,
-  balance_after INTEGER,
-  cashier_name TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_variant_stock_history_product ON variant_stock_history(product_id);
-CREATE INDEX IF NOT EXISTS idx_variant_stock_history_variant ON variant_stock_history(product_id, variant_id);
-CREATE INDEX IF NOT EXISTS idx_variant_stock_history_date ON variant_stock_history(created_at DESC);
-
-GRANT ALL ON variant_stock_history TO anon, authenticated, service_role;
-
-CREATE TABLE IF NOT EXISTS product_addons (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  addon_product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  price DECIMAL(10,2) NOT NULL DEFAULT 0,
-  max_qty INTEGER NOT NULL DEFAULT 1,
-  active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(product_id, addon_product_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_product_addons_product ON product_addons(product_id);
-CREATE INDEX IF NOT EXISTS idx_product_addons_addon ON product_addons(addon_product_id);
-
-GRANT ALL ON product_addons TO anon, authenticated, service_role;
-
--- ════════════════════════════════════════════════════════════════
 -- 24. TOPPINGS (Pizza topping add-ons)
 -- ════════════════════════════════════════════════════════════════
 
@@ -2328,7 +2268,9 @@ ALTER TABLE sales
   ADD COLUMN IF NOT EXISTS deleted_at           TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS source_order_id      UUID REFERENCES store_orders(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS idx_sales_source_order_id ON sales(source_order_id);
+-- NOTE: the (UNIQUE, partial) index idx_sales_source_order_id already exists in the
+-- commit_sale idempotency block above (covers source_order_id IS NOT NULL). A second
+-- non-unique index with the same name would conflict, so it is intentionally not added here.
 
 -- POST-LAUNCH ALTER TABLE: sales — Salesman Tracking
 ALTER TABLE sales
@@ -2345,43 +2287,6 @@ END $$;
 -- Fix Estore Oversell Bug: Reserve stock upon order placement
 -- (fixed 2026-08-12: delivery_address column — app sends delivery_address;
 --  reference_id UUID cast fix; variant-aware reservation F22)
-CREATE OR REPLACE FUNCTION place_estore_order(order_data jsonb)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    new_order_id uuid;
-BEGIN
-    -- 1. Insert into store_orders (NO stock effect — POS bill deducts later)
-    INSERT INTO store_orders (
-        invoice_number, customer_id, customer_name, customer_phone,
-        delivery_address, customer_notes, items, subtotal, discount_amount,
-        tax_amount, total, payment_method, status, cashier,
-        delivery_location_lat, delivery_location_lng, delivery_fee
-    ) VALUES (
-        order_data->>'invoice_number',
-        (order_data->>'customer_id')::uuid,
-        order_data->>'customer_name',
-        order_data->>'customer_phone',
-        COALESCE(order_data->>'delivery_address', order_data->>'address'),
-        order_data->>'customer_notes',
-        order_data->'items',
-        (order_data->>'subtotal')::numeric,
-        (order_data->>'discount_amount')::numeric,
-        (order_data->>'tax_amount')::numeric,
-        (order_data->>'total')::numeric,
-        order_data->>'payment_method',
-        order_data->>'status',
-        order_data->>'cashier',
-        (order_data->>'delivery_location_lat')::numeric,
-        (order_data->>'delivery_location_lng')::numeric,
-        (order_data->>'delivery_fee')::numeric
-    ) RETURNING id INTO new_order_id;
-
-    RETURN jsonb_build_object('success', true, 'order_id', new_order_id);
-END;
-$$;
 
 -- Estore policy (2026-08-12): NO stock effect at placement — inventory moves
 -- ONLY when the POS bills the order (sale create = normal sale path deduction).
@@ -2650,73 +2555,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION audit_stock_integrity_history() TO anon, authenticated;
 -- Fix Estore Oversell Bug: Reserve stock upon order placement
-CREATE OR REPLACE FUNCTION place_estore_order(order_data jsonb)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    new_order_id uuid;
-    item jsonb;
-    product_rec record;
-    new_stock integer;
-BEGIN
-    -- 1. Insert into store_orders
-    INSERT INTO store_orders (
-        invoice_number, customer_id, customer_name, customer_phone,
-        address, customer_notes, items, subtotal, discount_amount,
-        tax_amount, total, payment_method, status, cashier,
-        delivery_location_lat, delivery_location_lng,
-        delivery_fee, table_number, fulfillment_mode
-    ) VALUES (
-        order_data->>'invoice_number',
-        (order_data->>'customer_id')::uuid,
-        order_data->>'customer_name',
-        order_data->>'customer_phone',
-        order_data->>'address',
-        order_data->>'customer_notes',
-        order_data->'items',
-        (order_data->>'subtotal')::numeric,
-        (order_data->>'discount_amount')::numeric,
-        (order_data->>'tax_amount')::numeric,
-        (order_data->>'total')::numeric,
-        order_data->>'payment_method',
-        order_data->>'status',
-        order_data->>'cashier',
-        (order_data->>'delivery_location_lat')::numeric,
-        (order_data->>'delivery_location_lng')::numeric,
-        (order_data->>'delivery_fee')::numeric,
-        order_data->>'table_number',
-        order_data->>'fulfillment_mode'
-    ) RETURNING id INTO new_order_id;
-
-    -- 2. Deduct stock for each item by inserting into stock_history
-    -- (The on_stock_history_insert trigger will automatically update products.stock)
-    FOR item IN SELECT * FROM jsonb_array_elements(order_data->'items')
-    LOOP
-        -- Check if product tracks inventory
-        SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
-        
-        IF product_rec.track_inventory = true THEN
-            INSERT INTO stock_history (
-                product_id, change_qty, type, reference_id, note, cashier_name
-            ) VALUES (
-                product_rec.id,
-                -((item->>'quantity')::integer),
-                'sale',
-                new_order_id::text,
-                'Estore Reservation: ' || (order_data->>'invoice_number'),
-                'ONLINE_STORE'
-            );
-        END IF;
-    END LOOP;
-
-    RETURN jsonb_build_object('success', true, 'order_id', new_order_id);
-END;
-$$;
 
 -- Grant execute to anon
-GRANT EXECUTE ON FUNCTION place_estore_order(jsonb) TO anon;
 -- Issue: trigger_release_estore_stock released +qty on ANY transition to 'cancelled'.
 -- If an order was already FULFILLED (sale converted — goods sold, stock already
 -- deducted at sale commit / restored at sale refund), cancelling the order released
@@ -2774,84 +2614,7 @@ EXECUTE FUNCTION public.trigger_release_estore_stock();-- 20260812235500_fix_est
 --      variant items would silently not reserve; app routes variant orders
 --      through variant_stock_history on the POS side; RPC reserves products only.
 
-CREATE OR REPLACE FUNCTION place_estore_order(order_data jsonb)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    new_order_id uuid;
-    item jsonb;
-    product_rec record;
-    variant_rec record;
-BEGIN
-    -- 1. Insert into store_orders
-    INSERT INTO store_orders (
-        invoice_number, customer_id, customer_name, customer_phone,
-        delivery_address, customer_notes, items, subtotal, discount_amount,
-        tax_amount, total, payment_method, status, cashier,
-        delivery_location_lat, delivery_location_lng, delivery_fee
-    ) VALUES (
-        order_data->>'invoice_number',
-        (order_data->>'customer_id')::uuid,
-        order_data->>'customer_name',
-        order_data->>'customer_phone',
-        COALESCE(order_data->>'delivery_address', order_data->>'address'),
-        order_data->>'customer_notes',
-        order_data->'items',
-        (order_data->>'subtotal')::numeric,
-        (order_data->>'discount_amount')::numeric,
-        (order_data->>'tax_amount')::numeric,
-        (order_data->>'total')::numeric,
-        order_data->>'payment_method',
-        order_data->>'status',
-        order_data->>'cashier',
-        (order_data->>'delivery_location_lat')::numeric,
-        (order_data->>'delivery_location_lng')::numeric,
-        (order_data->>'delivery_fee')::numeric
-    ) RETURNING id INTO new_order_id;
 
-    -- 2. Reserve stock for each tracked item (F22: variant-aware)
-    --    product-level stock → stock_history (trigger updates products.stock)
-    --    variant item    → variant_stock_history (trigger updates variant_data)
-    FOR item IN SELECT * FROM jsonb_array_elements(order_data->'items')
-    LOOP
-        SELECT id, track_inventory INTO product_rec FROM products WHERE id = (item->'product'->>'id')::uuid;
-        IF product_rec.track_inventory IS TRUE THEN
-            IF item ? 'variantId' AND item->>'variantId' IS NOT NULL AND item->>'variantId' != '' THEN
-                INSERT INTO variant_stock_history (
-                    product_id, variant_id, variant_label, change_qty, type,
-                    reference_id, note, cashier_name
-                ) VALUES (
-                    product_rec.id,
-                    item->>'variantId',
-                    item->>'variantLabel',
-                    -((item->>'quantity')::integer),
-                    'sale',
-                    new_order_id,
-                    'Estore Reservation: ' || (order_data->>'invoice_number'),
-                    'ONLINE_STORE'
-                );
-            ELSE
-                INSERT INTO stock_history (
-                    product_id, change_qty, type, reference_id, note, cashier_name
-                ) VALUES (
-                    product_rec.id,
-                    -((item->>'quantity')::integer),
-                    'sale',
-                    new_order_id,
-                    'Estore Reservation: ' || (order_data->>'invoice_number'),
-                    'ONLINE_STORE'
-                );
-            END IF;
-        END IF;
-    END LOOP;
-
-    RETURN jsonb_build_object('success', true, 'order_id', new_order_id);
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION place_estore_order(jsonb) TO anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION trigger_release_estore_stock()
 RETURNS TRIGGER
@@ -3144,6 +2907,13 @@ DECLARE
   v_id uuid;
   h jsonb;
 BEGIN
+  -- Idempotent fulfilment: never bill the same online order twice.
+  IF p_sale->>'source_order_id' IS NOT NULL AND p_sale->>'source_order_id' <> '' THEN
+    IF EXISTS (SELECT 1 FROM sales WHERE source_order_id = (p_sale->>'source_order_id')::uuid) THEN
+      RETURN jsonb_build_object('success', true, 'id', (SELECT id FROM sales WHERE source_order_id = (p_sale->>'source_order_id')::uuid), 'already_fulfilled', true);
+    END IF;
+  END IF;
+
   INSERT INTO sales (
     id, invoice_number, customer_id, customer_name, customer_phone,
     items, subtotal, discount_amount, bill_discount_value, bill_discount_type,

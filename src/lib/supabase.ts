@@ -30,29 +30,21 @@ export const getSupabase = (): SupabaseClient => {
   return supabaseInstance
 }
 
-let adminSupabaseInstance: SupabaseClient | null = null
-
-export const getAdminSupabase = (): SupabaseClient => {
-  if (!adminSupabaseInstance) {
-    if (!import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Supabase Service Role Key is missing in environment variables');
-    }
-    adminSupabaseInstance = createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        }
-      }
-    )
-  }
-  return adminSupabaseInstance
-}
-
 export const supabase = getSupabase()
-export const adminSupabase = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ? getAdminSupabase() : null
+
+/**
+ * Server-side admin user operations are handled by the `admin-users` Edge Function
+ * (supabase/functions/admin-users). The service-role key lives ONLY on the server
+ * (Deno.env) and is NEVER shipped to the browser bundle. Client code must call this
+ * helper — never instantiate an admin client with VITE_SUPABASE_SERVICE_ROLE_KEY.
+ */
+export async function adminUserAction(action: string, payload: any): Promise<any> {
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    body: { action, payload },
+  })
+  if (error) throw new Error(error.message || 'Admin user action failed');
+  return (data as any)?.data
+}
 
 // ── Refresh token management (prevents retry storm on DNS failure) ─────────
 const AUTH_KEY = 'sb-zaynah-pos-auth-auth-token';

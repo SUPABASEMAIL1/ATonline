@@ -5,7 +5,7 @@ import { User as UserType } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { usersService } from '../../lib/services';
-import { supabase, adminSupabase } from '../../lib/supabase';
+import { supabase, adminUserAction } from '../../lib/supabase';
 import { sonner } from '../../lib/sonner';
 import { hashPasswordString } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
@@ -13,14 +13,6 @@ import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { MediaLibrary } from '../inventory/MediaLibrary';
 import { Button, ToggleSwitch } from '../../shared/ui';
-
-if (typeof window !== 'undefined') {
-  console.warn(
-    '[SECURITY] UserModal imports adminSupabase (service_role key) in client bundle. ' +
-    'This is required for auth user creation but exposes the key in browser JS. ' +
-    'For production, move adminSupabase.auth.admin calls to a server/edge function.'
-  );
-}
 
 interface UserModalProps {
   isOpen: boolean;
@@ -114,11 +106,11 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
         if (formData.password && formData.password.length >= 6) {
           try {
             if (false) throw new Error('Only admins can update user passwords');
-            if (!adminSupabase) throw new Error('Admin client not initialized (missing service key)');
-            const { error: authError } = await adminSupabase.auth.admin.updateUserById(user.id, {
-              password: formData.password
+            const { error: authError } = await adminUserAction('updateUser', {
+              id: user.id,
+              updates: { password: formData.password },
             });
-            if (authError) throw authError;
+            if (authError) throw new Error(authError);
           } catch (adminErr) {
             console.warn('[UserModal] Admin password update failed:', adminErr);
           }
@@ -177,9 +169,6 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
         if (false) {
           throw new Error('Permission denied — only admins can create users');
         }
-        if (!adminSupabase) {
-          throw new Error('Permission denied — admin access required (missing service key)');
-        }
 
         const normalizedUsername = formData.username.trim().toLowerCase();
         const resolvedEmail = formData.email.trim()
@@ -187,7 +176,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           : `${normalizedUsername}.${Date.now().toString(36)}@pos.local`;
 
         const hash = await hashPasswordString(formData.password);
-        const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+        const { data: authData, error: authError } = await adminUserAction('createUser', {
           email: resolvedEmail,
           password: formData.password,
           email_confirm: true,
@@ -195,10 +184,10 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
             username: formData.username,
             full_name: formData.name,
             role: formData.role,
-          }
+          },
         });
 
-        if (authError) throw authError;
+        if (authError) throw new Error(authError);
 
         const authUser = authData.user;
 

@@ -6,6 +6,7 @@ import { Product, CartItemTopping } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { getCurrencySymbol } from '../../lib/currencies';
 import { settingsService, bundlesService } from '../../lib/services';
+import { normalizeBarcodeValue } from '../../utils/barcode';
 import { sonner } from '../../lib/sonner';
 import { useTranslation } from '../../hooks/useTranslation';
 import { ComboSelectionModal } from './ComboSelectionModal';
@@ -114,12 +115,12 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
     if (term.length < 3) return;
 
     const timer = setTimeout(() => {
-      const normalizedTerm = term.toUpperCase().replace(/O/g, '0');
+      const normalizedTerm = normalizeBarcodeValue(term);
 
       const found = state.products.find((p: Product) => {
-        const pBarcode = (p.barcode || '').toUpperCase().replace(/O/g, '0');
-        const pSku = (p.sku || '').toUpperCase().replace(/O/g, '0');
-        const pBarcodeVal = (p.barcodeValue || '').toUpperCase().replace(/O/g, '0');
+        const pBarcode = normalizeBarcodeValue(p.barcode);
+        const pSku = normalizeBarcodeValue(p.sku);
+        const pBarcodeVal = normalizeBarcodeValue(p.barcodeValue);
 
         const exactMatch = (p.barcodeValue && p.barcodeValue.toLowerCase() === term.toLowerCase()) ||
           (p.barcode && p.barcode.toLowerCase() === term.toLowerCase()) ||
@@ -149,12 +150,12 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
       if (barcode.length < 2) return;
       e.preventDefault();
 
-      const normalizedBarcode = barcode.toUpperCase().replace(/O/g, '0');
+      const normalizedBarcode = normalizeBarcodeValue(barcode);
 
       const found = state.products.find((p: Product) => {
-        const pBarcode = (p.barcode || '').toUpperCase().replace(/O/g, '0');
-        const pSku = (p.sku || '').toUpperCase().replace(/O/g, '0');
-        const pBarcodeVal = (p.barcodeValue || '').toUpperCase().replace(/O/g, '0');
+        const pBarcode = normalizeBarcodeValue(p.barcode);
+        const pSku = normalizeBarcodeValue(p.sku);
+        const pBarcodeVal = normalizeBarcodeValue(p.barcodeValue);
 
         if (p.barcodeValue === barcode || p.barcode === barcode || p.sku === barcode) return true;
         return pBarcodeVal === normalizedBarcode || pBarcode === normalizedBarcode || pSku === normalizedBarcode;
@@ -437,7 +438,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
             const term = code.trim();
             setSearchTerm(term); // Always enter text in search bar
 
-            const normalizedCode = term.toUpperCase().replace(/O/g, '0');
+            const normalizedCode = normalizeBarcodeValue(term);
 
             const product = state.products.find((p: Product) => {
               const pBarcode = (p.barcode || '').toUpperCase().replace(/O/g, '0');

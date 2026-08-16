@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, adminUserAction } from './supabase';
 import {
   Product,
   Customer,
@@ -1002,6 +1002,38 @@ export const productsService = {
       );
     }
 
+    // DUPLICATE BARCODE PREVENTION (RULE F1) — a duplicate barcode causes a 23505
+    // unique-constraint failure on sync, which would block the product from ever
+    // reaching the cloud. Guard both remote and local.
+    if (product.barcode && product.barcode.trim()) {
+      const bc = product.barcode.trim();
+      if (navigator.onLine) {
+        try {
+          const { data: barcodeDup } = await supabase
+            .from('products')
+            .select('id, name, barcode')
+            .eq('barcode', bc)
+            .maybeSingle();
+          if (barcodeDup) {
+            throw new Error(
+              `Barcode "${bc}" already assigned to product "${barcodeDup.name}". Use a unique barcode.`
+            );
+          }
+        } catch (err: any) {
+          if (err?.message?.includes('already assigned')) throw err;
+          console.warn('[ProductsService] Barcode duplicate check failed:', err);
+        }
+      }
+      const localDup = await localDb.products
+        .filter(p => p.barcode && p.barcode.trim().toLowerCase() === bc.toLowerCase())
+        .first();
+      if (localDup) {
+        throw new Error(
+          `Barcode "${bc}" already assigned to product "${localDup.name}". Use a unique barcode.`
+        );
+      }
+    }
+
     const id = generateId();
     const now = new Date();
     const barcodeVal = product.barcodeValue || product.barcode || generateBarcodeValue(product.name || id);
@@ -1445,6 +1477,13 @@ export const usersService = {
   async delete(id: string): Promise<void> {
     await localDb.users.delete(id);
     queueOp('users', 'delete', id, {});
+    // Also remove the underlying auth user so a "deleted" login can never be used again.
+    // Routed through the server-side admin-users Edge Function (key never in browser).
+    try {
+      await adminUserAction('deleteUser', { id });
+    } catch (err) {
+      console.warn('[usersService] Could not delete auth user via edge function:', err);
+    }
   }
 };
 
@@ -2098,6 +2137,8 @@ export const salesService = {
       .filter(s =>
         s.status !== 'refunded' &&
         s.status !== 'deleted' &&
+        s.status !== 'pending' &&
+        !s.notes?.includes('DRAFT_SALE') &&
         new Date(s.timestamp) >= startDate &&
         new Date(s.timestamp) <= endDate
       )
@@ -2126,6 +2167,7 @@ export const salesService = {
           s.status !== 'refunded' &&
           s.status !== 'deleted' &&
           s.status !== 'pending' &&
+          !s.notes?.includes('DRAFT_SALE') &&
           new Date(s.timestamp) >= startDate &&
           new Date(s.timestamp) <= endDate
         )
@@ -2637,7 +2679,7 @@ export const suppliersService = {
     }));
   },
 
-  async recordPayment(data: { supplier_id: string; amount: number; payment_type: string; note?: string; isManualOverride?: boolean; overrideBy?: string }) {
+  async recordPayment(data: { supplier_id: string; amount: number; payment_type: string; note?: string; isManualOverride?: boolean; overrideBy?: string; expenseId?: string }) {
     const id = generateId();
     const tx: any = {
       id,
@@ -2649,6 +2691,7 @@ export const suppliersService = {
       paymentType: data.payment_type,
       isManualOverride: data.isManualOverride || false,
       overrideBy: data.overrideBy || undefined,
+      expenseId: data.expenseId,
       createdAt: new Date()
     };
     await localDb.supplierTransactions.add(tx);
@@ -2678,6 +2721,17 @@ export const suppliersService = {
   },
 
   async deleteTransaction(id: string) {
+    // Cascade: a supplier PAYMENT also creates a linked expense row.
+    // Delete the orphaned expense too, otherwise expense totals stay inflated.
+    try {
+      const tx: any = await localDb.supplierTransactions.get(id);
+      if (tx?.expenseId) {
+        await localDb.expenses.delete(tx.expenseId);
+        queueOp('expenses', 'delete', tx.expenseId, {});
+      }
+    } catch (e) {
+      console.warn('deleteTransaction: failed to cascade expense cleanup', e);
+    }
     await localDb.supplierTransactions.delete(id);
     queueOp('supplier_transactions', 'delete', id, {});
   },
@@ -4314,4 +4368,79 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
     totalChecked: productRows?.length || 0,
     fixed,
   };
+}
+
+/**
+ * M18 — Local↔Cloud inventory drift detection (non-destructive).
+ * `reconcileAllStock` audits CLOUD self-consistency (stock vs stock_history ledger only).
+ * This detects drift BETWEEN the local IndexedDB cache and the cloud `products` table,
+ * which can appear after a partial/failed sync or a conflicting offline edit.
+ * Returns mismatches only — never mutates data. Wire to a "Diagnose" button in Inventory.
+ */
+export async function detectInventoryDrift(): Promise<{
+  ok: boolean;
+  totalChecked: number;
+  mismatches: Array<{
+    productId: string;
+    name: string;
+    local: number;
+    cloud: number;
+    diff: number;
+    variantId?: string;
+  }>;
+}> {
+  const { localDb } = await import('./localDb');
+  const { data: cloudRows, error } = await supabase
+    .from('products')
+    .select('id, name, stock, variant_data');
+  if (error) throw new Error(`detectInventoryDrift cloud fetch failed: ${error.message}`);
+
+  const localProducts = await localDb.products.toArray();
+  const localMap = new Map(localProducts.map((p) => [p.id, p as any]));
+
+  const mismatches: Array<{
+    productId: string;
+    name: string;
+    local: number;
+    cloud: number;
+    diff: number;
+    variantId?: string;
+  }> = [];
+
+  for (const c of (cloudRows as any[]) || []) {
+    const local = localMap.get(c.id);
+    if (!local) continue; // cloud-only row: not a stock mismatch
+
+    const cloudStock = Number(c.stock) || 0;
+    const localStock = Number(local.stock) || 0;
+    if (cloudStock !== localStock) {
+      mismatches.push({
+        productId: c.id,
+        name: c.name || 'Unknown',
+        local: localStock,
+        cloud: cloudStock,
+        diff: localStock - cloudStock,
+      });
+    }
+
+    const cloudVariants: any[] = c.variant_data || [];
+    const localVariants: any[] = local.variantData || [];
+    for (const cv of cloudVariants) {
+      const lv = localVariants.find((v) => v.id === cv.id);
+      const lvs = lv ? Number(lv.stock) || 0 : 0;
+      const cvs = Number(cv.stock) || 0;
+      if (lvs !== cvs) {
+        mismatches.push({
+          productId: c.id,
+          variantId: cv.id,
+          name: `${c.name || 'Unknown'} / ${cv.cardTitle || cv.option1 || cv.id}`,
+          local: lvs,
+          cloud: cvs,
+          diff: lvs - cvs,
+        });
+      }
+    }
+  }
+
+  return { ok: mismatches.length === 0, totalChecked: cloudRows?.length || 0, mismatches };
 }

@@ -92,15 +92,6 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
       setFormLoading(true);
       sonner.loading('Recording payment...');
 
-      await suppliersService.recordPayment({
-        supplier_id: supplier.id,
-        amount: amount,
-        payment_type: paymentMethod,
-        note: paymentNote,
-        isManualOverride: isPaymentManualOverride,
-        overrideBy: isPaymentManualOverride ? (state.currentUser?.id || state.currentUser?.username) : undefined,
-      });
-
       // Automatically generate an Expense for financial reporting
       const newExpense = {
         id: generateId(),
@@ -116,6 +107,15 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
       await expensesService.create(newExpense as any);
       dispatch({ type: 'ADD_EXPENSE', payload: newExpense as any });
 
+      await suppliersService.recordPayment({
+        supplier_id: supplier.id,
+        amount: amount,
+        payment_type: paymentMethod,
+        note: paymentNote,
+        isManualOverride: isPaymentManualOverride,
+        overrideBy: isPaymentManualOverride ? (state.currentUser?.id || state.currentUser?.username) : undefined,
+        expenseId: newExpense.id,
+      });
       sonner.success('Payment recorded!');
       setShowPaymentModal(false);
       setIsPaymentManualOverride(false);

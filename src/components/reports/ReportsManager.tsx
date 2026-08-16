@@ -56,6 +56,13 @@ export function getEffectiveTotal(sale: any): number {
   return sale.total || 0;
 }
 
+// Net units actually sold for an item, subtracting returned units so partially
+// refunded sales don't over-count inventory/quantity moved.
+export function netItemQty(item: any): number {
+  const base = item?.weight ? Number(item.weight) : (Number(item?.quantity) || 0);
+  return Math.max(0, base - (Number(item?.refundedQuantity) || 0));
+}
+
 export function getItemRevenue(item: any, sale: Sale): number {
   const extraChargesTotal = (sale.extraCharges || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
   // Net Bill Total = Total - Tax - Extra Charges (This is the amount actually paid for products)
@@ -529,14 +536,17 @@ export function ReportsManager() {
   // Sales Analytics
   const salesData = useMemo(() => {
     const salesByDay: Record<string, { date: string; sales: number; transactions: number }> = {};
-    const days = parseInt(dateRange) || 1;
+    // Derive the day span from the actual (already-correct) date range instead of
+    // parseInt(dateRange) — dateRange is a keyword ('today'/'last7'/'thisMonth'/'all'),
+    // so parseInt() was always NaN → 1 day, hiding all historical data.
+    const days = Math.max(1, Math.round((validEndDate.getTime() - validStartDate.getTime()) / 86400000) + 1);
 
     for (let i = days - 1; i >= 0; i--) {
       const date = formatAppDateChart(subDays(validEndDate, i), state.settings?.country);
       salesByDay[date] = { date, sales: 0, transactions: 0 };
     }
 
-    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').forEach(sale => {
       if (!sale?.timestamp) return;
       const saleDate = new Date(sale.timestamp);
       if (isNaN(saleDate.getTime())) return;
@@ -556,7 +566,7 @@ export function ReportsManager() {
   const topProducts = useMemo(() => {
     const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
 
-    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').forEach(sale => {
       sale.items.forEach(item => {
         const productId = item.product?.id || 'deleted';
         if (!productSales[productId]) {
@@ -566,7 +576,7 @@ export function ReportsManager() {
             revenue: 0,
           };
         }
-        productSales[productId].quantity += item.quantity;
+        productSales[productId].quantity += netItemQty(item);
         productSales[productId].revenue += getItemRevenue(item, sale);
       });
     });
@@ -583,7 +593,7 @@ export function ReportsManager() {
     let modifiersRevenue = 0;
     const variantSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
 
-    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').forEach(sale => {
       sale.items.forEach(item => {
         const itemRev = getItemRevenue(item, sale);
 
@@ -595,7 +605,7 @@ export function ReportsManager() {
 
         if (item.selectedModifiers && item.selectedModifiers.length > 0) {
           item.selectedModifiers.forEach(mod => {
-            const modRev = (mod.price || 0) * item.quantity;
+            const modRev = (mod.price || 0) * netItemQty(item);
             modifiersRevenue += modRev;
           });
         }
@@ -607,7 +617,7 @@ export function ReportsManager() {
         }
         if (item.toppings && item.toppings.length > 0) {
           item.toppings.forEach(topping => {
-            const modRev = (topping.price || 0) * item.quantity;
+            const modRev = (topping.price || 0) * netItemQty(item);
             modifiersRevenue += modRev;
           });
         }
@@ -617,7 +627,7 @@ export function ReportsManager() {
           if (!variantSales[varKey]) {
             variantSales[varKey] = { name: varKey, quantity: 0, revenue: 0 };
           }
-          variantSales[varKey].quantity += item.quantity;
+          variantSales[varKey].quantity += netItemQty(item);
           variantSales[varKey].revenue += itemRev;
         }
       });
@@ -635,7 +645,7 @@ export function ReportsManager() {
   const categoryData = useMemo(() => {
     const categories: Record<string, { name: string; value: number }> = {};
 
-    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').forEach(sale => {
       sale.items.forEach(item => {
         const category = item.product?.category || 'Uncategorized';
         if (!categories[category]) {
@@ -656,7 +666,7 @@ export function ReportsManager() {
       estore: { name: 'E-Store', value: 0 }
     };
 
-    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').forEach(sale => {
       if (!sale) return;
       const type = sale.saleType || 'retail';
       if (types[type]) {
@@ -744,7 +754,7 @@ export function ReportsManager() {
 
   // Profit Analytics
   const totalCostOfGoods = useMemo(() => {
-    return filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').reduce((sum, sale) => {
+    return filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').reduce((sum, sale) => {
       return sum + sale.items.reduce((itemSum, item) => {
         const { cost } = getItemCOGS(item);
         return itemSum + cost;
@@ -759,7 +769,7 @@ export function ReportsManager() {
   const walletStats = useMemo(() => {
     return ['cash', 'card', 'digital'].map(method => {
       // Amount from regular sales (including refunded so we get the initial collection before refund subtraction)
-      const validSales = filteredSales.filter(s => s.status === 'completed' || s.status === 'credit' || s.status === 'refunded' || s.status === 'partially_refunded');
+      const validSales = filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded' || s.status === 'refunded' || s.status === 'partially_refunded');
       const sales = validSales.reduce((a, x) => a + getAmountByMethod(x, method), 0);
 
       // Breakdown of sales by type
@@ -849,14 +859,14 @@ export function ReportsManager() {
       lastPurchase: new Date()
     };
 
-    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').forEach(sale => {
       if (!sale) return;
       const customerId = sale.customerId || 'walk-in';
       if (customerStats[customerId]) {
         customerStats[customerId].totalSpent += getEffectiveTotal(sale);
         customerStats[customerId].periodSpent += getEffectiveTotal(sale);
         customerStats[customerId].totalTransactions += 1;
-        customerStats[customerId].totalItems += (sale.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+        customerStats[customerId].totalItems += (sale.items || []).reduce((sum: number, item: any) => sum + netItemQty(item), 0);
         const sTime = new Date(sale.timestamp);
         if (!isNaN(sTime.getTime())) {
           customerStats[customerId].lastPurchase = sTime;
@@ -908,13 +918,13 @@ export function ReportsManager() {
       avgTransactionValue: 0
     };
 
-    filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
+    filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').forEach(sale => {
       if (!sale) return;
       const salesmanId = sale.salesmanId || 'unassigned';
       if (salesmanStats[salesmanId]) {
         salesmanStats[salesmanId].totalSales += getEffectiveTotal(sale);
         salesmanStats[salesmanId].totalTransactions += 1;
-        salesmanStats[salesmanId].totalItems += (sale.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+        salesmanStats[salesmanId].totalItems += (sale.items || []).reduce((sum: number, item: any) => sum + netItemQty(item), 0);
       } else {
         // Fallback for sales where salesman was deleted
         salesmanStats[salesmanId] = {
@@ -922,7 +932,7 @@ export function ReportsManager() {
           name: sale.salesmanName || 'Deleted Salesman',
           totalSales: getEffectiveTotal(sale),
           totalTransactions: 1,
-          totalItems: (sale.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0),
+          totalItems: (sale.items || []).reduce((sum: number, item: any) => sum + netItemQty(item), 0),
           avgTransactionValue: 0
         };
       }
@@ -962,15 +972,15 @@ export function ReportsManager() {
 
     const inventoryStats = productsToProcess.map(product => {
       const soldQuantity = filteredSales
-        .filter(s => s.status === 'completed' || s.status === 'credit')
+        .filter(s => s.status === 'completed' || s.status === 'partially_refunded')
         .reduce((sum, sale) => {
           return sum + sale.items
             .filter(item => item.product?.id === product.id)
-            .reduce((itemSum, item) => itemSum + item.quantity, 0);
+            .reduce((itemSum, item) => itemSum + netItemQty(item), 0);
         }, 0);
 
       const revenue = filteredSales
-        .filter(s => s.status === 'completed' || s.status === 'credit')
+        .filter(s => s.status === 'completed' || s.status === 'partially_refunded')
         .reduce((sum, sale) => {
           return sum + sale.items
             .filter(item => item.product?.id === product.id)

@@ -79,6 +79,19 @@ export function SalesReport({
     { key: 'status', label: t('status', 'Status') },
   ];
 
+  const statusLabel = (s: any) => {
+    if (s.status === 'completed') return t('completed', 'Completed');
+    if (s.status === 'refunded') return t('refunded', 'Refunded');
+    if (s.status === 'partially_refunded') return t('partially_refunded', 'Partially Refunded');
+    if (s.status === 'deleted') return t('deleted', 'Deleted');
+    if (s.status === 'pending' || s.notes?.includes('DRAFT_SALE')) return t('draft', 'Draft');
+    return t(s.status, s.status);
+  };
+  const netTotal = (s: any) =>
+    s.status === 'refunded' || s.status === 'deleted' ? 0 :
+    s.status === 'partially_refunded' ? (Number(s.total) || 0) - (Number(s.refundedAmount) || 0) :
+    (Number(s.total) || 0);
+
   const exportRows = useMemo(() => filteredSales.map(sale => ({
     invoiceNumber: sale.invoiceNumber || '',
     dateTime: formatAppDateTime(sale.timestamp, country),
@@ -86,8 +99,8 @@ export function SalesReport({
     paymentMethod: t(sale.paymentMethod, sale.paymentMethod),
     cashier: sale.cashier || 'System',
     salesman: sale.salesmanName || '',
-    revenue: sale.total,
-    status: t('completed', 'Completed'),
+    revenue: netTotal(sale),
+    status: statusLabel(sale),
   })), [filteredSales, country, t]);
 
   const { retailVol, retailCount, wholesaleVol, wholesaleCount, estoreVol, estoreCount } = useMemo(() => {

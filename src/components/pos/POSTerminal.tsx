@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { normalizeBarcodeValue } from '../../utils/barcode';
 import { useNavigate } from 'react-router-dom';
 import { ProductGrid } from './ProductGrid';
 import { Cart } from './Cart';
@@ -285,12 +286,7 @@ export function POSTerminal() {
   const handleScan = useCallback((barcode: string) => {
     try {
       const term = barcode.trim();
-      const normalizedTerm = term.toUpperCase()
-        .replace(/O/g, '0')
-        .replace(/I/g, '1')
-        .replace(/L/g, '1')
-        .replace(/S/g, '5')
-        .replace(/Z/g, '2');
+      const normalizedTerm = normalizeBarcodeValue(term);
 
       // 1. Try exact match
       let scannedProduct = state.products.find(
@@ -300,12 +296,9 @@ export function POSTerminal() {
       // 2. If not found, try normalized match (handles OCR confusion)
       if (!scannedProduct) {
         scannedProduct = state.products.find((p: Product) => {
-          const pBarcodeVal = (p.barcodeValue || '').toUpperCase()
-            .replace(/O/g, '0').replace(/I/g, '1').replace(/L/g, '1').replace(/S/g, '5').replace(/Z/g, '2');
-          const pBarcode = (p.barcode || '').toUpperCase()
-            .replace(/O/g, '0').replace(/I/g, '1').replace(/L/g, '1').replace(/S/g, '5').replace(/Z/g, '2');
-          const pSku = (p.sku || '').toUpperCase()
-            .replace(/O/g, '0').replace(/I/g, '1').replace(/L/g, '1').replace(/S/g, '5').replace(/Z/g, '2');
+          const pBarcodeVal = normalizeBarcodeValue(p.barcodeValue);
+          const pBarcode = normalizeBarcodeValue(p.barcode);
+          const pSku = normalizeBarcodeValue(p.sku);
           return pBarcodeVal === normalizedTerm || pBarcode === normalizedTerm || pSku === normalizedTerm;
         });
       }

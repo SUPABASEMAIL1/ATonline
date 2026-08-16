@@ -548,9 +548,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
         });
       }
 
-      // Update inventory locally immediately for UI
-      // Estore fulfillment sales NEVER deduct here — stock was already reserved atomically
-      // by the place_estore_order RPC at order placement (sourceOrderId skip, mirrors service).
+      // Update inventory locally immediately for UI.
+      // Estore fulfillment sales are skipped here: commit_sale already deducted stock
+      // on the cloud (single ledger), and the realtime 'products' UPDATE will overwrite
+      // local stock with the authoritative cloud value. Deducting again locally would
+      // double-count in memory before realtime corrects it. (place_estore_order does NOT
+      // reserve stock at placement — that was removed — so the skip is purely to avoid
+      // a transient local double-count, not because of a prior reservation.)
       if (sale.status === 'completed') {
         const isReturn = sale.total < 0 || sale.id.startsWith('RET-') || sale.notes?.includes('RETURN');
         const isEstoreFulfillment = !!sale.sourceOrderId;
@@ -1688,13 +1692,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // 5 minute buffer for safety overlap to prevent missing edge-case writes
         const lastSyncTime = lastSyncRecord ? new Date(lastSyncRecord.timestamp - 5 * 60000) : undefined;
 
-        const fetchDeltasAndMerge = async (localTable: any, fetchFn: (ts?: Date) => Promise<any[]>) => {
+        const fetchDeltasAndMerge = async (localTable: any, fetchFn: (ts?: Date) => Promise<any[]>, tableName?: string) => {
           const remoteDeltas = await fetchFn(lastSyncTime);
           if (!lastSyncTime) return remoteDeltas;
 
           const allLocal = await localTable.toArray();
           const mergedMap = new Map(allLocal.map((i: any) => [i.id, i]));
           remoteDeltas.forEach((r: any) => mergedMap.set(r.id, r));
+
+          // L7: drop locally-cached rows that were hard-deleted in the cloud (row_tombstones).
+          // Without this, cloud-deleted records linger forever in the local IndexedDB / UI.
+          if (tableName) {
+            try {
+              const { data: tombs } = await supabase
+                .from('row_tombstones')
+                .select('ref_id')
+                .eq('table_name', tableName);
+              (tombs || []).forEach((t: any) => mergedMap.delete(t.ref_id));
+            } catch (_) { /* best-effort tombstone cleanup */ }
+          }
+
           return Array.from(mergedMap.values());
         };
 
@@ -1796,8 +1813,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return merged;
         };
 
-        const saveProgressively = async (entityName: string, localTable: any, mergedItems: any[]) => {
-          if (syncEngineWasBusy) return;
+        const saveProgressively = async (entityName: string, localTable: any, mergedItems: any[], attempt = 0) => {
+          if (syncEngineWasBusy) {
+            // Fix #3: never drop the save under load — retry shortly instead, so the
+            // in-memory data actually persists to IndexedDB (otherwise it disappears on refresh).
+            if (attempt < 4) {
+              setTimeout(() => saveProgressively(entityName, localTable, mergedItems, attempt + 1), 1500);
+            }
+            return;
+          }
           try {
             await localDb.transaction('rw', localTable, localDb.pendingOps, async () => {
               const localItems = await localTable.toArray();
@@ -1877,7 +1901,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // ── USERS & SALESMEN (Load quickly before heavy sales data) ──
         const [usersList, salesmenData] = await Promise.all([
           usersService.fetchRemote(),
-          fetchDeltasAndMerge(localDb.salesmen, salesmenService.fetchRemote)
+          salesmenService.fetchRemote()
         ]);
 
         const mergedUsers = await smartMerge('users', usersList, localDb.users);
@@ -1890,7 +1914,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateStatus(`Fetched users and salesmen...`, usersList.length + salesmenData.length);
 
         // ── SALES ──
-        const sales = await fetchDeltasAndMerge(localDb.sales, salesService.fetchRemote);
+        // Full fetch (no timestamp) like products: delta-sync would never recover a
+        // device whose local sales cache was cleared/corrupt, leaving reports incomplete forever.
+        const sales = await salesService.fetchRemote();
         const allSales = await smartMerge('sales', sales, localDb.sales);
         // UNIVERSAL NO-TRUNCATION RULE: never cap financial data in memory —
         // dashboard/transactions totals must always cover ALL sales. List views
@@ -1902,7 +1928,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateStatus(`Fetched ${sales.length} sales records...`, sales.length);
 
         // ── STORE ORDERS ──
-        const storeOrders = await fetchDeltasAndMerge(localDb.storeOrders, storeOrdersService.fetchRemote);
+        const storeOrders = await storeOrdersService.fetchRemote();
         const mergedStoreOrders = (await smartMerge('store_orders', storeOrders, localDb.storeOrders))
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         dispatch({ type: 'SET_STORE_ORDERS', payload: mergedStoreOrders });
@@ -1912,8 +1938,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // ── OTHER METADATA ──
         const [discounts, expenses, purchaseRecords, suppliersData] = await Promise.all([
           discountsService.fetchRemote(), // Metadata
-          fetchDeltasAndMerge(localDb.expenses, expensesService.fetchRemote), // Transactional
-          fetchDeltasAndMerge(localDb.purchaseRecords, purchaseRecordsService.fetchRemote), // Transactional
+          expensesService.fetchRemote(), // Transactional (full fetch — see sales note)
+          purchaseRecordsService.fetchRemote(), // Transactional (full fetch)
           suppliersService.fetchRemote(), // Metadata
         ]);
 
@@ -1942,9 +1968,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // ledger — on error, treat the local rows as the merge source (identity no-op).
         const [salesTabsData, supplierTxData, remoteStockHistory, remotePayments] = await Promise.all([
           supabase.from('sales_tabs').select('*').eq('user_id', user.id),
-          fetchDeltasAndMerge(localDb.supplierTransactions, supplierTransactionsService.fetchRemote).catch(() => []),
-          fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote).catch(() => []),
-          fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote).catch(async () => localDb.payments.toArray())
+          fetchDeltasAndMerge(localDb.supplierTransactions, supplierTransactionsService.fetchRemote, 'supplier_transactions').catch(() => []),
+          fetchDeltasAndMerge(localDb.stockHistory, stockHistoryService.fetchRemote, 'stock_history').catch(() => []),
+          fetchDeltasAndMerge(localDb.payments, paymentModesService.fetchRemote, 'payments').catch(async () => localDb.payments.toArray())
         ]);
 
         if (supplierTxData.length > 0) {
@@ -2247,10 +2273,12 @@ export function useInvoiceGeneration() {
     // 3. Dispatch to local React state INSTANTLY so the UI knows the counter increased
     dispatch({ type: 'INCREMENT_INVOICE_COUNTER', payload: newCounter });
 
-    // 4. Fire-and-forget the database settings update (don't await it, don't block checkouts)
-    settingsService.update({ invoiceCounter: newCounter }).catch(error => {
-      console.error('Error background-syncing invoice counter:', error);
-    });
+    // 4. NOTE: We deliberately do NOT write invoiceCounter back to the cloud here.
+    // The cloud counter is the single source of truth and is advanced atomically by the
+    // get_next_invoice_number() RPC on every ONLINE sale. Writing it from the client
+    // (even via fallback) could reset the cloud counter downward if another device has
+    // advanced it, causing collisions. Offline sales use the local counter and any
+    // collision on reconnect is safely renumbered by the sync engine (C1 fix).
 
     // 5. Return the brand new invoice immediately
     return invoiceNumber;

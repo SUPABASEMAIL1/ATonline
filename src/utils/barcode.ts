@@ -74,6 +74,10 @@ export function normalizeBarcodeValue(val: string | undefined): string {
     .trim()
     .toUpperCase()
     .replace(/O/g, '0') // Common letter O to number 0 mistake
+    .replace(/I/g, '1') // Common letter I to number 1 mistake
+    .replace(/L/g, '1') // Common letter L to number 1 mistake
+    .replace(/S/g, '5') // Common letter S to number 5 mistake
+    .replace(/Z/g, '2') // Common letter Z to number 2 mistake
     .replace(/[^A-Z0-9-]/g, ''); // Keep only alphanumeric and hyphen
 }
 

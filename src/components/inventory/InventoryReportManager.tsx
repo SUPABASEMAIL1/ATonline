@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { getItemCOGS, getItemRevenue } from '../reports/ReportsManager';
+import { getItemCOGS, getItemRevenue, netItemQty } from '../reports/ReportsManager';
 import {
   Package, AlertTriangle, XCircle, CheckCircle2, TrendingUp, TrendingDown,
   ArrowUpDown, Tag, DollarSign, BarChart3,
@@ -143,7 +143,7 @@ export default function InventoryReportManager({
             const itemProdId = item.product?.id || (item as any).productId;
             return itemProdId === product.id;
           })
-          .reduce((s, item) => s + (item.weight || item.quantity || 0), 0);
+          .reduce((s, item) => s + netItemQty(item), 0);
       }, 0);
 
       const revenue = filteredSales.reduce((sum, sale) => {
@@ -176,7 +176,7 @@ export default function InventoryReportManager({
           saleId: sale.id,
           invoiceNumber: sale.invoiceNumber,
           timestamp: sale.timestamp,
-          quantity: item.weight || item.quantity || 0,
+          quantity: netItemQty(item),
           revenue: getItemRevenue(item, sale),
           cogs: getItemCOGS(item).cost,
           customerName: sale.customerName,

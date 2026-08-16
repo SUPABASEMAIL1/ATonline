@@ -193,6 +193,10 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
 
       if (oldSale && oldSale.invoiceNumber) {
         finalInvoiceNumber = oldSale.invoiceNumber;
+      } else if (editingStoreOrder && editingStoreOrder.invoiceNumber) {
+        // Reuse the e-store order's already-reserved INV number instead of
+        // burning a second one at fulfilment (prevents counter double-increment).
+        finalInvoiceNumber = editingStoreOrder.invoiceNumber;
       } else {
         finalInvoiceNumber = await generateInvoice();
       }

@@ -301,6 +301,8 @@ export function DatabaseTools() {
         if (storeKey === 'products') {
           dupSets.skus = new Set(existingRecords.filter((p: any) => p.sku).map((p: any) => p.sku));
           dupSets.barcodes = new Set(existingRecords.filter((p: any) => p.barcode).map((p: any) => p.barcode));
+          // F1: enforce unique product names during bulk import too (matches productsService.create)
+          dupSets.names = new Set(existingRecords.filter((p: any) => p.name).map((p: any) => p.name));
         } else if (storeKey === 'customers') {
           dupSets.phones = new Set(existingRecords.filter((c: any) => c.phone).map((c: any) => c.phone));
           dupSets.emails = new Set(existingRecords.filter((c: any) => c.email).map((c: any) => c.email));
@@ -328,7 +330,7 @@ export function DatabaseTools() {
             // Skip field-based duplicates
             let isDuplicate = false;
             if (storeKey === 'products') {
-              isDuplicate = !!(record.sku && dupSets.skus.has(record.sku)) || !!(record.barcode && dupSets.barcodes.has(record.barcode));
+              isDuplicate = !!(record.sku && dupSets.skus.has(record.sku)) || !!(record.barcode && dupSets.barcodes.has(record.barcode)) || !!(record.name && dupSets.names.has(record.name));
             } else if (storeKey === 'customers') {
               isDuplicate = !!(record.phone && dupSets.phones.has(record.phone)) || !!(record.email && dupSets.emails.has(record.email));
             } else if (storeKey === 'sales') {
@@ -389,6 +391,7 @@ export function DatabaseTools() {
             if (storeKey === 'products') {
               if (record.sku) dupSets.skus.add(record.sku);
               if (record.barcode) dupSets.barcodes.add(record.barcode);
+              if (record.name) dupSets.names.add(record.name);
             } else if (storeKey === 'customers') {
               if (record.phone) dupSets.phones.add(record.phone);
               if (record.email) dupSets.emails.add(record.email);

@@ -240,7 +240,13 @@ function AppContent() {
           // 2. Unstuck EVERYTHING so it tries again!
           return localDb.pendingOps.toCollection().modify({ retries: 0, status: 'pending' });
         })
-        .then(() => startSyncEngine())
+        .then(() => {
+          startSyncEngine();
+          // M15: auto-seed missing barcodes once online so legacy products become scannable
+          if (navigator.onLine) {
+            import('./lib/services').then(m => m.seedMissingBarcodes().catch(() => {})).catch(() => {});
+          }
+        })
         .catch(() => startSyncEngine());
     });
   }, []);
