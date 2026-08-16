@@ -28,6 +28,11 @@ import {
 import { localDb, queueOp, generateId, SETTINGS_ID } from './localDb';
 import { generateBarcodeValue } from '../utils/barcode';
 
+// Re-entrancy mutex for returnSale: local stock/refund mutations are NOT idempotent,
+// so a concurrent double-click or retry could restore stock twice. The cloud RPC is
+// idempotent, but the local writes need this lock for correctness.
+const activeReturns = new Set<string>();
+
 /**
  * Standard Utility for ID generation
  */
@@ -1089,6 +1094,18 @@ export const productsService = {
     const now = new Date();
     const updated = { ...existing, ...updates, updatedAt: now };
 
+    // FINANCIAL SAFETY: stock (scalar + per-variant) is ledger-driven ONLY via
+    // stock_history / variant_stock_history triggers. Never let a generic product
+    // update silently write stock — that would desync local↔cloud ledger.
+    delete (updated as any).stock;
+    if (updated.variantData) {
+      updated.variantData = updated.variantData.map(v => {
+        const c = { ...v };
+        delete (c as any).stock;
+        return c;
+      });
+    }
+
     // 1. Local Update
     await localDb.products.put(updated);
 
@@ -1892,7 +1909,7 @@ export const salesService = {
     // DRAFT RULE: pending drafts never deducted stock either — deleting a draft must
     // NOT restore anything (that would create a phantom +Q in the ledger).
     const isDraftSale = sale.status === 'pending' || !!sale.notes?.includes('DRAFT_SALE');
-    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'credit')) {
+    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'credit' || sale.status === 'partially_refunded')) {
       for (const item of sale.items) {
         const product = await localDb.products.get(item.product.id);
         if (product && product.trackInventory) {
@@ -2151,9 +2168,20 @@ export const salesService = {
   },
 
   async returnSale(id: string, request?: RefundRequest, currentCashierName?: string): Promise<void> {
+    if (activeReturns.has(id)) {
+      console.warn(`[returnSale] Duplicate call for ${id} ignored (already in progress).`);
+      return;
+    }
     const sale = await localDb.sales.get(id);
     if (!sale) throw new Error('Sale not found');
+    // Already fully refunded → nothing left to reverse (also guards sequential re-calls)
+    if (sale.status === 'refunded') {
+      console.warn(`[returnSale] Sale ${id} already fully refunded — no-op.`);
+      return;
+    }
 
+    activeReturns.add(id);
+    try {
     const now = new Date();
 
     // Phase 1: collect reverse-stock movements for atomic cloud commit.
@@ -2389,6 +2417,9 @@ export const salesService = {
       };
       await localDb.payments.add(refundPayment);
       await queueOp('payments', 'create', refundPayId, toRemotePayment(refundPayment), { batchId: id });
+    }
+    } finally {
+      activeReturns.delete(id);
     }
   },
 
@@ -4119,7 +4150,7 @@ export const productToppingsService = {
 
 export interface ReconcileResult {
   ok: boolean;
-  mismatches: { productId: string; name: string; expected: number; actual: number; diff: number }[];
+  mismatches: { productId: string; variantId?: string; name: string; expected: number; actual: number; diff: number }[];
   totalChecked: number;
   fixed: number;
 }
@@ -4132,79 +4163,146 @@ export interface ReconcileResult {
 export async function reconcileAllStock(autoFix = false): Promise<ReconcileResult> {
   const { localDb, queueOp, generateId } = await import('./localDb');
 
-  // 1. Fetch FULL cloud stock_history (append-only ledger) — never the trimmed local cache
+  // 1. Fetch FULL cloud ledger — scalar + variant (append-only, never the trimmed local cache)
   const { data: historyRows, error } = await supabase
     .from('stock_history')
     .select('product_id, change_qty');
   if (error) throw new Error(`Cannot fetch stock_history for audit: ${error.message}`);
 
-  if (!historyRows || historyRows.length === 0) {
+  const { data: vHistoryRows, error: vErr } = await supabase
+    .from('variant_stock_history')
+    .select('product_id, variant_id, change_qty');
+  if (vErr) throw new Error(`Cannot fetch variant_stock_history for audit: ${vErr.message}`);
+
+  if ((!historyRows || historyRows.length === 0) && (!vHistoryRows || vHistoryRows.length === 0)) {
     return { ok: true, mismatches: [], totalChecked: 0, fixed: 0 };
   }
 
-  // 2. Compute expected = Σ change_qty per product
+  // 2. Compute expected = Σ change_qty per product (scalar) and per (product|variant)
   const expectedByProduct = new Map<string, number>();
-  for (const row of historyRows) {
+  for (const row of historyRows || []) {
     const qty = Number(row.change_qty) || 0;
     expectedByProduct.set(row.product_id, (expectedByProduct.get(row.product_id) || 0) + qty);
   }
+  const expectedByVariant = new Map<string, number>();
+  for (const row of vHistoryRows || []) {
+    const qty = Number(row.change_qty) || 0;
+    const key = `${row.product_id}::${row.variant_id}`;
+    expectedByVariant.set(key, (expectedByVariant.get(key) || 0) + qty);
+  }
 
-  // 3. Fetch cloud products
+  // 3. Fetch cloud products (with variant_data so we can audit variant stock too)
   const { data: productRows, error: pErr } = await supabase
     .from('products')
-    .select('id, name, stock');
+    .select('id, name, stock, variant_data');
   if (pErr) throw new Error(`Cannot fetch products for audit: ${pErr.message}`);
 
   const mismatches: ReconcileResult['mismatches'] = [];
   let fixed = 0;
 
   for (const prod of productRows || []) {
+    // 3a. Scalar stock
     const expected = expectedByProduct.get(prod.id) ?? 0;
     const actual = Number(prod.stock) || 0;
     if (expected !== actual) {
       mismatches.push({ productId: prod.id, name: prod.name || 'Unknown', expected, actual, diff: expected - actual });
     }
+    // 3b. Variant stock (F22 — variant ledger must be reconciled independently)
+    const variantData: any[] = prod.variant_data || [];
+    for (const v of variantData) {
+      const key = `${prod.id}::${v.id}`;
+      const vExpected = expectedByVariant.get(key) ?? 0;
+      const vActual = Number(v.stock) || 0;
+      if (vExpected !== vActual) {
+        mismatches.push({
+          productId: prod.id,
+          variantId: v.id,
+          name: `${prod.name || 'Unknown'} / ${v.cardTitle || v.option1 || v.id}`,
+          expected: vExpected,
+          actual: vActual,
+          diff: vExpected - vActual,
+        });
+      }
+    }
   }
 
-  // 4. Auto-fix: write ONE correction entry to stock_history. The cloud trigger aligns products.stock
-  //    (stock = actual + (expected − actual) = expected). Each fix is itself a history entry →
-  //    the resulting ledger stays append-only and self-consistent. Queued via sync queue
-  //    (offline-safe, exactly-once through the queue's retry logic).
+  // 4. Auto-fix: write ONE corrective adjustment entry per mismatch. The cloud triggers align
+  //    products.stock (scalar) and variant_data[].stock (variant) = expected. Each fix is itself a
+  //    history entry → the ledger stays append-only and self-consistent (offline-safe via queue).
   if (autoFix && mismatches.length > 0) {
     const now = new Date();
     for (const m of mismatches) {
       const changeQty = m.expected - m.actual;
       if (changeQty === 0) continue;
-      const histId = generateId();
-      const remoteEntry = {
-        id: histId,
-        product_id: m.productId,
-        change_qty: changeQty,
-        type: 'adjustment',
-        reference_id: `RECONCILE-${now.getTime()}`,
-        note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
-        balance_after: m.expected,
-        cashier_name: 'System',
-        created_at: now.toISOString(),
-      };
-      // Mirror the correction locally — the queued op applies it on the cloud too
-      const localEntry = {
-        id: histId,
-        productId: m.productId,
-        changeQty,
-        type: 'adjustment' as const,
-        referenceId: `RECONCILE-${now.getTime()}`,
-        note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
-        balanceAfter: m.expected,
-        cashierName: 'System',
-        createdAt: now,
-      };
-      await localDb.stockHistory.add(localEntry);
-      await queueOp('stock_history', 'create', histId, remoteEntry);
-      // Align local product stock to the corrected value
-      const localProd = await localDb.products.get(m.productId);
-      if (localProd) {
-        await localDb.products.update(m.productId, { stock: m.expected, updatedAt: now });
+
+      if (m.variantId) {
+        // Variant correction
+        const histId = generateId();
+        const remoteEntry = {
+          id: histId,
+          product_id: m.productId,
+          variant_id: m.variantId,
+          variant_label: m.name,
+          change_qty: changeQty,
+          type: 'adjustment',
+          reference_id: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] variant auto-fix: expected ${m.expected}, was ${m.actual}`,
+          cashier_name: 'System',
+          created_at: now.toISOString(),
+        };
+        const localEntry = {
+          id: histId,
+          productId: m.productId,
+          variantId: m.variantId,
+          variantLabel: m.name,
+          changeQty,
+          type: 'adjustment' as const,
+          referenceId: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] variant auto-fix: expected ${m.expected}, was ${m.actual}`,
+          balanceAfter: m.expected,
+          cashierName: 'System',
+          createdAt: now,
+        };
+        await localDb.variantStockHistory.add(localEntry);
+        await queueOp('variant_stock_history', 'create', histId, remoteEntry);
+        const localProd = await localDb.products.get(m.productId);
+        if (localProd && localProd.variantData) {
+          const updatedVD = localProd.variantData.map(v =>
+            v.id === m.variantId ? { ...v, stock: m.expected, updatedAt: now } : v
+          );
+          await localDb.products.update(m.productId, { variantData: updatedVD, updatedAt: now });
+        }
+      } else {
+        // Scalar correction
+        const histId = generateId();
+        const remoteEntry = {
+          id: histId,
+          product_id: m.productId,
+          change_qty: changeQty,
+          type: 'adjustment',
+          reference_id: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
+          balance_after: m.expected,
+          cashier_name: 'System',
+          created_at: now.toISOString(),
+        };
+        const localEntry = {
+          id: histId,
+          productId: m.productId,
+          changeQty,
+          type: 'adjustment' as const,
+          referenceId: `RECONCILE-${now.getTime()}`,
+          note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
+          balanceAfter: m.expected,
+          cashierName: 'System',
+          createdAt: now,
+        };
+        await localDb.stockHistory.add(localEntry);
+        await queueOp('stock_history', 'create', histId, remoteEntry);
+        const localProd = await localDb.products.get(m.productId);
+        if (localProd) {
+          await localDb.products.update(m.productId, { stock: m.expected, updatedAt: now });
+        }
       }
       fixed++;
     }

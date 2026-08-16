@@ -448,8 +448,8 @@ async function executeOp(op: PendingOp): Promise<void> {
                     console.warn(`[SyncEngine] Invoice collision detected for ${entityId}. Fetching fresh number from cloud...`);
                     try {
                         const { data, error: rpcError } = await supabase.rpc('get_next_invoice_number');
-                        if (!rpcError && data?.invoiceNumber) {
-                            const newInvoiceNumber = data.invoiceNumber;
+                        if (!rpcError && data) {
+                            const newInvoiceNumber = data as string;
                             const updatedPayload = { ...payload, invoice_number: newInvoiceNumber };
 
                             // Update local record so it matches the cloud (otherwise local reports won't match cloud)
@@ -1006,7 +1006,9 @@ export function startSyncEngine() {
     // Auto-maintenance: Repair legacy sales data and auto-reconcile stock silently in background
     setTimeout(() => {
         salesService.patchLegacySales().catch(() => { });
-        reconcileAllStock(true).catch(() => { });
+        // Report-only on boot: autoFix(NO) so unsynced offline stock deductions are
+        // never silently erased. The owner triggers an explicit auto-fix when needed.
+        reconcileAllStock(false).catch(() => { });
     }, 5000); // 5 seconds delay to not block UI load
 
     syncToCloud().catch(() => { });

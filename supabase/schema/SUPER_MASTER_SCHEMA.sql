@@ -537,7 +537,7 @@ CREATE TABLE IF NOT EXISTS users (
     username            TEXT NOT NULL UNIQUE,
     name                TEXT NOT NULL,
     email               TEXT,
-    role                TEXT NOT NULL DEFAULT 'cashier' CHECK (role IN ('admin', 'manager', 'cashier')),
+    role                TEXT NOT NULL DEFAULT 'cashier' CHECK (role IN ('cashier', 'salesman')),
     permissions         TEXT[] DEFAULT '{}',
 
     -- Granular ACL Booleans
@@ -1320,11 +1320,11 @@ BEGIN
     -- Check if this is the first user in the system
     SELECT NOT EXISTS (SELECT 1 FROM public.users) INTO is_first_user;
 
-    -- Set role: First user is admin, others are cashier (unless specified in metadata)
-    IF is_first_user THEN
-        _role := 'admin';
-    ELSE
-        _role := COALESCE(NEW.raw_user_meta_data->>'role', 'cashier');
+    -- Universal default role: cashier (never admin/manager). The app has no
+    -- operational RBAC — every authenticated user accesses all views.
+    _role := COALESCE(NULLIF(NEW.raw_user_meta_data->>'role', ''), 'cashier');
+    IF _role NOT IN ('cashier', 'salesman') THEN
+        _role := 'cashier';
     END IF;
 
     base_username := COALESCE(NEW.raw_user_meta_data->>'username', SPLIT_PART(NEW.email, '@', 1));

@@ -392,7 +392,7 @@ export interface User {
   username: string;
   name: string;
   email: string;
-  role: 'cashier';
+  role: 'cashier' | 'salesman';
   permissions: string[];
   canEditPrice: boolean;
   canGiveDiscount: boolean;
