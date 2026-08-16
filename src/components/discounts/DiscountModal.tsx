@@ -541,7 +541,6 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
                             <option value="cash" className="dark:bg-surface">{t('cash_settlement')}</option>
                             <option value="card" className="dark:bg-surface">{t('card')}</option>
                             <option value="digital" className="dark:bg-surface">{t('digital')}</option>
-                            <option value="credit" className="dark:bg-surface">{t('credit')}</option>
                           </>
                         )}
                         {condition.type === 'customer_tier' && (

@@ -535,12 +535,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
       // If it's a customer sale, update their stats locally in memory
       if (sale.customerId) {
-        const isCreditSale = sale.status === 'credit' || sale.paymentMethod === 'credit';
         updatedCustomers = state.customers.map(c => {
           if (c.id === sale.customerId) {
             return {
               ...c,
-              creditUsed: isCreditSale ? (c.creditUsed || 0) + sale.total : (c.creditUsed || 0),
               totalPurchases: (c.totalPurchases || 0) + sale.total,
               lastPurchase: sale.total > 0 ? sale.timestamp : c.lastPurchase,
               updatedAt: new Date()
@@ -553,7 +551,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       // Update inventory locally immediately for UI
       // Estore fulfillment sales NEVER deduct here — stock was already reserved atomically
       // by the place_estore_order RPC at order placement (sourceOrderId skip, mirrors service).
-      if (sale.status === 'completed' || sale.status === 'credit') {
+      if (sale.status === 'completed') {
         const isReturn = sale.total < 0 || sale.id.startsWith('RET-') || sale.notes?.includes('RETURN');
         const isEstoreFulfillment = !!sale.sourceOrderId;
 
@@ -616,13 +614,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
       let updatedProducts = [...state.products];
 
       if (saleToDelete && saleToDelete.customerId) {
-        const isCreditSale = saleToDelete.status === 'credit' || saleToDelete.paymentMethod === 'credit';
         const remainingTotal = saleToDelete.total - (saleToDelete.refundedAmount || 0);
         updatedCustomers = state.customers.map(c => {
           if (c.id === saleToDelete.customerId) {
             return {
               ...c,
-              creditUsed: isCreditSale ? Math.max(0, (c.creditUsed || 0) - remainingTotal) : (c.creditUsed || 0),
               totalPurchases: Math.max(0, (c.totalPurchases || 0) - remainingTotal),
               updatedAt: new Date()
             };
@@ -632,7 +628,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       }
 
       // ── RESTORE STOCK IN MEMORY (RULE F2) ──
-      if (saleToDelete && (saleToDelete.status === 'completed' || saleToDelete.status === 'credit')) {
+      if (saleToDelete && saleToDelete.status === 'completed') {
 
         saleToDelete.items.forEach(item => {
           const productIdx = updatedProducts.findIndex(p => p.id === item.product.id);

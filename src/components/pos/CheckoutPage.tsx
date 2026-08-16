@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { X, ArrowLeft, CreditCard, Banknote, Smartphone, Check, AlertCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, Package, Wallet, Gift, Layers, Hash, PlusCircle, Keyboard, Building2, UserCircle } from 'lucide-react';
-import { Sale, SplitPayment, CartItem } from '../../types';
+import { X, ArrowLeft, CreditCard, Banknote, Smartphone, Check, AlertCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, Package, Wallet, Gift, Hash, PlusCircle, Keyboard, Building2, UserCircle } from 'lucide-react';
+import { Sale, CartItem } from '../../types';
 import { useApp, useInvoiceGeneration } from '../../context/SupabaseAppContext';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { useAuth } from '../../context/AuthContext';
 import { KOTPrint } from './KOTPrint';
 import { ReceiptPrint } from './ReceiptPrint';
-import { salesService, storeOrdersService, generateId, getCustomerCreditStatus, toRemoteSale } from '../../lib/services';
+import { salesService, storeOrdersService, generateId, toRemoteSale } from '../../lib/services';
 import { localDb, queueOp } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
@@ -69,13 +69,8 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const [extraCharges, setExtraCharges] = useState<{ name: string; amount: string }[]>([
     { name: 'DC', amount: '' }
   ]);
-  const [splitPayments, setSplitPayments] = useState<SplitPayment[]>([
-    { method: 'cash', amount: 0 },
-    { method: 'card', amount: 0 }
-  ]);
-
   const { retailEnabled, wholesaleEnabled, estoreEnabled } = state.settings;
-  const { subtotal, totalDiscount, taxAmount, total: baseTotal, activePromotions: appliedDiscounts, freeGifts } = useCartCalculations(paymentMethod === 'split' ? 'cash' : paymentMethod);
+  const { subtotal, totalDiscount, taxAmount, total: baseTotal, activePromotions: appliedDiscounts, freeGifts } = useCartCalculations(paymentMethod);
 
   const checkoutCartItems = useMemo(() => {
     return state.cart.filter(item => item.quantity !== 0);
@@ -165,7 +160,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         } else {
           setExtraCharges([{ name: 'DC', amount: '' }]);
         }
-        if (editingSale.paymentMethod) setPaymentMethod(editingSale.paymentMethod === 'split' ? 'split' : editingSale.paymentMethod);
+        if (editingSale.paymentMethod) setPaymentMethod((editingSale.paymentMethod === 'split' || editingSale.paymentMethod === 'credit') ? 'cash' : editingSale.paymentMethod);
         if (editingSale.salesmanId) setSalesmanId(editingSale.salesmanId);
       }
     } else {
@@ -199,16 +194,12 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
   const change = (parseFloat(amountPaid) || 0) - finalTotal;
   const totalQty = checkoutCartItems.reduce((s, i) => s + Math.abs(i.quantity), 0);
-  const splitTotal = splitPayments.reduce((sum, p) => sum + p.amount, 0);
-
   const canProcessPayment = () => {
     if (isProcessing) return false;
     const paid = parseFloat(amountPaid) || 0;
     switch (paymentMethod) {
       case 'cash': return paid >= finalTotal;
       case 'card': case 'digital': return true;
-      case 'credit': return !!state.selectedCustomer;
-      case 'split': return splitTotal >= finalTotal;
       default: return false;
     }
   };
@@ -222,8 +213,6 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     canProcessPayment: canProcessPayment(),
     isProcessing,
     onPaymentMethod: (method) => {
-      // Only switch to split if enabled in settings
-      if (method === 'split' && !state.settings.enableSplitPayment) return;
       setPaymentMethod(method);
     },
     onExactAmount: () => setAmountPaid(finalTotal.toString()),
@@ -237,54 +226,6 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     // ── DOUBLE-CLICK GUARD ──
     if (processingLock.current) return;
     processingLock.current = true;
-    // ── CREDIT LIMIT ENFORCEMENT (RULE F9) ──
-    if (paymentMethod === 'credit' || (paymentMethod === 'split' && splitPayments.some(p => p.method === 'credit'))) {
-      if (!state.selectedCustomer) {
-        sonner.error('Customer Required', 'A customer must be selected for credit sales.');
-        return;
-      }
-
-      const creditAmount = paymentMethod === 'credit'
-        ? finalTotal
-        : splitPayments.find(p => p.method === 'credit')?.amount || 0;
-
-      if (creditAmount > 0) {
-        const creditStatus = getCustomerCreditStatus(state.selectedCustomer, creditAmount);
-
-        // Level 3: Hard Block (Blocked Customer)
-        if (creditStatus.isBlocked) {
-          sonner.error('Credit Blocked', `${state.selectedCustomer.name} is not authorized for credit purchases.`);
-          return;
-        }
-
-        // Level 2: Hard Block / Confirmation
-        if (creditStatus.willExceed) {
-          if (state.settings.allowCreditOverLimit === false) {
-            sonner.error(
-              'Credit Limit Exceeded',
-              `${state.selectedCustomer.name} has exceeded their credit limit of Rs ${creditStatus.limit.toLocaleString()}. Sale blocked.`
-            );
-            return;
-          } else {
-            const confirmed = await sonner.confirm(
-              'Credit Limit Exceeded',
-              `${state.selectedCustomer.name} will exceed their Rs ${creditStatus.limit.toLocaleString()} credit limit by Rs ${(creditStatus.afterSale - creditStatus.limit).toLocaleString()}. Do you want to proceed anyway?`,
-              'Proceed Anyway',
-              'Cancel'
-            );
-            if (!confirmed) return;
-          }
-        }
-        // Level 1: Soft Warning
-        else if (creditStatus.isNearLimit) {
-          sonner.warning(
-            'Approaching Credit Limit',
-            `${state.selectedCustomer.name} has used ${Math.round(creditStatus.usagePercent)}% of their credit limit.`
-          );
-        }
-      }
-    }
-
     setIsProcessing(true);
     try {
       const selectedSalesman = salesmanId ? 
@@ -301,9 +242,9 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         discountAmount: totalDiscount, taxAmount, total: finalTotal,
         billDiscountValue: state.billDiscountValue,
         billDiscountType: state.billDiscountType,
-        paymentMethod: paymentMethod === 'split' ? 'split' : (paymentMethod as any),
+        paymentMethod: paymentMethod as any,
         cardDetails: undefined,
-        status: paymentMethod === 'credit' ? 'credit' : 'completed',
+        status: 'completed',
         cashier: profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown',
         salesmanId: salesmanId || undefined,
         salesmanName: selectedSalesman,
@@ -311,14 +252,13 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         notes: saleNotes,
         appliedDiscounts,
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
-        receivedAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? parseFloat(amountPaid) || undefined : undefined,
-        changeAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? change || undefined : undefined,
+        receivedAmount: paymentMethod === 'cash' ? parseFloat(amountPaid) || undefined : undefined,
+        changeAmount: paymentMethod === 'cash' ? change || undefined : undefined,
         saleType: (editingStoreOrder ? 'estore' : (editingSale?.saleType as any) || saleType),
         sourceOrderId: state.editingStoreOrderId || undefined,
         saleDate: new Date().toLocaleDateString('en-CA'),
         extraCharges: extraCharges.filter(c => parseFloat(c.amount) > 0),
         deliveryFee: editingStoreOrder?.deliveryFee ?? (saleType === 'estore' ? (parseFloat(extraCharges.find(c => parseFloat(c.amount) > 0)?.amount || '0') || 0) : undefined),
-        splitPayments: paymentMethod === 'split' ? splitPayments : [],
         estoreStatus: (editingStoreOrder || editingSale?.saleType === 'estore' || editingSale?.estoreStatus) ? 'out_for_delivery' : undefined,
         deliveryAddress: editingStoreOrder?.deliveryAddress || editingSale?.deliveryAddress || undefined,
         deliveryLocationLat: editingStoreOrder?.deliveryLocationLat || editingSale?.deliveryLocationLat || undefined,
@@ -419,30 +359,6 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     }
   };
 
-  const addSplitLine = () => {
-    if (splitPayments.length < 5) {
-      setSplitPayments([...splitPayments, { method: 'cash', amount: 0 }]);
-    }
-  };
-
-  const removeSplitLine = (index: number) => {
-    if (splitPayments.length > 2) {
-      setSplitPayments(splitPayments.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleUpdateSplit = (index: number, amount: number) => {
-    const newSplits = [...splitPayments];
-    newSplits[index].amount = amount;
-    setSplitPayments(newSplits);
-  };
-
-  const handleUpdateSplitMethod = (index: number, method: any) => {
-    const newSplits = [...splitPayments];
-    newSplits[index].method = method;
-    setSplitPayments(newSplits);
-  };
-
   const saleTypes = [
     { id: 'retail', label: 'Retail', icon: Store, enabled: retailEnabled },
     { id: 'wholesale', label: 'Wholesale', icon: Package, enabled: wholesaleEnabled },
@@ -453,8 +369,6 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     { id: 'cash', label: 'Cash', icon: Banknote },
     { id: 'card', label: 'Card', icon: CreditCard },
     { id: 'digital', label: 'Bank Transfer', icon: Building2 },
-    { id: 'credit', label: 'Credit', icon: FileText },
-    ...(state.settings.enableSplitPayment ? [{ id: 'split', label: 'Split', icon: Layers }] : []),
   ];
 
   if (showReceipt && completedSale) {
@@ -592,9 +506,9 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
           <div>
             <p className="text-[8px] sm:text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1.5 sm:mb-2 flex items-center">
               {t("payment_method", "Payment Method")}
-              <HelpTooltip content="Select how the bill is being paid. Split allows mixed tenders (e.g. Cash and Credit Card). Credit records debt to customer account." />
+              <HelpTooltip content="Select how the bill is being paid." />
             </p>
-            <div className={cn("grid gap-1 sm:gap-1.5", state.settings.enableSplitPayment ? "grid-cols-5" : "grid-cols-4")}>
+            <div className={cn("grid gap-1 sm:gap-1.5", "grid-cols-3")}>
               {payMethods.map(m => {
                 const isActive = paymentMethod === m.id;
                 return (
@@ -610,55 +524,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
           {/* Amount Input */}
           <div className="min-h-[200px]">
-            {paymentMethod === 'split' ? (
-              <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
-                <div className="flex items-center justify-between">
-                  <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{t("combined_payment", "Combined Payment")}</label>
-                  <button onClick={addSplitLine} className="text-[8px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-3 py-1 rounded-full">{t("add_method", "+ ADD")}</button>
-                </div>
-
-                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
-                  {splitPayments.map((p, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <select
-                        value={p.method}
-                        onChange={(e) => handleUpdateSplitMethod(i, e.target.value)}
-                        className="bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full text-[10px] font-black uppercase px-3 py-2.5 w-[110px] focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="cash">{t("cash", "Cash")}</option>
-                        <option value="card">{t("card", "Card")}</option>
-                        <option value="digital">{t("digital", "Bank Transfer")}</option>
-                        <option value="credit">{t("credit", "Credit")}</option>
-                      </select>
-                      <input
-                        type="text" inputMode="decimal"
-                        value={p.amount || ''}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9.]/g, '');
-                          handleUpdateSplit(i, parseFloat(val) || 0);
-                        }}
-                        className="flex-1 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-full text-[12px] font-black px-4 py-2.5 text-center focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        placeholder="0"
-                      />
-                      <button onClick={() => removeSplitLine(i)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-full active:scale-95 transition-all">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className={cn("rounded-2xl p-4 flex items-center justify-between shadow-lg transition-all", splitTotal >= finalTotal ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-white/5 text-gray-500')}>
-                  <div>
-                    <p className="text-[8px] font-black uppercase opacity-70 mb-0.5">{t("received", "Paid")} {formatCurrency(splitTotal, state.settings.currency)}</p>
-                    <p className="text-lg font-black tabular-nums">
-                      {splitTotal >= finalTotal ? `${t("change", "CHG")}: ${formatCurrency(splitTotal - finalTotal, state.settings.currency)}` : `${t("due", "DUE")}: ${formatCurrency(finalTotal - splitTotal, state.settings.currency)}`}
-                    </p>
-                  </div>
-                  {splitTotal >= finalTotal && <Check className="w-5 h-5" />}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex justify-between items-center">
                   <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{t("amount_paid", "Received Amount")}</label>
                   <button onClick={() => setAmountPaid(finalTotal.toString())} className="text-[8px] font-black text-primary bg-primary/10 px-3 py-1 rounded-full hover:bg-primary/20 active:scale-95 transition-all">{t("exact_amount", "Exact Amount")}</button>
@@ -704,8 +570,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                   )}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
 
           {/* Extra Info: Custom Extra Charges - ONLY IF ENABLED IN SETTINGS & FOR E-STORE */}
           {state.settings.enableExtraCharges && saleType === 'estore' && (

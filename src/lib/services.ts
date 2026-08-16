@@ -1791,16 +1791,12 @@ export const salesService = {
       }
     }
 
-    // 3. Update Customer Credit/Stats if identified (NEVER for drafts — drafts are not revenue)
+    // 3. Update Customer Stats if identified (NEVER for drafts — drafts are not revenue)
     if (newSale.customerId && !isDraftSale) {
       const customer = await localDb.customers.get(newSale.customerId);
       if (customer) {
-        const isCreditSale = newSale.paymentMethod === 'credit' || newSale.status === 'credit';
-        const netCreditDebt = isCreditSale ? getAmountByMethod(newSale, 'credit') : 0;
-
         const updatedCustomer = {
           ...customer,
-          creditUsed: (customer.creditUsed || 0) + netCreditDebt,
           totalPurchases: (customer.totalPurchases || 0) + newSale.total,
           lastPurchase: newSale.timestamp,
           updatedAt: now
@@ -2013,11 +2009,9 @@ export const salesService = {
     if (sale.customerId && sale.status !== 'deleted' && !isDraftSale) {
       const customer = await localDb.customers.get(sale.customerId);
       if (customer) {
-        const isCreditSale = sale.paymentMethod === 'credit' || sale.status === 'credit';
         const remainingTotal = sale.total - (sale.refundedAmount || 0);
         const updatedCustomer = {
           ...customer,
-          creditUsed: isCreditSale ? Math.max(0, (customer.creditUsed || 0) - remainingTotal) : (customer.creditUsed || 0),
           totalPurchases: Math.max(0, (customer.totalPurchases || 0) - remainingTotal),
           updatedAt: now
         };
@@ -2305,14 +2299,12 @@ export const salesService = {
       updated_at: now.toISOString()
     }, { batchId: id });
 
-    // 4. Reverse Customer Credit/Stats
+    // 4. Reverse Customer Stats
     if (sale.customerId && totalRefundAmount > 0) {
       const customer = await localDb.customers.get(sale.customerId);
       if (customer) {
-        const isCreditSale = sale.paymentMethod === 'credit' || sale.status === 'credit';
         const updatedCustomer = {
           ...customer,
-          creditUsed: isCreditSale ? Math.max(0, (customer.creditUsed || 0) - totalRefundAmount) : (customer.creditUsed || 0),
           totalPurchases: Math.max(0, (customer.totalPurchases || 0) - totalRefundAmount),
           updatedAt: now
         };

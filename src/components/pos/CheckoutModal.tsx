@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, Smartphone, Check, AlertCircle, Gift, MessageCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, CheckCircle2, Layers, Hash, PlusCircle, Building2, Package, UserCircle } from 'lucide-react';
-import { Sale, SplitPayment } from '../../types';
+import { X, CreditCard, Banknote, Smartphone, Check, AlertCircle, Gift, MessageCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, CheckCircle2, Hash, PlusCircle, Building2, Package, UserCircle } from 'lucide-react';
+import { Sale } from '../../types';
 import { useApp, useInvoiceGeneration } from '../../context/SupabaseAppContext';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { useAuth } from '../../context/AuthContext';
 import { ReceiptPrint } from './ReceiptPrint';
 import { KOTPrint } from './KOTPrint';
-import { salesService, storeOrdersService, generateId, getCustomerCreditStatus, toRemoteSale, getAmountByMethod } from '../../lib/services';
+import { salesService, storeOrdersService, generateId, toRemoteSale, getAmountByMethod } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
 import { Modal } from '../common/Modal';
@@ -72,10 +72,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
   const [dcNumber, setDcNumber] = useState('');
   const [otherAmount, setOtherAmount] = useState('');
   const [otherAmountName, setOtherAmountName] = useState('');
-  const [splitPayments, setSplitPayments] = useState<SplitPayment[]>([
-    { method: 'cash', amount: 0 },
-    { method: 'card', amount: 0 }
-  ]);
   const [salesmanId, setSalesmanId] = useState<string>('');
 
   const { retailEnabled, wholesaleEnabled, estoreEnabled } = state.settings;
@@ -87,7 +83,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     total,
     activePromotions: appliedDiscounts,
     freeGifts
-  } = useCartCalculations(paymentMethod === 'split' ? 'cash' : paymentMethod); // Use cash as base for split
+  } = useCartCalculations(paymentMethod);
 
   const showDiscount = state.settings.receiptShowDiscount !== false &&
     !state.cart.some(item => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
@@ -104,10 +100,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
       setDcNumber('');
       setOtherAmount('');
       setOtherAmountName('');
-      setSplitPayments([
-        { method: 'cash', amount: 0 },
-        { method: 'card', amount: 0 }
-      ]);
       const preferredMode = state.settings.defaultSaleType || 'retail';
       if (preferredMode === 'retail' && retailEnabled) setSaleType('retail');
       else if (preferredMode === 'wholesale' && wholesaleEnabled) setSaleType('wholesale');
@@ -164,10 +156,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     return Infinity;
   }, []);
 
-  const canPayWithCredit = !!state.selectedCustomer;
-
-  const splitTotal = splitPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-
   const canProcessPayment = () => {
     if (isProcessing) return false;
     const paid = parseFloat(amountPaid) || 0;
@@ -175,8 +163,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
       case 'cash': return paid >= total;
       case 'card':
       case 'digital': return true;
-      case 'credit': return canPayWithCredit;
-      case 'split': return splitTotal >= total;
       default: return false;
     }
   };
@@ -184,54 +170,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
   if (!isOpen && !showReceipt) return null;
 
   const handlePayment = async () => {
-    // ── CREDIT LIMIT ENFORCEMENT (RULE F9) ──
-    if (paymentMethod === 'credit' || (paymentMethod === 'split' && splitPayments.some(p => p.method === 'credit'))) {
-      if (!state.selectedCustomer) {
-        sonner.error('Customer Required', 'A customer must be selected for credit sales.');
-        return;
-      }
-
-      const creditAmount = paymentMethod === 'credit'
-        ? total
-        : splitPayments.find(p => p.method === 'credit')?.amount || 0;
-
-      if (creditAmount > 0) {
-        const creditStatus = getCustomerCreditStatus(state.selectedCustomer, creditAmount);
-
-        // Level 3: Hard Block (Blocked Customer)
-        if (creditStatus.isBlocked) {
-          sonner.error('Credit Blocked', `${state.selectedCustomer.name} is not authorized for credit purchases.`);
-          return;
-        }
-
-        // Level 2: Hard Block / Confirmation
-        if (creditStatus.willExceed) {
-          if (state.settings.allowCreditOverLimit === false) {
-            sonner.error(
-              'Credit Limit Exceeded',
-              `${state.selectedCustomer.name} has exceeded their credit limit of Rs ${creditStatus.limit.toLocaleString()}. Sale blocked.`
-            );
-            return;
-          } else {
-            const confirmed = await sonner.confirm(
-              'Credit Limit Exceeded',
-              `${state.selectedCustomer.name} will exceed their Rs ${creditStatus.limit.toLocaleString()} credit limit by Rs ${(creditStatus.afterSale - creditStatus.limit).toLocaleString()}. Do you want to proceed anyway?`,
-              'Proceed Anyway',
-              'Cancel'
-            );
-            if (!confirmed) return;
-          }
-        }
-        // Level 1: Soft Warning
-        else if (creditStatus.isNearLimit) {
-          sonner.warning(
-            'Approaching Credit Limit',
-            `${state.selectedCustomer.name} has used ${Math.round(creditStatus.usagePercent)}% of their credit limit.`
-          );
-        }
-      }
-    }
-
     // ── CASH DRAWER INSUFFICIENT CHECK (BUG 2) ──
     if (paymentMethod === 'cash' && change > 0 && change > currentDrawerCash) {
       const confirmed = await sonner.confirm(
@@ -277,7 +215,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         billDiscountValue: state.billDiscountValue,
         billDiscountType: state.billDiscountType,
         paymentMethod: paymentMethod as any,
-        status: (paymentMethod === 'credit' || (paymentMethod === 'split' && splitPayments.some(p => p.method === 'credit'))) ? 'credit' : 'completed',
+        status: 'completed',
         cashier: profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown',
         salesmanId: salesmanId || undefined,
         salesmanName: selectedSalesman,
@@ -286,8 +224,8 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         notes: saleNotes || undefined,
         appliedDiscounts,
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
-        receivedAmount: (paymentMethod === 'cash' || paymentMethod === 'credit') ? parseFloat(amountPaid) || undefined : (paymentMethod === 'split' ? splitTotal : undefined),
-        changeAmount: paymentMethod === 'cash' ? change || undefined : (paymentMethod === 'split' ? (splitTotal - total) || undefined : undefined),
+        receivedAmount: paymentMethod === 'cash' ? parseFloat(amountPaid) || undefined : undefined,
+        changeAmount: paymentMethod === 'cash' ? change || undefined : undefined,
         // If editing an estore order or fulfilling a store order, preserve saleType='estore'
         saleType: (editingStoreOrder ? 'estore' : (oldSale?.saleType as any) || saleType),
         sourceOrderId: state.editingStoreOrderId || undefined,
@@ -296,7 +234,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
         dcNumber: dcNumber || undefined,
         otherAmount: parseFloat(otherAmount) || undefined,
         otherAmountName: otherAmountName || undefined,
-        splitPayments: paymentMethod === 'split' ? splitPayments : undefined,
         // E-Store order → mark as out_for_delivery (Dispatched) when bill is saved in POS
         estoreStatus: (editingStoreOrder || oldSale?.saleType === 'estore' || oldSale?.estoreStatus) ? 'out_for_delivery' : undefined,
         deliveryAddress: editingStoreOrder?.deliveryAddress || oldSale?.deliveryAddress,
@@ -452,8 +389,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     { id: 'cash', label: 'Cash', icon: Banknote, color: 'emerald' },
     { id: 'card', label: 'Card', icon: CreditCard, color: 'blue' },
     { id: 'digital', label: 'Digital', icon: Building2, color: 'cyan' },
-    { id: 'credit', label: 'Credit', icon: FileText, color: 'rose' },
-    { id: 'split', label: 'Split', icon: Layers, color: 'indigo' },
   ];
 
   const colorMap: Record<string, { border: string; bg: string; text: string; icon: string }> = {
@@ -464,30 +399,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     violet: { border: 'border-violet-500', bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', icon: 'bg-violet-500' },
     rose: { border: 'border-rose-500', bg: 'bg-rose-500/10', text: 'text-rose-600 dark:text-rose-400', icon: 'bg-rose-500' },
     indigo: { border: 'border-indigo-500', bg: 'bg-indigo-500/10', text: 'text-indigo-600 dark:text-indigo-400', icon: 'bg-indigo-500' },
-  };
-
-  const handleUpdateSplit = (index: number, amount: number) => {
-    const newSplits = [...splitPayments];
-    newSplits[index].amount = amount;
-    setSplitPayments(newSplits);
-  };
-
-  const handleUpdateSplitMethod = (index: number, method: any) => {
-    const newSplits = [...splitPayments];
-    newSplits[index].method = method;
-    setSplitPayments(newSplits);
-  };
-
-  const addSplitLine = () => {
-    if (splitPayments.length < 4) {
-      setSplitPayments([...splitPayments, { method: 'cash', amount: 0 }]);
-    }
-  };
-
-  const removeSplitLine = (index: number) => {
-    if (splitPayments.length > 2) {
-      setSplitPayments(splitPayments.filter((_, i) => i !== index));
-    }
   };
 
   return (
@@ -814,15 +725,15 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                   <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
                   <span className="flex items-center">
                     {t("payment_method", "Payment Method")}
-                    <HelpTooltip content="Select how the customer is settling the bill. Split allows multiple tenders (e.g. Cash + Card). Credit records a ledger debt." />
+                    <HelpTooltip content="Select how the customer is settling the bill." />
                   </span>
                 </label>
 
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {paymentMethods.map(({ id, label, icon: Icon, color }) => {
                     const c = colorMap[color];
                     const isActive = paymentMethod === id;
-                    const disabled = id === 'credit' && !canPayWithCredit;
+                    const disabled = false;
 
                     return (
                       <button
@@ -898,80 +809,6 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                           <AlertCircle className="w-4.5 h-4.5" />
                         </div>
                       )}
-                    </div>
-                  </div>
-                ) : paymentMethod === 'split' ? (
-                  <div className="space-y-4 animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[10px] font-black text-gray-600 uppercase tracking-[0.2em]">{t("combined_payment", "Combined Payment")}</label>
-                      <button onClick={addSplitLine} className="text-[8px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-3 py-1 rounded-full">{t("add_method", "+ ADD METHOD")}</button>
-                    </div>
-
-                    <div className="space-y-3 max-h-[180px] overflow-y-auto pr-2 custom-scrollbar">
-                      {splitPayments.map((p, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <select
-                            value={p.method}
-                            onChange={(e) => handleUpdateSplitMethod(i, e.target.value)}
-                            className="bg-gray-100 dark:bg-white/5 border-none rounded-xl text-[10px] font-black uppercase px-2 py-3 w-[100px]"
-                          >
-                            <option value="cash">{t("cash", "Cash")}</option>
-                            <option value="card">{t("card", "Card")}</option>
-                            <option value="digital">{t("digital", "Bank Transfer")}</option>
-                            <option value="credit">{t("credit", "Credit")}</option>
-                          </select>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={p.amount || ''}
-                            onChange={(e) => handleUpdateSplit(i, parseFloat(e.target.value.replace(/[^0-9.]/g, '')) || 0)}
-                            className="flex-1 bg-gray-100 dark:bg-white/5 border-none rounded-xl text-[12px] font-black px-4 py-3 text-center"
-                            placeholder="0"
-                          />
-                          <button onClick={() => removeSplitLine(i)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className={cn("rounded-2xl p-4 flex items-center justify-between shadow-lg transition-colors", splitTotal >= total ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-white/5 text-gray-500')}>
-                      <div>
-                        <p className="text-[8px] font-black uppercase opacity-70 mb-1">{t("received", "Paid")} {formatCurrency(splitTotal, state.settings.currency)}</p>
-                        <p className="text-xl font-black tabular-nums">
-                          {splitTotal >= total ? `${t("change", "CHG")}: ${formatCurrency(splitTotal - total, state.settings.currency)}` : `${t("due", "DUE")}: ${formatCurrency(total - splitTotal, state.settings.currency)}`}
-                        </p>
-                      </div>
-                      {splitTotal >= total && <Check className="w-5 h-5" />}
-                    </div>
-                  </div>
-                ) : paymentMethod === 'credit' ? (
-                  <div className="space-y-4 animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em]">{t("advance_received", "Advance Received (Optional)")}</label>
-                    </div>
-
-                    <div className="relative group">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-                        <span className="text-xl font-black text-rose-500 uppercase">{state.settings.currency}</span>
-                      </div>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        autoFocus
-                        value={amountPaid}
-                        onChange={(e) => setAmountPaid(e.target.value.replace(/[^0-9.]/g, ''))}
-                        className="w-full bg-rose-50 dark:bg-rose-900/10 border-none rounded-2xl px-16 py-4 text-3xl font-black text-rose-600 dark:text-rose-400 focus:ring-2 focus:ring-rose-500/20 tabular-nums text-center"
-                        placeholder="0"
-                      />
-                    </div>
-
-                    <div className="bg-rose-500 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg">
-                      <div>
-                        <p className="text-[8px] font-black text-white/90 uppercase mb-1">{t("added_to_debt", "Added to Debt")}</p>
-                        <p className="text-xl font-black tabular-nums">{formatCurrency(total - (parseFloat(amountPaid) || 0), state.settings.currency)}</p>
-                      </div>
-                      <AlertCircle className="w-5 h-5 opacity-80" />
                     </div>
                   </div>
                 ) : (

@@ -264,7 +264,6 @@ export function Settings() {
     theme: (state.settings as any)?.theme || 'dark',
     interfaceMode: (state.settings as any)?.interfaceMode || 'touch',
     allowCreditOverLimit: state.settings?.allowCreditOverLimit ?? true,
-    enableSplitPayment: state.settings?.enableSplitPayment ?? false,
     enableExtraCharges: state.settings?.enableExtraCharges ?? false,
     defaultSaleType: state.settings?.defaultSaleType || 'retail',
     barcodeBarWidth: state.settings?.barcodeBarWidth ?? 0.8
@@ -1144,23 +1143,6 @@ export function Settings() {
                               handleInstantUpdate('soundEnabled', v);
                               if (v) setTimeout(() => play('success'), 100);
                             }}
-                          />
-                        </label>
-
-                        {/* Split Payments Toggle */}
-                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
-                          <div className="flex items-center gap-3">
-                            <Layers className="w-4 h-4 text-gray-500 group-hover:text-violet-500 transition-colors" />
-                            <div>
-                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("enable_split_payments", "Split Payments")}</span>
-                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("enable_split_payments_subtitle", "Allow split payment mode")}</span>
-                            </div>
-                          </div>
-                          <ToggleSwitch
-                            size="sm"
-                            color="bg-[#10B981]"
-                            checked={formData.enableSplitPayment}
-                            onChange={(v) => handleInstantUpdate('enableSplitPayment', v)}
                           />
                         </label>
 
