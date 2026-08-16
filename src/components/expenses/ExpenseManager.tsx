@@ -1,10 +1,10 @@
 import { useState, useMemo, useRef } from 'react';
-import { 
-  Plus, TrendingDown, 
-  Tag, CreditCard, Edit2, Trash2, 
-  Download, Wallet, LayoutGrid, Zap, 
-  Utensils, Fuel, Home, Users, 
-  Package, Megaphone, Wrench, ShieldCheck, 
+import {
+  Plus, TrendingDown,
+  Tag, CreditCard, Edit2, Trash2,
+  Download, Wallet, LayoutGrid, Zap,
+  Utensils, Fuel, Home, Users,
+  Package, Megaphone, Wrench, ShieldCheck,
   Receipt, MoreHorizontal, ShoppingBag,
   Building2, User
 } from 'lucide-react';
@@ -48,7 +48,7 @@ export function ExpenseManager() {
       });
     }
   };
-  
+
   const CATEGORY_ICONS: Record<string, any> = {
     'all': LayoutGrid,
     'Utilities': Zap,
@@ -156,7 +156,8 @@ export function ExpenseManager() {
     return { filteredTotal, thisMonthTotal };
   }, [state.settings.country, filteredExpenses]);
 
-  const isAdmin = state.currentUser?.role === 'admin';
+  // Role logic removed — single-tenant POS: authenticated user has full access
+  const isAdmin = true;
 
   const handleSave = async (expenseData: Omit<Expense, 'id' | 'createdAt'>) => {
     // Only allow editing for admins, but anyone (manager/admin) can add
@@ -388,7 +389,7 @@ export function ExpenseManager() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                       <Badge tone="warning" size="sm">
+                      <Badge tone="warning" size="sm">
                         {expense.category}
                       </Badge>
                     </td>
@@ -401,7 +402,7 @@ export function ExpenseManager() {
                       -{formatCurrency(expense.amount, state.settings.currency)}
                     </td>
                     <td className="p-4 text-right">
-                       <div className="flex justify-end items-center gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex justify-end items-center gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="ghost"
                           onClick={() => { setEditingExpense(expense); setIsModalOpen(true); }}
@@ -476,20 +477,20 @@ export function ExpenseManager() {
         </div>
 
         {/* Premium Pagination Footer */}
-        
-          <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
-            <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredExpenses.length)} {t("of", "of")} {filteredExpenses.length}</p>
-            <div className="mx-auto sm:mx-0">
-              <Pagination
-                page={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
+
+        <div className="p-4 bg-gray-50/50 dark:bg-white/[0.02] border-t border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
+          <p className="hidden sm:block text-[10px] font-black text-gray-600 uppercase tracking-widest italic truncate">{t("records", "Records")} {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredExpenses.length)} {t("of", "of")} {filteredExpenses.length}</p>
+          <div className="mx-auto sm:mx-0">
+            <Pagination
+              page={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
               pageSize={ITEMS_PER_PAGE}
               onPageSizeChange={setPageSize}
             />
-            </div>
           </div>
-        
+        </div>
+
       </div>
 
       <ExpenseModal

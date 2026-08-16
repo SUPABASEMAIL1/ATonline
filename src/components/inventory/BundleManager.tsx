@@ -144,8 +144,8 @@ export function BundleManager() {
   const { state, dispatch } = useApp();
   const { profile } = useAuth();
   const { t } = useTranslation();
-  const isAdmin = profile?.role === 'admin';
-  const isManager = profile?.role === 'manager';
+  const isAdmin = true; // Role logic removed — full access
+  const isManager = true;
   const canManage = isAdmin || isManager;
 
   const [showForm, setShowForm] = useState(false);

@@ -83,7 +83,7 @@ export function ActionHistory({ onViewProduct }: ActionHistoryProps) {
       if (dateFilter === 'custom') {
         let start: Date | null = null;
         let end: Date | null = null;
-        
+
         if (startDateInput) {
           const [y, m, d] = startDateInput.split('-').map(Number);
           start = new Date(y, m - 1, d, 0, 0, 0, 0);

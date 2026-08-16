@@ -51,7 +51,7 @@ export function InventoryManager() {
     );
   }
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = true; // Role logic removed — full access
   const canManageStock = isAdmin || profile?.canManageStock || profile?.canManagePO;
   const canManagePO = isAdmin || profile?.canManagePO;
   const canViewRecords = isAdmin || profile?.canViewRecords;
@@ -879,7 +879,7 @@ export function InventoryManager() {
                       </td>
                       <td className="p-4 text-left">
                         <p className="text-xs font-black text-gray-900 dark:text-white tracking-widest">{formatCurrency(product.price, state.settings.currency)}</p>
-                        {(profile?.role === 'admin' || profile?.role === 'manager') && <p className="text-[9px] text-gray-600 uppercase font-black opacity-50">Cost: {formatCurrency(product.cost || 0, state.settings.currency)}</p>}
+                        {(true) && <p className="text-[9px] text-gray-600 uppercase font-black opacity-50">Cost: {formatCurrency(product.cost || 0, state.settings.currency)}</p>}
                       </td>
                       <td className="p-4 text-center">
                         <div className="flex flex-col items-center gap-1">
@@ -1036,7 +1036,7 @@ export function InventoryManager() {
                                 {product.trackInventory === false || product.stock >= 990000 ? '∞' : product.stock}
                               </Badge>
                             </div>
-                            {(profile?.role === 'admin' || profile?.role === 'manager') && (
+                            {(true) && (
                               <div className="flex items-center justify-between opacity-50">
                                 <span className="text-[7px] font-black text-gray-600 dark:text-gray-500 uppercase">{t("cost", "Cost")}</span>
                                 <span className="text-[7px] font-black text-gray-600 dark:text-gray-400">{formatCurrency(product.cost || 0, state.settings.currency)}</span>

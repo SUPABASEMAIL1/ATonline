@@ -32,7 +32,8 @@ export function TransactionsManager() {
   const { state, dispatch, loadMoreSales, searchSales } = useApp();
   const { t } = useTranslation();
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  // Role logic removed — single-tenant POS: authenticated user has full access
+  const isAdmin = true;
   const timezone = getTimezone(state.settings.country);
 
   const { retailEnabled, wholesaleEnabled, estoreEnabled } = state.settings;
@@ -289,7 +290,7 @@ export function TransactionsManager() {
       digital: 0,
       credit: 0,
     };
-    
+
     // UNIVERSAL WALLET RULE: wallet totals must mirror ReportsManager —
     // fully refunded sales subtract their full method share, partially
     // refunded sales subtract the refunded amount (pro-rata for split).
@@ -303,7 +304,7 @@ export function TransactionsManager() {
         addToWallet('card', getAmountByMethod(t, 'card'));
         addToWallet('digital', getAmountByMethod(t, 'digital'));
       }
-      
+
       if (t.status === 'refunded') {
         addToWallet('cash', -getAmountByMethod(t, 'cash'));
         addToWallet('card', -getAmountByMethod(t, 'card'));
@@ -322,7 +323,7 @@ export function TransactionsManager() {
       }
       totals.credit += getAmountByMethod(t, 'credit');
     });
-    
+
     return totals;
   }, [filteredTransactions]);
 
@@ -332,8 +333,8 @@ export function TransactionsManager() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const canEditSale = isAdmin || (profile?.role === 'manager' && profile?.canEditSale);
-  const canDeleteSale = isAdmin || (profile?.role === 'manager' && profile?.canDeleteSale);
+  const canEditSale = isAdmin || profile?.canEditSale;
+  const canDeleteSale = isAdmin || profile?.canDeleteSale;
 
   const handleDeleteSale = async (tx: Sale) => {
     if (!canDeleteSale) return;
@@ -501,13 +502,12 @@ export function TransactionsManager() {
       </div>
 
       {/* Dynamic Main Stats Grid */}
-      <div className={`grid grid-cols-2 gap-4 ${
-        activeCardsCount === 5 
-          ? "sm:grid-cols-3 lg:grid-cols-5" 
-          : activeCardsCount === 4 
-            ? "sm:grid-cols-2 lg:grid-cols-4" 
+      <div className={`grid grid-cols-2 gap-4 ${activeCardsCount === 5
+          ? "sm:grid-cols-3 lg:grid-cols-5"
+          : activeCardsCount === 4
+            ? "sm:grid-cols-2 lg:grid-cols-4"
             : "sm:grid-cols-3"
-      }`}>
+        }`}>
         {/* Total Revenue Card */}
         <div className="stat-card bg-gradient-to-br from-[#0EA5E9] to-[#0284C7]">
           <div className="stat-card-inner">
@@ -566,7 +566,7 @@ export function TransactionsManager() {
           <Wallet className="h-3.5 w-3.5 text-[#10B981]" />
           <span>{t("wallets_summary", "WALLETS & CASH FLOW BREAKDOWN")}</span>
         </h3>
-        
+
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
           {/* Cash Wallet Card */}
           <div className="relative overflow-hidden bg-white dark:bg-[#1C1C1C] border border-gray-200 dark:border-white/5 rounded-2xl p-4 flex items-center justify-between transition-all hover:scale-[1.02] hover:border-primary/30 dark:hover:border-primary/30 shadow-sm">
@@ -850,9 +850,9 @@ export function TransactionsManager() {
             totalItems={filteredTransactions.length}
             mode="prevNext"
             className="w-full"
-              pageSize={ITEMS_PER_PAGE}
-              onPageSizeChange={setPageSize}
-            />
+            pageSize={ITEMS_PER_PAGE}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       </div>
 

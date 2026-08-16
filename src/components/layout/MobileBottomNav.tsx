@@ -13,7 +13,6 @@ export function MobileBottomNav({ onShowMenu }: MobileBottomNavProps) {
   const location = useLocation();
   const { state } = useApp();
   const { t } = useTranslation();
-  const role = state.currentUser?.role;
 
   const navItems = [
     { id: 'pos', label: t('pos', 'POS'), icon: AppIcons.pos },
@@ -21,13 +20,9 @@ export function MobileBottomNav({ onShowMenu }: MobileBottomNavProps) {
     { id: 'inventory', label: t('stock', 'Stock'), icon: AppIcons.inventory },
   ];
 
-  // Add Dashboard for admins/managers
-  if (role === 'admin' || role === 'manager') {
-    navItems.unshift({ id: 'dashboard', label: t('home', 'Home'), icon: AppIcons.dashboard });
-  } else {
-    // For others, maybe Customers?
-    navItems.push({ id: 'customers', label: t('clients', 'Clients'), icon: AppIcons.customers });
-  }
+  // Role logic removed — show Dashboard + Customers for all users
+  navItems.unshift({ id: 'dashboard', label: t('home', 'Home'), icon: AppIcons.dashboard });
+  navItems.push({ id: 'customers', label: t('clients', 'Clients'), icon: AppIcons.customers });
 
   return (
     <div className="md:hidden bg-white/95 dark:bg-zinc-950/95 border-t border-gray-200/50 dark:border-white/5 px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_25px_rgba(0,0,0,0.06)] z-[40] flex-shrink-0 backdrop-blur-md">

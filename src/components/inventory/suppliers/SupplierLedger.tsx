@@ -169,7 +169,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
   };
 
   const handleDeleteTransaction = async (id: string) => {
-    if (state.currentUser?.role !== 'admin') {
+    if (false) {
       sonner.error('Only administrators can delete transactions.');
       return;
     }
@@ -394,7 +394,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                         ) : <span className="text-gray-600 dark:text-gray-500 opacity-20">—</span>}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {state.currentUser?.role === 'admin' && (
+                        {true && (
                           <Button variant="ghost" onClick={() => handleDeleteTransaction(tx.id)} className="!min-h-0 !p-1.5 !rounded-lg !text-gray-600 hover:!text-red-500 active:scale-90">
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -457,7 +457,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
                     </div>
                   </div>
 
-                  {state.currentUser?.role === 'admin' && (
+                  {true && (
                     <div className="flex justify-end pt-1">
                       <Button
                         variant="danger"

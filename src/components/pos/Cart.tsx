@@ -783,7 +783,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                         payload: { id: state.activeSalesTab, updates: { billDiscountType: type } },
                       })
                     }
-                    disabled={profile?.role !== 'admin' && !profile?.canGiveDiscount}
+                    disabled={!profile?.canGiveDiscount}
                     className={`flex items-center justify-center min-w-[32px] h-[26px] px-2 text-[10px] font-black rounded-full transition-all ${state.billDiscountType === type
                       ? 'bg-white dark:bg-zinc-800 text-primary dark:text-white shadow-sm'
                       : 'text-gray-500'
@@ -801,7 +801,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                   value={billDiscountInput}
                   dir="ltr"
                   inputMode="decimal"
-                  disabled={profile?.role !== 'admin' && !profile?.canGiveDiscount}
+                  disabled={!profile?.canGiveDiscount}
                   onChange={(e) => {
                     const raw = e.target.value;
                     if (!/^\d*\.?\d*$/.test(raw)) return;
@@ -829,7 +829,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 )}
               </div>
 
-              {(profile?.role === 'admin' || profile?.canGiveDiscount) && state.billDiscountValue > 0 && (
+              {(profile?.canGiveDiscount) && state.billDiscountValue > 0 && (
                 <button
                   onClick={() => {
                     setBillDiscountInput('');
@@ -846,7 +846,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
               )}
 
               {/* Promo picker */}
-              {(profile?.role === 'admin' || profile?.canGiveDiscount) && (
+              {(profile?.canGiveDiscount) && (
                 <button
                   onClick={() => {
                     const promos = state.discounts.filter((d) => d.active);
@@ -1137,10 +1137,10 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
                 />
               ) : (
                 <div
-                  onClick={() => (profile?.role === 'admin' || profile?.canEditPrice) && (setTempPrice(item.product.price.toString()), setIsEditingPrice(true))}
-                  className={`flex items-center gap-1 -ml-1 px-1 py-0.5 rounded-lg transition-all ${(profile?.role === 'admin' || profile?.canEditPrice) ? 'cursor-pointer hover:bg-emerald-50 dark:hover:bg-primary/10 active:scale-95 group/price' : ''}`}
+                  onClick={() => (profile?.canEditPrice) && (setTempPrice(item.product.price.toString()), setIsEditingPrice(true))}
+                  className={`flex items-center gap-1 -ml-1 px-1 py-0.5 rounded-lg transition-all ${(profile?.canEditPrice) ? 'cursor-pointer hover:bg-emerald-50 dark:hover:bg-primary/10 active:scale-95 group/price' : ''}`}
                 >
-                  <span className={`text-[9px] font-black ${item.product.price < item.product.cost ? 'text-rose-500' : (profile?.role === 'admin' || profile?.canEditPrice) ? 'text-primary dark:text-emerald-400' : 'text-gray-600'}`}>
+                  <span className={`text-[9px] font-black ${item.product.price < item.product.cost ? 'text-rose-500' : (profile?.canEditPrice) ? 'text-primary dark:text-emerald-400' : 'text-gray-600'}`}>
                     {formatCurrency(item.product.price, currency)}
                   </span>
                   {item.originalPrice !== undefined && Math.round(item.product.price) !== Math.round(item.originalPrice) && (
@@ -1152,7 +1152,7 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
                       <span className="text-[6px] font-black text-rose-500">Cost: {formatCurrency(item.product.cost, currency)}</span>
                     </div>
                   )}
-                  {(profile?.role === 'admin' || profile?.canEditPrice) && (
+                  {(profile?.canEditPrice) && (
                     <Edit2 className="h-2 w-2 text-primary/50 group-hover/price:text-primary transition-colors" />
                   )}
                 </div>
@@ -1205,7 +1205,7 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
           )}
           {!(isNested || isFromBundle) && (
             <div className="flex items-center gap-2 mt-1">
-              {(profile?.role === 'admin' || profile?.canGiveDiscount) && (
+              {(profile?.canGiveDiscount) && (
                 <button
                   onClick={() => setShowDiscountInput(!showDiscountInput)}
                   className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-[10px] sm:text-[9px] font-black leading-none rounded-full transition-colors ${item.discount > 0 ? 'text-primary bg-emerald-500/10' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10 hover:text-primary'}`}
@@ -1214,7 +1214,7 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
                   %
                 </button>
               )}
-              {(profile?.role === 'admin' || profile?.canGiveDiscount) && item.discount > 0 && (
+              {(profile?.canGiveDiscount) && item.discount > 0 && (
                 <button
                   onClick={clearItemDiscount}
                   className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-primary hover:text-red-500 hover:bg-rose-500/10 rounded-full transition-colors"
@@ -1223,7 +1223,7 @@ function CartItemCard({ item, index, visualIndex, onUpdateQuantity, onRemove, on
                   <X className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                 </button>
               )}
-              {(profile?.role === 'admin' || profile?.canEditPrice) && (
+              {(profile?.canEditPrice) && (
                 <button
                   onClick={() => {
                     setTempPrice(item.product.price.toString());

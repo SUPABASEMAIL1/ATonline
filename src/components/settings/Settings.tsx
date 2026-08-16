@@ -372,7 +372,8 @@ export function Settings() {
     }));
   }, [state.settings]);
 
-  const canEditSettings = profile?.role === 'admin' || profile?.role === 'manager';
+  // Role logic removed — single-tenant POS: authenticated user can edit settings
+  const canEditSettings = true;
 
   const handleInstantUpdate = async (name: string, value: any) => {
     if (!canEditSettings) return;
@@ -582,7 +583,8 @@ export function Settings() {
     { id: 'database', label: 'Database', icon: Database, adminOnly: true },
   ];
 
-  const visibleTabs = tabs.filter(t => !t.adminOnly || profile?.role === 'admin');
+  // Role logic removed — show all configured tabs (adminOnly flag retired)
+  const visibleTabs = tabs;
 
   return (
     <div className="main-content-scroll p-1 sm:p-4 lg:p-6 py-4 sm:py-6 bg-gray-50/50 dark:bg-app max-w-[1400px] mx-auto">
@@ -1186,7 +1188,7 @@ export function Settings() {
               </section>
             )}
 
-            {activeTab === 'database' && profile?.role === 'admin' && (
+            {activeTab === 'database' && (
               <section className="space-y-8">
                 <DatabaseTools />
               </section>

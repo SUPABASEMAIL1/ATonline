@@ -119,7 +119,7 @@ export function ReportsManager() {
       'YES, REPAIR'
     );
     if (!confirmed.isConfirmed) return;
-    
+
     setRepairing(true);
     setRepairProgress(0);
     sonner.loading('Auditing Data... 0%');
@@ -414,27 +414,27 @@ export function ReportsManager() {
     reportRefunds.forEach(s => { if (s && s.id && !salesById.has(s.id)) salesById.set(s.id, s); });
 
     const allSalesRaw = Array.from(salesById.values());
-    
+
     // Unroll addonItems into separate line items for accurate reporting
     const allSales = allSalesRaw.map(sale => {
       if (!sale || !sale.items) return sale;
       let hasAddons = false;
-      
+
       const unrolledItems = sale.items.flatMap(item => {
         if (!item.addonItems || item.addonItems.length === 0) return [item];
         hasAddons = true;
-        
+
         let addonSubtotalSum = 0;
         let addonCostSum = 0;
-        
+
         const addonsAsItems = item.addonItems.map(addon => {
           const addonSubtotal = (addon.price || 0) * (addon.quantity || 1) * (item.quantity || 1);
           addonSubtotalSum += addonSubtotal;
-          
+
           const actualAddonProd = state.products.find(p => p.id === addon.addon.addonProductId);
           const addonCost = (actualAddonProd?.cost || 0) * (addon.quantity || 1) * (item.quantity || 1);
           addonCostSum += addonCost;
-          
+
           return {
             id: `${item.id}-addon-${addon.addon.id}`,
             product: actualAddonProd || { id: addon.addon.addonProductId, name: addon.name, category: 'Add-ons' },
@@ -444,7 +444,7 @@ export function ReportsManager() {
             isAddon: true
           };
         });
-        
+
         return [
           {
             ...item,
@@ -454,7 +454,7 @@ export function ReportsManager() {
           ...addonsAsItems
         ];
       });
-      
+
       if (hasAddons) {
         return { ...sale, items: unrolledItems };
       }
@@ -577,7 +577,7 @@ export function ReportsManager() {
     filteredSales.filter(s => s.status === 'completed' || s.status === 'credit').forEach(sale => {
       sale.items.forEach(item => {
         const itemRev = getItemRevenue(item, sale);
-        
+
         if (item.product?.isService) {
           serviceRevenue += itemRev;
         } else {
@@ -585,31 +585,31 @@ export function ReportsManager() {
         }
 
         if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-           item.selectedModifiers.forEach(mod => {
-              const modRev = (mod.price || 0) * item.quantity;
-              modifiersRevenue += modRev;
-           });
+          item.selectedModifiers.forEach(mod => {
+            const modRev = (mod.price || 0) * item.quantity;
+            modifiersRevenue += modRev;
+          });
         }
         if (item.addonItems && item.addonItems.length > 0) {
-           item.addonItems.forEach(addon => {
-              const modRev = addon.subtotal || 0;
-              modifiersRevenue += modRev;
-           });
+          item.addonItems.forEach(addon => {
+            const modRev = addon.subtotal || 0;
+            modifiersRevenue += modRev;
+          });
         }
         if (item.toppings && item.toppings.length > 0) {
-           item.toppings.forEach(topping => {
-              const modRev = (topping.price || 0) * item.quantity;
-              modifiersRevenue += modRev;
-           });
+          item.toppings.forEach(topping => {
+            const modRev = (topping.price || 0) * item.quantity;
+            modifiersRevenue += modRev;
+          });
         }
 
         if (item.selectedVariant) {
-           const varKey = `${item.product?.name} (${item.selectedVariant})`;
-           if (!variantSales[varKey]) {
-             variantSales[varKey] = { name: varKey, quantity: 0, revenue: 0 };
-           }
-           variantSales[varKey].quantity += item.quantity;
-           variantSales[varKey].revenue += itemRev; 
+          const varKey = `${item.product?.name} (${item.selectedVariant})`;
+          if (!variantSales[varKey]) {
+            variantSales[varKey] = { name: varKey, quantity: 0, revenue: 0 };
+          }
+          variantSales[varKey].quantity += item.quantity;
+          variantSales[varKey].revenue += itemRev;
         }
       });
     });
@@ -618,7 +618,7 @@ export function ReportsManager() {
       serviceRevenue,
       productRevenue,
       modifiersRevenue,
-      topVariants: Object.values(variantSales).sort((a,b) => b.revenue - a.revenue).slice(0, 5)
+      topVariants: Object.values(variantSales).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
     };
   }, [filteredSales]);
 
@@ -752,7 +752,7 @@ export function ReportsManager() {
       // Amount from regular sales (including refunded so we get the initial collection before refund subtraction)
       const validSales = filteredSales.filter(s => s.status === 'completed' || s.status === 'credit' || s.status === 'refunded' || s.status === 'partially_refunded');
       const sales = validSales.reduce((a, x) => a + getAmountByMethod(x, method), 0);
-      
+
       // Breakdown of sales by type
       const retailSales = validSales.filter(s => (!s.saleType || s.saleType === 'retail')).reduce((a, x) => a + getAmountByMethod(x, method), 0);
       const wholesaleSales = validSales.filter(s => s.saleType === 'wholesale').reduce((a, x) => a + getAmountByMethod(x, method), 0);
@@ -763,7 +763,7 @@ export function ReportsManager() {
       const collections = reportPayments
         .filter(p => p.direction !== 'out' && p.method === method)
         .reduce((a, p) => a + (p.amount || 0), 0);
-      
+
       const expenses = filteredExpenses.filter(e => e.paymentMethod === method).reduce((a, x) => a + Number(x.amount), 0);
       const refunds = filteredSales.reduce((a, x) => {
         if (x.status === 'refunded') return a + getAmountByMethod(x, method);
@@ -778,7 +778,7 @@ export function ReportsManager() {
         }
         return a;
       }, 0);
-      
+
       return {
         method,
         sales: sales + collections, // Combine them for the net balance
@@ -1205,7 +1205,7 @@ export function ReportsManager() {
       {/* Premium Dashboard summary row */}
       {reportType === 'sales' && (
         <div className="relative z-20 mt-2 sm:mt-4">
-        <SalesReport
+          <SalesReport
             filteredSales={filteredSales}
             salesData={salesData}
             categoryData={categoryData}

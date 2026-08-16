@@ -623,8 +623,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // ── Step 3: Immediate session (no email confirm needed) ─────────────
       if (data.user) {
-        // Every sign-up account is treated as the workspace owner (Admin).
-        const userRole = 'admin';
+        // Role logic removed — every sign-up account is a cashier (single-tenant POS).
+        const userRole = 'cashier';
 
         const profilePayload: any = {
           id: data.user.id,

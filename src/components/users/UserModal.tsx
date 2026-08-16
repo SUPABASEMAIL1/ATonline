@@ -39,7 +39,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
     name: '',
     email: '',
     password: '',
-    role: 'cashier' as 'admin' | 'manager' | 'cashier',
+    role: 'cashier' as 'cashier',
     active: true,
     avatar: '',
     canEditPrice: false,
@@ -114,7 +114,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
 
         if (formData.password && formData.password.length >= 6) {
           try {
-            if (state.currentUser?.role !== 'admin') throw new Error('Only admins can update user passwords');
+            if (false) throw new Error('Only admins can update user passwords');
             if (!adminSupabase) throw new Error('Admin client not initialized (missing service key)');
             const { error: authError } = await adminSupabase.auth.admin.updateUserById(user.id, {
               password: formData.password
@@ -142,18 +142,18 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           username: formData.username,
           name: formData.name,
           email: formData.email,
-          role: formData.role as 'admin' | 'manager' | 'cashier',
+          role: formData.role as 'cashier',
           active: formData.active,
           avatar: formData.avatar || undefined,
-          canEditPrice: formData.role === 'admin' ? true : formData.canEditPrice,
-          canGiveDiscount: formData.role === 'admin' ? true : formData.canGiveDiscount,
-          canDeleteSale: formData.role === 'admin' ? true : (formData.role === 'cashier' ? false : formData.canDeleteSale),
-          canViewProfit: formData.role === 'admin' ? true : formData.canViewProfit,
-          canManageStock: formData.role === 'admin' ? true : formData.canManageStock,
-          canManagePO: formData.role === 'admin' ? true : formData.canManagePO,
-          canViewRecords: formData.role === 'admin' ? true : formData.canViewRecords,
-          canEditSale: formData.role === 'admin' ? true : (formData.role === 'cashier' ? false : formData.canEditSale),
-          permissions: formData.role === 'admin' ? ['access_payments', 'access_expenses', 'access_customers', 'access_reports', 'access_inventory'] : formData.permissions,
+          canEditPrice: true,
+          canGiveDiscount: true,
+          canDeleteSale: true,
+          canViewProfit: true,
+          canManageStock: true,
+          canManagePO: true,
+          canViewRecords: true,
+          canEditSale: true,
+          permissions: ['access_payments', 'access_expenses', 'access_customers', 'access_reports', 'access_inventory'],
         };
 
         const updatedUser = await usersService.update(user.id, updatePayload);
@@ -175,7 +175,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           return;
         }
 
-        if (state.currentUser?.role !== 'admin') {
+        if (false) {
           throw new Error('Permission denied — only admins can create users');
         }
         if (!adminSupabase) {
@@ -210,15 +210,15 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           role: formData.role,
           active: formData.active,
           username: formData.username,
-          permissions: formData.role === 'admin' ? ['access_payments', 'access_expenses', 'access_customers', 'access_reports', 'access_inventory'] : formData.permissions,
-          can_edit_price: formData.role === 'admin' ? true : formData.canEditPrice,
-          can_give_discount: formData.role === 'admin' ? true : formData.canGiveDiscount,
-          can_delete_sale: formData.role === 'admin' ? true : (formData.role === 'cashier' ? false : formData.canDeleteSale),
-          can_view_profit: formData.role === 'admin' ? true : formData.canViewProfit,
-          can_manage_stock: formData.role === 'admin' ? true : formData.canManageStock,
-          can_manage_po: formData.role === 'admin' ? true : formData.canManagePO,
-          can_view_records: formData.role === 'admin' ? true : formData.canViewRecords,
-          can_edit_sale: formData.role === 'admin' ? true : (formData.role === 'cashier' ? false : formData.canEditSale),
+          permissions: ['access_payments', 'access_expenses', 'access_customers', 'access_reports', 'access_inventory'],
+          can_edit_price: true,
+          can_give_discount: true,
+          can_delete_sale: true,
+          can_view_profit: true,
+          can_manage_stock: true,
+          can_manage_po: true,
+          can_view_records: true,
+          can_edit_sale: true,
           avatar: formData.avatar || null,
           offline_hash: hash
         }, { onConflict: 'id' });
@@ -228,16 +228,16 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
           username: formData.username,
           name: formData.name,
           email: resolvedEmail,
-          role: formData.role as 'admin' | 'manager' | 'cashier',
-          permissions: formData.permissions,
-          canEditPrice: formData.role === 'admin' || formData.canEditPrice,
-          canGiveDiscount: formData.role === 'admin' || formData.canGiveDiscount,
-          canDeleteSale: formData.role === 'admin' || (formData.role !== 'cashier' && formData.canDeleteSale),
-          canViewProfit: formData.role === 'admin' || formData.canViewProfit,
-          canManageStock: formData.role === 'admin' || formData.canManageStock,
-          canManagePO: formData.role === 'admin' || formData.canManagePO,
-          canViewRecords: formData.role === 'admin' || formData.canViewRecords,
-          canEditSale: formData.role === 'admin' || (formData.role !== 'cashier' && formData.canEditSale),
+          role: formData.role as 'cashier',
+          permissions: ['access_payments', 'access_expenses', 'access_customers', 'access_reports', 'access_inventory'],
+          canEditPrice: true,
+          canGiveDiscount: true,
+          canDeleteSale: true,
+          canViewProfit: true,
+          canManageStock: true,
+          canManagePO: true,
+          canViewRecords: true,
+          canEditSale: true,
           active: formData.active,
           avatar: formData.avatar || undefined
         };

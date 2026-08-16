@@ -18,7 +18,7 @@ export function SupplierManager() {
   const { state, dispatch } = useApp();
   const { profile } = useAuth();
   const { t } = useTranslation();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = true; // Role logic removed — full access
   const canManage = isAdmin || profile?.canManagePO; // Usually managers/admins
 
   const [searchTerm, setSearchTerm] = useState('');

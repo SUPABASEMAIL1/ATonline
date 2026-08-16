@@ -19,7 +19,7 @@ export function PurchaseOrderSystem() {
   const { state, dispatch } = useApp();
   const { profile } = useAuth();
   const { t } = useTranslation();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = true; // Role logic removed — full access
 
   const [selectedSupplier, setSelectedSupplier] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');

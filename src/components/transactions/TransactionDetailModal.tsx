@@ -34,7 +34,8 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
     !(transaction.items || []).some((item: any) => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
   const [showCheckout, setShowCheckout] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
-  const isAdmin = profile?.role === 'admin';
+  // Role logic removed — single-tenant POS: authenticated user has full access
+  const isAdmin = true;
 
   const currentIndex = allTransactions.findIndex(tx => tx.id === transaction.id);
   const hasPrev = currentIndex > 0;
@@ -43,9 +44,9 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
   const handlePrev = () => hasPrev && onNavigate(allTransactions[currentIndex - 1]);
   const handleNext = () => hasNext && onNavigate(allTransactions[currentIndex + 1]);
 
-  const canEditSale = isAdmin || (profile?.role === 'manager' && profile?.canEditSale);
-  const canDeleteSale = isAdmin || (profile?.role === 'manager' && profile?.canDeleteSale);
-  const canRefundSale = isAdmin || (profile?.role === 'manager' && profile?.canEditSale);
+  const canEditSale = isAdmin || profile?.canEditSale;
+  const canDeleteSale = isAdmin || profile?.canDeleteSale;
+  const canRefundSale = isAdmin || profile?.canEditSale;
 
   const handleEditSale = async () => {
     if (!canEditSale) return;
@@ -373,7 +374,7 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
                 {(() => {
                   const { bundles, standaloneItems } = groupItems(transaction.items);
                   const rows: React.ReactNode[] = [];
-                  const canEditProducts = isAdmin || profile?.role === 'manager' || profile?.canManagePO;
+                  const canEditProducts = isAdmin || profile?.canManagePO;
 
                   if (bundles.length > 0) {
                     rows.push(
