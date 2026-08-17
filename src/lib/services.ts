@@ -473,6 +473,9 @@ export const mapSettings = (item: any): AppSettings => {
     enableKotPrinter: s.enable_kot_printer ?? s.enableKotPrinter ?? false,
     autoSaveReceiptPng: s.auto_save_receipt_png ?? s.autoSaveReceiptPng ?? false,
 
+    // §4.2 MASTER: negative stock control (default true = current behavior)
+    allowNegativeStock: s.allow_negative_stock ?? s.allowNegativeStock ?? true,
+
     createdAt: s.created_at ? new Date(s.created_at) : (s.createdAt ? new Date(s.createdAt) : new Date()),
     updatedAt: s.updated_at ? new Date(s.updated_at) : (s.updatedAt ? new Date(s.updatedAt) : new Date())
   } as AppSettings;
@@ -613,6 +616,7 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
   if ('enableExtraCharges' in s) { remote.enable_extra_charges = s.enableExtraCharges; }
   if ('enableKotPrinter' in s) { remote.enable_kot_printer = s.enableKotPrinter; }
   if ('autoSaveReceiptPng' in s) { remote.auto_save_receipt_png = s.autoSaveReceiptPng; }
+  if ('allowNegativeStock' in s) { remote.allow_negative_stock = s.allowNegativeStock; }
 
   if ('updatedAt' in s) {
     remote.updated_at = s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt;

@@ -263,6 +263,7 @@ export function Settings() {
     theme: (state.settings as any)?.theme || 'dark',
     interfaceMode: (state.settings as any)?.interfaceMode || 'touch',
     enableExtraCharges: state.settings?.enableExtraCharges ?? false,
+    allowNegativeStock: state.settings?.allowNegativeStock ?? true,
     defaultSaleType: state.settings?.defaultSaleType || 'retail',
     barcodeBarWidth: state.settings?.barcodeBarWidth ?? 0.8
   });
@@ -364,6 +365,7 @@ export function Settings() {
       interfaceMode: (state.settings as any)?.interfaceMode || 'touch',
       enableSplitPayment: state.settings?.enableSplitPayment ?? false,
       enableExtraCharges: state.settings?.enableExtraCharges ?? false,
+      allowNegativeStock: state.settings?.allowNegativeStock ?? true,
       defaultSaleType: state.settings?.defaultSaleType || 'retail',
       barcodeBarWidth: state.settings?.barcodeBarWidth ?? 0.8
     }));
@@ -1151,6 +1153,23 @@ export function Settings() {
                             color="bg-[#10B981]"
                             checked={formData.enableExtraCharges}
                             onChange={(v) => handleInstantUpdate('enableExtraCharges', v)}
+                          />
+                        </label>
+
+                        {/* Allow Negative Stock Toggle — §4.2 MASTER */}
+                        <label className="flex items-center justify-between p-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-xl cursor-pointer group transition-all">
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="w-4 h-4 text-gray-500 group-hover:text-amber-500 transition-colors" />
+                            <div>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 block leading-none">{t("allow_negative_stock", "Allow Negative Stock")}</span>
+                              <span className="text-[8px] text-gray-500 uppercase tracking-wider block mt-1">{t("allow_negative_stock_subtitle", "Let sales proceed when stock is zero")}</span>
+                            </div>
+                          </div>
+                          <ToggleSwitch
+                            size="sm"
+                            color="bg-amber-500"
+                            checked={formData.allowNegativeStock ?? true}
+                            onChange={(v) => handleInstantUpdate('allowNegativeStock', v)}
                           />
                         </label>
 

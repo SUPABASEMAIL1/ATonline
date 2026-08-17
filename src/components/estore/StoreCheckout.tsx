@@ -8,6 +8,8 @@ import { ArrowLeft, CheckCircle, CheckCircle2, MapPin, AlertCircle, LocateFixed,
 import { sonner } from '../../lib/sonner';
 import { useEstoreAuth } from './useEstoreAuth';
 import { formatTime12h } from '../../lib/timeFormat';
+import { roundTo2 } from '../../lib/utils';
+import { calculateCart } from '../../lib/calculateCart';
 
 import { OrderTracker } from './OrderTracker';
 import { Button } from '../../shared/ui';
@@ -192,13 +194,17 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
     );
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
   const deliveryFee = fulfillmentMode === 'delivery' ? (settings?.estoreDeliveryFee || 0) : 0;
-  // E6: compute tax on the estore checkout so the displayed total matches what the POS
-  // bill will charge (previously tax was always 0 here → customer over-charged at POS).
-  const taxRate = settings?.taxRate || 0;
-  const taxAmount = Math.round((cartTotal + deliveryFee) * (taxRate / 100) * 100) / 100;
-  const total = cartTotal + deliveryFee + taxAmount;
+  // §10 MASTER: use shared calculateCart() — identical math to POS checkout.
+  // Delivery fee is a taxable extra charge (same as POS extraChargesTax).
+  const _cartCalc = calculateCart({
+    cart,
+    taxRate: settings?.taxRate || 0,
+    extraCharges: deliveryFee > 0 ? [{ amount: deliveryFee, taxable: true }] : [],
+  });
+  const cartTotal = _cartCalc.subtotal;
+  const taxAmount = _cartCalc.taxAmount;
+  const total = _cartCalc.total;
   
   const isDeliveryAllowed = (): boolean => {
     if (fulfillmentMode === 'pickup') return true; // self-pickup is always allowed

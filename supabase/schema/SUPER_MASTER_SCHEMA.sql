@@ -348,6 +348,9 @@ CREATE TABLE IF NOT EXISTS app_settings (
     ai_v2_enabled               BOOLEAN DEFAULT false,
     pos_grid_columns            INTEGER DEFAULT 4,
 
+    -- §4.2 MASTER: negative stock control
+    allow_negative_stock        BOOLEAN DEFAULT true,
+
     -- Timestamps
     created_at                  TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at                  TIMESTAMPTZ DEFAULT now()
@@ -537,7 +540,7 @@ CREATE TABLE IF NOT EXISTS users (
     username            TEXT NOT NULL UNIQUE,
     name                TEXT NOT NULL,
     email               TEXT,
-    role                TEXT NOT NULL DEFAULT 'cashier' CHECK (role IN ('cashier', 'salesman')),
+    role                TEXT NOT NULL DEFAULT 'cashier' CHECK (role IN ('admin', 'manager', 'cashier', 'salesman')),
     permissions         TEXT[] DEFAULT '{}',
 
     -- Granular ACL Booleans
@@ -1317,10 +1320,10 @@ BEGIN
     -- Check if this is the first user in the system
     SELECT NOT EXISTS (SELECT 1 FROM public.users) INTO is_first_user;
 
-    -- Universal default role: cashier (never admin/manager). The app has no
-    -- operational RBAC — every authenticated user accesses all views.
+    -- Default role: cashier. Admin/manager roles are assigned explicitly by an
+    -- existing admin (MASTER §2). Unknown roles coerce to cashier (fail-closed).
     _role := COALESCE(NULLIF(NEW.raw_user_meta_data->>'role', ''), 'cashier');
-    IF _role NOT IN ('cashier', 'salesman') THEN
+    IF _role NOT IN ('admin', 'manager', 'cashier', 'salesman') THEN
         _role := 'cashier';
     END IF;
 
@@ -1352,6 +1355,12 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ── Current user role (server-side auth helper, MASTER §2.1.4) ──
+CREATE OR REPLACE FUNCTION current_user_role()
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT role FROM public.users WHERE id = auth.uid();
+$$;
 
 DO $$ BEGIN
   CREATE TRIGGER on_auth_user_created
@@ -1783,7 +1792,8 @@ ALTER TABLE app_settings
   ADD COLUMN IF NOT EXISTS estore_location_lng            NUMERIC,
   ADD COLUMN IF NOT EXISTS estore_delivery_radius         NUMERIC DEFAULT 5,
   ADD COLUMN IF NOT EXISTS estore_whatsapp_enabled        BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS estore_whatsapp_number         TEXT;
+  ADD COLUMN IF NOT EXISTS estore_whatsapp_number         TEXT,
+  ADD COLUMN IF NOT EXISTS allow_negative_stock            BOOLEAN DEFAULT true;
 
 DO $$
 BEGIN
@@ -3134,3 +3144,62 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION apply_payment_movements(jsonb) TO anon, authenticated, service_role;
+
+-- ── E-store order state machine + rate limit (MASTER §9) ──
+CREATE OR REPLACE FUNCTION store_order_transition_is_valid(old_s text, new_s text)
+RETURNS boolean LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+  allowed text[];
+BEGIN
+  IF old_s IS NULL OR old_s = new_s THEN RETURN true; END IF;
+  CASE old_s
+    WHEN 'pending'         THEN allowed := ARRAY['accepted', 'cancelled', 'converted'];
+    WHEN 'accepted'        THEN allowed := ARRAY['preparing', 'cancelled', 'converted'];
+    WHEN 'preparing'       THEN allowed := ARRAY['ready', 'cancelled', 'converted'];
+    WHEN 'ready'           THEN allowed := ARRAY['out_for_delivery', 'cancelled', 'converted'];
+    WHEN 'out_for_delivery' THEN allowed := ARRAY['delivered', 'cancelled', 'converted'];
+    WHEN 'delivered'       THEN allowed := ARRAY[]::text[];
+    WHEN 'cancelled'       THEN allowed := ARRAY[]::text[];
+    WHEN 'converted'       THEN allowed := ARRAY[]::text[];
+    ELSE RETURN false;
+  END CASE;
+  RETURN new_s = ANY(allowed);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION guard_store_order_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NOT store_order_transition_is_valid(OLD.status, NEW.status) THEN
+    RAISE EXCEPTION 'INVALID_TRANSITION: store_order % cannot go % -> %', OLD.id, OLD.status, NEW.status USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_guard_store_order_update ON store_orders;
+CREATE TRIGGER trg_guard_store_order_update
+BEFORE UPDATE ON store_orders
+FOR EACH ROW EXECUTE FUNCTION guard_store_order_update();
+
+CREATE OR REPLACE FUNCTION guard_store_order_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+  cnt integer;
+BEGIN
+  IF NEW.customer_phone IS NOT NULL AND NEW.customer_phone <> '' THEN
+    SELECT count(*) INTO cnt FROM store_orders
+      WHERE customer_phone = NEW.customer_phone
+        AND created_at > now() - interval '10 minutes';
+    IF cnt >= 20 THEN
+      RAISE EXCEPTION 'RATE_LIMIT: too many recent orders from this phone' USING ERRCODE = 'P0002';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_guard_store_order_insert ON store_orders;
+CREATE TRIGGER trg_guard_store_order_insert
+BEFORE INSERT ON store_orders
+FOR EACH ROW EXECUTE FUNCTION guard_store_order_insert();

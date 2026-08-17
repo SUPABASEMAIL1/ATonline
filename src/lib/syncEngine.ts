@@ -327,6 +327,15 @@ async function executeOp(op: PendingOp): Promise<void> {
         try {
             // Specialized Logic for Settings (Singleton)
             if (op.entity === 'app_settings') {
+                // §2.1.4 MASTER: only admin/manager may write settings to cloud.
+                // Cashier/salesman changes are kept in local Dexie but never pushed.
+                // This allows settings RLS to be enforced without breaking cashier syncs.
+                const profile = await localDb.users.toArray().then(u => u[0]);
+                const role = profile?.role ?? 'cashier';
+                if (!['admin', 'manager'].includes(role)) {
+                    // Skip quietly — no error, no retry needed
+                    error = null;
+                } else {
                 // Settings is a singleton. We always target the master ID.
                 const { error: upsertError } = await supabase
                     .from('app_settings')
@@ -342,6 +351,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                         error = upsertError;
                     }
                 }
+                } // end admin/manager else block
             }
             // Atomic RPC Operations (Note: RPC params usually cannot be filtered easily without introspection)
             else if (op.entity === 'sales' && opType === 'create') {

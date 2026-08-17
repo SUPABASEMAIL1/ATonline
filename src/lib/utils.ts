@@ -6,6 +6,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Symmetric half-away-from-zero rounding to 2 decimals — kills float drift
+ * (e.g. 1.005 -> 1.01, not 1.00). SINGLE source of money rounding (MASTER §10).
+ * Imported by both POS (useCartCalculations) and E-store (StoreCheckout) so tax
+ * parity is guaranteed. Never use raw Math.round/toFixed for money.
+ */
+export function roundTo2(num: number): number {
+  const n = Number(num);
+  const eps = n >= 0 ? Number.EPSILON : -Number.EPSILON;
+  return Math.round((n + eps) * 100) / 100;
+}
+
 export function getDealCountBreakdown(items: CartItem[], bundles?: Bundle[]): {
   totalItems: number;
   dealsCount: number;

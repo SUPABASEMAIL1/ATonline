@@ -3,6 +3,7 @@ import { User as SupabaseUser, Session } from '@supabase/supabase-js'
 import { supabase, enableFullAuthInit } from '../lib/supabase'
 import { User } from '../types'
 import { usersService } from '../lib/services'
+import { can } from '../lib/permissions'
 import { sonner } from '../lib/sonner'
 import { localDb } from '../lib/localDb'
 
@@ -268,14 +269,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: pData.email,
           role: pData.role as any,
           permissions: pData.permissions || [],
-          canEditPrice: !!pData.can_edit_price,
-          canGiveDiscount: !!pData.can_give_discount,
-          canDeleteSale: !!pData.can_delete_sale,
-          canViewProfit: !!pData.can_view_profit,
-          canManageStock: !!pData.can_manage_stock,
-          canManagePO: !!pData.can_manage_po,
-          canViewRecords: !!pData.can_view_records,
-          canEditSale: !!pData.can_edit_sale,
+          canEditPrice: can(pData.role, 'edit_price'),
+          canGiveDiscount: can(pData.role, 'give_discount'),
+          canDeleteSale: can(pData.role, 'delete_sale'),
+          canViewProfit: can(pData.role, 'view_profit'),
+          canManageStock: can(pData.role, 'manage_stock'),
+          canManagePO: can(pData.role, 'manage_po'),
+          canViewRecords: can(pData.role, 'view_records'),
+          canEditSale: can(pData.role, 'edit_price'),
           active: pData.active ?? true,
           lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
           avatar: pData.avatar || undefined
@@ -338,10 +339,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const profileData: User = {
                 id: pData.id, username: pData.username, name: pData.name, email: pData.email,
                 role: pData.role as any, permissions: pData.permissions || [],
-                canEditPrice: !!pData.can_edit_price, canGiveDiscount: !!pData.can_give_discount,
-                canDeleteSale: !!pData.can_delete_sale, canViewProfit: !!pData.can_view_profit,
-                canManageStock: !!pData.can_manage_stock, canManagePO: !!pData.can_manage_po,
-                canViewRecords: !!pData.can_view_records, canEditSale: !!pData.can_edit_sale,
+                canEditPrice: can(pData.role, 'edit_price'), canGiveDiscount: !!pData.can_give_discount,
+                canDeleteSale: can(pData.role, 'delete_sale'), canViewProfit: !!pData.can_view_profit,
+                canManageStock: can(pData.role, 'manage_stock'), canManagePO: !!pData.can_manage_po,
+                canViewRecords: can(pData.role, 'view_records'), canEditSale: !!pData.can_edit_sale,
                 active: pData.active ?? true, lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
                 avatar: pData.avatar || undefined
               };
@@ -623,8 +624,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // ── Step 3: Immediate session (no email confirm needed) ─────────────
       if (data.user) {
-        // Role logic removed — every sign-up account is a cashier (single-tenant POS).
-        const userRole = 'cashier';
+        // §2.1.1 MASTER: first user in the system becomes admin (fail-closed).
+        // Query public.users (not auth.users) so the trigger row is checked.
+        const { count } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true });
+        const isFirstUser = (count ?? 1) === 0;
+        const userRole = isFirstUser ? 'admin' : 'cashier';
 
         const profilePayload: any = {
           id: data.user.id,
@@ -632,11 +638,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name,
           email,
           role: userRole,
-          permissions: ['pos_access', 'view_reports'],
-          can_edit_price: false,
+          permissions: isFirstUser
+            ? ['pos_access', 'view_reports', 'manage_inventory', 'manage_users', 'manage_settings']
+            : ['pos_access', 'view_reports'],
+          can_edit_price: isFirstUser,
           can_give_discount: true,
-          can_delete_sale: false,
-          can_view_profit: false,
+          can_delete_sale: isFirstUser,
+          can_view_profit: isFirstUser,
           can_manage_stock: false,
           can_manage_po: false,
           can_view_records: true,
@@ -675,13 +683,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: pData.email,
             role: pData.role as any,
             permissions: pData.permissions || [],
-            canEditPrice: !!pData.can_edit_price,
-            canGiveDiscount: !!pData.can_give_discount,
-            canDeleteSale: !!pData.can_delete_sale,
-            canViewProfit: !!pData.can_view_profit,
-            canManageStock: !!pData.can_manage_stock,
-            canManagePO: !!pData.can_manage_po,
-            canViewRecords: !!pData.can_view_records,
+            canEditPrice: can(pData.role, 'edit_price'),
+            canGiveDiscount: can(pData.role, 'give_discount'),
+            canDeleteSale: can(pData.role, 'delete_sale'),
+            canViewProfit: can(pData.role, 'view_profit'),
+            canManageStock: can(pData.role, 'manage_stock'),
+            canManagePO: can(pData.role, 'manage_po'),
+            canViewRecords: can(pData.role, 'view_records'),
             active: pData.active ?? true,
             lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
             avatar: pData.avatar || undefined,

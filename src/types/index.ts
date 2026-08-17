@@ -410,7 +410,7 @@ export interface User {
   username: string;
   name: string;
   email: string;
-  role: 'cashier' | 'salesman';
+  role: 'admin' | 'manager' | 'cashier' | 'salesman';
   permissions: string[];
   canEditPrice: boolean;
   canGiveDiscount: boolean;
@@ -550,6 +550,8 @@ export interface AppSettings {
   posGridColumns?: number;
   enableSplitPayment: boolean;
   enableExtraCharges: boolean;
+  /** §4.2 MASTER: if false, checkout blocks a sale when stock would go negative (server-enforced) */
+  allowNegativeStock?: boolean;
 }
 
 export interface Expense {

@@ -865,6 +865,16 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 </span>
                 {isBelowCost && <AlertCircle className="h-3 w-3 text-red-500" />}
               </div>
+              {/* §4.2 MASTER: warn when items will go negative (allowNegativeStock=true means allowed but flagged) */}
+              {state.settings.allowNegativeStock !== false && state.cart.some(item =>
+                !item.product.isService && item.product.trackInventory !== false &&
+                (item.product.stock - item.quantity) < 0
+              ) && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <AlertCircle className="h-2.5 w-2.5 text-amber-500" />
+                  <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">⚠ Stock will go negative</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-1.5">

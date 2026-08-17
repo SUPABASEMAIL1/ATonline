@@ -30,6 +30,7 @@ import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { Toaster } from 'sonner';
 import { DialogProvider } from './components/common/DialogProvider';
 import { useTranslation } from './hooks/useTranslation';
+import { can, type Permission } from './lib/permissions';
 import { OfflineBanner } from './components/OfflineBadge';
 
 
@@ -91,11 +92,15 @@ const LoadingView = () => {
   );
 };
 
-// ── Route-based access control (moved outside AppContent to prevent unmount blinking) ──
-function RequireAccess({ viewId: _viewId, children }: { viewId: string; children: React.ReactNode }) {
-  // Role logic fully removed — single-tenant POS: any authenticated user can access
-  // all operational views, including the Users management feature (D1: previously
-  // hard-blocked, leaving the entire Users feature as unreachable dead code).
+// ── Route-based access control (real enforcement, MASTER §2.1.3) ──
+// Fail-closed: unknown role or missing permission => redirect to POS, never render.
+function RequireAccess({ action, children }: { action: Permission; children: React.ReactNode }) {
+  const { state } = useApp();
+  const user = state.currentUser;
+  const allowed = !!user && user.active !== false && can(user.role, action);
+  if (!allowed) {
+    return <Navigate to="/pos" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -362,22 +367,22 @@ function AppContent() {
             <Suspense fallback={<LoadingView />}>
               <Routes>
                 <Route path="/pos" element={<POSTerminal />} />
-                <Route path="/online-orders" element={state.settings.estoreEnabled ? <RequireAccess viewId="online-orders"><OnlineOrdersPage /></RequireAccess> : <Navigate to="/pos" replace />} />
-                <Route path="/transactions" element={<RequireAccess viewId="transactions"><TransactionsManager /></RequireAccess>} />
-                <Route path="/expenses" element={<RequireAccess viewId="expenses"><ExpenseManager /></RequireAccess>} />
+                <Route path="/online-orders" element={state.settings.estoreEnabled ? <RequireAccess action="view_online_orders"><OnlineOrdersPage /></RequireAccess> : <Navigate to="/pos" replace />} />
+                <Route path="/transactions" element={<RequireAccess action="view_transactions"><TransactionsManager /></RequireAccess>} />
+                <Route path="/expenses" element={<RequireAccess action="view_expenses"><ExpenseManager /></RequireAccess>} />
                 <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
-                <Route path="/inventory/:subTab" element={<RequireAccess viewId="inventory"><InventoryManager /></RequireAccess>} />
-                <Route path="/customers" element={<RequireAccess viewId="customers"><CustomerManager /></RequireAccess>} />
+                <Route path="/inventory/:subTab" element={<RequireAccess action="view_inventory"><InventoryManager /></RequireAccess>} />
+                <Route path="/customers" element={<RequireAccess action="view_customers"><CustomerManager /></RequireAccess>} />
                 <Route path="/reports" element={<Navigate to="/reports/sales" replace />} />
-                <Route path="/reports/:subTab" element={<RequireAccess viewId="reports"><ReportsManager /></RequireAccess>} />
-                <Route path="/discounts" element={<RequireAccess viewId="discounts"><DiscountManager /></RequireAccess>} />
+                <Route path="/reports/:subTab" element={<RequireAccess action="view_reports"><ReportsManager /></RequireAccess>} />
+                <Route path="/discounts" element={<RequireAccess action="view_discounts"><DiscountManager /></RequireAccess>} />
                 <Route path="/users" element={<Navigate to="/users/staff" replace />} />
-                <Route path="/users/:subTab" element={<RequireAccess viewId="users"><UsersPage /></RequireAccess>} />
+                <Route path="/users/:subTab" element={<RequireAccess action="view_users"><UsersPage /></RequireAccess>} />
                 <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
-                <Route path="/settings/:subTab" element={<RequireAccess viewId="settings"><Settings /></RequireAccess>} />
-                <Route path="/suppliers" element={<RequireAccess viewId="suppliers"><SupplierManager /></RequireAccess>} />
-                <Route path="/purchase-orders" element={<RequireAccess viewId="purchase-orders"><PurchaseOrderSystem /></RequireAccess>} />
-                <Route path="/dashboard" element={<RequireAccess viewId="dashboard"><DashboardManager /></RequireAccess>} />
+                <Route path="/settings/:subTab" element={<RequireAccess action="view_settings"><Settings /></RequireAccess>} />
+                <Route path="/suppliers" element={<RequireAccess action="view_suppliers"><SupplierManager /></RequireAccess>} />
+                <Route path="/purchase-orders" element={<RequireAccess action="view_purchase_orders"><PurchaseOrderSystem /></RequireAccess>} />
+                <Route path="/dashboard" element={<RequireAccess action="view_dashboard"><DashboardManager /></RequireAccess>} />
                 <Route path="/" element={<RootRedirect />} />
                 <Route path="*" element={<Navigate to="/pos" replace />} />
               </Routes>

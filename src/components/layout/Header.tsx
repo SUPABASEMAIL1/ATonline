@@ -9,6 +9,7 @@ import { settingsService } from '../../lib/services';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { sonner } from '../../lib/sonner';
+import { can } from '../../lib/permissions';
 import { SyncStatusBadge } from './SyncStatusBadge';
 import { formatCurrency } from '../../lib/currencies';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -159,26 +160,27 @@ export function Header({
   };
 
   const getNavigationItems = () => {
-    // Role logic fully removed — single-tenant POS: any authenticated user sees all
-    // operational views. User-management is disabled (no admin role).
+    // Real RBAC (MASTER §2): each nav item is gated by the current user's role
+    // via the single PERMISSIONS source. Items the role cannot access are not shown.
+    const role = state.currentUser?.role;
     const items = [];
 
-    items.push({ id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: AppIcons.dashboard, color: 'text-primary' });
-    items.push({ id: 'pos', label: t('pos', 'POS'), icon: AppIcons.pos, color: 'text-blue-500' });
+    if (can(role, 'view_dashboard')) items.push({ id: 'dashboard', label: t('dashboard', 'Dashboard'), icon: AppIcons.dashboard, color: 'text-primary' });
+    if (can(role, 'view_pos')) items.push({ id: 'pos', label: t('pos', 'POS'), icon: AppIcons.pos, color: 'text-blue-500' });
 
-    if (state.settings.estoreEnabled) {
+    if (state.settings.estoreEnabled && can(role, 'view_online_orders')) {
       items.push({ id: 'online-orders', label: 'Orders', icon: Bell, color: 'text-emerald-500' });
     }
 
-    items.push({ id: 'transactions', label: t('sales', 'Sales'), icon: AppIcons.sales, color: 'text-orange-500' });
-    items.push({ id: 'expenses', label: t('expenses', 'Expenses'), icon: AppIcons.expenses, color: 'text-rose-500' });
-    items.push({ id: 'inventory', label: t('inventory', 'Inventory'), icon: AppIcons.inventory, color: 'text-purple-500' });
-    items.push({ id: 'customers', label: t('customers', 'Customers'), icon: AppIcons.customers, color: 'text-sky-500' });
-    items.push({ id: 'discounts', label: t('discounts', 'Discounts'), icon: AppIcons.discounts, color: 'text-pink-500' });
-    items.push({ id: 'reports', label: t('reports', 'Reports'), icon: AppIcons.reports, color: 'text-red-500' });
-    items.push({ id: 'suppliers', label: t('suppliers', 'Suppliers'), icon: AppIcons.suppliers, color: 'text-amber-500' });
-    items.push({ id: 'purchase-orders', label: 'Purchase', icon: Truck, color: 'text-teal-500' });
-    items.push({ id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' });
+    if (can(role, 'view_transactions')) items.push({ id: 'transactions', label: t('sales', 'Sales'), icon: AppIcons.sales, color: 'text-orange-500' });
+    if (can(role, 'view_expenses')) items.push({ id: 'expenses', label: t('expenses', 'Expenses'), icon: AppIcons.expenses, color: 'text-rose-500' });
+    if (can(role, 'view_inventory')) items.push({ id: 'inventory', label: t('inventory', 'Inventory'), icon: AppIcons.inventory, color: 'text-purple-500' });
+    if (can(role, 'view_customers')) items.push({ id: 'customers', label: t('customers', 'Customers'), icon: AppIcons.customers, color: 'text-sky-500' });
+    if (can(role, 'view_discounts')) items.push({ id: 'discounts', label: t('discounts', 'Discounts'), icon: AppIcons.discounts, color: 'text-pink-500' });
+    if (can(role, 'view_reports')) items.push({ id: 'reports', label: t('reports', 'Reports'), icon: AppIcons.reports, color: 'text-red-500' });
+    if (can(role, 'view_suppliers')) items.push({ id: 'suppliers', label: t('suppliers', 'Suppliers'), icon: AppIcons.suppliers, color: 'text-amber-500' });
+    if (can(role, 'view_purchase_orders')) items.push({ id: 'purchase-orders', label: 'Purchase', icon: Truck, color: 'text-teal-500' });
+    if (can(role, 'view_users')) items.push({ id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' });
 
     return items;
   };
@@ -341,6 +343,7 @@ export function Header({
             />
 
             <div className="hidden md:flex items-center gap-0.5">
+              {can(state.currentUser?.role, 'view_settings') && (
               <Button
                 variant="ghost"
                 onClick={(e) => { e.stopPropagation(); navigate('/settings'); }}
@@ -349,6 +352,7 @@ export function Header({
               >
                 <Settings className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </Button>
+              )}
               <Button
                 variant="ghost"
                 onClick={(e) => { e.stopPropagation(); handleLogout(); }}
@@ -466,6 +470,7 @@ export function Header({
                   </div>
                 </Button>
 
+                {can(state.currentUser?.role, 'view_settings') && (
                 <Button
                   variant="secondary"
                   onClick={() => { navigate('/settings'); onHideMobileMenu?.(); }}
@@ -476,6 +481,7 @@ export function Header({
                   </div>
                   {t('settings', 'Settings')}
                 </Button>
+                )}
 
                 <Button
                   variant="danger"
