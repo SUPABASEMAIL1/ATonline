@@ -23,7 +23,7 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
   const checkoutShortcuts = [
     { key: '1', label: t('method_cash', 'Select Cash'), desc: t('method_cash_desc', 'Select Cash as the payment method for the current sale.'), icon: CreditCard },
     { key: '2', label: t('method_card', 'Select Card'), desc: t('method_card_desc', 'Select Card payment method for digital terminal swipe.'), icon: CreditCard },
-    { key: '3', label: t('method_digital', 'Select Digital'), desc: t('method_digital_desc', 'Select Digital/E-Transfer/Mobile Wallet payment method.'), icon: CreditCard },
+    { key: '3', label: t('method_online', 'Select Online'), desc: t('method_online_desc', 'Select Online payment method.'), icon: CreditCard },
     { key: '5', label: t('method_split', 'Select Split Payment'), desc: t('method_split_desc', 'Switch to split/mixed payment modes (e.g. Cash + Card).'), icon: CreditCard },
     { key: 'E', label: t('exact_amount', 'Exact Amount Match'), desc: t('exact_amount_desc', 'Auto-fill the received amount to match the final net total.'), icon: Check },
     { key: 'Enter', label: t('process_payment', 'Process & Save Sale'), desc: t('process_payment_desc', 'Complete payment verification and record sale to database.'), icon: Check },

@@ -34,7 +34,7 @@ export interface POSKeyboardOptions {
   onClearCart?: () => void;
 
   // Checkout Page handlers (pass undefined if not in checkout)
-  onPaymentMethod?: (method: 'cash' | 'card' | 'digital' | 'split') => void;
+  onPaymentMethod?: (method: 'cash' | 'card' | 'online' | 'split') => void;
   onExactAmount?: () => void;
   onProcessPayment?: () => void;
   onClose?: () => void;
@@ -108,10 +108,10 @@ export function usePOSKeyboard(options: POSKeyboardOptions) {
           return;
         }
 
-        // 3 → Digital
+        // 3 → Online
         if (e.key === '3' && !isTypingInField) {
           e.preventDefault();
-          onPaymentMethod?.('digital');
+          onPaymentMethod?.('online');
           return;
         }
 

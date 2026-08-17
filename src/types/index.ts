@@ -317,7 +317,7 @@ export interface Sale {
   total: number;
   billDiscountValue?: number;
   billDiscountType?: 'percentage' | 'fixed';
-  paymentMethod: 'cash' | 'card' | 'digital' | 'cheque' | 'split';
+  paymentMethod: 'cash' | 'card' | 'digital' | 'online' | 'cheque' | 'split';
   cardDetails?: CardDetails;
   status: 'pending' | 'completed' | 'refunded' | 'partially_refunded' | 'draft';
   cashier: string;

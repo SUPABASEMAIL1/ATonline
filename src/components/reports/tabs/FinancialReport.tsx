@@ -115,7 +115,7 @@ export function FinancialReport({
           {[
             { method: 'cash', label: t("cash_wallet", "Cash Wallet"), icon: <Banknote className="h-6 w-6" />, color: 'text-primary', accent: 'emerald', bg: 'bg-primary/10 dark:bg-primary/5', bar: 'bg-primary', stats: walletStats.find(w => w.method === 'cash') },
             { method: 'card', label: t("card_wallet", "Card Wallet"), icon: <CreditCard className="h-6 w-6" />, color: 'text-blue-500', accent: 'blue', bg: 'bg-blue-500/10 dark:bg-blue-500/5', bar: 'bg-blue-500', stats: walletStats.find(w => w.method === 'card') },
-            { method: 'digital', label: t("digital_wallet", "Bank Transfer"), icon: <Building2 className="h-6 w-6" />, color: 'text-cyan-500', accent: 'cyan', bg: 'bg-cyan-500/10 dark:bg-cyan-500/5', bar: 'bg-cyan-500', stats: walletStats.find(w => w.method === 'digital') }
+            { method: 'online', label: t("online_wallet", "Online Wallet"), icon: <Building2 className="h-6 w-6" />, color: 'text-cyan-500', accent: 'cyan', bg: 'bg-cyan-500/10 dark:bg-cyan-500/5', bar: 'bg-cyan-500', stats: walletStats.find(w => w.method === 'online') }
           ].map((w, i) => (
             <div key={i} className="group relative p-6 rounded-[1.5rem] border border-white/5 bg-gradient-to-br from-white to-gray-50 dark:from-[#171717] dark:to-[#111] shadow-xl hover:scale-[1.02] transition-all duration-300">
               <div className="flex items-center justify-between mb-6">

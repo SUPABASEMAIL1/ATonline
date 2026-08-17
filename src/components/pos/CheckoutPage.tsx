@@ -24,6 +24,39 @@ interface CheckoutPageProps {
   onComplete: (sale: Sale) => void;
 }
 
+// Live per-method wallet balances (cash / card / online) — module-level so it
+// is NOT re-created on every parent render (nested def caused remount flicker).
+function WalletStrip({ currency }: { currency: string }) {
+  const [modes, setModes] = useState<any[]>([]);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const m = await localDb.paymentModes.toArray();
+      const order = ['cash', 'card', 'online'];
+      m.sort((a: any, b: any) => order.indexOf(a.id) - order.indexOf(b.id));
+      if (alive) setModes(m);
+    };
+    load();
+    const subs: any[] = [];
+    try {
+      subs.push(localDb.paymentModes.hook('updating').subscribe(() => load()));
+      subs.push(localDb.paymentModes.hook('creating').subscribe(() => load()));
+    } catch { /* hooks unsupported */ }
+    return () => { alive = false; subs.forEach(s => s?.unsubscribe?.()); };
+  }, []);
+  if (!modes.length) return null;
+  return (
+    <div className="grid grid-cols-3 gap-1.5 mb-3">
+      {modes.map((md: any) => (
+        <div key={md.id} className="p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10">
+          <p className="text-[7px] font-black uppercase tracking-widest text-gray-500 truncate">{md.name}</p>
+          <p className="text-[11px] font-black text-gray-900 dark:text-white tabular-nums">{formatCurrency(md.balance || 0, currency)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const { state, dispatch } = useApp();
   const { user, profile } = useAuth();
@@ -66,8 +99,8 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const [salesmanId, setSalesmanId] = useState<string>('');
 
   // Split payment state (two parts across cash/card/digital)
-  const [splitMethodA, setSplitMethodA] = useState<'cash' | 'card' | 'digital'>('cash');
-  const [splitMethodB, setSplitMethodB] = useState<'cash' | 'card' | 'digital'>('card');
+  const [splitMethodA, setSplitMethodA] = useState<'cash' | 'card' | 'online'>('cash');
+  const [splitMethodB, setSplitMethodB] = useState<'cash' | 'card' | 'online'>('online');
   const [splitAmountA, setSplitAmountA] = useState('');
   const [splitAmountB, setSplitAmountB] = useState('');
 
@@ -213,7 +246,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     const paid = parseFloat(amountPaid) || 0;
     switch (paymentMethod) {
       case 'cash': return paid >= finalTotal;
-      case 'card': case 'digital': case 'online': case 'wallet': return true;
+      case 'card': case 'online': return true;
       case 'split': {
         const a = parseFloat(splitAmountA) || 0;
         const b = parseFloat(splitAmountB) || 0;
@@ -399,41 +432,9 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     { id: 'cash', label: 'Cash', icon: Banknote },
     { id: 'card', label: 'Card', icon: CreditCard },
     { id: 'online', label: 'Online', icon: Building2 },
-    { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'split', label: 'Split', icon: Layers },
   ];
 
-  // Live per-method wallet balances (cash / card / online / wallet)
-  const WalletStrip = ({ currency }: { currency: string }) => {
-    const [modes, setModes] = useState<any[]>([]);
-    useEffect(() => {
-      let alive = true;
-      const load = async () => {
-        const m = await localDb.paymentModes.toArray();
-        const order = ['cash', 'card', 'online', 'wallet'];
-        m.sort((a: any, b: any) => order.indexOf(a.id) - order.indexOf(b.id));
-        if (alive) setModes(m);
-      };
-      load();
-      const subs: any[] = [];
-      try {
-        subs.push(localDb.paymentModes.hook('updating').subscribe(() => load()));
-        subs.push(localDb.paymentModes.hook('creating').subscribe(() => load()));
-      } catch { /* hooks unsupported */ }
-      return () => { alive = false; subs.forEach(s => s?.unsubscribe?.()); };
-    }, []);
-    if (!modes.length) return null;
-    return (
-      <div className="grid grid-cols-4 gap-1.5 mb-3">
-        {modes.map((md: any) => (
-          <div key={md.id} className="p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10">
-            <p className="text-[7px] font-black uppercase tracking-widest text-gray-500 truncate">{md.name}</p>
-            <p className="text-[11px] font-black text-gray-900 dark:text-white tabular-nums">{formatCurrency(md.balance || 0, currency)}</p>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   if (showReceipt && completedSale) {
     return (
@@ -485,7 +486,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         {[
           { key: '1', label: 'Cash' },
           { key: '2', label: 'Card' },
-          { key: '3', label: 'Digital' },
+           { key: '3', label: 'Online' },
           { key: '5', label: 'Split' },
           { key: 'E', label: 'Exact Amt' },
           { key: 'Enter', label: 'Pay' },
@@ -600,7 +601,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">{p.label}</span>
                       <div className="flex gap-1">
-                        {(['cash', 'card', 'online', 'wallet'] as const).map(mm => (
+                        {(['cash', 'card', 'online'] as const).map(mm => (
                           <button key={mm} type="button" onClick={() => p.setM(mm)}
                             className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest transition-all ${p.m === mm ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400'}`}>
                             {mm}

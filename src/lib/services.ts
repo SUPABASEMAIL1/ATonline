@@ -948,11 +948,10 @@ export const DEFAULT_PAYMENT_MODES = [
   { id: 'cash', name: 'Cash', icon: 'cash', isActive: true },
   { id: 'card', name: 'Card', icon: 'credit-card', isActive: true },
   { id: 'online', name: 'Online', icon: 'globe', isActive: true },
-  { id: 'wallet', name: 'Wallet', icon: 'wallet', isActive: true },
 ];
 
-/** Normalize legacy 'digital' method to 'online' wallet. */
-export const normalizePaymentMethod = (m: string): string => (m === 'digital' ? 'online' : m);
+/** Normalize legacy 'digital'/'wallet' methods to 'online' wallet. */
+export const normalizePaymentMethod = (m: string): string => (m === 'digital' || m === 'wallet' ? 'online' : m);
 
 export const mapPaymentMode = (item: any) => ({
   id: item.id,
@@ -972,8 +971,10 @@ export const toRemotePaymentMode = (m: any) => ({
   updated_at: m.updatedAt instanceof Date ? m.updatedAt.toISOString() : m.updatedAt,
 });
 
-/** Idempotent seed: ensures the 4 default wallets exist locally + in cloud. */
+/** Idempotent seed: ensures default wallets exist locally + in cloud, and
+ *  removes legacy/extra modes (e.g. 'wallet') merging any balance into 'online'. */
 export const seedPaymentModes = async () => {
+  const defaultIds = new Set(DEFAULT_PAYMENT_MODES.map(m => m.id));
   const existing = await localDb.paymentModes.toArray();
   const existingIds = new Set(existing.map((m: any) => m.id));
   for (const m of DEFAULT_PAYMENT_MODES) {
@@ -981,10 +982,30 @@ export const seedPaymentModes = async () => {
       await localDb.paymentModes.put({ ...m, balance: 0, updatedAt: new Date() });
     }
   }
+  // Cleanup legacy modes (transfer any balance → online, then delete)
+  for (const m of existing) {
+    if (!defaultIds.has(m.id)) {
+      const bal = Number(m.balance || 0);
+      if (bal !== 0) {
+        const onlineMode = await localDb.paymentModes.get('online');
+        if (onlineMode) {
+          await localDb.paymentModes.update('online', {
+            balance: Number(onlineMode.balance || 0) + bal,
+            updatedAt: new Date(),
+          });
+        }
+      }
+      await localDb.paymentModes.delete(m.id);
+    }
+  }
   try {
     if (typeof navigator === 'undefined' || navigator.onLine) {
       const cloud = await localDb.paymentModes.toArray();
       await supabase.from('payment_modes').upsert(cloud.map(toRemotePaymentMode), { onConflict: 'id', ignoreDuplicates: true });
+      const legacy = existing.filter(m => !defaultIds.has(m.id)).map((m: any) => m.id);
+      if (legacy.length) {
+        await supabase.from('payment_modes').delete().in('id', legacy);
+      }
     } else {
       for (const m of await localDb.paymentModes.toArray()) {
         await queueOp('payment_modes', 'upsert', m.id, toRemotePaymentMode(m));
