@@ -60,12 +60,14 @@ END;
 $$;
 
 -- One-stop view returning EVERY invariant violation (MASTER §7). Empty = pass.
--- Only the authoritative, false-positive-safe invariants are included:
+-- Authoritative, false-positive-safe invariants:
 --   I1 inventory drift (products.stock vs Σ stock_history.change_qty)
 --   I2 wallet drift    (payment_modes.balance vs Σ payment_movements.delta)
+--   I4 sale<->stock    (one 'sale' stock row per tracked, NON-DELETED line item)
 --   I5 over-refund     (refunded_amount > sale total)
--- I3 (supplier) is derived-only (cannot drift). I4/I6 are enforced by the
--- ledger design + store_orders state-machine trigger (see report §15F).
+-- I3 (supplier) is derived-only (cannot drift). I6 (online-order stock) is zero
+-- by design (store_orders state machine). Deleted-product sales are excluded
+-- from I4 because there is no product row left to reconcile against.
 CREATE OR REPLACE VIEW invariant_violations AS
   -- I1: inventory drift (only products that actually track inventory)
   SELECT 'I1_inventory' AS check_name, p.id::text AS entity_id
@@ -77,6 +79,20 @@ UNION ALL
   SELECT 'I2_wallet', pm.id::text
   FROM payment_modes pm
   WHERE pm.balance IS DISTINCT FROM COALESCE((SELECT SUM(delta) FROM payment_movements WHERE mode_id = pm.id), 0)
+UNION ALL
+  -- I4: completed sale must have exactly one 'sale' stock row per tracked,
+  --     still-existing line item. Tracked = the PRODUCT TABLE says track_inventory
+  --     (the embedded item snapshot may be null). Both sides count ONLY existing
+  --     products, so orphaned rows for deleted products are never false-flagged.
+  SELECT 'I4_sale_stock', s.id::text
+  FROM sales s
+  WHERE s.status = 'completed'
+    AND ( SELECT count(*) FROM jsonb_array_elements(s.items) it
+            WHERE EXISTS (SELECT 1 FROM products p
+                           WHERE p.id = (it->'product'->>'id')::uuid AND p.track_inventory = true) )
+        != ( SELECT count(*) FROM stock_history sh
+               WHERE sh.type='sale' AND sh.reference_id = s.id
+                 AND EXISTS (SELECT 1 FROM products p WHERE p.id = sh.product_id AND p.track_inventory = true) )
 UNION ALL
   -- I5: refund never exceeds what was sold (only real sales have positive total;
   -- return/refund sales carry a negative total and are excluded)

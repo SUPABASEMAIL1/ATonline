@@ -43,6 +43,16 @@
 -- ════════════════════════════════════════════════════════════════
 -- Every structural DB change MUST be logged here AND in a migration file.
 --
+-- [2026-08-17] Verification & Repair Protocol Fixes
+--   Files: SUPER_MASTER_SCHEMA.sql, migrations 20260818010000 - 20260818040000
+--   Changes:
+--   1. Role Guards: Added server-side role enforcement directly in delete_sale_atomic
+--      and refund_sale_atomic RPCs.
+--   2. Reconciliation: Added stock_mismatches table, reconcile_now() RPC, and
+--      invariant_violations view.
+--   3. E-store Guards: Added store_order_transition_is_valid, guard_store_order_update,
+--      and guard_store_order_insert to enforce state machine and rate limit orders.
+--
 -- [2026-05-09] POS Enhancements — Split Payments & DC Charges
 --   Files: SUPER_MASTER_SCHEMA.sql, prisma/schema.prisma, localDb.ts,
 --          types/index.ts, services.ts
@@ -358,6 +368,28 @@ CREATE TABLE IF NOT EXISTS app_settings (
 
 ALTER TABLE app_settings REPLICA IDENTITY FULL;
 
+-- app_settings RLS (MASTER §2.1.4 — single-tenant, defense-in-depth)
+-- SELECT/INSERT open (POS reads globally; first-run setup). UPDATE allowed for
+-- any LOGGED-IN user (the POS writes app_settings from every authenticated role
+-- during the 30s heartbeat sync, so an admin/manager-only policy would break
+-- cashier sync). DELETE restricted to admin/manager. Unauthenticated anon is
+-- always blocked. Sensitive sub-actions (delete_sale/refund_sale) are guarded
+-- server-side in rpc_role_guards.sql; Settings PAGE access stays app-layer guarded.
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "settings_select" ON app_settings;
+DROP POLICY IF EXISTS "settings_insert" ON app_settings;
+DROP POLICY IF EXISTS "settings_write" ON app_settings;
+DROP POLICY IF EXISTS "settings_delete" ON app_settings;
+
+CREATE POLICY "settings_select" ON app_settings FOR SELECT USING (true);
+CREATE POLICY "settings_insert" ON app_settings FOR INSERT WITH CHECK (true);
+CREATE POLICY "settings_write" ON app_settings FOR UPDATE
+  USING (current_user_role() IS NOT NULL)
+  WITH CHECK (current_user_role() IS NOT NULL);
+CREATE POLICY "settings_delete" ON app_settings FOR DELETE
+  USING (current_user_role() IN ('admin', 'manager'));
+
 
 -- ════════════════════════════════════════════════════════════════
 -- 2. CATEGORIES  (Product taxonomy — no FK deps)
@@ -608,6 +640,7 @@ CREATE TABLE IF NOT EXISTS sales (
     delivery_location_lat NUMERIC,
     delivery_location_lng NUMERIC,
     customer_notes      TEXT,
+    is_orphan           BOOLEAN NOT NULL DEFAULT false,
     created_at          TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT now()
 );
@@ -3182,6 +3215,254 @@ CREATE TRIGGER trg_guard_store_order_update
 BEFORE UPDATE ON store_orders
 FOR EACH ROW EXECUTE FUNCTION guard_store_order_update();
 
+CREATE OR REPLACE FUNCTION guard_store_order_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+  cnt integer;
+BEGIN
+  IF NEW.customer_phone IS NOT NULL AND NEW.customer_phone <> '' THEN
+    SELECT count(*) INTO cnt FROM store_orders
+      WHERE customer_phone = NEW.customer_phone
+        AND created_at > now() - interval '10 minutes';
+    IF cnt >= 20 THEN
+      RAISE EXCEPTION 'RATE_LIMIT: too many recent orders from this phone' USING ERRCODE = 'P0002';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_guard_store_order_insert ON store_orders;
+CREATE TRIGGER trg_guard_store_order_insert
+BEFORE INSERT ON store_orders
+FOR EACH ROW EXECUTE FUNCTION guard_store_order_insert();-- ============================================================================
+-- rpc_role_guards (MASTER §2.1.4 / §2.1.5)
+-- These RPCs are SECURITY DEFINER; auth.uid() still reflects the calling user.
+--   delete_sale_atomic : admin | manager only
+--   refund_sale_atomic : admin | manager | cashier  (salesman excluded)
+-- Idempotency (ON CONFLICT DO NOTHING, EXISTS guards) is preserved.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION delete_sale_atomic(p_sale_id uuid, p_history jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  h jsonb;
+  _role text;
+BEGIN
+  SELECT role INTO _role FROM public.users WHERE id = auth.uid();
+  IF _role IS NULL OR _role NOT IN ('admin', 'manager') THEN
+    RAISE EXCEPTION 'FORBIDDEN: delete_sale requires admin or manager' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id) THEN
+    RETURN jsonb_build_object('success', true, 'id', p_sale_id, 'note', 'already_deleted');
+  END IF;
+
+  FOR h IN SELECT * FROM jsonb_array_elements(p_history)
+  LOOP
+    IF h->>'variant_id' IS NOT NULL AND h->>'variant_id' <> '' THEN
+      INSERT INTO variant_stock_history (id, product_id, variant_id, variant_label, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now())
+      ON CONFLICT (id) DO NOTHING;
+    ELSE
+      INSERT INTO stock_history (id, product_id, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now())
+      ON CONFLICT (id) DO NOTHING;
+    END IF;
+  END LOOP;
+
+  DELETE FROM sales WHERE id = p_sale_id;
+  RETURN jsonb_build_object('success', true, 'id', p_sale_id);
+END; $$;
+
+CREATE OR REPLACE FUNCTION refund_sale_atomic(p_sale_id uuid, p_history jsonb, p_status text, p_refunded_amount numeric)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  h jsonb;
+  _role text;
+  _total numeric;
+BEGIN
+  SELECT role INTO _role FROM public.users WHERE id = auth.uid();
+  IF _role IS NULL OR _role NOT IN ('admin', 'manager', 'cashier') THEN
+    RAISE EXCEPTION 'FORBIDDEN: refund requires cashier or higher' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id) THEN
+    RETURN jsonb_build_object('success', true, 'id', p_sale_id, 'note', 'sale_missing');
+  END IF;
+
+  -- Universal over-refund guard (MASTER §2.1.5 / §7 I5): no role may refund more
+  -- than the original sale total. p_refunded_amount is the NEW cumulative total.
+  SELECT total INTO _total FROM sales WHERE id = p_sale_id;
+  IF _total IS NOT NULL AND p_refunded_amount > _total + 0.001 THEN
+    RAISE EXCEPTION 'FORBIDDEN: refund amount exceeds sale total' USING ERRCODE = '42501';
+  END IF;
+
+  FOR h IN SELECT * FROM jsonb_array_elements(p_history)
+  LOOP
+    IF h->>'variant_id' IS NOT NULL AND h->>'variant_id' <> '' THEN
+      INSERT INTO variant_stock_history (id, product_id, variant_id, variant_label, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now())
+      ON CONFLICT (id) DO NOTHING;
+    ELSE
+      INSERT INTO stock_history (id, product_id, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now())
+      ON CONFLICT (id) DO NOTHING;
+    END IF;
+  END LOOP;
+
+  UPDATE sales SET status = p_status, refunded_amount = p_refunded_amount, updated_at = now() WHERE id = p_sale_id;
+  RETURN jsonb_build_object('success', true, 'id', p_sale_id);
+END; $$;
+
+GRANT EXECUTE ON FUNCTION delete_sale_atomic(uuid, jsonb) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION refund_sale_atomic(uuid, jsonb, text, numeric) TO anon, authenticated, service_role;
+-- ============================================================================
+-- reconciliation (MASTER §4.3 / §7)
+-- Provides the acceptance-test machinery for invariants I1, I2, I4, I5, I6.
+-- I3 (supplier balance) is NOT stored as a column in this schema — it is always
+-- DERIVED from supplier_transactions, so it cannot drift (documented in report).
+-- Variant stock lives inside products.variant_data JSONB (updated by the
+-- variant_stock_history trigger) and is covered separately (see report §15F).
+-- ============================================================================
+
+-- Mismatch ledger: every detected drift is recorded here and must be corrected
+-- manually (which inserts an ADJUSTMENT stock_history / payment_movements row),
+-- never by a raw UPDATE (MASTER §4.3).
+CREATE TABLE IF NOT EXISTS stock_mismatches (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  kind        TEXT NOT NULL CHECK (kind IN ('inventory', 'wallet')),
+  entity_id   TEXT NOT NULL,
+  expected    NUMERIC,
+  actual      NUMERIC,
+  detected_at TIMESTAMPTZ DEFAULT timezone('utc', now()) NOT NULL,
+  resolved    BOOLEAN DEFAULT FALSE,
+  resolved_at TIMESTAMPTZ,
+  note        TEXT
+);
+
+-- Run reconciliation: record any I1 (inventory) / I2 (wallet) drift into
+-- stock_mismatches. Returns the number of new mismatch rows.
+CREATE OR REPLACE FUNCTION reconcile_now()
+RETURNS INTEGER LANGUAGE plpgsql AS $$
+DECLARE
+  n INTEGER := 0;
+  r RECORD;
+BEGIN
+  -- I1: products.stock vs Σ stock_history.change_qty (only tracked products)
+  FOR r IN
+    SELECT p.id::text AS eid, p.stock AS actual,
+      COALESCE((SELECT SUM(change_qty) FROM stock_history WHERE product_id = p.id), 0) AS expected
+    FROM products p
+    WHERE p.track_inventory = true
+      AND p.stock IS DISTINCT FROM COALESCE((SELECT SUM(change_qty) FROM stock_history WHERE product_id = p.id), 0)
+  LOOP
+    INSERT INTO stock_mismatches(kind, entity_id, expected, actual)
+    VALUES ('inventory', r.eid, r.expected, r.actual);
+    n := n + 1;
+  END LOOP;
+
+  -- I2: payment_modes.balance vs Σ payment_movements.delta
+  FOR r IN
+    SELECT pm.id AS eid, pm.balance AS actual,
+      COALESCE((SELECT SUM(delta) FROM payment_movements WHERE mode_id = pm.id), 0) AS expected
+    FROM payment_modes pm
+    WHERE pm.balance IS DISTINCT FROM COALESCE((SELECT SUM(delta) FROM payment_movements WHERE mode_id = pm.id), 0)
+  LOOP
+    INSERT INTO stock_mismatches(kind, entity_id, expected, actual)
+    VALUES ('wallet', r.eid, r.expected, r.actual);
+    n := n + 1;
+  END LOOP;
+
+  RETURN n;
+END;
+$$;
+
+-- One-stop view returning EVERY invariant violation (MASTER §7). Empty = pass.
+-- Only the authoritative, false-positive-safe invariants are included:
+--   I1 inventory drift (products.stock vs Σ stock_history.change_qty)
+--   I2 wallet drift    (payment_modes.balance vs Σ payment_movements.delta)
+--   I5 over-refund     (refunded_amount > sale total)
+-- I3 (supplier) is derived-only (cannot drift). I4/I6 are enforced by the
+-- ledger design + store_orders state-machine trigger (see report §15F).
+CREATE OR REPLACE VIEW invariant_violations AS
+  -- I1: inventory drift (only products that actually track inventory)
+  SELECT 'I1_inventory' AS check_name, p.id::text AS entity_id
+  FROM products p
+  WHERE p.track_inventory = true
+    AND p.stock IS DISTINCT FROM COALESCE((SELECT SUM(change_qty) FROM stock_history WHERE product_id = p.id), 0)
+UNION ALL
+  -- I2: wallet drift
+  SELECT 'I2_wallet', pm.id::text
+  FROM payment_modes pm
+  WHERE pm.balance IS DISTINCT FROM COALESCE((SELECT SUM(delta) FROM payment_movements WHERE mode_id = pm.id), 0)
+UNION ALL
+  -- I4: completed sale must have exactly one 'sale' stock row per tracked,
+  --     still-existing line item. Tracked = the PRODUCT TABLE says track_inventory
+  --     (the embedded item snapshot may be null). Both sides count ONLY existing
+  --     products, so orphaned rows for deleted products are never false-flagged.
+  SELECT 'I4_sale_stock', s.id::text
+  FROM sales s
+  WHERE s.status = 'completed'
+    AND ( SELECT count(*) FROM jsonb_array_elements(s.items) it
+            WHERE EXISTS (SELECT 1 FROM products p
+                           WHERE p.id = (it->'product'->>'id')::uuid AND p.track_inventory = true) )
+        != ( SELECT count(*) FROM stock_history sh
+               WHERE sh.type='sale' AND sh.reference_id = s.id
+                 AND EXISTS (SELECT 1 FROM products p WHERE p.id = sh.product_id AND p.track_inventory = true) )
+UNION ALL
+  -- I5: refund never exceeds what was sold (only real sales have positive total;
+  -- return/refund sales carry a negative total and are excluded)
+  SELECT 'I5_refund', s.id::text
+  FROM sales s
+  WHERE s.total > 0 AND COALESCE(s.refunded_amount, 0) > s.total;
+-- ============================================================================
+-- estore_guards (MASTER §9 — production hardening)
+-- 1. Server-side ORDER STATE MACHINE: invalid store_orders status transitions
+--    are rejected by the database, never trusting UI-disabled buttons.
+-- 2. Per-phone RATE LIMIT on order placement: prevents queue-flooding from a
+--    single number (stock is never at risk, but the /orders queue stays clean).
+-- Both are additive, idempotent, and safe to re-apply.
+-- ============================================================================
+
+-- Transition validator: returns true only for legal transitions.
+CREATE OR REPLACE FUNCTION store_order_transition_is_valid(old_s text, new_s text)
+RETURNS boolean LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+  allowed text[];
+BEGIN
+  IF old_s IS NULL OR old_s = new_s THEN RETURN true; END IF;
+  CASE old_s
+    WHEN 'pending'         THEN allowed := ARRAY['accepted', 'cancelled', 'converted'];
+    WHEN 'accepted'        THEN allowed := ARRAY['preparing', 'cancelled', 'converted'];
+    WHEN 'preparing'       THEN allowed := ARRAY['ready', 'cancelled', 'converted'];
+    WHEN 'ready'           THEN allowed := ARRAY['out_for_delivery', 'cancelled', 'converted'];
+    WHEN 'out_for_delivery' THEN allowed := ARRAY['delivered', 'cancelled', 'converted'];
+    WHEN 'delivered'       THEN allowed := ARRAY[]::text[];
+    WHEN 'cancelled'       THEN allowed := ARRAY[]::text[];
+    WHEN 'converted'       THEN allowed := ARRAY[]::text[];
+    ELSE RETURN false;
+  END CASE;
+  RETURN new_s = ANY(allowed);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION guard_store_order_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NOT store_order_transition_is_valid(OLD.status, NEW.status) THEN
+    RAISE EXCEPTION 'INVALID_TRANSITION: store_order % cannot go % -> %', OLD.id, OLD.status, NEW.status USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_guard_store_order_update ON store_orders;
+CREATE TRIGGER trg_guard_store_order_update
+BEFORE UPDATE ON store_orders
+FOR EACH ROW EXECUTE FUNCTION guard_store_order_update();
+
+-- Per-phone rate limit (anti flood). Tunable constant below (20 orders / 10 min).
 CREATE OR REPLACE FUNCTION guard_store_order_insert()
 RETURNS TRIGGER AS $$
 DECLARE
