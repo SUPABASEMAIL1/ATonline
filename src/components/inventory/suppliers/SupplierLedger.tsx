@@ -65,10 +65,14 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
     let totalBilled = 0;
     let totalPaid = 0;
     ledger.forEach(t => {
-      if (t.type === 'purchase' || t.type === 'opening_balance') {
-        totalBilled += Number(t.credit) || 0;
-      } else if (t.type === 'payment') {
-        totalPaid += Number(t.debit) || 0;
+      const amt = Number(t.debit) || Number(t.credit) || 0;
+      // X4: mirror suppliersService.getBalance — 'payment' & 'return' reduce what we owe,
+      // everything else ('purchase','opening_balance','loan','manual_bill','auto_purchase') adds to it.
+      // Previously 'loan' & 'return' were silently dropped → remaining ≠ actual balance.
+      if (t.type === 'payment' || t.type === 'return') {
+        totalPaid += amt;
+      } else {
+        totalBilled += amt;
       }
     });
     return { totalBilled, totalPaid, remaining: totalBilled - totalPaid };
@@ -324,7 +328,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
       {/* Ledger Table */}
       <div className="bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden border border-gray-200 dark:border-white/5 shadow-sm">
         <div className="p-4 border-b border-gray-200 dark:border-white/5 flex items-center justify-between gap-4">
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">{t('manual_ledger_only', 'Manual Ledger (Bills & Payments Only)')}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-600">{t('manual_ledger_only', 'Full Ledger (Auto + Manual Bills & Payments)')}</p>
           <div className="w-full max-w-xs">
             <SharedSearchBar
               value={searchTerm}

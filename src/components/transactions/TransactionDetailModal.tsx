@@ -6,7 +6,6 @@ import { useAuth } from '../../context/AuthContext';
 import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone } from '../../lib/dateUtils';
 import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies';
 import { Sale, RefundRequest } from '../../types';
-import { CheckoutModal } from '../pos/CheckoutModal';
 import { ReceiptPrint } from '../pos/ReceiptPrint';
 import { salesService, productsService, customersService, getAmountByMethod } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
@@ -32,7 +31,6 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
   const { profile } = useAuth();
   const showDiscount = state.settings.receiptShowDiscount !== false && 
     !(transaction.items || []).some((item: any) => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
-  const [showCheckout, setShowCheckout] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
   // Role logic removed — single-tenant POS: authenticated user has full access
   const isAdmin = true;
@@ -634,18 +632,6 @@ export function TransactionDetailModal({ transaction, allTransactions, onNavigat
           </div>
         </div>
       </Modal>
-
-      {showCheckout && (
-        <CheckoutModal
-          onClose={() => setShowCheckout(false)}
-          onComplete={async () => {
-            if (transaction.id) {
-              await salesService.delete(transaction.id);
-              dispatch({ type: 'DELETE_SALE', payload: transaction.id });
-            }
-          }}
-        />
-      )}
 
       {isRefundModalOpen && (
         <RefundSaleModal

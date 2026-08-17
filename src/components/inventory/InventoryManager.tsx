@@ -42,14 +42,9 @@ export function InventoryManager() {
   const { t } = useTranslation();
   const { profile } = useAuth();
 
-  // Safety check to prevent black screen if state/settings haven't loaded yet
-  if (!state?.settings || !state?.products) {
-    return (
-      <div className="p-6 bg-gray-50 dark:bg-transparent">
-        <SkeletonLoader type="list" count={6} />
-      </div>
-    );
-  }
+  // Safety: derive a safe products list so hooks can be called unconditionally
+  // (before the early return that follows the hook section below)
+  const products = state?.products ?? [];
 
   const isAdmin = true; // Role logic removed — full access
   const canManageStock = isAdmin || profile?.canManageStock || profile?.canManagePO;
@@ -77,6 +72,8 @@ export function InventoryManager() {
   const activeTab = (subTab ? SUB_TAB_SEGMENT_TO_INTERNAL[subTab] : 'inventory') as TabType;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isReconciling, setIsReconciling] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -119,7 +116,7 @@ export function InventoryManager() {
   // Automatically hydrate barcodeProducts from state.products when selections or products load/change
   useEffect(() => {
     if (showBarcodeGenerator && selectedProductIds.length > 0) {
-      const filtered = state.products.filter((p: Product) => selectedProductIds.includes(p.id));
+      const filtered = products.filter((p: Product) => selectedProductIds.includes(p.id));
       setBarcodeProducts(prev => {
         // Prevent infinite loops by only updating if the filtered IDs list changed
         const prevIds = prev.map(x => x.id).join(',');
@@ -138,7 +135,7 @@ export function InventoryManager() {
   useEffect(() => {
     const navState = location.state as { productId?: string; fromSale?: string } | null;
     if (navState?.productId) {
-      const product = state.products.find((p: Product) => p.id === navState.productId);
+      const product = products.find((p: Product) => p.id === navState.productId);
       if (product) {
         setDetailProduct(product);
       }
@@ -158,7 +155,7 @@ export function InventoryManager() {
   }, [state.pendingReturnTab]);
 
   const categories = useMemo(() => {
-    const rawCategories = state.products.map((p: Product) => {
+    const rawCategories = products.map((p: Product) => {
       const cat = p.category;
       if (typeof cat === 'string' && cat.trim().startsWith('{')) {
         try {
@@ -171,12 +168,12 @@ export function InventoryManager() {
   }, [state.products]);
 
   const suppliers = useMemo(() => {
-    return ['All', ...Array.from(new Set(state.products.map((p: Product) => p.supplier).filter(Boolean) as string[]))];
+    return ['All', ...Array.from(new Set(products.map((p: Product) => p.supplier).filter(Boolean) as string[]))];
   }, [state.products]);
 
   const filteredProducts = useMemo(() => {
-    return state.products
-      .filter(product => {
+  return products
+    .filter(product => {
         const matchesSearch = (product.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
           (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (product.barcode && product.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -233,6 +230,7 @@ export function InventoryManager() {
 
   // Barcode scanner logic (Hardware Scanner)
   useBarcodeScanner((barcode: string) => {
+    if (!state?.products) return;
     const term = barcode.trim();
     const normalizedTerm = term.toUpperCase().replace(/O/g, '0');
 
@@ -262,6 +260,7 @@ export function InventoryManager() {
   // Listener for cross-tab product redirection
   useEffect(() => {
     const handleOpenProduct = (e: any) => {
+      if (!state?.products) return;
       const productId = e.detail;
       const product = state.products.find(p => p.id === productId);
       if (product) {
@@ -271,6 +270,15 @@ export function InventoryManager() {
     window.addEventListener('open-product-hub', handleOpenProduct);
     return () => window.removeEventListener('open-product-hub', handleOpenProduct);
   }, [state.products]);
+
+  // Safety check to prevent black screen if state/settings haven't loaded yet
+  if (!state?.settings || !state?.products) {
+    return (
+      <div className="p-6 bg-gray-50 dark:bg-transparent">
+        <SkeletonLoader type="list" count={6} />
+      </div>
+    );
+  }
 
   const lowStockProducts = state.products.filter((p: Product) =>
     p.trackInventory !== false &&
@@ -384,8 +392,6 @@ export function InventoryManager() {
   const handleImportJSON = () => {
     fileInputRef.current?.click();
   };
-
-  const [isReconciling, setIsReconciling] = useState(false);
 
   const handleReconcile = async () => {
     setIsReconciling(true);

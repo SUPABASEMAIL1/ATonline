@@ -30,7 +30,8 @@ export function OrderTracker({ orderId, settings }: OrderTrackerProps) {
         
       if (data) {
         setOrder(data);
-        setupTimer(data);
+        // NOTE: timer is (re)started by the effect below on order/status change — calling
+        // setupTimer here too created a leaked interval with a STALE status closure (E5).
       }
     };
 

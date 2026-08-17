@@ -6,6 +6,7 @@ import { formatCurrency } from '../../lib/currencies';
 import { getDealCountBreakdown } from '../../lib/utils';
 import { getCountryByCode } from '../../lib/countries';
 import { formatAppDate, formatAppDateTime } from '../../lib/dateUtils';
+import { sonner } from '../../lib/sonner';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { BarcodePreview } from '../common/BarcodePreview';
@@ -849,13 +850,6 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
         <div style={{ marginBottom: '4px' }}>
           <div style={{ textAlign: 'left', fontWeight: clamp(baseWeight + 200) }}>SPLIT PAYMENT:</div>
           {sale.splitPayments.map((p: any, i: number) => (<TwoCol key={i} left={p.method} right={formatCurrency(p.amount, currencyCode)} />))}
-        </div>
-      ) : sale.paymentMethod === 'credit' ? (
-        <div style={{ marginBottom: '4px' }}>
-          <div style={{ textAlign: 'left', fontWeight: clamp(baseWeight + 200) }}>PAID: CREDIT</div>
-          {sale.receivedAmount && sale.receivedAmount > 0 ? (
-            <><TwoCol left="ADVANCE PAID:" right={formatCurrency(sale.receivedAmount, currencyCode)} /><TwoCol left="ADDED TO DEBT:" right={formatCurrency(sale.total - sale.receivedAmount, currencyCode)} /></>
-          ) : null}
         </div>
       ) : (
         <div style={{ textAlign: 'left' }}>PAID: {sale.paymentMethod}</div>
@@ -1734,16 +1728,6 @@ export function ReceiptPrint({ sale, onClose }: ReceiptPrintProps) {
                 {sale.splitPayments.map((p, i) => (
                   <TwoCol key={i} left={p.method} right={formatCurrency(p.amount, currencyCode)} />
                 ))}
-              </div>
-            ) : sale.paymentMethod === 'credit' ? (
-              <div style={{ marginBottom: '4px' }}>
-                <div style={{ textAlign: 'left', fontWeight: clamp(baseWeight + 200) }}>PAID: CREDIT</div>
-                {sale.receivedAmount && sale.receivedAmount > 0 ? (
-                  <>
-                    <TwoCol left="ADVANCE PAID:" right={formatCurrency(sale.receivedAmount, currencyCode)} />
-                    <TwoCol left="ADDED TO DEBT:" right={formatCurrency(sale.total - sale.receivedAmount, currencyCode)} />
-                  </>
-                ) : null}
               </div>
             ) : (
               <div style={{ textAlign: 'left' }}>PAID: {sale.paymentMethod}</div>

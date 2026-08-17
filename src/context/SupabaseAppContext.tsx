@@ -32,6 +32,8 @@ import {
   mapDiscount,
   mapPurchaseRecord,
   mapPayment,
+  mapPaymentMode,
+  seedPaymentModes,
   mapStockHistory,
   storeOrdersService,
   salesmenService,
@@ -1129,6 +1131,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Seed default payment wallets (cash/card/online/wallet) on boot
+  useEffect(() => {
+    if (!user) return;
+    seedPaymentModes().catch(e => console.warn('[paymentModes] seed failed', e));
+  }, [user]);
+
   // 🔄 REALTIME SYNC: Workspace-filtered subscriptions
   useEffect(() => {
     if (!user || !profile) return;
@@ -1169,6 +1177,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } else if (payload.eventType === 'DELETE') {
           await localDb.products.delete(payload.old.id);
           dispatch({ type: 'DELETE_PRODUCT', payload: payload.old.id });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_modes' }, async (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const mapped = mapPaymentMode(payload.new);
+          await localDb.paymentModes.put(mapped);
+        } else if (payload.eventType === 'DELETE') {
+          await localDb.paymentModes.delete((payload.new && payload.new.id) || payload.old?.id);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, async (payload) => {
@@ -2241,6 +2257,65 @@ function checkCondition(
   }
 }
 
+// Returns a human-readable reason the discount cannot be applied, or null if eligible.
+// Mirrors checkDiscountEligibility / checkCondition exactly so the UI hint matches enforcement.
+export function getDiscountIneligibilityReason(
+  discount: Discount,
+  cart: CartItem[],
+  customer: Customer | null,
+  paymentMethod: string,
+  total: number,
+  cardDetails?: { cardType?: string; bankName?: string }
+): string | null {
+  if (!discount.active) return 'Discount is inactive';
+  const now = new Date();
+  if (now < discount.validFrom) return 'Not started yet';
+  if (now > discount.validTo) return 'Expired';
+  if (discount.validDays && discount.validDays.length > 0) {
+    const currentDay = now.getDay();
+    if (!discount.validDays.includes(currentDay)) return 'Not valid on this day';
+  }
+  for (const condition of discount.conditions) {
+    const reason = getConditionIneligibilityReason(condition, cart, customer, paymentMethod, total, cardDetails);
+    if (reason) return reason;
+  }
+  return null;
+}
+
+function getConditionIneligibilityReason(
+  condition: DiscountCondition,
+  cart: CartItem[],
+  customer: Customer | null,
+  paymentMethod: string,
+  total: number,
+  cardDetails?: { cardType?: string; bankName?: string }
+): string | null {
+  switch (condition.type) {
+    case 'min_amount':
+      return total >= condition.value ? null : `Min ${condition.value} required`;
+    case 'specific_products': {
+      if (!Array.isArray(condition.value)) return 'Invalid product condition';
+      const minQuantity = condition.minQuantity || 1;
+      for (const productId of condition.value) {
+        const cartItem = cart.find(item => item.product.id === productId);
+        if (!cartItem) return 'Specific products required';
+        if (cartItem.quantity < minQuantity) return `Need ${minQuantity}+ of required product`;
+      }
+      return null;
+    }
+    case 'payment_method':
+      return paymentMethod === condition.value ? null : `Payment: ${condition.value} only`;
+    case 'customer_tier':
+      return customer?.priceTier === condition.value ? null : `Tier: ${condition.value} only`;
+    case 'card_type':
+      return paymentMethod === 'card' && cardDetails?.cardType === condition.value ? null : `Card: ${condition.value} only`;
+    case 'bank_name':
+      return paymentMethod === 'card' && cardDetails?.bankName === condition.value ? null : `Bank: ${condition.value} only`;
+    default:
+      return null;
+  }
+}
+
 // Generate invoice number and automatically update counter in state
 export function useInvoiceGeneration() {
   const { state, dispatch } = useApp();
@@ -2257,7 +2332,7 @@ export function useInvoiceGeneration() {
                    const newCounter = parseInt(parts[1], 10);
                    if (!isNaN(newCounter)) {
                        dispatch({ type: 'INCREMENT_INVOICE_COUNTER', payload: newCounter });
-                       localDb.settings.update('00000000-0000-4000-8000-000000000001', { invoiceCounter: newCounter }).catch(() => {});
+                        localDb.appSettings.update('00000000-0000-4000-8000-000000000001', { invoiceCounter: newCounter }).catch(() => {});
                    }
                }
                return invoiceNumber;

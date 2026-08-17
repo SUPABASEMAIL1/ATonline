@@ -153,7 +153,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
 
   const productSales = useMemo(() => {
     return (state.sales || []).filter((s: Sale) =>
-      (s.status === 'completed' || s.status === 'credit' || s.status === 'refunded') &&
+      (s.status === 'completed' || s.status === 'partially_refunded' || s.status === 'refunded') &&
       s.items?.some(item => item.product?.id === product.id)
     );
   }, [state.sales, product.id]);
@@ -176,11 +176,19 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   const totalPurchased = productPurchases.reduce((s, r) => s + (r.quantity || 0), 0);
   const totalSoldUnits = productSales.reduce((s, sale) => {
     return s + (sale.items || []).filter(i => i.product?.id === product.id)
-      .reduce((a, i) => a + (i.quantity || 0), 0);
+      .reduce((a, i) => {
+        const base = i.weight ? Number(i.weight) : (Number(i.quantity) || 0);
+        return a + Math.max(0, base - (Number(i.refundedQuantity) || 0));
+      }, 0);
   }, 0);
   const totalRevenue = productSales.reduce((s, sale) => {
     return s + (sale.items || []).filter(i => i.product?.id === product.id)
-      .reduce((a, i) => a + (i.subtotal || 0), 0);
+      .reduce((a, i) => {
+        const base = i.weight ? Number(i.weight) : (Number(i.quantity) || 0);
+        const net = Math.max(0, base - (Number(i.refundedQuantity) || 0));
+        const ratio = base > 0 ? net / base : 0;
+        return a + (Number(i.subtotal) || 0) * ratio;
+      }, 0);
   }, 0);
   const totalCOGS = totalSoldUnits * (product.cost || 0);
   const grossProfit = totalRevenue - totalCOGS;

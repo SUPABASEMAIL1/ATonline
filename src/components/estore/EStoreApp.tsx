@@ -218,9 +218,13 @@ export function EStoreApp() {
 
     return () => {
       // Restore Admin Theme on exit
-      const adminTheme = localStorage.getItem('pos_settings')
-        ? JSON.parse(localStorage.getItem('pos_settings')!).theme || 'dark'
-        : 'dark';
+      let adminTheme = 'dark';
+      try {
+        const raw = localStorage.getItem('pos_settings');
+        if (raw) adminTheme = JSON.parse(raw).theme || 'dark';
+      } catch (_) {
+        adminTheme = 'dark';
+      }
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const isAdminDark = adminTheme === 'dark' || (adminTheme === 'auto' && mediaQuery.matches);
       if (isAdminDark) {

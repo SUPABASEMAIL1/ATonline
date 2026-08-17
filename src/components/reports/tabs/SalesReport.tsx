@@ -35,7 +35,6 @@ interface SalesReportProps {
     retailSales: number;
     wholesaleSales: number;
     estoreSales: number;
-    collections: number;
   }[];
   currency: string;
   theme: string;
@@ -44,17 +43,12 @@ interface SalesReportProps {
   retailEnabled?: boolean;
   wholesaleEnabled: boolean;
   estoreEnabled: boolean;
-  creditSalesTotal?: number;
-  creditSalesCount?: number;
-  creditCollectedTotal?: number;
-  creditCollectedCount?: number;
 }
 
 const COLORS = ['#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#EC4899'];
 
 export function SalesReport({
-  filteredSales, salesData, categoryData, saleTypeData, topProducts, featureAnalytics, totalRevenue, totalTransactions, averageTransaction, totalCostOfGoods, grossProfit, totalExpenseAmount, netProfit, walletStats, currency, theme, country, users, retailEnabled = true, wholesaleEnabled, estoreEnabled,
-  creditSalesTotal = 0, creditSalesCount = 0, creditCollectedTotal = 0, creditCollectedCount = 0
+  filteredSales, salesData, categoryData, saleTypeData, topProducts, featureAnalytics, totalRevenue, totalTransactions, averageTransaction, totalCostOfGoods, grossProfit, totalExpenseAmount, netProfit, walletStats, currency, theme, country, users, retailEnabled = true, wholesaleEnabled, estoreEnabled
 }: SalesReportProps) {
   const { t } = useTranslation();
   const { page, totalPages, pageItems, goToPage, pageSize, setPageSize } = usePagination(filteredSales, 25);
@@ -109,18 +103,18 @@ export function SalesReport({
     let eVol = 0, eCount = 0;
 
     filteredSales.forEach(s => {
-      if (s.status === 'completed' || s.status === 'credit') {
-        const type = s.saleType || 'retail';
-        if (type === 'retail') {
-          rVol += s.total;
-          rCount++;
-        } else if (type === 'wholesale') {
-          wVol += s.total;
-          wCount++;
-        } else if (type === 'estore') {
-          eVol += s.total;
-          eCount++;
-        }
+      if (s.status === 'refunded' || s.status === 'deleted') return;
+      const net = netTotal(s);
+      const type = s.saleType || 'retail';
+      if (type === 'retail') {
+        rVol += net;
+        rCount++;
+      } else if (type === 'wholesale') {
+        wVol += net;
+        wCount++;
+      } else if (type === 'estore') {
+        eVol += net;
+        eCount++;
       }
     });
 
@@ -229,34 +223,6 @@ export function SalesReport({
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Credit & Ledger Summaries */}
-      {(creditSalesTotal > 0 || creditCollectedTotal > 0) && (
-        <div className="mt-6">
-          <h3 className="text-[10px] font-black text-gray-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-            {t("credit_ledger_summary", "Credit & Collections Summary")}
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-5 rounded-3xl border border-rose-500/20 bg-rose-500/5 shadow-sm relative overflow-hidden group hover:border-rose-500/40 transition-all">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-rose-500 to-red-600 opacity-10 rounded-bl-full group-hover:scale-110 transition-transform duration-500" />
-              <div className="relative z-10 space-y-1">
-                <span className="text-[10px] font-black text-rose-600/70 uppercase tracking-widest">{t("credit_sales_given", "Credit Sales Given")} ({creditSalesCount})</span>
-                <p className="text-2xl font-black text-rose-600">{formatCurrency(creditSalesTotal, currency)}</p>
-                <p className="text-[9px] font-bold text-gray-500 mt-2">{t("credit_sales_desc", "Value of goods sold on credit (Pending collection)")}</p>
-              </div>
-            </div>
-            <div className="p-5 rounded-3xl border border-primary/20 bg-primary/5 shadow-sm relative overflow-hidden group hover:border-primary/40 transition-all">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500 to-teal-600 opacity-10 rounded-bl-full group-hover:scale-110 transition-transform duration-500" />
-              <div className="relative z-10 space-y-1">
-                <span className="text-[10px] font-black text-primary/70 uppercase tracking-widest">{t("credit_collected", "Credit Collected")} ({creditCollectedCount})</span>
-                <p className="text-2xl font-black text-primary">{formatCurrency(creditCollectedTotal, currency)}</p>
-                <p className="text-[9px] font-bold text-gray-500 mt-2">{t("credit_collected_desc", "Money received from previous credit sales")}</p>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -504,8 +470,8 @@ export function SalesReport({
                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">-</p>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(sale.total, currency)}</td>
-                  <td className="px-6 py-4 text-center"><span className="inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-primary/10 text-primary dark:text-emerald-400 border border-primary/20">{t("completed", "Completed")}</span></td>
+                  <td className="px-6 py-4 text-sm font-black text-gray-900 dark:text-white text-right">{formatCurrency(sale.total - (sale.refundedAmount || 0), currency)}</td>
+                  <td className="px-6 py-4 text-center"><span className={`inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${sale.status === 'partially_refunded' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-primary/10 text-primary dark:text-emerald-400 border border-primary/20'}`}>{t(sale.status === 'partially_refunded' ? 'partially_refunded' : 'completed', sale.status === 'partially_refunded' ? 'Partial' : 'Completed')}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -523,7 +489,7 @@ export function SalesReport({
                   <p className="text-xs font-black text-primary dark:text-emerald-400 uppercase tracking-tighter mb-1">{sale.invoiceNumber}</p>
                   <p className="text-[10px] text-gray-600 font-bold">{formatAppDateTime(sale.timestamp, country)}</p>
                 </div>
-                <p className="text-base font-black text-gray-900 dark:text-white">{formatCurrency(sale.total, currency)}</p>
+                <p className="text-base font-black text-gray-900 dark:text-white">{formatCurrency(sale.total - (sale.refundedAmount || 0), currency)}</p>
               </div>
               <div className="flex justify-between items-end">
                 <div className="space-y-1">
@@ -540,7 +506,7 @@ export function SalesReport({
                     )}
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-[0.15em] bg-primary/10 text-primary border border-primary/10">{t("completed", "COMPLETED")}</span>
+                <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-[0.15em] ${sale.status === 'partially_refunded' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-primary/10 text-primary border border-primary/10'}`}>{t(sale.status === 'partially_refunded' ? 'partially_refunded' : 'completed', sale.status === 'partially_refunded' ? 'PARTIAL' : 'COMPLETED')}</span>
               </div>
             </div>
           ))}

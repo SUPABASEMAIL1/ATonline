@@ -52,7 +52,8 @@ export interface Product {
   isWeightBased?: boolean;
   pricePerUnit?: number; // For weight-based pricing (per kg, per lb, etc.)
   unit?: string; // kg, lb, piece, etc.
-  // batches removed — simple stock system now
+  // batches: legacy simple-stock batch helper (deprecated but ProductModal still uses it)
+  batches?: ProductBatch[];
   trackInventory?: boolean; // Whether to track and manage inventory for this product
   variants?: ProductVariant[];
   variantData?: VariantData[]; // Advanced variant pricing, stock, barcodes
@@ -68,8 +69,23 @@ export interface Product {
 }
 
 
-// ProductBatch interface removed — batch system deprecated. Simple stock + cost system now.
-// Historical batch data remains in Supabase product_batches table for reference.
+// ProductBatch: legacy simple-stock batch helper. The batch ledger was deprecated in
+// favour of a simple stock system, but ProductModal still references this type, so it
+// is retained (permissive) to keep the codebase compiling.
+export interface ProductBatch {
+  id: string;
+  productId?: string;
+  quantity?: number;
+  qtyRemaining?: number;
+  qty_remaining?: number;
+  cost?: number;
+  price?: number;
+  expiryDate?: string;
+  batchNumber?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: any;
+}
 
 export interface Customer {
   id: string;
@@ -78,8 +94,6 @@ export interface Customer {
   phone: string;
   address: string;
   priceTier: 'retail' | 'wholesale' | 'premium';
-  creditLimit: number;
-  creditUsed: number;
   totalPurchases: number;
   lastPurchase?: Date;
   createdAt: Date;
@@ -95,10 +109,10 @@ export interface Supplier {
   email: string;
   phone: string;
   address: string;
-  businessType: string;
-  paymentTerms: string;
-  openingBalance: number;
-  rating: number;
+  businessType?: string;
+  paymentTerms?: string;
+  openingBalance?: number;
+  rating?: number;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -275,7 +289,7 @@ export interface DiscountCondition {
 }
 
 export interface SplitPayment {
-  method: 'cash' | 'card' | 'digital' | 'credit' | 'cheque';
+  method: 'cash' | 'card' | 'digital' | 'cheque';
   amount: number;
   reference?: string;
 }
@@ -303,10 +317,11 @@ export interface Sale {
   total: number;
   billDiscountValue?: number;
   billDiscountType?: 'percentage' | 'fixed';
-  paymentMethod: 'cash' | 'card' | 'digital' | 'credit' | 'cheque' | 'split';
+  paymentMethod: 'cash' | 'card' | 'digital' | 'cheque' | 'split';
   cardDetails?: CardDetails;
-  status: 'pending' | 'completed' | 'refunded' | 'partially_refunded' | 'credit' | 'draft';
+  status: 'pending' | 'completed' | 'refunded' | 'partially_refunded' | 'draft';
   cashier: string;
+  cashierRole?: string; // Role of the cashier at sale time (cashier | salesman) — column exists in `sales`
   timestamp: Date;
   receiptNumber: string;
   notes?: string;
@@ -319,8 +334,9 @@ export interface Sale {
   // New features
   extraCharges?: { name: string; amount: number }[];
   splitPayments?: SplitPayment[];
-  refundedAt?: string;
   refundedAmount?: number; // Total amount refunded from this sale
+  // NOTE: a `refundedAt?` field was removed — there is NO matching `refunded_at`
+  // column in the `sales` table, so it was dead type drift (C5).
   // E-Store features
   estoreStatus?: 'pending' | 'accepted' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
   deliveryAddress?: string;
@@ -342,6 +358,8 @@ export interface RefundRequest {
     refundAmount: number;
   }[];
   totalRefundAmount: number;
+  reason?: string;
+  method?: string;
 }
 
 export interface StoreOrder {
@@ -530,7 +548,6 @@ export interface AppSettings {
   isLocked?: boolean;
   aiV2Enabled?: boolean;
   posGridColumns?: number;
-  allowCreditOverLimit: boolean;
   enableSplitPayment: boolean;
   enableExtraCharges: boolean;
 }
@@ -648,6 +665,7 @@ export interface PurchaseRecord {
   date: Date;
   addedBy: string;
   notes?: string;
+  qty_remaining?: number; // actual remaining stock after this stock-in (C5 — schema has the column)
 }
 
 export interface Topping {

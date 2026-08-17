@@ -4,7 +4,7 @@ import { Modal } from '../common/Modal';
 import { RotateCcw, Minus, Plus, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../../lib/currencies';
 import { useApp } from '../../context/SupabaseAppContext';
-import { Button, SegmentedControl } from '../../shared/ui';
+import { Button, SegmentedControl, Select } from '../../shared/ui';
 
 interface RefundSaleModalProps {
   isOpen: boolean;
@@ -17,7 +17,14 @@ interface RefundSaleModalProps {
 export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund, isProcessing }: RefundSaleModalProps) {
   const { state: { settings } } = useApp();
   const [refundMode, setRefundMode] = useState<'full' | 'partial'>('full');
-  
+
+  // Default refund method = original sale method (fall back to cash for split/cheque)
+  const defaultMethod = (['cash', 'card', 'digital'].includes(sale.paymentMethod))
+    ? sale.paymentMethod
+    : 'cash';
+  const [reason, setReason] = useState('');
+  const [method, setMethod] = useState(defaultMethod);
+
   // State for partial refunds: tracking how much of each item to refund
   const [partialQtys, setPartialQtys] = useState<Record<number, number>>({});
 
@@ -31,16 +38,21 @@ export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund
   const calculatedPartialRefund = useMemo(() => {
     let total = 0;
     const items: RefundRequest['items'] = [];
-    
+
+    // Distribute bill-level discount and tax proportionally across items so a partial
+    // refund reflects the ACTUAL net amount the customer paid (incl. tax, after ALL
+    // discounts) — fixes B2 (was using item.subtotal which omits bill discount & tax).
+    const sumSubtotal = (sale.items || []).reduce((s, i) => s + (Number(i.subtotal) || 0), 0) || 1;
+    const billDiscount = Number(sale.discountAmount) || 0;
+    const tax = Number(sale.taxAmount) || 0;
+
     (sale.items || []).forEach((item, index) => {
       const refundQty = partialQtys[index] || 0;
       if (refundQty > 0) {
-        // MONEY RULE: round every money value to 2 decimal places — float division
-        // (unitPrice = subtotal/qty) otherwise drifts cents into the ledger on
-        // repeated partial refunds.
-        const unitPrice = item.quantity > 0
-          ? Math.round(((item.total || item.subtotal || 0) / item.quantity) * 100) / 100
-          : 0;
+        const itemShare = (Number(item.subtotal) || 0) / sumSubtotal;
+        const netUnit = ((Number(item.subtotal) || 0) - itemShare * billDiscount + itemShare * tax) / (Math.abs(item.quantity) || 1);
+        // MONEY RULE: round every money value to 2 decimal places.
+        const unitPrice = Math.round(netUnit * 100) / 100;
         const refundAmount = Math.round(unitPrice * refundQty * 100) / 100;
         total = Math.round((total + refundAmount) * 100) / 100;
         items.push({
@@ -56,17 +68,20 @@ export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund
   }, [partialQtys, sale.items]);
 
   const handleConfirm = () => {
+    const refundMeta = { reason: reason.trim() || undefined, method };
     if (refundMode === 'full') {
       onConfirmRefund({
         type: 'full',
         items: [],
-        totalRefundAmount: sale.total - (sale.refundedAmount || 0)
+        totalRefundAmount: sale.total - (sale.refundedAmount || 0),
+        ...refundMeta
       });
     } else {
       onConfirmRefund({
         type: 'partial',
         items: calculatedPartialRefund.items,
-        totalRefundAmount: calculatedPartialRefund.total
+        totalRefundAmount: calculatedPartialRefund.total,
+        ...refundMeta
       });
     }
   };
@@ -97,6 +112,31 @@ export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund
           value={refundMode}
           onChange={(v) => setRefundMode(v as 'full' | 'partial')}
         />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Refund Method</label>
+            <Select
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              className="!py-2.5"
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="digital">Digital / Bank</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5 sm:col-span-1">
+            <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Reason (Optional)</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Damaged item, wrong size..."
+              className="input w-full text-[13px] font-medium py-2.5 px-3 bg-white dark:bg-black/20 rounded-xl border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            />
+          </div>
+        </div>
 
         {refundMode === 'partial' && (
           <div className="border border-gray-200 dark:border-dark-700 rounded-xl overflow-hidden">

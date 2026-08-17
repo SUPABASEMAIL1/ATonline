@@ -13,8 +13,6 @@ interface CustomerData {
   totalSpent: number;
   periodSpent?: number;
   lifetimeSpent?: number;
-  creditLimit?: number;
-  creditUsed?: number;
   totalTransactions: number;
   totalItems: number;
   avgTransactionValue: number;
@@ -37,6 +35,29 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
     color: theme === 'dark' ? '#fff' : '#000'
   };
 
+  const totalCustomers = customerData.length;
+  const totalSpending = customerData.reduce((sum, c) => sum + c.totalSpent, 0);
+  const totalOrders = customerData.reduce((sum, c) => sum + c.totalTransactions, 0);
+  const avgOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0;
+
+  const exportColumns = [
+    { key: 'name', label: t('customer', 'Customer') },
+    { key: 'totalSpent', label: t('total_spent', 'Total Spent'), format: 'currency' as const },
+    { key: 'totalTransactions', label: t('transactions', 'Transactions'), format: 'number' as const },
+    { key: 'totalItems', label: t('items_purchased', 'Items Purchased'), format: 'number' as const },
+    { key: 'avgTransactionValue', label: t('average_transaction', 'Avg. Transaction'), format: 'currency' as const },
+    { key: 'lastPurchase', label: t('last_purchase', 'Last Purchase') },
+  ];
+
+  const exportRows = useMemo(() => customerData.map(c => ({
+    name: c.name,
+    totalSpent: c.periodSpent ?? c.totalSpent,
+    totalTransactions: c.totalTransactions,
+    totalItems: c.totalItems,
+    avgTransactionValue: c.avgTransactionValue,
+    lastPurchase: c.lastPurchase ? formatAppDate(c.lastPurchase, country) : '',
+  })), [customerData, country]);
+
   if (!customerData || customerData.length === 0) {
     return (
       <EmptyState
@@ -47,31 +68,6 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
       />
     );
   }
-
-  const totalCustomers = customerData.length;
-  const totalSpending = customerData.reduce((sum, c) => sum + c.totalSpent, 0);
-  const totalOrders = customerData.reduce((sum, c) => sum + c.totalTransactions, 0);
-  const avgOrderValue = totalOrders > 0 ? totalSpending / totalOrders : 0;
-
-  const exportColumns = [
-    { key: 'name', label: t('customer', 'Customer') },
-    { key: 'totalSpent', label: t('total_spent', 'Total Spent'), format: 'currency' as const },
-    { key: 'creditUsed', label: t('credit_balance', 'Credit Balance'), format: 'currency' as const },
-    { key: 'totalTransactions', label: t('transactions', 'Transactions'), format: 'number' as const },
-    { key: 'totalItems', label: t('items_purchased', 'Items Purchased'), format: 'number' as const },
-    { key: 'avgTransactionValue', label: t('average_transaction', 'Avg. Transaction'), format: 'currency' as const },
-    { key: 'lastPurchase', label: t('last_purchase', 'Last Purchase') },
-  ];
-
-  const exportRows = useMemo(() => customerData.map(c => ({
-    name: c.name,
-    totalSpent: c.periodSpent ?? c.totalSpent,
-    creditUsed: c.creditUsed || 0,
-    totalTransactions: c.totalTransactions,
-    totalItems: c.totalItems,
-    avgTransactionValue: c.avgTransactionValue,
-    lastPurchase: c.lastPurchase ? formatAppDate(c.lastPurchase, country) : '',
-  })), [customerData, country]);
 
   return (
     <div className="space-y-6">
@@ -164,7 +160,6 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
               <tr>
                 <th className="px-6 py-4 text-left text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400">{t("customer", "Customer")}</th>
                 <th className="px-6 py-4 text-left text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400">{t("total_spent", "Total Spent")}</th>
-                <th className="px-6 py-4 text-left text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400">{t("credit_balance", "Credit Balance")}</th>
                 <th className="px-6 py-4 text-left text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400 hidden sm:table-cell">{t("transactions", "Transactions")}</th>
                 <th className="px-6 py-4 text-left text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400 hidden md:table-cell">{t("items_purchased", "Items Purchased")}</th>
                 <th className="px-6 py-4 text-left text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-400 hidden md:table-cell">{t("average_transaction", "Avg. Transaction")}</th>
@@ -172,7 +167,7 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-              {customerData.slice(0, 20).map(customer => (
+              {customerData.map(customer => (
                 <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -192,18 +187,6 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className={`font-black ${customer.creditUsed && customer.creditUsed > 0 ? 'text-rose-500' : 'text-gray-400'}`}>
-                        {formatCurrency(customer.creditUsed || 0, currency)}
-                      </span>
-                      {customer.creditLimit !== undefined && customer.creditLimit > 0 && (
-                        <span className="text-[10px] text-gray-500 font-bold uppercase">
-                          {t("limit", "Limit:")} {formatCurrency(customer.creditLimit, currency)}
-                        </span>
-                      )}
-                    </div>
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell"><span className="px-2 py-1 rounded-lg bg-emerald-100 dark:bg-primary/10 text-primary text-[10px] font-black">{customer.totalTransactions}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell"><span className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 text-[10px] font-black">{customer.totalItems}</span></td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400 hidden md:table-cell font-bold">{formatCurrency(customer.avgTransactionValue, currency)}</td>
@@ -216,7 +199,7 @@ export function CustomersReport({ customerData, currency, theme, country }: Cust
 
         {/* Mobile Cards */}
         <div className="lg:hidden divide-y divide-gray-100 dark:divide-white/[0.05]">
-          {customerData.slice(0, 20).map(customer => (
+          {customerData.map(customer => (
             <div key={customer.id} className="p-4 active:bg-gray-50 dark:active:bg-white/5 transition-colors">
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">

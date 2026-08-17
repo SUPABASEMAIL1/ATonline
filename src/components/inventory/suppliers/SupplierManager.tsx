@@ -289,9 +289,16 @@ export function SupplierManager() {
                   </div>
                   <div>
                     <h3 className="text-[11px] font-black text-gray-900 dark:text-white uppercase leading-none truncate max-w-[150px]">{supplier.name}</h3>
-                    <span className="text-[9px] font-black uppercase text-primary tracking-widest bg-primary/10 px-2 py-0.5 rounded-full inline-block mt-1 border border-primary/10">
-                      {supplier.businessType || t('partner', 'PARTNER')}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] font-black uppercase text-primary tracking-widest bg-primary/10 px-2 py-0.5 rounded-full inline-block border border-primary/10">
+                        {supplier.businessType || t('partner', 'PARTNER')}
+                      </span>
+                      {typeof supplier.rating === 'number' && supplier.rating > 0 && (
+                        <span className="text-[9px] font-black text-amber-500 tracking-widest bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full inline-block border border-amber-200 dark:border-amber-500/20">
+                          {'★'.repeat(supplier.rating)}{'☆'.repeat(5 - supplier.rating)} {supplier.rating}/5
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -332,6 +339,14 @@ export function SupplierManager() {
                   </div>
                   <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400 truncate">{supplier.address || t('address_not_set', 'Address not set')}</span>
                 </div>
+                {supplier.paymentTerms && (
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-lg bg-gray-50 dark:bg-white/5 flex items-center justify-center">
+                      <CreditCard className="h-3 w-3 text-gray-600" />
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400 truncate">{supplier.paymentTerms}</span>
+                  </div>
+                )}
               </div>
 
               <Button

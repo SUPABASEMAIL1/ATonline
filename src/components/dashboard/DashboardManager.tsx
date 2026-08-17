@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet,
   TrendingUp,
-  Users,
   Building2,
   ShoppingBag,
   Package,
@@ -62,35 +61,25 @@ export function DashboardManager() {
   }, [state.sales, timezone]); // Re-run when state.sales changes so it stays live
 
   const todaySalesStats = useMemo(() => {
-    return {
-      revenue: dashboardSales.reduce((sum, s) => {
-        if (s.status === 'completed' || s.status === 'credit') return sum + s.total;
-        if (s.status === 'refunded') return sum - (s.total || 0);
-        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
-        return sum;
-      }, 0),
-      cash: dashboardSales.reduce((sum, s) => {
-        const amt = getAmountByMethod(s, 'cash');
-        if (s.status === 'completed') return sum + amt;
-        if (s.status === 'refunded') return sum - amt;
-        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
-        return sum;
-      }, 0),
-      card: dashboardSales.reduce((sum, s) => {
-        const amt = getAmountByMethod(s, 'card');
-        if (s.status === 'completed') return sum + amt;
-        if (s.status === 'refunded') return sum - amt;
-        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
-        return sum;
-      }, 0),
-      digital: dashboardSales.reduce((sum, s) => {
-        const amt = getAmountByMethod(s, 'digital');
-        if (s.status === 'completed') return sum + amt;
-        if (s.status === 'refunded') return sum - amt;
-        if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0) * (amt / (s.total || 1));
-        return sum;
-      }, 0),
-    };
+    let revenue = 0, cash = 0, card = 0, digital = 0;
+    for (const s of dashboardSales) {
+      if (s.status === 'refunded' || s.status === 'deleted') continue; // net 0
+      const total = s.total || 0;
+      const refunded = s.status === 'partially_refunded' ? (s.refundedAmount || 0) : 0;
+      // X5: net of tax so Dashboard Revenue matches Reports (which subtract tax) — previously
+      // tax was counted as revenue, overstating the figure.
+      const tax = Number(s.taxAmount) || 0;
+      const taxPortion = s.status === 'partially_refunded' && total > 0 ? tax * (refunded / total) : tax;
+      revenue += total - refunded - taxPortion;
+      const netFor = (method: string) => {
+        const amt = getAmountByMethod(s, method);
+        return total > 0 ? amt - refunded * (amt / total) : 0;
+      };
+      cash += netFor('cash');
+      card += netFor('card');
+      digital += netFor('digital');
+    }
+    return { revenue, cash, card, digital };
   }, [dashboardSales]);
 
   const todayStats = useMemo(() => {
@@ -100,6 +89,22 @@ export function DashboardManager() {
     };
   }, [todaySalesStats.revenue]);
 
+  const todayExpenses = useMemo(() => {
+    const now = new Date();
+    const start = getStartOfDayInTimezone(now, timezone).getTime();
+    const end = getEndOfDayInTimezone(now, timezone).getTime();
+    return (state.expenses || []).reduce((sum, e) => {
+      const ts = new Date(e.createdAt || e.date || 0).getTime();
+      return ts >= start && ts <= end ? sum + (e.amount || 0) : sum;
+    }, 0);
+  }, [state.expenses, timezone]);
+
+  const flowRatio = useMemo(() => {
+    const total = todayStats.sales + todayExpenses;
+    if (total <= 0) return 8;
+    return Math.max(8, Math.min(100, (todayStats.sales / total) * 100));
+  }, [todayStats.sales, todayExpenses]);
+
   const hourlyData = useMemo(() => {
     const hours = Array.from({ length: 24 }, (_, i) => ({
       name: `${i.toString().padStart(2, '0')}:00`,
@@ -108,15 +113,15 @@ export function DashboardManager() {
 
     dashboardSales.forEach(sale => {
       const date = new Date(sale.createdAt || sale.timestamp || new Date());
-      const hour = date.getUTCHours();
+      const hour = date.getHours();
       let amount = 0;
-      if (sale.status === 'refunded') amount = -(sale.total || 0);
+      if (sale.status === 'completed') amount = (sale.total || 0);
       else if (sale.status === 'partially_refunded') amount = (sale.total || 0) - (sale.refundedAmount || 0);
-      else if (sale.status === 'completed' || sale.status === 'credit') amount = sale.total || 0;
+      else amount = 0; // refunded -> net 0
       hours[hour].value += amount;
     });
 
-    const currentHour = new Date().getUTCHours();
+    const currentHour = new Date().getHours();
     const startHour = Math.max(0, currentHour - 11);
     return hours.slice(startHour, currentHour + 1);
   }, [dashboardSales]);
@@ -125,19 +130,22 @@ export function DashboardManager() {
     return recentSales;
   }, [recentSales]);
 
-  const customerReceivableStats = useMemo(() => {
-    const toReceive = state.customers.reduce((sum, c) => sum + (c.balance < 0 ? Math.abs(c.balance) : 0), 0);
-    const advance = state.customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
-    return { toReceive, advance };
-  }, [state.customers]);
-
   const payableStats = useMemo(() => {
-    const toPay = state.suppliers.reduce((sum, s) => sum + (s.balance < 0 ? Math.abs(s.balance) : 0), 0);
-    const advance = state.suppliers.reduce((sum, s) => sum + (s.balance > 0 ? s.balance : 0), 0);
+    // X1: mapSupplier never populates Supplier.balance, so summing s.balance was always 0.
+    // Compute each supplier's balance from the transaction ledger (mirrors suppliersService.getBalance).
+    const balances = state.suppliers.map(s => {
+      const txs = state.supplierTransactions.filter(t => t.supplierId === s.id);
+      return txs.reduce((sum, tx) => {
+        if (tx.type === 'payment' || tx.type === 'return') return sum - (tx.amount || 0);
+        return sum + (tx.amount || 0);
+      }, 0);
+    });
+    const toPay = balances.filter(b => b < 0).reduce((a, b) => a + Math.abs(b), 0);
+    const advance = balances.filter(b => b > 0).reduce((a, b) => a + b, 0);
     return { toPay, advance };
-  }, [state.suppliers]);
+  }, [state.suppliers, state.supplierTransactions]);
 
-  const pendingPOsCount = 0; // Placeholder
+  const pendingPOsCount = state.storeOrders.filter(o => o.status === 'pending').length;
   const lowStockCount = state.products.filter(p => p.trackInventory && p.stock <= (p.minStock || 5)).length;
 
   return (
@@ -204,7 +212,7 @@ export function DashboardManager() {
       </div>
 
       {/* Cards always mounted — never swap with skeleton to prevent blink */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {/* 1. Revenue Today */}
           <div
             className="stat-card bg-gradient-to-br from-indigo-600 via-blue-600 to-blue-800 group cursor-pointer !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
@@ -213,11 +221,11 @@ export function DashboardManager() {
             <div className="stat-card-inner">
               <div className="space-y-0.5">
                 <span className="stat-card-label text-[8.5px] tracking-widest">{t("revenue_today", "Revenue Today")}</span>
-                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{formatCurrency(walletStats.total, currency)}</span>
+                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{formatCurrency(todaySalesStats.revenue, currency)}</span>
               </div>
               <div className="mt-2">
                 <span className="text-[7.5px] font-black text-white/50 bg-white/15 px-1.5 py-0.5 rounded border border-white/5 uppercase tracking-wider">
-                  {walletStats.cash > 0 ? t("cash_ready", "CASH READY") : t("no_cash", "NO CASH")}
+                  {todaySalesStats.cash > 0 ? t("cash_ready", "CASH READY") : t("no_cash", "NO CASH")}
                 </span>
               </div>
             </div>
@@ -238,7 +246,7 @@ export function DashboardManager() {
                     <span className="text-white">+{formatCurrency(todayStats.sales, currency, false)}</span>
                   </div>
                   <div className="w-full h-0.5 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-400 w-3/4" />
+                    <div className="h-full bg-emerald-400" style={{ width: `${flowRatio}%` }} />
                   </div>
                 </div>
               </div>
@@ -246,21 +254,7 @@ export function DashboardManager() {
             <Activity className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
-          {/* 3. Receivables */}
-          <div
-            className="stat-card bg-gradient-to-br from-emerald-500 via-teal-600 to-teal-800 group cursor-pointer shadow-emerald-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
-            onClick={() => navigate('/customers')}
-          >
-            <div className="stat-card-inner">
-              <div className="space-y-0.5">
-                <span className="stat-card-label text-[8.5px] tracking-widest">{t("receivables", "Receivables")}</span>
-                <span className="stat-card-value text-base sm:text-lg lg:text-xl font-black">{formatCurrency(customerReceivableStats.toReceive, currency)}</span>
-              </div>
-            </div>
-            <Users className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
-          </div>
-
-          {/* 4. Payables */}
+          {/* 3. Payables */}
           <div
             className="stat-card bg-gradient-to-br from-rose-500 via-red-600 to-red-800 group cursor-pointer shadow-red-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
             onClick={() => navigate('/suppliers')}
@@ -274,10 +268,10 @@ export function DashboardManager() {
             <Building2 className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
-          {/* 5. Orders */}
+          {/* 4. Orders */}
           <div
             className="stat-card bg-gradient-to-br from-amber-500 via-orange-600 to-orange-800 group cursor-pointer shadow-orange-500/10 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem]"
-            onClick={() => navigate('/purchase-orders')}
+            onClick={() => navigate(state.settings.estoreEnabled ? '/online-orders' : '/purchase-orders')}
           >
             <div className="stat-card-inner">
               <div className="space-y-0.5">
@@ -288,7 +282,7 @@ export function DashboardManager() {
             <ShoppingBag className="stat-card-icon !h-8 !w-8 -bottom-1 -right-1 !opacity-10 group-hover:!opacity-20" />
           </div>
 
-          {/* 6. Inventory */}
+          {/* 5. Inventory */}
           <div
             className={`stat-card group cursor-pointer transition-all duration-500 !min-h-[85px] py-2.5 px-4 rounded-[1.5rem] ${lowStockCount > 0
               ? 'bg-gradient-to-br from-pink-600 to-rose-700 shadow-rose-500/20 ring-1 ring-white/20'
@@ -393,7 +387,8 @@ export function DashboardManager() {
                 recentActivity.map((sale, i) => (
                   <div
                     key={sale.id}
-                    className="bg-white/[0.03] hover:bg-white/[0.08] transition-all p-3 rounded-[1.25rem] border border-white/5 flex items-center justify-between group active:scale-95"
+                    onClick={() => navigate('/transactions')}
+                    className="bg-white/[0.03] hover:bg-white/[0.08] transition-all p-3 rounded-[1.25rem] border border-white/5 flex items-center justify-between group active:scale-95 cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${sale.paymentMethod === 'cash' ? 'bg-primary/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>
@@ -405,7 +400,7 @@ export function DashboardManager() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-black text-emerald-400">{formatCurrency(sale.total, currency, false)}</p>
+                      <p className="text-xs font-black text-emerald-400">{formatCurrency(sale.total - (sale.refundedAmount || 0), currency, false)}</p>
                       <p className="text-[7.5px] font-black text-white/20 uppercase tracking-widest">{sale.items?.length || 0} {sale.items?.length === 1 ? t("item", "ITEM") : t("items", "ITEMS")}</p>
                     </div>
                   </div>

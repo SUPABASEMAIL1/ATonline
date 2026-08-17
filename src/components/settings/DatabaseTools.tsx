@@ -19,11 +19,9 @@ import {
   Truck,
   ClipboardList,
   CheckSquare,
-  Square,
-  Barcode
+  Square
 } from 'lucide-react';
 import { localDb, queueOp, purgeLocalData, SETTINGS_ID } from '../../lib/localDb';
-import { seedMissingBarcodes } from '../../lib/services';
 import { generateBarcodeValue } from '../../utils/barcode';
 import { useApp } from '../../context/SupabaseAppContext';
 import { sonner } from '../../lib/sonner';
@@ -92,7 +90,6 @@ export function DatabaseTools() {
   const { state, dispatch } = useApp();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [selectedStores, setSelectedStores] = useState<Set<string>>(new Set(STORE_OPTIONS.map(s => s.key)));
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -575,25 +572,6 @@ export function DatabaseTools() {
     }
   };
 
-  const handleSeedBarcodes = async () => {
-    setIsSeeding(true);
-    sonner.loading('Scanning product catalog for missing Code 128 barcodes...');
-    try {
-      const res = await seedMissingBarcodes();
-      sonner.close();
-      if (res.count === 0) {
-        sonner.success('All products already have valid Code 128 barcodes.');
-      } else {
-        sonner.success(`Successfully populated ${res.count} products with Code 128 barcodes.`);
-      }
-    } catch (err: any) {
-      sonner.close();
-      sonner.error(`Barcode population failed: ${err.message}`);
-    } finally {
-      setIsSeeding(false);
-    }
-  };
-
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       {/* Header */}
@@ -607,51 +585,73 @@ export function DatabaseTools() {
         </div>
       </div>
 
-      {/* ROW 1: Table Selection (7) + Backups (5) */}
+      {/* MAIN GRID: Table Selection + Auto Maintenance (left 7) | Export/Import + System Reset (right 5) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* LEFT COLUMN: Table Selection (7 Cols) */}
-        <div className="lg:col-span-7 bg-white dark:bg-black/20 p-5 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-md space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-white/5 pb-2">
-            <h3 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">Select Tables</h3>
-            <Button
-              type="button"
-              onClick={toggleAll}
-              className="!min-h-0 !p-0 !gap-1 !text-[9px] !text-primary dark:!text-emerald-400 hover:!underline !hover:bg-transparent"
-            >
-              {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-              {allSelected ? 'Deselect All' : 'Select All'}
-            </Button>
+
+        {/* LEFT COLUMN (7 Cols) */}
+        <div className="lg:col-span-7 space-y-6">
+
+          {/* Table Selection */}
+          <div className="bg-white dark:bg-black/20 p-5 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-white/5 pb-2">
+              <h3 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">Select Tables</h3>
+              <Button
+                type="button"
+                onClick={toggleAll}
+                className="!min-h-0 !p-0 !gap-1 !text-[9px] !text-primary dark:!text-emerald-400 hover:!underline !hover:bg-transparent"
+              >
+                {allSelected ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                {allSelected ? 'Deselect All' : 'Select All'}
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {STORE_OPTIONS.map(store => {
+                const Icon = store.icon;
+                const isSelected = selectedStores.has(store.key);
+                return (
+                   <Button
+                    type="button"
+                    key={store.key}
+                    variant="ghost"
+                    onClick={() => toggleStore(store.key)}
+                    className={`!min-h-0 !justify-start !normal-case !tracking-normal !p-2 !text-left !text-[11px] !font-bold !shadow-none !border ${isSelected
+                      ? '!bg-emerald-50 dark:!bg-primary/10 !border-emerald-200 dark:!border-primary/30 !text-emerald-700 dark:!text-emerald-400 !ring-1 !ring-emerald-500/10'
+                      : '!bg-gray-50 dark:!bg-white/[0.02] !border-gray-200 dark:!border-white/5 !text-gray-500 hover:!bg-gray-100 dark:hover:!bg-white/5'
+                      }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? store.color : 'text-gray-600 dark:text-gray-500'}`} />
+                    <span className="truncate">{store.label}</span>
+                    {isSelected && <CheckCircle2 className="w-3 h-3 ml-auto text-primary shrink-0" />}
+                  </Button>
+                );
+              })}
+            </div>
+            <div className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">
+              {selectedStores.size} of {STORE_OPTIONS.length} tables selected
+            </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {STORE_OPTIONS.map(store => {
-              const Icon = store.icon;
-              const isSelected = selectedStores.has(store.key);
-              return (
-                 <Button
-                  type="button"
-                  key={store.key}
-                  variant="ghost"
-                  onClick={() => toggleStore(store.key)}
-                  className={`!min-h-0 !justify-start !normal-case !tracking-normal !p-2 !text-left !text-[11px] !font-bold !shadow-none !border ${isSelected
-                    ? '!bg-emerald-50 dark:!bg-primary/10 !border-emerald-200 dark:!border-primary/30 !text-emerald-700 dark:!text-emerald-400 !ring-1 !ring-emerald-500/10'
-                    : '!bg-gray-50 dark:!bg-white/[0.02] !border-gray-200 dark:!border-white/5 !text-gray-500 hover:!bg-gray-100 dark:hover:!bg-white/5'
-                    }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? store.color : 'text-gray-600 dark:text-gray-500'}`} />
-                  <span className="truncate">{store.label}</span>
-                  {isSelected && <CheckCircle2 className="w-3 h-3 ml-auto text-primary shrink-0" />}
-                </Button>
-              );
-            })}
+
+          {/* Auto Maintenance (runs automatically after every sync — no manual action needed) */}
+          <div className="bg-emerald-50/40 dark:bg-emerald-950/10 p-5 rounded-[2rem] border border-emerald-100 dark:border-emerald-950/20 shadow-sm flex flex-col justify-between space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center shrink-0">
+                <RefreshCw className="w-5 h-5 text-primary dark:text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black text-emerald-950 dark:text-emerald-300 uppercase tracking-tight">Auto Maintenance</h3>
+                <p className="text-emerald-800/60 dark:text-emerald-400/50 text-[9px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
+                  Barcode seeding &amp; stock reconciliation now run automatically after each sync. Stock stays accurate and all items keep valid barcodes with no manual steps.
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">
-            {selectedStores.size} of {STORE_OPTIONS.length} tables selected
-          </div>
+
         </div>
 
-        {/* RIGHT COLUMN: Export/Import Stack (5 Cols) */}
+        {/* RIGHT COLUMN (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
+
+          {/* Export / Import */}
           <div className="bg-white dark:bg-black/20 p-5 rounded-[2rem] border border-gray-200 dark:border-white/5 shadow-md space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
@@ -668,7 +668,7 @@ export function DatabaseTools() {
                   disabled={isExporting || selectedStores.size === 0}
                   className="w-full !py-2.5 !rounded-xl !text-[9px] !font-black !gap-1.5 !bg-blue-600 hover:!bg-blue-700 !shadow-md disabled:!opacity-40"
                 >
-                  {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileJson className="h-3.5 w-3.5" />}
+                  {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileJson className="h-3.5 h-3.5" />}
                   {isExporting ? 'Exporting...' : 'Export'}
                 </Button>
               </div>
@@ -704,7 +704,7 @@ export function DatabaseTools() {
                   disabled={isImporting || !selectedFile || selectedStores.size === 0}
                   className="w-full !py-2.5 !rounded-xl !text-[9px] !font-black !gap-1.5 !shadow-md hover:!bg-emerald-700 disabled:!opacity-40"
                 >
-                  {isImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {isImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 h-3.5" />}
                   {isImporting ? 'Importing...' : 'Import'}
                 </Button>
               </div>
@@ -719,44 +719,8 @@ export function DatabaseTools() {
               </p>
             </div>
           </div>
-        </div>
 
-      </div>
-
-      {/* ROW 2: Advanced Audits (7) + Reset Danger Zone (5) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pt-4 border-t border-gray-100 dark:border-white/5">
-        
-        {/* LEFT COLUMN: Advanced Tools (7 Cols) */}
-        <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          
-          {/* Barcode Seeding */}
-          <div className="bg-emerald-50/40 dark:bg-emerald-950/10 p-5 rounded-[2rem] border border-emerald-100 dark:border-emerald-950/20 shadow-sm flex flex-col justify-between space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center shrink-0">
-                <Barcode className="w-5 h-5 text-primary dark:text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="text-xs font-black text-emerald-950 dark:text-emerald-300 uppercase tracking-tight">Barcode Seeding</h3>
-                <p className="text-emerald-800/60 dark:text-emerald-400/50 text-[9px] mt-1 font-bold leading-relaxed uppercase tracking-wider">
-                  Generate missing Code 128 barcodes for existing items.
-                </p>
-              </div>
-            </div>
-            <Button
-              type="button"
-              onClick={handleSeedBarcodes}
-              disabled={isSeeding}
-              className="w-full !py-2.5 !rounded-xl !text-[9px] !font-black !gap-1.5 !shadow-md hover:!bg-emerald-700 disabled:!opacity-40"
-            >
-              {isSeeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Barcode className="w-3.5 h-3.5" />}
-              {isSeeding ? 'Populating...' : 'Populate Barcodes'}
-            </Button>
-          </div>
-
-        </div>
-
-        {/* RIGHT COLUMN: Danger Zone (5 Cols) */}
-        <div className="lg:col-span-5">
+          {/* System Reset */}
           <div className="bg-red-50/40 dark:bg-red-950/10 p-5 rounded-[2rem] border border-red-100 dark:border-red-950/20 shadow-sm space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-xl flex items-center justify-center shrink-0">
@@ -778,6 +742,7 @@ export function DatabaseTools() {
               Purge Local Database
             </Button>
           </div>
+
         </div>
 
       </div>

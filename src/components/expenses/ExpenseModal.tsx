@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, ShoppingBag, RefreshCw, Save } from 'lucide-react';
+import { CreditCard, ShoppingBag, RefreshCw, Save, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Expense, EXPENSE_CATEGORIES } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
 import { Modal } from '../common/Modal';
+import { SearchableSelect } from '../common/SearchableSelect';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
+import { sonner } from '../../lib/sonner';
 import { Button, ToggleSwitch, Select } from '../../shared/ui';
 
 interface ExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<void>;
+  onSave: (expense: Omit<Expense, 'id' | 'createdAt'> & { supplierId?: string }) => Promise<void>;
   expense?: Expense | null;
 }
 
@@ -29,6 +31,7 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isManualOverride, setIsManualOverride] = useState(false);
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
 
   useEffect(() => {
     if (expense) {
@@ -41,6 +44,7 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
         storeType: expense.storeType,
         notes: expense.notes || ''
       });
+      setSelectedSupplierId('');
     } else {
       setFormData({
         description: '',
@@ -51,6 +55,7 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
         storeType: state.settings.wholesaleEnabled ? undefined : (state.settings.retailEnabled ? 'retail' : undefined),
         notes: ''
       });
+      setSelectedSupplierId('');
     }
   }, [expense, isOpen]);
 
@@ -58,19 +63,30 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const amount = parseFloat(formData.amount);
+      if (isNaN(amount) || amount <= 0) {
+        sonner.error('Amount must be greater than zero.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const exactDate = new Date();
       const selectedParts = formData.date.split('-');
       exactDate.setFullYear(parseInt(selectedParts[0]), parseInt(selectedParts[1]) - 1, parseInt(selectedParts[2]));
 
+      const overrideBy = isManualOverride ? (state.currentUser?.id || state.currentUser?.username) : undefined;
+
       await onSave({
         description: formData.description,
-        amount: parseFloat(formData.amount),
+        amount,
         category: formData.category,
         date: exactDate,
         paymentMethod: formData.paymentMethod,
         storeType: formData.storeType,
         notes: formData.notes,
         isManualOverride,
+        overrideBy,
+        supplierId: formData.category === 'Supplies' ? selectedSupplierId : undefined,
       } as any);
       onClose();
     } catch (error) {
@@ -199,6 +215,19 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
                 <option value="digital" className="dark:bg-surface">{t('digital_transfer')}</option>
               </Select>
             </div>
+            {formData.category === 'Supplies' && (
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('supplier', 'Supplier')}</label>
+                <SearchableSelect
+                  options={state.suppliers.map(s => ({ id: s.id, label: s.name }))}
+                  value={selectedSupplierId}
+                  onChange={setSelectedSupplierId}
+                  placeholder={t('select_supplier', 'Link to supplier (optional)')}
+                  icon={Building2}
+                />
+                <p className="text-[9px] text-gray-500 dark:text-gray-400">{t('supplier_bill_hint', 'Links this expense to the supplier and raises their payable.')}</p>
+              </div>
+            )}
           </div>
         </div>
 

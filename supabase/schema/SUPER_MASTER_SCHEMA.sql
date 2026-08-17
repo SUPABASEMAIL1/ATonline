@@ -506,7 +506,7 @@ CREATE TABLE IF NOT EXISTS discounts (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name                TEXT NOT NULL,
     description         TEXT,
-    type                TEXT NOT NULL CHECK (type IN ('percentage', 'fixed', 'bogo', 'free_gift')),
+    type                TEXT NOT NULL CHECK (type IN ('percentage', 'fixed', 'bogo', 'free_gift', 'mix_and_match')),
     value               DECIMAL(10,2) DEFAULT 0,
     conditions          JSONB DEFAULT '[]'::jsonb,
     free_gift_products  TEXT[],
@@ -864,7 +864,8 @@ CREATE TABLE IF NOT EXISTS bundles (
     badge_text          TEXT,
     badge_icon          TEXT DEFAULT 'crown',
     badge_bg_color      TEXT DEFAULT '#1A1A1A',
-    badge_text_color    TEXT DEFAULT '#D4AF37'
+    badge_text_color    TEXT DEFAULT '#D4AF37',
+    extra_toppings       JSONB DEFAULT '[]'::jsonb
 );
 
 -- Prevent duplicate bundle names
@@ -1178,8 +1179,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION record_row_tombstone() SECURITY DEFINER
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION record_row_tombstone()
+RETURNS TRIGGER SECURITY DEFINER AS $$
 BEGIN
   INSERT INTO row_tombstones (table_name, ref_id, deleted_at)
   VALUES (TG_TABLE_NAME, OLD.id, COALESCE(OLD.updated_at, NOW()))
@@ -2155,6 +2156,9 @@ ALTER TABLE bundles
   ADD COLUMN IF NOT EXISTS badge_bg_color TEXT DEFAULT '#1A1A1A',
   ADD COLUMN IF NOT EXISTS badge_text_color TEXT DEFAULT '#D4AF37';
 
+ALTER TABLE bundles
+  ADD COLUMN IF NOT EXISTS extra_toppings JSONB DEFAULT '[]'::jsonb;
+
 -- 24. TOPPINGS (Pizza topping add-ons)
 -- ════════════════════════════════════════════════════════════════
 
@@ -2906,6 +2910,7 @@ RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE
   v_id uuid;
   h jsonb;
+  cur numeric;
 BEGIN
   -- Idempotent fulfilment: never bill the same online order twice.
   IF p_sale->>'source_order_id' IS NOT NULL AND p_sale->>'source_order_id' <> '' THEN
@@ -2913,6 +2918,17 @@ BEGIN
       RETURN jsonb_build_object('success', true, 'id', (SELECT id FROM sales WHERE source_order_id = (p_sale->>'source_order_id')::uuid), 'already_fulfilled', true);
     END IF;
   END IF;
+
+  -- Oversell guard: block if net movement would drive a tracked product's cloud stock negative.
+  FOR h IN SELECT * FROM jsonb_array_elements(p_history)
+  LOOP
+    IF (h->>'change_qty')::int < 0 AND (h->>'variant_id' IS NULL OR (h->>'variant_id') = '') THEN
+      SELECT stock INTO cur FROM products WHERE id = (h->>'product_id')::uuid;
+      IF cur IS NOT NULL AND cur >= 0 AND (cur + (h->>'change_qty')::int) < 0 THEN
+        RAISE EXCEPTION 'OVERSELL: product % has stock % but this sale needs %', (h->>'product_id')::uuid, cur, abs((h->>'change_qty')::int) USING ERRCODE = 'P0003';
+      END IF;
+    END IF;
+  END LOOP;
 
   INSERT INTO sales (
     id, invoice_number, customer_id, customer_name, customer_phone,
@@ -2964,16 +2980,16 @@ BEGIN
     p_sale->>'salesman_name',
     COALESCE((p_sale->>'created_at')::timestamptz, now()),
     now()
-  ) RETURNING id INTO v_id;
+  ) ON CONFLICT (id) DO NOTHING RETURNING id INTO v_id;
 
   FOR h IN SELECT * FROM jsonb_array_elements(p_history)
   LOOP
     IF h->>'variant_id' IS NOT NULL AND h->>'variant_id' <> '' THEN
       INSERT INTO variant_stock_history (id, product_id, variant_id, variant_label, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
-      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', v_id, h->>'note', h->>'cashier_name', now(), now());
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', v_id, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
     ELSE
       INSERT INTO stock_history (id, product_id, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
-      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', v_id, h->>'note', h->>'cashier_name', now(), now());
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', v_id, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
     END IF;
   END LOOP;
 
@@ -2990,10 +3006,10 @@ BEGIN
   LOOP
     IF h->>'variant_id' IS NOT NULL AND h->>'variant_id' <> '' THEN
       INSERT INTO variant_stock_history (id, product_id, variant_id, variant_label, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
-      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', NULLIF(h->>'reference_id','')::uuid, h->>'note', h->>'cashier_name', now(), now());
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', NULLIF(h->>'reference_id','')::uuid, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
     ELSE
       INSERT INTO stock_history (id, product_id, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
-      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', NULLIF(h->>'reference_id','')::uuid, h->>'note', h->>'cashier_name', now(), now());
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', NULLIF(h->>'reference_id','')::uuid, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
     END IF;
   END LOOP;
   RETURN jsonb_build_object('success', true);
@@ -3056,3 +3072,65 @@ END; $$;
 
 GRANT EXECUTE ON FUNCTION delete_sale_atomic(uuid, jsonb) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION refund_sale_atomic(uuid, jsonb, text, numeric) TO anon, authenticated, service_role;
+
+-- ════════════════════════════════════════════════════════════════
+-- 26. PAYMENT MODES / WALLETS  (Per-method running balances)
+--     cash, card, online, wallet — each holds its own authoritative
+--     balance, adjusted atomically + idempotently per transaction.
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS payment_modes (
+    id          TEXT PRIMARY KEY,                       -- 'cash','card','online','wallet'
+    name        TEXT NOT NULL,
+    icon        TEXT DEFAULT 'wallet',
+    balance     NUMERIC(14,2) NOT NULL DEFAULT 0,
+    is_active   BOOLEAN DEFAULT TRUE,
+    created_at  TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at  TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE payment_modes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_modes REPLICA IDENTITY FULL;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON payment_modes;
+CREATE POLICY "Allow all for authenticated" ON payment_modes FOR ALL USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS payment_movements (
+    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    mode_id      TEXT NOT NULL REFERENCES payment_modes(id) ON DELETE CASCADE,
+    delta        NUMERIC(14,2) NOT NULL,
+    reference_id UUID,
+    note         TEXT,
+    created_at   TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+ALTER TABLE payment_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_movements REPLICA IDENTITY FULL;
+DROP POLICY IF EXISTS "Allow all for authenticated" ON payment_movements;
+CREATE POLICY "Allow all for authenticated" ON payment_movements FOR ALL USING (true) WITH CHECK (true);
+
+-- Atomic, idempotent per-method balance adjustment (mirrors apply_stock_movements).
+-- Each move carries a unique id; if already applied it is skipped (FOUND = false),
+-- so re-sends (offline flush / realtime replay) never double-count.
+CREATE OR REPLACE FUNCTION apply_payment_movements(p_moves jsonb)
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  h jsonb;
+BEGIN
+  FOR h IN SELECT * FROM jsonb_array_elements(p_moves)
+  LOOP
+    INSERT INTO payment_movements (id, mode_id, delta, reference_id, note, created_at)
+    VALUES (
+      COALESCE((h->>'id')::uuid, uuid_generate_v4()),
+      h->>'mode_id',
+      (h->>'delta')::numeric,
+      NULLIF(h->>'reference_id','')::uuid,
+      h->>'note',
+      now()
+    )
+    ON CONFLICT (id) DO NOTHING;
+    IF FOUND THEN
+      UPDATE payment_modes SET balance = balance + (h->>'delta')::numeric, updated_at = now()
+      WHERE id = h->>'mode_id';
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION apply_payment_movements(jsonb) TO anon, authenticated, service_role;

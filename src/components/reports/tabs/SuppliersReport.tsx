@@ -123,26 +123,6 @@ export function SuppliersReport({ currency, country }: SuppliersReportProps) {
     count: rows.length,
   }), [rows]);
 
-  const handleExportCSV = () => {
-    const headers = ['Supplier Name', 'Phone', 'Total Billed', 'Total Paid', 'Outstanding Balance', 'Transactions'];
-    const csvRows = filteredRows.map(r => [
-      r.supplier.name,
-      r.supplier.phone || '',
-      r.totalBilled.toFixed(2),
-      r.totalPaid.toFixed(2),
-      r.balance.toFixed(2),
-      r.transactionCount.toString(),
-    ]);
-    const csv = [headers, ...csvRows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `supplier_report_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const sourceBadgeBase = '!rounded !px-1.5 !text-[8px] !tracking-normal';
   const getSourceBadge = (sourceType: string) => {
     if (sourceType === 'auto_purchase') {

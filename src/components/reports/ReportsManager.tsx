@@ -8,7 +8,6 @@ import { formatCurrency, formatNumberWithPrecision } from '../../lib/currencies'
 import { formatAppDate, formatAppDateTime, formatAppDateChart, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
 import { EXPENSE_CATEGORIES, Sale, Expense } from '../../types';
 import InventoryReportManager from '../inventory/InventoryReportManager';
-import { localDb } from '../../lib/localDb';
 import { supabase } from '../../lib/supabase';
 import { sonner } from '../../lib/sonner';
 import {
@@ -16,8 +15,7 @@ import {
   expensesService,
   categoriesService,
   customersService,
-  getAmountByMethod,
-  mapPayment
+  getAmountByMethod
 } from '../../lib/services';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { SalesReport } from './tabs/SalesReport';
@@ -98,15 +96,6 @@ export function ReportsManager() {
   const { subTab } = useParams();
   const { state } = useApp();
   const { t } = useTranslation();
-
-  // Safety check to prevent black screen if settings haven't loaded yet
-  if (!state?.settings) {
-    return (
-      <div className="p-6 bg-gray-50 dark:bg-transparent">
-        <SkeletonLoader type="list" count={6} />
-      </div>
-    );
-  }
 
   const [dateRange, setDateRange] = useState('today');
   const userRole = state.currentUser?.role;
@@ -200,7 +189,7 @@ export function ReportsManager() {
   }, []);
 
   const { validStartDate, validEndDate } = useMemo(() => {
-    const timezone = getTimezone(state.settings.country);
+    const timezone = getTimezone(state?.settings?.country ?? 'US');
     const now = new Date();
     let startDate: Date;
     let endDate: Date;
@@ -242,13 +231,12 @@ export function ReportsManager() {
     }
 
     return { validStartDate: startDate, validEndDate: endDate };
-  }, [dateRange, startDateInput, endDateInput, state.settings.country]);
+  }, [dateRange, startDateInput, endDateInput, state?.settings?.country]);
 
   // Report-specific data (fetched from localDb based on range)
   const [reportSales, setReportSales] = useState<Sale[]>([]);
   const [reportRefunds, setReportRefunds] = useState<Sale[]>([]);
   const [reportExpenses, setReportExpenses] = useState<Expense[]>([]);
-  const [reportPayments, setReportPayments] = useState<any[]>([]); // credit collections received
   const [isDataLoading, setIsDataLoading] = useState(false);
 
   // Performance: Cache report data to avoid redundant fetches
@@ -336,27 +324,6 @@ export function ReportsManager() {
     fetchReportData();
   }, [validStartDate, validEndDate, state.sales, state.expenses, reportRefreshKey]);
 
-  // Fetch credit collections (payments received from customers) for the selected date range
-  useEffect(() => {
-    const fetchPayments = async () => {
-      try {
-        const timezone = getTimezone(state.settings.country);
-        const startTs = getStartOfDayInTimezone(validStartDate, timezone).getTime();
-        const endTs = getEndOfDayInTimezone(validEndDate, timezone).getTime();
-        const all = (await localDb.payments.toArray()).map(mapPayment);
-        const inRange = all.filter((p: any) => {
-          if (!p.customerId) return false;
-          const d = new Date(p.createdAt).getTime();
-          return d >= startTs && d <= endTs;
-        });
-        setReportPayments(inRange);
-      } catch (e) {
-        setReportPayments([]);
-      }
-    };
-    fetchPayments();
-  }, [validStartDate, validEndDate, state.settings.country]);
-
   useEffect(() => {
     const missingCostItems = reportSales
       .flatMap(s => s.items || [])
@@ -415,7 +382,7 @@ export function ReportsManager() {
   }, [state.products, reportSales, reportType]);
 
   const paymentMethods = useMemo(() => {
-    const methods = new Set<string>(['cash', 'card', 'digital']);
+    const methods = new Set<string>(['cash', 'card', 'online']);
     reportSales.forEach(s => { if (s.paymentMethod) methods.add(s.paymentMethod) });
     reportExpenses.forEach(e => { if (e.paymentMethod) methods.add(e.paymentMethod) });
     return ['All', ...Array.from(methods).sort()];
@@ -455,6 +422,9 @@ export function ReportsManager() {
             id: `${item.id}-addon-${addon.addon.id}`,
             product: actualAddonProd || { id: addon.addon.addonProductId, name: addon.name, category: 'Add-ons' },
             quantity: (addon.quantity || 1) * (item.quantity || 1),
+            // Propagate the parent's refunded quantity so partially-refunded addons
+            // don't over-count COGS/revenue (B8).
+            refundedQuantity: (addon.quantity || 1) * (item.refundedQuantity || 0),
             subtotal: addonSubtotal,
             purchaseCost: addonCost, // Approximate fallback cost
             isAddon: true
@@ -674,9 +644,9 @@ export function ReportsManager() {
       }
     });
 
-    const retailEnabled = state.settings.retailEnabled ?? true;
-    const wholesaleEnabled = state.settings.wholesaleEnabled ?? false;
-    const estoreEnabled = state.settings.estoreEnabled ?? false;
+    const retailEnabled = state?.settings?.retailEnabled ?? true;
+    const wholesaleEnabled = state?.settings?.wholesaleEnabled ?? false;
+    const estoreEnabled = state?.settings?.estoreEnabled ?? false;
 
     return Object.values(types).filter(t => {
       if (t.name === 'Retail' && !retailEnabled) return false;
@@ -689,15 +659,18 @@ export function ReportsManager() {
   // Expense Analytics
   const expensesTrendData = useMemo(() => {
     const expensesByDay: Record<string, { date: string; amount: number; count: number }> = {};
-    const days = parseInt(dateRange) || 1;
+    // Derive span from the actual date range (same fix as salesData B3) — dateRange
+    // is a keyword ('today'/'last7'/...), so parseInt() was always NaN → 1 day,
+    // collapsing the expense trend to a single day regardless of selection.
+    const days = Math.max(1, Math.round((validEndDate.getTime() - validStartDate.getTime()) / 86400000) + 1);
 
     for (let i = days - 1; i >= 0; i--) {
-      const date = formatAppDateChart(subDays(validEndDate, i), state.settings.country);
+      const date = formatAppDateChart(subDays(validEndDate, i), state?.settings?.country ?? 'US');
       expensesByDay[date] = { date, amount: 0, count: 0 };
     }
 
     filteredExpenses.forEach(expense => {
-      const date = formatAppDateChart(expense.date, state.settings.country);
+      const date = formatAppDateChart(expense.date, state?.settings?.country ?? 'US');
       if (expensesByDay[date]) {
         expensesByDay[date].amount += Number(expense.amount);
         expensesByDay[date].count += 1;
@@ -728,37 +701,33 @@ export function ReportsManager() {
       .slice(0, 5);
   }, [filteredExpenses]);
 
-  // Summary Stats - Net Revenue (Completed minus Refunds)
+  // Summary Stats - Net Revenue (Completed minus Refunds), NET OF TAX (B1).
+  // Tax is a liability, not profit — previously it was counted into gross profit,
+  // overstating profit by the full tax collected in the period.
   const totalRevenue = filteredSales.reduce((sum, s) => {
-    if (s.status === 'completed') return sum + s.total;   // cash/card sales
-    if (s.status === 'refunded') return sum - (s.total || 0);
-    if (s.status === 'partially_refunded') return sum - (s.refundedAmount || 0);
-    return sum; // credit sales NOT counted as received cash
+    const eff = getEffectiveTotal(s);
+    const tax = Number(s.taxAmount) || 0;
+    return sum + Math.max(0, eff - tax);
   }, 0);
 
-  // Credit sales made in this period (money still owed)
-  const creditSalesTotal = filteredSales
-    .filter(s => s.status === 'credit' || s.paymentMethod === 'credit')
-    .reduce((sum, s) => sum + s.total, 0);
-  const creditSalesCount = filteredSales.filter(s => s.status === 'credit' || s.paymentMethod === 'credit').length;
-
-  // Credit payments COLLECTED in this period (money actually received)
-  // Universal rule: refund payouts are direction:'out' — NEVER count them as collections.
-  const creditCollectedTotal = reportPayments.reduce((sum: number, p: any) =>
-    p.direction === 'out' ? sum : sum + (p.amount || 0), 0);
-  const creditCollectedCount = reportPayments.filter((p: any) => p.direction !== 'out').length;
-
-  const totalTransactions = filteredSales.filter(s => s.status === 'completed').length;
+  const totalTransactions = filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').length;
   const averageTransaction = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
 
   // Profit Analytics
   const totalCostOfGoods = useMemo(() => {
     return filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded').reduce((sum, sale) => {
-      return sum + sale.items.reduce((itemSum, item) => {
+      const itemsCost = sale.items.reduce((itemSum, item) => {
+        const baseQty = item.weight ? Number(item.weight) : (Number(item.quantity) || 0);
+        const net = netItemQty(item);
+        const ratio = baseQty > 0 ? net / baseQty : 0;
         const { cost } = getItemCOGS(item);
-        return itemSum + cost;
+        return itemSum + cost * ratio;
       }, 0);
+      // A6: free gifts have no sale revenue but DO carry cost → include so profit
+      // isn't overstated by the gifted product's cost.
+      const giftsCost = (sale.freeGifts || []).reduce((gSum: number, g: any) => gSum + (Number(g.purchaseCost) || 0), 0);
+      return sum + itemsCost + giftsCost;
     }, 0);
   }, [filteredSales]);
 
@@ -767,7 +736,7 @@ export function ReportsManager() {
   const netProfit = grossProfit - totalExpenseAmount;
 
   const walletStats = useMemo(() => {
-    return ['cash', 'card', 'digital'].map(method => {
+    return ['cash', 'card', 'online'].map(method => {
       // Amount from regular sales (including refunded so we get the initial collection before refund subtraction)
       const validSales = filteredSales.filter(s => s.status === 'completed' || s.status === 'partially_refunded' || s.status === 'refunded' || s.status === 'partially_refunded');
       const sales = validSales.reduce((a, x) => a + getAmountByMethod(x, method), 0);
@@ -776,12 +745,6 @@ export function ReportsManager() {
       const retailSales = validSales.filter(s => (!s.saleType || s.saleType === 'retail')).reduce((a, x) => a + getAmountByMethod(x, method), 0);
       const wholesaleSales = validSales.filter(s => s.saleType === 'wholesale').reduce((a, x) => a + getAmountByMethod(x, method), 0);
       const estoreSales = validSales.filter(s => s.saleType === 'estore').reduce((a, x) => a + getAmountByMethod(x, method), 0);
-
-      // Amount from credit collections (payments received)
-      // Universal rule: exclude refund payouts (direction:'out') from collections.
-      const collections = reportPayments
-        .filter(p => p.direction !== 'out' && p.method === method)
-        .reduce((a, p) => a + (p.amount || 0), 0);
 
       const expenses = filteredExpenses.filter(e => e.paymentMethod === method).reduce((a, x) => a + Number(x.amount), 0);
       const refunds = filteredSales.reduce((a, x) => {
@@ -800,17 +763,16 @@ export function ReportsManager() {
 
       return {
         method,
-        sales: sales + collections, // Combine them for the net balance
-        collections,
+        sales,
         expenses,
         refunds,
-        net: (sales + collections) - refunds - expenses,
+        net: sales - refunds - expenses,
         retailSales,
         wholesaleSales,
         estoreSales
       };
     });
-  }, [filteredSales, filteredExpenses, reportPayments]);
+  }, [filteredSales, filteredExpenses]);
 
   const totalExpenseTransactions = filteredExpenses.length;
   const averageExpense = totalExpenseTransactions > 0 ? totalExpenseAmount / totalExpenseTransactions : 0;
@@ -837,8 +799,6 @@ export function ReportsManager() {
         totalSpent: 0,
         periodSpent: 0,
         lifetimeSpent: customer.totalPurchases || 0,
-        creditLimit: customer.creditLimit || 0,
-        creditUsed: customer.creditUsed || 0,
         totalTransactions: 0,
         totalItems: 0,
         avgTransactionValue: 0,
@@ -1044,6 +1004,15 @@ export function ReportsManager() {
 
   const COLORS = ['#2563EB', '#059669', '#D97706', '#DC2626', '#7C3AED', '#EC4899'];
 
+  // Safety check to prevent black screen if settings haven't loaded yet
+  if (!state?.settings) {
+    return (
+      <div className="p-6 bg-gray-50 dark:bg-transparent">
+        <SkeletonLoader type="list" count={6} />
+      </div>
+    );
+  }
+
   if (!isRendered) {
     return (
       <div className="main-content-scroll p-1 lg:p-6 space-y-6 bg-gray-50/50 dark:bg-app min-h-full max-w-[1400px] mx-auto">
@@ -1246,10 +1215,6 @@ export function ReportsManager() {
             retailEnabled={state.settings.retailEnabled ?? true}
             wholesaleEnabled={state.settings.wholesaleEnabled}
             estoreEnabled={state.settings.estoreEnabled}
-            creditSalesTotal={creditSalesTotal}
-            creditSalesCount={creditSalesCount}
-            creditCollectedTotal={creditCollectedTotal}
-            creditCollectedCount={creditCollectedCount}
           />
         </div>
       )}

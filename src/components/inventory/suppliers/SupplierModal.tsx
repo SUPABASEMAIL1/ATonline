@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Truck, Phone, Mail, MapPin, Briefcase, CreditCard, Tag, Save, RefreshCw } from 'lucide-react';
 import { Supplier } from '../../../types';
 import { Modal } from '../../common/Modal';
-import { Button } from '../../../shared/ui';
+import { Button, Select } from '../../../shared/ui';
 import { cn } from '../../../lib/utils';
 import { useTranslation } from '../../../hooks/useTranslation';
 
@@ -160,7 +160,7 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier }: SupplierMod
                 onChange={e => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
+             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('tax_identity_ntn', 'Tax Identity (NTN)')}</label>
               <input
                 type="text"
@@ -169,6 +169,55 @@ export function SupplierModal({ isOpen, onClose, onSave, supplier }: SupplierMod
                 value={formData.ntn}
                 onChange={e => setFormData({ ...formData, ntn: e.target.value })}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Classification & Terms */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          <h3 className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
+            <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
+            {t('classification_terms', 'Classification & Terms')}
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('business_type', 'Business Type')}</label>
+              <Select
+                value={formData.businessType || ''}
+                onChange={e => setFormData({ ...formData, businessType: e.target.value })}
+              >
+                <option value="">{t('select_type', 'Select type')}</option>
+                <option value="Manufacturer">{t('manufacturer', 'Manufacturer')}</option>
+                <option value="Distributor">{t('distributor', 'Distributor')}</option>
+                <option value="Wholesaler">{t('wholesaler', 'Wholesaler')}</option>
+                <option value="Retailer">{t('retailer', 'Retailer')}</option>
+                <option value="Agent">{t('agent', 'Agent')}</option>
+                <option value="Other">{t('other', 'Other')}</option>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('payment_terms', 'Payment Terms')}</label>
+              <input
+                type="text"
+                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
+                placeholder="e.g. Net 30, COD"
+                value={formData.paymentTerms || ''}
+                onChange={e => setFormData({ ...formData, paymentTerms: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('rating', 'Rating')}</label>
+              <Select
+                value={String(formData.rating ?? 5)}
+                onChange={e => setFormData({ ...formData, rating: Number(e.target.value) })}
+              >
+                <option value="5">{t('rating_5', '5 — Excellent')}</option>
+                <option value="4">{t('rating_4', '4 — Good')}</option>
+                <option value="3">{t('rating_3', '3 — Average')}</option>
+                <option value="2">{t('rating_2', '2 — Poor')}</option>
+                <option value="1">{t('rating_1', '1 — Bad')}</option>
+              </Select>
             </div>
           </div>
         </div>

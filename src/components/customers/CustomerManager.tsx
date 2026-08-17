@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Edit, Trash2, User, Mail, Phone, CreditCard, Eye, MessageCircle, Building2, Users, Receipt, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, User, Mail, Phone, CreditCard, Eye, MessageCircle, Building2, Users, Receipt } from 'lucide-react';
 import { subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Customer } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
@@ -12,6 +12,7 @@ import { SearchableSelect } from '../common/SearchableSelect';
 import { useTranslation } from '../../hooks/useTranslation';
 import { SharedSearchBar } from '../../shared/modules/search-and-list';
 import { Badge, Button, EmptyState, Pagination } from '../../shared/ui';
+import { getEffectiveTotal } from '../reports/ReportsManager';
 
 export function CustomerManager() {
   const { state, dispatch } = useApp();
@@ -116,20 +117,34 @@ export function CustomerManager() {
   };
 
   const handleDeleteCustomer = async (customerId: string) => {
-    const result = await sonner.deleteConfirm('customer');
-    if (result.isConfirmed) {
-      try {
-        sonner.loading('Deleting customer...');
-        const { customersService } = await import('../../lib/services');
-        await customersService.delete(customerId);
-        dispatch({ type: 'DELETE_CUSTOMER', payload: customerId });
-        sonner.success('Customer deleted successfully!');
-      } catch (error) {
-        console.error('Error deleting customer:', error);
-        sonner.error('Failed to delete customer. Please try again.');
-      } finally {
-        sonner.close();
-      }
+    const hasLinkedSales = state.sales.some(s => s.customerId === customerId);
+    let proceed = false;
+
+    if (hasLinkedSales) {
+      const result = await sonner.confirm(
+        t('delete_customer_with_sales_title', 'Delete Customer?'),
+        t('delete_customer_with_sales_desc', 'This customer has linked sales. Their sales history will remain in your records assigned to Guest. Delete the customer profile anyway?'),
+        t('yes_delete_anyway', 'YES, DELETE PROFILE')
+      );
+      proceed = result.isConfirmed;
+    } else {
+      const result = await sonner.deleteConfirm('customer');
+      proceed = result.isConfirmed;
+    }
+
+    if (!proceed) return;
+
+    try {
+      sonner.loading('Deleting customer...');
+      const { customersService } = await import('../../lib/services');
+      await customersService.delete(customerId);
+      dispatch({ type: 'DELETE_CUSTOMER', payload: customerId });
+      sonner.success('Customer deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      sonner.error('Failed to delete customer. Please try again.');
+    } finally {
+      sonner.close();
     }
   };
 
@@ -200,14 +215,17 @@ export function CustomerManager() {
   const totalCustomers = state.customers.length;
   const totalPurchases = useMemo(() => {
     if (dateFilter === 'all') return state.customers.reduce((sum: number, c: Customer) => sum + (c.totalPurchases || 0), 0);
-    return filteredSalesByDate.reduce((sum, s) => sum + s.total, 0);
+    return filteredSalesByDate.reduce((sum, s) => sum + getEffectiveTotal(s), 0);
   }, [state.customers, dateFilter, filteredSalesByDate]);
 
   const getCustomerTotalPurchases = (customerId: string, defaultTotal: number) => {
-    if (dateFilter === 'all') return defaultTotal || 0;
-    return filteredSalesByDate
+    // X3: recompute from the live sales ledger instead of trusting the stored Customer.totalPurchases,
+    // which is NOT reduced on a partial refund (so a refunded customer still showed the full amount).
+    const sales = dateFilter === 'all' ? state.sales : filteredSalesByDate;
+    const sum = sales
       .filter(s => s.customerId === customerId || s.customerName?.toLowerCase() === customerId.toLowerCase())
-      .reduce((sum, s) => sum + s.total, 0);
+      .reduce((acc, s) => acc + getEffectiveTotal(s), 0);
+    return sum || defaultTotal || 0;
   };
 
   const averagePurchase = totalCustomers > 0 ? totalPurchases / totalCustomers : 0;
@@ -219,15 +237,6 @@ export function CustomerManager() {
       new Date(c.lastPurchase).getTime() >= thirtyDaysAgo
     ).length;
   }, [state.customers, state.settings.country]);
-
-  const totalCreditOutstanding = useMemo(() =>
-    state.customers.reduce((sum: number, c: Customer) => sum + (c.creditUsed || 0), 0),
-    [state.customers]
-  );
-  const customersWithCredit = useMemo(() =>
-    state.customers.filter((c: Customer) => (c.creditUsed || 0) > 0).length,
-    [state.customers]
-  );
 
   return (
     <div className="main-content-scroll p-1 sm:p-4 lg:p-6 bg-gray-50/50 dark:bg-app space-y-3 lg:space-y-6 max-w-[1400px] mx-auto">
@@ -337,16 +346,6 @@ export function CustomerManager() {
           </div>
           <Users className="stat-card-icon" />
         </div>
-
-        {totalCreditOutstanding > 0 && (
-          <div className="stat-card bg-gradient-to-br from-rose-500 to-red-700 group col-span-2 md:col-span-4">
-            <div className="stat-card-inner">
-              <span className="stat-card-label">Credit Outstanding ({customersWithCredit} Customers)</span>
-              <span className="stat-card-value">{formatCurrency(totalCreditOutstanding, state.settings.currency)}</span>
-            </div>
-            <AlertTriangle className="stat-card-icon" />
-          </div>
-        )}
       </div>
 
       {/* Main View Container */}
@@ -385,11 +384,6 @@ export function CustomerManager() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-[11px] font-black text-gray-900 dark:text-white uppercase leading-none">{customer.name}</p>
-                            {(customer.creditUsed || 0) > 0 && (
-                              <Badge tone="danger" size="sm" icon={<AlertTriangle className="h-2.5 w-2.5" />}>
-                                {formatCurrency(customer.creditUsed, state.settings.currency)}
-                              </Badge>
-                            )}
                           </div>
                           <p className="text-[9px] text-gray-600 dark:text-gray-400 font-bold mt-1 uppercase tracking-widest">ID: {customer.id.substring(0, 8)}</p>
                         </div>
@@ -495,11 +489,6 @@ export function CustomerManager() {
                     <h3 className="font-black text-gray-900 dark:text-white uppercase text-[10px] leading-tight truncate mb-1">
                       {customer.name}
                     </h3>
-                    {(customer.creditUsed || 0) > 0 && (
-                      <Badge tone="danger" size="sm" icon={<AlertTriangle className="h-2 w-2" />}>
-                        {formatCurrency(customer.creditUsed, state.settings.currency)}
-                      </Badge>
-                    )}
                     <p className="text-[8px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-tight mb-3 truncate">
                       {customer.phone || 'NO PHONE'}
                     </p>

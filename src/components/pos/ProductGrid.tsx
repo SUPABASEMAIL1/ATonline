@@ -29,15 +29,6 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
 
-  // Safety check to prevent black screen
-  if (!state?.settings || !state?.products) {
-    return (
-      <div className="flex-1 p-6 bg-gray-50 dark:bg-transparent">
-        <SkeletonLoader type="grid" count={8} />
-      </div>
-    );
-  }
-
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Featured');
   const prevSearchRef = useRef('');
@@ -173,11 +164,11 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
     }
   };
 
-  const draftsCount = state.sales.filter(sale => sale.notes?.includes('DRAFT_SALE')).length;
+  const draftsCount = (state?.sales ?? []).filter(sale => sale.notes?.includes('DRAFT_SALE')).length;
   const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints > 0 && /Macintosh/i.test(navigator.userAgent));
 
-  const filteredProducts = useMemo(() => state.products.filter(product => {
+  const filteredProducts = useMemo(() => (state?.products ?? []).filter(product => {
     const matchesSearch = (product.name || '').toLowerCase().includes((searchTerm || '').toLowerCase()) ||
       (product.sku && product.sku.toLowerCase().includes((searchTerm || '').toLowerCase())) ||
       (product.barcodeValue && product.barcodeValue.toLowerCase().includes((searchTerm || '').toLowerCase())) ||
@@ -194,8 +185,8 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
     return a.name.localeCompare(b.name);
   }), [state.products, searchTerm, selectedCategory]);
 
-  const categories = ['Featured', 'All', '__BUNDLES__', ...Array.from(new Set(state.products.map(p => p.category))).filter(Boolean)];
-  const isTouchMode = state.settings.interfaceMode === 'touch';
+  const categories = ['Featured', 'All', '__BUNDLES__', ...Array.from(new Set((state?.products ?? []).map(p => p.category))).filter(Boolean)];
+  const isTouchMode = state?.settings?.interfaceMode === 'touch';
 
   const checkScrollButtons = () => {
     if (categoriesRef.current) {
@@ -235,7 +226,7 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
     sonner.success(`Grid density set to ${cols} columns`);
   };
 
-  const gridCols = state.settings.posGridColumns ?? 4;
+  const gridCols = state?.settings?.posGridColumns ?? 4;
 
   const getGridClasses = useMemo(() => {
     const base = "grid gap-2 lg:gap-4";
@@ -255,6 +246,15 @@ export function ProductGrid({ onAddToCart, onOpenDrafts, onAddTab, isReturnMode 
       : (desktopCols[gridCols] || "lg:grid-cols-4");
     return `${base} ${mobileDefaults} ${desktopClass}`;
   }, [gridCols]);
+
+  // Safety check to prevent black screen
+  if (!state?.settings || !state?.products) {
+    return (
+      <div className="flex-1 p-6 bg-gray-50 dark:bg-transparent">
+        <SkeletonLoader type="grid" count={8} />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -766,6 +766,11 @@ const BundleCard = memo(
               <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">
                 From {currency}{minPrice.toLocaleString()}
               </span>
+            ) : item.isCombo && item.bundleMinPrice != null && item.bundleMaxPrice != null && Math.abs(item.bundleMaxPrice - item.bundleMinPrice) > 0.001 ? (
+              <>
+                <span className="text-[9px] text-gray-400 line-through truncate">{currency}{item.totalPrice.toLocaleString()}</span>
+                <span className="text-primary dark:text-emerald-400 font-black text-[10px] sm:text-xs shrink-0">{currency}{item.bundleMinPrice.toLocaleString()} – {currency}{item.bundleMaxPrice.toLocaleString()}</span>
+              </>
             ) : (
               <>
                 <span className="text-[9px] text-gray-400 line-through truncate">{currency}{item.totalPrice.toLocaleString()}</span>
@@ -791,6 +796,9 @@ const BundleCard = memo(
       prev.item.name === next.item.name &&
       prev.item.finalPrice === next.item.finalPrice &&
       prev.item.totalPrice === next.item.totalPrice &&
+      prev.item.isCombo === next.item.isCombo &&
+      prev.item.bundleMinPrice === next.item.bundleMinPrice &&
+      prev.item.bundleMaxPrice === next.item.bundleMaxPrice &&
       JSON.stringify(prev.visibleProducts) === JSON.stringify(next.visibleProducts)
     );
   }
@@ -901,7 +909,15 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
           minSum += minSorted.slice(0, req).reduce((s: number, r: any) => s + r.min, 0);
           maxSum += maxSorted.slice(-req).reduce((s: number, r: any) => s + r.max, 0);
         });
-        if (minSum > 0) { bundleMinPrice = minSum; bundleMaxPrice = maxSum; }
+        // Apply the bundle discount to the per-slot min/max so the displayed combo
+        // range matches what the service actually charges (services.getBundleCartItems
+        // bills the SELECTED items' base prices minus the same discount). Fixes B4.
+        if (minSum > 0) {
+          const dPct = bundle.discountType === 'percentage' ? (bundle.discountValue || 0) / 100 : 0;
+          const dFix = bundle.discountType === 'fixed' ? (bundle.discountValue || 0) : 0;
+          bundleMinPrice = Math.max(0, bundle.discountType === 'percentage' ? minSum * (1 - dPct) : minSum - dFix);
+          bundleMaxPrice = Math.max(0, bundle.discountType === 'percentage' ? maxSum * (1 - dPct) : maxSum - dFix);
+        }
 
         // Collapse range to single price when name specifies the size
         const lowerName = bundle.name.toLowerCase();
@@ -917,7 +933,10 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
               }
               return p.price;
             });
-            bundleMinPrice = Math.min(...singlePrices);
+            const singleBase = Math.min(...singlePrices);
+            const dPct = bundle.discountType === 'percentage' ? (bundle.discountValue || 0) / 100 : 0;
+            const dFix = bundle.discountType === 'fixed' ? (bundle.discountValue || 0) : 0;
+            bundleMinPrice = Math.max(0, bundle.discountType === 'percentage' ? singleBase * (1 - dPct) : singleBase - dFix);
             bundleMaxPrice = bundleMinPrice;
             finalPrice = bundleMinPrice;
           }

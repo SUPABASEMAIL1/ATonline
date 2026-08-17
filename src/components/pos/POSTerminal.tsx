@@ -366,6 +366,7 @@ export function POSTerminal() {
         // so reports, stock, and customer stats never count them until completion.
         status: 'pending',
         cashier: user?.user_metadata?.full_name || user?.email || 'Unknown',
+        cashierRole: (user?.user_metadata?.role as string) || 'cashier',
         timestamp: new Date(),
         receiptNumber: `DRAFT-${Date.now().toString().slice(-6)}`,
         notes: 'DRAFT_SALE - payment pending',
@@ -414,8 +415,6 @@ export function POSTerminal() {
           email: '',
           phone: '',
           address: '',
-          creditLimit: 0,
-          creditUsed: 0,
           priceTier: 'retail',
           totalPurchases: 0,
           createdAt: new Date()

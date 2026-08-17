@@ -1,16 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Phone, CreditCard, ShoppingBag, Receipt, MessageCircle, Banknote, RefreshCw, CheckCircle2, AlertTriangle, ArrowDownLeft, Wallet, Smartphone, Building2, FileText, ChevronRight } from 'lucide-react';
+import { Phone, CreditCard, ShoppingBag, Receipt, MessageCircle, ChevronRight, User } from 'lucide-react';
 import { Customer, Sale } from '../../types';
 import { useApp } from '../../context/SupabaseAppContext';
-import { formatCurrency, getCurrencySymbol } from '../../lib/currencies';
-import { customersService } from '../../lib/services';
+import { formatCurrency } from '../../lib/currencies';
 import { formatAppDateTime } from '../../lib/dateUtils';
-import { sonner } from '../../lib/sonner';
 import { Modal } from '../common/Modal';
 import { cn } from '../../lib/utils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { TransactionDetailModal } from '../transactions/TransactionDetailModal';
-import { Badge, Button, EmptyState, ToggleSwitch, Pagination, usePagination } from '../../shared/ui';
+import { Badge, Button, EmptyState, Pagination, usePagination } from '../../shared/ui';
+import { getEffectiveTotal } from '../reports/ReportsManager';
 
 interface CustomerDetailModalProps {
   customer: Customer;
@@ -20,39 +19,14 @@ interface CustomerDetailModalProps {
 export function CustomerDetailModal({ customer: initialCustomer, onClose }: CustomerDetailModalProps) {
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'details' | 'transactions' | 'payments'>('details');
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'transactions'>('details');
   const [viewingTransaction, setViewingTransaction] = useState<Sale | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital'>('cash');
-  const [paymentNotes, setPaymentNotes] = useState('');
-  const [isPaymentManualOverride, setIsPaymentManualOverride] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
-  const [loadingPayments, setLoadingPayments] = useState(false);
 
-  // Always read fresh customer from state so creditUsed updates instantly after payment
+  // Always read fresh customer from state
   const customer = useMemo(() =>
     state.customers.find(c => c.id === initialCustomer.id) || initialCustomer,
     [state.customers, initialCustomer]
   );
-
-  // Load payment history when payments tab is opened
-  useEffect(() => {
-    if (activeTab === 'payments') {
-      setLoadingPayments(true);
-      customersService.getCustomerPayments(customer.id)
-        .then(data => setPaymentHistory(data))
-        .catch(() => setPaymentHistory([]))
-        .finally(() => setLoadingPayments(false));
-    }
-  }, [activeTab, customer.id]);
-
-  // Reload payment history after a new payment is added
-  const refreshPayments = async () => {
-    const data = await customersService.getCustomerPayments(customer.id).catch(() => []);
-    setPaymentHistory(data);
-  };
 
   const customerTransactions = useMemo(() => {
     return state.sales
@@ -60,65 +34,13 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [state.sales, customer.id]);
 
-  // Separate credit sales from paid sales
-  const creditSales = useMemo(() =>
-    customerTransactions.filter(s => s.status === 'credit' || s.paymentMethod === 'credit'),
-    [customerTransactions]
-  );
-  const paidSales = useMemo(() =>
-    customerTransactions.filter(s => s.status !== 'credit' && s.paymentMethod !== 'credit'),
-    [customerTransactions]
-  );
-
   const totalTransactions = customerTransactions.length;
-  const totalSpent = customerTransactions.reduce((sum, sale) => sum + sale.total, 0);
+  const totalSpent = customerTransactions.reduce((sum, sale) => sum + getEffectiveTotal(sale), 0);
   const averageTransaction = totalTransactions > 0 ? totalSpent / totalTransactions : 0;
-  const creditAvailable = Math.max(0, customer.creditLimit - customer.creditUsed);
-  const { page: creditPage, totalPages: creditTotalPages, pageItems: creditPageItems, goToPage: goToCreditPage, pageSize: creditPageSize, setPageSize: setCreditPageSize } = usePagination(creditSales, 10);
-  const { page: paidPage, totalPages: paidTotalPages, pageItems: paidPageItems, goToPage: goToPaidPage, pageSize: paidPageSize, setPageSize: setPaidPageSize } = usePagination(paidSales, 10);
-  const { page: paymentPage, totalPages: paymentTotalPages, pageItems: paymentPageItems, goToPage: goToPaymentPage, pageSize: paymentPageSize, setPageSize: setPaymentPageSize } = usePagination(paymentHistory, 10);
-
-  const totalCollected = useMemo(() => paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0), [paymentHistory]);
-
-  const handleAddPayment = async () => {
-    const amt = parseFloat(paymentAmount);
-    if (isNaN(amt) || amt <= 0) {
-      sonner.error(t('invalid_amount_error'));
-      return;
-    }
-    if (amt > customer.creditUsed) {
-      sonner.error('Amount cannot exceed the outstanding credit balance.');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const updated = await customersService.recordPayment(customer.id, amt, paymentMethod as any, paymentNotes);
-      dispatch({ type: 'UPDATE_CUSTOMER', payload: updated });
-      await refreshPayments();
-      sonner.success(`✅ ${formatCurrency(amt, state.settings.currency)} received — credit updated!`);
-      setShowPaymentModal(false);
-      setPaymentAmount('');
-      setPaymentNotes('');
-    } catch (err) {
-      sonner.error(t('payment_failed_error'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const { page: paidPage, totalPages: paidTotalPages, pageItems: paidPageItems, goToPage: goToPaidPage, pageSize: paidPageSize, setPageSize: setPaidPageSize } = usePagination(customerTransactions, 10);
 
   const footer = (
-    <div className="flex items-center justify-between gap-2 sm:gap-3 w-full">
-      {customer.creditUsed > 0 && (
-        <Button
-          variant="ghost"
-          onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-          className="!min-h-0 !gap-1.5 sm:!gap-2 !px-3 sm:!px-5 !py-2.5 sm:!py-3 !bg-rose-500/10 !text-rose-600 dark:!text-rose-400 !border !border-rose-500/20 !rounded-2xl sm:!rounded-full !text-[9px] sm:!text-[10px] !font-black hover:!bg-rose-500/20 !shrink-0 !justify-start"
-        >
-          <ArrowDownLeft className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
-          <span className="hidden sm:inline">Collect Payment</span>
-          <span className="sm:hidden">Collect</span>
-        </Button>
-      )}
+    <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
       <Button
         variant="secondary"
         onClick={onClose}
@@ -129,66 +51,15 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
     </div>
   );
 
-  const paymentFooter = (
-    <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
-      <Button
-        type="button"
-        variant="ghost"
-        onClick={() => setShowPaymentModal(false)}
-        className="!min-h-0 !px-4 sm:!px-6 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px] !font-black !text-[#ff4b6e] !border !border-rose-200 dark:!border-rose-900/30 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !shrink-0"
-      >
-        {t('discard')}
-      </Button>
-      <Button
-        variant="primary"
-        onClick={handleAddPayment}
-        disabled={isSubmitting || !paymentAmount}
-        className="!flex-1 hover:!bg-emerald-700 !py-2.5 sm:!py-3.5 !text-[9px] sm:!text-[11px]"
-      >
-        {isSubmitting ? <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin shrink-0" /> : <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />}
-        <span>{isSubmitting ? 'Saving...' : 'Confirm Receipt'}</span>
-      </Button>
-    </div>
-  );
-
   const tabs = [
     { id: 'details', label: t('details'), icon: User },
     { id: 'transactions', label: `Sales (${totalTransactions})`, icon: Receipt },
-    { id: 'payments', label: `Payments`, icon: Wallet },
   ];
 
   return (
     <>
       <Modal isOpen={true} onClose={onClose} title={customer.name} maxWidth="lg" footer={footer}>
         <div className="space-y-6">
-
-          {/* Outstanding Credit Alert Banner */}
-          {customer.creditUsed > 0 && (
-            <div className="flex items-center justify-between bg-rose-500/10 border border-rose-500/20 rounded-2xl px-5 py-4 animate-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 bg-rose-500/15 rounded-xl flex items-center justify-center">
-                  <AlertTriangle className="h-5 w-5 text-rose-500" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-rose-600/70 dark:text-rose-400/70 uppercase tracking-[0.2em]">
-                    Outstanding Credit (Udhaar)
-                  </p>
-                  <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tabular-nums leading-none">
-                    {formatCurrency(customer.creditUsed, state.settings.currency)}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="primary"
-                onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-                className="!min-h-0 !gap-2 !px-4 !py-2.5 !rounded-full !text-[10px] !font-black hover:!bg-primary !shadow-lg !shadow-emerald-500/30"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Wasool Karo
-              </Button>
-            </div>
-          )}
-
           {/* Tabs */}
           <div className="flex gap-1 p-1 bg-gray-100 dark:bg-black/75 rounded-2xl">
             {tabs.map((tab) => (
@@ -212,7 +83,7 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
           {activeTab === 'details' && (
             <div className="space-y-8">
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="bg-primary/5 border border-primary/10 p-5 rounded-[1.5rem] relative overflow-hidden">
                   <p className="text-primary/60 dark:text-emerald-400/60 text-[9px] font-black uppercase tracking-[0.2em] mb-1">{t('total_spent')}</p>
                   <p className="text-xl font-black text-primary dark:text-emerald-400">{formatCurrency(totalSpent, state.settings.currency)}</p>
@@ -228,14 +99,9 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   <p className="text-xl font-black text-indigo-600 dark:text-indigo-400">{formatCurrency(averageTransaction, state.settings.currency)}</p>
                   <CreditCard className="absolute -bottom-2 -right-2 h-12 w-12 text-indigo-500/10" />
                 </div>
-                <div className="bg-rose-500/5 border border-rose-500/10 p-5 rounded-[1.5rem] relative overflow-hidden">
-                  <p className="text-rose-600/60 dark:text-rose-400/60 text-[9px] font-black uppercase tracking-[0.2em] mb-1">Amount Due</p>
-                  <p className="text-xl font-black text-rose-600 dark:text-rose-400">{formatCurrency(customer.creditUsed, state.settings.currency)}</p>
-                  <Banknote className="absolute -bottom-2 -right-2 h-12 w-12 text-rose-500/10" />
-                </div>
               </div>
 
-              {/* Contact + Credit Limit */}
+              {/* Contact */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
@@ -271,44 +137,21 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
                     <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
-                    {t('credit_lending')}
+                    {t('details')}
                   </h3>
-                  <div className="bg-rose-500/5 border border-rose-500/10 p-6 rounded-[24px] space-y-4">
+                  <div className="bg-gray-50 dark:bg-black/20 p-6 rounded-[24px] space-y-4">
                     <div className="flex justify-between items-end">
                       <div>
-                        <p className="text-rose-600/60 dark:text-rose-400/60 text-[9px] font-black uppercase tracking-[0.2em] mb-1">Credit Limit</p>
-                        <p className="text-2xl font-black text-rose-600 dark:text-rose-400">{formatCurrency(customer.creditLimit, state.settings.currency)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest mb-1">Available</p>
-                        <p className="text-lg font-black text-gray-900 dark:text-white">{formatCurrency(creditAvailable, state.settings.currency)}</p>
+                        <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest mb-1">Email</p>
+                        <p className="text-lg font-black text-gray-900 dark:text-white">{customer.email || 'Not set'}</p>
                       </div>
                     </div>
-                    <div className="h-2 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
-                      <div
-                        className={cn("h-full transition-all duration-1000", (customer.creditUsed / (customer.creditLimit || 1)) > 0.8 ? 'bg-rose-500' : 'bg-blue-500')}
-                        style={{ width: `${Math.min(100, customer.creditLimit > 0 ? (customer.creditUsed / customer.creditLimit) * 100 : 0)}%` }}
-                      />
-                    </div>
-                    {customer.creditUsed > 0 && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="primary"
-                          onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-                          className="!min-h-0 !gap-1.5 !py-3 !rounded-full !text-[9px] !font-black hover:!bg-emerald-700 !shadow-lg !shadow-emerald-500/20"
-                        >
-                          <CheckCircle2 className="h-3 w-3" />
-                          Full — {formatCurrency(customer.creditUsed, state.settings.currency)}
-                        </Button>
-                        <Button
-                          variant="primary"
-                          onClick={() => { setPaymentAmount(''); setShowPaymentModal(true); }}
-                          className="!min-h-0 !gap-1.5 !py-3 !rounded-full !text-[9px] !font-black !bg-blue-600 hover:!bg-blue-700 !shadow-lg !shadow-blue-500/20"
-                        >
-                          Partial Amount
-                        </Button>
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest mb-1">Pricing Tier</p>
+                        <p className="text-lg font-black text-gray-900 dark:text-white capitalize">{customer.priceTier}</p>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -318,65 +161,8 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
           {/* ── Transactions Tab ── */}
           {activeTab === 'transactions' && (
             <div className="space-y-6">
-              {/* Unpaid Credit Sales */}
-              {creditSales.length > 0 && (
+              {customerTransactions.length > 0 ? (
                 <div className="space-y-3">
-                  <h4 className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest flex items-center gap-2">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    Unpaid Credit Sales ({creditSales.length})
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {creditPageItems.map((tx) => (
-                      <div key={tx.id} onClick={() => setViewingTransaction(tx)} className="p-5 bg-rose-500/5 border border-rose-500/20 rounded-[20px] space-y-3 cursor-pointer hover:bg-rose-500/10 transition-all active:scale-[0.98]">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase">#{tx.invoiceNumber || tx.receiptNumber || 'N/A'}</p>
-                            <p className="text-[8px] font-bold text-gray-500 mt-0.5">{formatAppDateTime(tx.timestamp, state.settings.country)}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-lg font-black text-rose-600 dark:text-rose-400">{formatCurrency(tx.total, state.settings.currency)}</p>
-                            <ChevronRight className="h-4 w-4 text-rose-400 shrink-0" />
-                          </div>
-                        </div>
-                        <div className="flex gap-2 flex-wrap">
-                          <Badge tone="danger" size="sm" className="!rounded-lg !text-[8px] !px-2 !py-0.5 !bg-rose-100 dark:!bg-rose-500/10 !text-rose-700 dark:!text-rose-400 !border-rose-200 dark:!border-rose-500/20">Udhaar / Credit</Badge>
-                          <Badge tone="warning" size="sm" className="!rounded-lg !text-[8px] !px-2 !py-0.5 !bg-orange-50 dark:!bg-orange-500/10 !text-orange-600 !border-orange-200/50">Pending</Badge>
-                        </div>
-                        <Button
-                          variant="secondary"
-                          onClick={(e) => { e.stopPropagation(); setPaymentAmount(String(tx.total)); setShowPaymentModal(true); }}
-                          className="!min-h-0 !w-full !py-2 !bg-primary/10 !text-emerald-700 dark:!text-emerald-400 !border-primary/20 hover:!bg-primary/20 !rounded-xl !text-[9px] !font-black"
-                        >
-                          ✓ Collect {formatCurrency(tx.total, state.settings.currency)}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  {creditTotalPages > 1 && (
-                    <div className="pt-2 flex justify-center">
-                      <Pagination
-              page={creditPage}
-                        totalPages={creditTotalPages}
-                        onPageChange={goToCreditPage}
-                        totalItems={creditSales.length}
-                        mode="numbered"
-                      
-              pageSize={creditPageSize}
-              onPageSizeChange={setCreditPageSize}
-            />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Paid Sales */}
-              {paidSales.length > 0 && (
-                <div className="space-y-3">
-                  {creditSales.length > 0 && (
-                    <h4 className="text-[10px] font-black text-primary dark:text-emerald-400 uppercase tracking-widest">
-                      Paid Transactions ({paidSales.length})
-                    </h4>
-                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {paidPageItems.map((tx) => (
                       <div key={tx.id} onClick={() => setViewingTransaction(tx)} className="p-5 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-[20px] space-y-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/5 transition-all active:scale-[0.98]">
@@ -400,21 +186,18 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
                   {paidTotalPages > 1 && (
                     <div className="pt-2 flex justify-center">
                       <Pagination
-              page={paidPage}
+                        page={paidPage}
                         totalPages={paidTotalPages}
                         onPageChange={goToPaidPage}
-                        totalItems={paidSales.length}
+                        totalItems={customerTransactions.length}
                         mode="numbered"
-                      
-              pageSize={paidPageSize}
-              onPageSizeChange={setPaidPageSize}
-            />
+                        pageSize={paidPageSize}
+                        onPageSizeChange={setPaidPageSize}
+                      />
                     </div>
                   )}
                 </div>
-              )}
-
-              {customerTransactions.length === 0 && (
+              ) : (
                 <EmptyState
                   icon={<Receipt className="h-12 w-12 text-gray-500 opacity-20" />}
                   title="No transactions yet"
@@ -423,220 +206,6 @@ export function CustomerDetailModal({ customer: initialCustomer, onClose }: Cust
               )}
             </div>
           )}
-
-          {/* ── Payments Received Tab ── */}
-          {activeTab === 'payments' && (
-            <div className="space-y-4">
-              {/* Summary banner */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-primary/5 border border-primary/10 p-5 rounded-2xl relative overflow-hidden">
-                  <p className="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em] mb-1">Total Collected</p>
-                  <p className="text-xl font-black text-primary dark:text-emerald-400">{formatCurrency(totalCollected, state.settings.currency)}</p>
-                  <ArrowDownLeft className="absolute -bottom-2 -right-2 h-12 w-12 text-primary/10" />
-                </div>
-                <div className="bg-rose-500/5 border border-rose-500/10 p-5 rounded-2xl relative overflow-hidden">
-                  <p className="text-[9px] font-black text-rose-600/60 uppercase tracking-[0.2em] mb-1">Still Outstanding</p>
-                  <p className="text-xl font-black text-rose-600 dark:text-rose-400">{formatCurrency(customer.creditUsed, state.settings.currency)}</p>
-                  <AlertTriangle className="absolute -bottom-2 -right-2 h-12 w-12 text-rose-500/10" />
-                </div>
-              </div>
-
-              {loadingPayments ? (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-6 w-6 text-blue-500 animate-spin" />
-                </div>
-              ) : paymentHistory.length === 0 ? (
-                <EmptyState
-                  icon={<Wallet className="h-12 w-12 text-gray-400 opacity-30" />}
-                  title="No payments received yet"
-                  className="!py-16"
-                  action={customer.creditUsed > 0 ? (
-                    <Button
-                      variant="primary"
-                      onClick={() => { setPaymentAmount(String(customer.creditUsed)); setShowPaymentModal(true); }}
-                      className="!min-h-0 !px-6 !py-3 !rounded-full !text-[10px] !font-black hover:!bg-primary !shadow-lg"
-                    >
-                      Record First Payment
-                    </Button>
-                  ) : undefined}
-                />
-              ) : (
-                <div className="space-y-3">
-                  {paymentPageItems.map((payment) => (
-                    <div key={payment.id} className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl hover:border-primary/20 transition-all group">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
-                          {(() => {
-                            switch (payment.method) {
-                              case 'cash': return <Banknote className="h-5 w-5 text-primary" />;
-                              case 'card': return <CreditCard className="h-5 w-5 text-blue-500" />;
-                              case 'digital': return <Smartphone className="h-5 w-5 text-amber-500" />;
-                              case 'bank_transfer': return <Building2 className="h-5 w-5 text-indigo-500" />;
-                              case 'cheque': return <FileText className="h-5 w-5 text-rose-500" />;
-                              default: return <Wallet className="h-5 w-5 text-purple-500" />;
-                            }
-                          })()}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-gray-900 dark:text-white uppercase">
-                              {(() => {
-                                switch (payment.method) {
-                                  case 'cash': return 'Cash Received';
-                                  case 'card': return 'Card Payment';
-                                  case 'digital': return 'Digital Wallet';
-                                  case 'bank_transfer': return 'Bank Transfer';
-                                  case 'cheque': return 'Cheque Received';
-                                  default: return `${payment.method} Received`;
-                                }
-                              })()}
-                            </span>
-                            <Badge tone="success" size="sm" className="!text-[7px] !px-2 !py-0.5 !bg-emerald-100 dark:!bg-primary/10 !text-emerald-700 dark:!text-emerald-400">
-                              Collected
-                            </Badge>
-                          </div>
-                          <p className="text-[9px] text-gray-500 mt-0.5">
-                            {formatAppDateTime(payment.createdAt, state.settings.country)}
-                          </p>
-                          {payment.notes && (
-                            <p className="text-[9px] text-gray-600 dark:text-gray-400 italic mt-0.5">"{payment.notes}"</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-black text-primary dark:text-emerald-400 tabular-nums">
-                          +{formatCurrency(payment.amount, state.settings.currency)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {paymentTotalPages > 1 && (
-                    <div className="pt-4 flex justify-center border-t border-gray-100 dark:border-white/5 mt-4">
-                      <Pagination
-              page={paymentPage}
-                        totalPages={paymentTotalPages}
-                        onPageChange={goToPaymentPage}
-                        totalItems={paymentHistory.length}
-                        mode="numbered"
-                      
-              pageSize={paymentPageSize}
-              onPageSizeChange={setPaymentPageSize}
-            />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      {/* Payment Modal */}
-      <Modal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        title="Collect Credit Payment"
-        maxWidth="sm"
-        footer={paymentFooter}
-      >
-        <div className="space-y-6">
-          {/* Outstanding balance */}
-          <div className="bg-rose-500/5 border border-rose-500/10 p-6 rounded-[20px] text-center">
-            <p className="text-rose-600/60 dark:text-rose-400/60 text-[10px] font-black uppercase tracking-[0.2em] mb-1">Total Amount Due</p>
-            <p className="text-3xl font-black text-rose-600 dark:text-rose-400">{formatCurrency(customer.creditUsed, state.settings.currency)}</p>
-          </div>
-
-          <div className="space-y-4">
-            {/* Amount input */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">Amount Receiving</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-black text-sm">{getCurrencySymbol(state.settings.currency)}</span>
-                <input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-full bg-[#f8f9fa] dark:bg-black/75 border-2 border-transparent focus:border-primary rounded-xl py-4 pl-12 pr-6 text-2xl font-black text-gray-900 dark:text-white transition-all"
-                  placeholder="0.00"
-                  max={customer.creditUsed}
-                  autoFocus
-                />
-              </div>
-              {/* Quick buttons */}
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant="secondary"
-                  onClick={() => setPaymentAmount(String(customer.creditUsed))}
-                  className="!min-h-0 !px-3 !py-1.5 !bg-primary/10 !text-emerald-700 dark:!text-emerald-400 !border-primary/20 hover:!bg-primary/20 !rounded-lg !text-[9px] !font-black"
-                >
-                  Full Amount
-                </Button>
-                {customer.creditUsed >= 2 && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setPaymentAmount(String(Math.floor(customer.creditUsed / 2)))}
-                    className="!min-h-0 !px-3 !py-1.5 !bg-blue-500/10 !text-blue-700 dark:!text-blue-400 !border-blue-500/20 hover:!bg-blue-500/20 !rounded-lg !text-[9px] !font-black"
-                  >
-                    Half ({formatCurrency(Math.floor(customer.creditUsed / 2), state.settings.currency)})
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">Payment Method</label>
-              <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
-                {[
-                  { id: 'cash', label: 'Cash', icon: Banknote },
-                  { id: 'card', label: 'Card', icon: CreditCard },
-                  { id: 'digital', label: 'Bank Transfer', icon: Building2 }
-                ].map((method) => (
-                  <Button
-                    key={method.id}
-                    variant="ghost"
-                    type="button"
-                    onClick={() => setPaymentMethod(method.id as any)}
-                    className={cn(
-                      "!min-h-0 !flex-col !gap-2 !p-3 !rounded-xl !border-2 active:!scale-95 !normal-case !tracking-normal !font-normal",
-                      paymentMethod === method.id
-                        ? '!border-primary !bg-primary/10 !text-emerald-700 dark:!text-emerald-400 !shadow-md'
-                        : '!border-gray-200 dark:!border-white/5 !bg-[#f8f9fa] dark:!bg-black/20 !text-gray-600'
-                    )}
-                  >
-                    <method.icon className="h-5 w-5" />
-                    <span className="text-[9px] font-black uppercase tracking-wider">{method.label}</span>
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">Notes (Optional)</label>
-              <textarea
-                value={paymentNotes}
-                onChange={(e) => setPaymentNotes(e.target.value)}
-                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none rounded-xl p-4 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 transition-all h-20 resize-none"
-                placeholder="e.g. Partial payment, receipt no. 123..."
-              />
-            </div>
-
-            {/* Manual Override Toggle */}
-            <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-3.5 rounded-xl">
-              <div className="flex-1">
-                <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">Manual Override</p>
-                <p className="text-[9px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">Admin amount correction — logged</p>
-              </div>
-              <ToggleSwitch
-                checked={isPaymentManualOverride}
-                onChange={setIsPaymentManualOverride}
-                color="bg-amber-500"
-                className="!shrink-0"
-              />
-            </div>
-          </div>
         </div>
       </Modal>
 

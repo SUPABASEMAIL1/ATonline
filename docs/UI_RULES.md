@@ -1,6 +1,6 @@
 # 🎨 Zaynahs POS — UI DESIGN RULES (SHORT & SHARP)
 
-> **THE ONE RULE:** Poora app — har route, har page, har component — SAME shared modules use karta hai. `src/components/pos/**` is the ONLY exemption. Page-local variants, hand-rolled markup, alag-alag lookalikes = **BANNED**.
+> **THE ONE RULE (🛡️ ANTI-AI BREAKABLE MANDATE):** Poora app — har route, har page, har component — STRICTLY SAME shared modules use karta hai. `src/components/pos/**` is the ONLY exemption. Page-local variants, hand-rolled markup, alag-alag lookalikes, custom buttons, custom popups = **STRICTLY BANNED**. ANY AI OR DEVELOPER MUST USE EXISTING SHARED COMPONENTS to prevent hallucinated or inconsistent UI.
 >
 > ⚠️ **STAY UP TO DATE (MANDATORY):** Ye rules live source of truth hain — koi bhi UI pattern/rule change, ya naya shared module add, toh `docs/UI_RULES.md` AND `docs/MODULES.md` DONO ko SAME change mein update karo (see AGENTS.md rule 18 / GEMINI.md rule 11). Stale docs = violation.
 

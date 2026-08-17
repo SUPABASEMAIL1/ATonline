@@ -89,6 +89,13 @@ export function SalesTabManager({ showAddButton = true }: SalesTabManagerProps) 
 
         // If closing the active tab, find a neighbor to switch to
         if (wasActive) {
+          // P2: persist the live cart to the closing tab FIRST so it isn't discarded.
+          const currentTab = state.salesTabs.find(tab => tab.id === tabId);
+          if (currentTab) {
+            const updates = { cart: state.cart, selectedCustomer: state.selectedCustomer };
+            await salesTabsService.update(tabId, updates);
+            dispatch({ type: 'UPDATE_SALES_TAB', payload: { id: tabId, updates } });
+          }
           const nextTab = state.salesTabs[tabIndex - 1] || state.salesTabs[tabIndex + 1];
           if (nextTab) {
             dispatch({ type: 'SET_ACTIVE_SALES_TAB', payload: nextTab.id });

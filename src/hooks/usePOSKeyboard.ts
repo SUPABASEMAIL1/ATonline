@@ -17,7 +17,6 @@ import { useEffect, useCallback } from 'react';
  *   1                 → Select Cash payment
  *   2                 → Select Card payment
  *   3                 → Select Digital payment
- *   4                 → Select Credit payment
  *   5                 → Select Split payment
  *   E                 → Set exact amount (match total)
  *   Enter             → Process payment (when ready)
@@ -35,7 +34,7 @@ export interface POSKeyboardOptions {
   onClearCart?: () => void;
 
   // Checkout Page handlers (pass undefined if not in checkout)
-  onPaymentMethod?: (method: 'cash' | 'card' | 'digital' | 'credit' | 'split') => void;
+  onPaymentMethod?: (method: 'cash' | 'card' | 'digital' | 'split') => void;
   onExactAmount?: () => void;
   onProcessPayment?: () => void;
   onClose?: () => void;
@@ -113,13 +112,6 @@ export function usePOSKeyboard(options: POSKeyboardOptions) {
         if (e.key === '3' && !isTypingInField) {
           e.preventDefault();
           onPaymentMethod?.('digital');
-          return;
-        }
-
-        // 4 → Credit
-        if (e.key === '4' && !isTypingInField) {
-          e.preventDefault();
-          onPaymentMethod?.('credit');
           return;
         }
 

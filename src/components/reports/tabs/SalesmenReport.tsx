@@ -30,17 +30,6 @@ export function SalesmenReport({ salesmanData, currency, theme }: SalesmenReport
     color: theme === 'dark' ? '#fff' : '#000'
   };
 
-  if (!salesmanData || salesmanData.length === 0) {
-    return (
-      <EmptyState
-        icon={<Users className="h-10 w-10" />}
-        title={t("no_insights_found", "No Insights Found")}
-        subtext={t("no_insights_desc_salesmen", "We couldn't find any salesman records for the selected period.")}
-        className="min-h-[400px] bg-white/50 dark:bg-white/5 rounded-[2.5rem] border border-dashed border-gray-200 dark:border-white/10 p-12"
-      />
-    );
-  }
-
   const totalSalesmen = salesmanData.length;
   const totalSales = salesmanData.reduce((sum, s) => sum + s.totalSales, 0);
   const totalOrders = salesmanData.reduce((sum, s) => sum + s.totalTransactions, 0);
@@ -65,6 +54,17 @@ export function SalesmenReport({ salesmanData, currency, theme }: SalesmenReport
   const sortedData = useMemo(() => {
     return [...salesmanData].sort((a, b) => b.totalSales - a.totalSales);
   }, [salesmanData]);
+
+  if (!salesmanData || salesmanData.length === 0) {
+    return (
+      <EmptyState
+        icon={<Users className="h-10 w-10" />}
+        title={t("no_insights_found", "No Insights Found")}
+        subtext={t("no_insights_desc_salesmen", "We couldn't find any salesman records for the selected period.")}
+        className="min-h-[400px] bg-white/50 dark:bg-white/5 rounded-[2.5rem] border border-dashed border-gray-200 dark:border-white/10 p-12"
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

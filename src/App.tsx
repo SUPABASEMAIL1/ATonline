@@ -92,15 +92,10 @@ const LoadingView = () => {
 };
 
 // ── Route-based access control (moved outside AppContent to prevent unmount blinking) ──
-function RequireAccess({ viewId, children }: { viewId: string; children: React.ReactNode }) {
-  const allowed = (() => {
-    // Role logic fully removed — single-tenant POS: any authenticated cashier/salesman
-    // can access all operational views. User-management view is disabled (no admin role).
-    if (viewId === 'users') return false;
-    return true;
-  })();
-
-  if (!allowed) return <Navigate to="/pos" replace />;
+function RequireAccess({ viewId: _viewId, children }: { viewId: string; children: React.ReactNode }) {
+  // Role logic fully removed — single-tenant POS: any authenticated user can access
+  // all operational views, including the Users management feature (D1: previously
+  // hard-blocked, leaving the entire Users feature as unreachable dead code).
   return <>{children}</>;
 }
 

@@ -318,14 +318,6 @@ export function OnlineOrdersPage() {
     }
   };
 
-  const getNextStatus = (currentStatus: string) => {
-    const currentIndex = STATUS_FLOW.indexOf(currentStatus);
-    if (currentIndex >= 0 && currentIndex < STATUS_FLOW.length - 2) {
-      return STATUS_FLOW[currentIndex + 1];
-    }
-    return null;
-  };
-
   const handleAcceptToPOS = async (order: StoreOrder) => {
     if (order.fulfilledSaleId || order.status === 'converted') {
       sonner.error('This order has already been processed into a POS Sale.');
@@ -508,34 +500,97 @@ export function OnlineOrdersPage() {
               </div>
 
               {/* Action Buttons */}
-              {activeTab === 'active' && (
-                <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/5 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row gap-3">
-                  {(selectedOrder.status === 'converted' || selectedOrder.fulfilledSaleId) ? (
-                    <div className="w-full py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-800/30 dark:text-indigo-300 rounded-xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2">
-                      <CheckCircle2 className="w-5 h-5" />
-                      Converted to Sale {selectedOrder.fulfilledSaleId && `(POS)`}
+              {activeTab === 'active' && (() => {
+                const status = selectedOrder.status || 'pending';
+                const isConverted = status === 'converted' || selectedOrder.fulfilledSaleId;
+
+                if (isConverted) {
+                  return (
+                    <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/5 rounded-2xl p-4 shadow-sm">
+                      <div className="w-full py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-800/30 dark:text-indigo-300 rounded-xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-5 h-5" />
+                        Converted to Sale {selectedOrder.fulfilledSaleId && `(POS)`}
+                      </div>
                     </div>
-                  ) : (
-                    <>
+                  );
+                }
+
+                return (
+                  <div className="bg-white dark:bg-[#111] border border-gray-200 dark:border-white/5 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row flex-wrap gap-3">
+                    {/* #5: Explicit Accept (pending → accepted) */}
+                    {status === 'pending' && (
+                      <Button
+                        onClick={() => updateStatus(selectedOrder, 'accepted')}
+                        icon={<CheckCircle2 className="w-5 h-5" />}
+                        className="w-full sm:flex-1 !py-3 !rounded-xl !font-black !text-sm !gap-2 !bg-blue-600 hover:!bg-blue-700 !border-blue-600"
+                      >
+                        Accept
+                      </Button>
+                    )}
+
+                    {/* #5: Load to POS (pending/accepted/preparing → preparing) — preparing is included
+                        so a lost cart can be re-loaded (E4: was a dead-end once preparing). */}
+                    {(status === 'pending' || status === 'accepted' || status === 'preparing') && (
                       <Button
                         onClick={() => handleAcceptToPOS(selectedOrder)}
                         icon={<CheckCircle2 className="w-5 h-5" />}
                         className="w-full sm:flex-1 !py-3 !rounded-xl !font-black !text-sm !gap-2 hover:!bg-emerald-700"
                       >
-                        Accept & Load to POS
+                        Load to POS
                       </Button>
+                    )}
+
+                    {/* #6: Step-wise advancement for Active orders */}
+                    {status === 'preparing' && (
                       <Button
-                        variant="danger"
-                        onClick={() => updateStatus(selectedOrder, 'cancelled')}
-                        icon={<XCircle className="w-4 h-4" />}
-                        className="w-full sm:w-auto !min-h-0 !px-6 !py-3 !rounded-xl !font-black !text-xs !gap-2 !shadow-none !bg-transparent !border !border-rose-200 dark:!border-rose-900/30 !text-rose-600 dark:!text-rose-400 !hover:opacity-100 hover:!bg-rose-50 dark:hover:!bg-rose-500/10"
+                        onClick={() => updateStatus(selectedOrder, 'ready')}
+                        icon={<ChevronRight className="w-5 h-5" />}
+                        className="w-full sm:flex-1 !py-3 !rounded-xl !font-black !text-sm !gap-2 !bg-emerald-600 hover:!bg-emerald-700 !border-emerald-600"
                       >
-                        Cancel
+                        Mark Ready
                       </Button>
-                    </>
-                  )}
-                </div>
-              )}
+                    )}
+                    {status === 'ready' && (
+                      <Button
+                        onClick={() => updateStatus(selectedOrder, 'out_for_delivery')}
+                        icon={<Bike className="w-5 h-5" />}
+                        className="w-full sm:flex-1 !py-3 !rounded-xl !font-black !text-sm !gap-2 !bg-orange-500 hover:!bg-orange-600 !border-orange-500"
+                      >
+                        Out for Delivery
+                      </Button>
+                    )}
+                    {status === 'out_for_delivery' && (
+                      <Button
+                        onClick={() => updateStatus(selectedOrder, 'delivered')}
+                        icon={<CheckCircle2 className="w-5 h-5" />}
+                        className="w-full sm:flex-1 !py-3 !rounded-xl !font-black !text-sm !gap-2 !bg-gray-700 hover:!bg-gray-800 !border-gray-700"
+                      >
+                        Mark Delivered
+                      </Button>
+                    )}
+
+                    {/* #8: Soft cancel for any active non-converted order.
+                        E7: also clear the lingering POS cart + editingOrderId so a cancelled
+                        (loaded-to-POS) order can never be billed afterwards. */}
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        dispatch({ type: 'SET_EDITING_STORE_ORDER_ID', payload: null });
+                        dispatch({ type: 'SET_CART', payload: [] });
+                        dispatch({
+                          type: 'UPDATE_SALES_TAB',
+                          payload: { id: state.activeSalesTab, updates: { cart: [], customerId: null, notes: '' } }
+                        });
+                        updateStatus(selectedOrder, 'cancelled');
+                      }}
+                      icon={<XCircle className="w-4 h-4" />}
+                      className="w-full sm:w-auto !min-h-0 !px-6 !py-3 !rounded-xl !font-black !text-xs !gap-2 !shadow-none !bg-transparent !border !border-rose-200 dark:!border-rose-900/30 !text-rose-600 dark:!text-rose-400 !hover:opacity-100 hover:!bg-rose-50 dark:hover:!bg-rose-500/10"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                );
+              })()}
 
               <OrderProgress status={selectedOrder.status || 'pending'} deliveryAddress={selectedOrder.deliveryAddress} />
 

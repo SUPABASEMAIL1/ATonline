@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { X, ArrowLeft, CreditCard, Banknote, Smartphone, Check, AlertCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, Package, Wallet, Gift, Hash, PlusCircle, Keyboard, Building2, UserCircle } from 'lucide-react';
+import { X, ArrowLeft, CreditCard, Banknote, Smartphone, Check, AlertCircle, FileText, Store, Globe, ShoppingBag, RefreshCw, Package, Wallet, Gift, Hash, PlusCircle, Keyboard, Building2, UserCircle, Layers } from 'lucide-react';
 import { Sale, CartItem } from '../../types';
 import { useApp, useInvoiceGeneration } from '../../context/SupabaseAppContext';
 import { useCartCalculations } from '../../hooks/useCartCalculations';
 import { useAuth } from '../../context/AuthContext';
 import { KOTPrint } from './KOTPrint';
 import { ReceiptPrint } from './ReceiptPrint';
-import { salesService, storeOrdersService, generateId, toRemoteSale } from '../../lib/services';
+import { salesService, storeOrdersService, generateId, toRemoteSale, customersService, adjustPaymentBalances, buildSalePaymentMoves } from '../../lib/services';
 import { localDb, queueOp } from '../../lib/localDb';
 import { sonner } from '../../lib/sonner';
 import { formatCurrency } from '../../lib/currencies';
@@ -64,6 +64,20 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const [saleType, setSaleType] = useState<'retail' | 'wholesale' | 'estore'>('retail');
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [salesmanId, setSalesmanId] = useState<string>('');
+
+  // Split payment state (two parts across cash/card/digital)
+  const [splitMethodA, setSplitMethodA] = useState<'cash' | 'card' | 'digital'>('cash');
+  const [splitMethodB, setSplitMethodB] = useState<'cash' | 'card' | 'digital'>('card');
+  const [splitAmountA, setSplitAmountA] = useState('');
+  const [splitAmountB, setSplitAmountB] = useState('');
+
+  const handleSelectMethod = (m: string) => {
+    setPaymentMethod(m as any);
+    if (m === 'split') {
+      setSplitAmountA(finalTotal.toString());
+      setSplitAmountB('0');
+    }
+  };
 
   // New Fields
   const [extraCharges, setExtraCharges] = useState<{ name: string; amount: string }[]>([
@@ -160,7 +174,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         } else {
           setExtraCharges([{ name: 'DC', amount: '' }]);
         }
-        if (editingSale.paymentMethod) setPaymentMethod((editingSale.paymentMethod === 'split' || editingSale.paymentMethod === 'credit') ? 'cash' : editingSale.paymentMethod);
+        if (editingSale.paymentMethod) setPaymentMethod((editingSale.paymentMethod === 'split') ? 'cash' : editingSale.paymentMethod);
         if (editingSale.salesmanId) setSalesmanId(editingSale.salesmanId);
       }
     } else {
@@ -199,7 +213,12 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     const paid = parseFloat(amountPaid) || 0;
     switch (paymentMethod) {
       case 'cash': return paid >= finalTotal;
-      case 'card': case 'digital': return true;
+      case 'card': case 'digital': case 'online': case 'wallet': return true;
+      case 'split': {
+        const a = parseFloat(splitAmountA) || 0;
+        const b = parseFloat(splitAmountB) || 0;
+        return a > 0 && Math.abs((a + b) - finalTotal) < 0.01;
+      }
       default: return false;
     }
   };
@@ -213,7 +232,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     canProcessPayment: canProcessPayment(),
     isProcessing,
     onPaymentMethod: (method) => {
-      setPaymentMethod(method);
+      handleSelectMethod(method);
     },
     onExactAmount: () => setAmountPaid(finalTotal.toString()),
     onProcessPayment: () => handlePaymentRef.current(),
@@ -246,14 +265,23 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         cardDetails: undefined,
         status: 'completed',
         cashier: profile?.name || user?.user_metadata?.full_name || user?.email || 'Unknown',
+        cashierRole: (profile?.role as string) || 'cashier',
         salesmanId: salesmanId || undefined,
         salesmanName: selectedSalesman,
         timestamp: new Date(), receiptNumber: invoiceNumber,
         notes: saleNotes,
         appliedDiscounts,
         freeGifts: freeGifts.length > 0 ? freeGifts : undefined,
-        receivedAmount: paymentMethod === 'cash' ? parseFloat(amountPaid) || undefined : undefined,
-        changeAmount: paymentMethod === 'cash' ? change || undefined : undefined,
+        receivedAmount: paymentMethod === 'cash' ? parseFloat(amountPaid) || undefined
+          : paymentMethod === 'split' ? finalTotal
+          : undefined,
+        changeAmount: paymentMethod === 'cash' ? change || undefined
+          : paymentMethod === 'split' ? 0
+          : undefined,
+        splitPayments: paymentMethod === 'split' ? [
+          { method: splitMethodA, amount: parseFloat(splitAmountA) || 0 },
+          { method: splitMethodB, amount: parseFloat(splitAmountB) || 0 },
+        ] : undefined,
         saleType: (editingStoreOrder ? 'estore' : (editingSale?.saleType as any) || saleType),
         sourceOrderId: state.editingStoreOrderId || undefined,
         saleDate: new Date().toLocaleDateString('en-CA'),
@@ -273,6 +301,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         try {
           // Phase 1: Create the NEW sale first (deducts stock)
           savedSale = await salesService.create(sale);
+          await adjustPaymentBalances(buildSalePaymentMoves(sale));
 
           // Phase 2: Try to delete the OLD sale (restores stock)
           try {
@@ -315,6 +344,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         }
       } else {
         savedSale = await salesService.create(sale);
+        await adjustPaymentBalances(buildSalePaymentMoves(sale));
       }
 
       if ((savedSale as any).wasOversold) {
@@ -368,8 +398,42 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const payMethods = [
     { id: 'cash', label: 'Cash', icon: Banknote },
     { id: 'card', label: 'Card', icon: CreditCard },
-    { id: 'digital', label: 'Bank Transfer', icon: Building2 },
+    { id: 'online', label: 'Online', icon: Building2 },
+    { id: 'wallet', label: 'Wallet', icon: Wallet },
+    { id: 'split', label: 'Split', icon: Layers },
   ];
+
+  // Live per-method wallet balances (cash / card / online / wallet)
+  const WalletStrip = ({ currency }: { currency: string }) => {
+    const [modes, setModes] = useState<any[]>([]);
+    useEffect(() => {
+      let alive = true;
+      const load = async () => {
+        const m = await localDb.paymentModes.toArray();
+        const order = ['cash', 'card', 'online', 'wallet'];
+        m.sort((a: any, b: any) => order.indexOf(a.id) - order.indexOf(b.id));
+        if (alive) setModes(m);
+      };
+      load();
+      const subs: any[] = [];
+      try {
+        subs.push(localDb.paymentModes.hook('updating').subscribe(() => load()));
+        subs.push(localDb.paymentModes.hook('creating').subscribe(() => load()));
+      } catch { /* hooks unsupported */ }
+      return () => { alive = false; subs.forEach(s => s?.unsubscribe?.()); };
+    }, []);
+    if (!modes.length) return null;
+    return (
+      <div className="grid grid-cols-4 gap-1.5 mb-3">
+        {modes.map((md: any) => (
+          <div key={md.id} className="p-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/10">
+            <p className="text-[7px] font-black uppercase tracking-widest text-gray-500 truncate">{md.name}</p>
+            <p className="text-[11px] font-black text-gray-900 dark:text-white tabular-nums">{formatCurrency(md.balance || 0, currency)}</p>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   if (showReceipt && completedSale) {
     return (
@@ -422,7 +486,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
           { key: '1', label: 'Cash' },
           { key: '2', label: 'Card' },
           { key: '3', label: 'Digital' },
-          { key: '4', label: 'Credit' },
+          { key: '5', label: 'Split' },
           { key: 'E', label: 'Exact Amt' },
           { key: 'Enter', label: 'Pay' },
           { key: 'Esc', label: 'Cancel' },
@@ -503,16 +567,18 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
             </div>
           )}
           {/* Payment Method */}
+          <WalletStrip currency={state.settings.currency} />
+
           <div>
             <p className="text-[8px] sm:text-[9px] font-black text-gray-600 uppercase tracking-widest mb-1.5 sm:mb-2 flex items-center">
               {t("payment_method", "Payment Method")}
               <HelpTooltip content="Select how the bill is being paid." />
             </p>
-            <div className={cn("grid gap-1 sm:gap-1.5", "grid-cols-3")}>
+            <div className={cn("grid gap-1 sm:gap-1.5", "grid-cols-3 sm:grid-cols-5")}>
               {payMethods.map(m => {
                 const isActive = paymentMethod === m.id;
                 return (
-                  <button key={m.id} onClick={() => setPaymentMethod(m.id as any)}
+                  <button key={m.id} onClick={() => handleSelectMethod(m.id)}
                     className={`flex flex-col items-center justify-center gap-1.5 py-2.5 sm:py-3.5 rounded-2xl border transition-all active:scale-95 touch-manipulation ${isActive ? 'bg-primary border-primary shadow-lg shadow-emerald-500/20' : 'bg-white dark:bg-white/[0.03] border-gray-200 dark:border-white/10 hover:border-primary/30'}`}>
                     <m.icon className={`w-4.5 h-4.5 sm:w-5.5 sm:h-5.5 ${isActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`} />
                     <span className={`text-[7px] sm:text-[8px] font-black uppercase tracking-widest ${isActive ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>{t(m.id, m.label)}</span>
@@ -524,7 +590,48 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
           {/* Amount Input */}
           <div className="min-h-[200px]">
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {paymentMethod === 'split' ? (
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {[
+                  { m: splitMethodA, setM: setSplitMethodA, amt: splitAmountA, setAmt: setSplitAmountA, label: t('split_part_1', 'Part 1') },
+                  { m: splitMethodB, setM: setSplitMethodB, amt: splitAmountB, setAmt: setSplitAmountB, label: t('split_part_2', 'Part 2') },
+                ].map((p, i) => (
+                  <div key={i} className="p-3 rounded-2xl bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">{p.label}</span>
+                      <div className="flex gap-1">
+                        {(['cash', 'card', 'online', 'wallet'] as const).map(mm => (
+                          <button key={mm} type="button" onClick={() => p.setM(mm)}
+                            className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest transition-all ${p.m === mm ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400'}`}>
+                            {mm}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-600">{state.settings.currency || 'PKR'}</span>
+                      <input
+                        type="text" inputMode="decimal"
+                        value={p.amt}
+                        onChange={e => p.setAmt(e.target.value.replace(/[^0-9.]/g, ''))}
+                        className="w-full h-12 pl-12 pr-4 bg-gray-50 dark:bg-surface border border-gray-200 dark:border-white/10 rounded-full text-lg font-black text-gray-900 dark:text-white focus:border-primary outline-none transition-all [appearance:textfield] text-center"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <div className={`p-4 rounded-2xl flex items-center justify-between border transition-all duration-300 animate-in fade-in ${Math.abs(((parseFloat(splitAmountA) || 0) + (parseFloat(splitAmountB) || 0)) - finalTotal) < 0.01 ? 'bg-primary/10 border-transparent text-primary dark:text-emerald-400' : 'bg-amber-500/10 border-transparent text-amber-600 dark:text-amber-400'}`}>
+                  <div>
+                    <p className="text-[8px] font-black uppercase tracking-widest mb-1">{t('split_total', 'Split Total')}</p>
+                    <p className="text-xl font-black tabular-nums tracking-tighter">
+                      {formatCurrency((parseFloat(splitAmountA) || 0) + (parseFloat(splitAmountB) || 0), state.settings.currency)}
+                      <span className="text-[10px] font-bold opacity-60"> / {formatCurrency(finalTotal, state.settings.currency)}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex justify-between items-center">
                   <label className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{t("amount_paid", "Received Amount")}</label>
                   <button onClick={() => setAmountPaid(finalTotal.toString())} className="text-[8px] font-black text-primary bg-primary/10 px-3 py-1 rounded-full hover:bg-primary/20 active:scale-95 transition-all">{t("exact_amount", "Exact Amount")}</button>
@@ -570,6 +677,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
                   )}
                 </div>
               </div>
+            )}
             </div>
 
           {/* Extra Info: Custom Extra Charges - ONLY IF ENABLED IN SETTINGS & FOR E-STORE */}

@@ -7,7 +7,12 @@ import { AppliedDiscount, CartItem } from '../types';
  * Prevents floating point errors (e.g. 0.00000001) that cause mismatches.
  */
 const roundTo2 = (num: number) => {
-  return Number(Math.round(Number(num + 'e2')) + 'e-2');
+  // Symmetric half-up rounding that fixes the 1.005 -> 1.00 floating-point loss.
+  // Positives shift up by EPSILON, negatives shift down by EPSILON so the
+  // half-way case rounds the same direction as magnitude (half-away-from-zero).
+  const n = Number(num);
+  const eps = n >= 0 ? Number.EPSILON : -Number.EPSILON;
+  return Math.round((n + eps) * 100) / 100;
 };
 
 export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?: any) {
@@ -60,7 +65,9 @@ export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?
             cart.forEach((item, index) => {
               // Note: item.product.price represents base price. For items with variants/modifiers,
               // we calculate subtotal/quantity to get the effective unit price.
-              const unitPrice = item.subtotal / (Math.abs(item.quantity) || 1);
+              // Use the ORIGINAL (pre-line-discount) price for M&M eligibility/value so a
+              // line discount + M&M on the same units cannot stack (B11).
+              const unitPrice = item.product.price || (item.subtotal / (Math.abs(item.quantity) || 1));
               if (mmCond.type === 'category' && mmCond.value.includes(item.product.category)) {
                 eligibleItems.push({ index, price: unitPrice, qty: item.quantity });
               } else if (mmCond.type === 'specific_products' && mmCond.value.includes(item.product.id)) {
@@ -108,7 +115,9 @@ export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?
         } else {
           let amount = 0;
           if (discount.type === 'percentage') {
-            amount = roundTo2((subtotal * discount.value) / 100);
+            // Use the post-item-discount base (NET) for consistency with bill-level
+            // discounts (B10) — previously auto % was applied on gross, double-counting.
+            amount = roundTo2((subtotalAfterItemDiscounts * discount.value) / 100);
             if (discount.maxDiscount) amount = Math.min(amount, discount.maxDiscount);
           } else if (discount.type === 'fixed') {
             amount = discount.value;
@@ -139,11 +148,16 @@ export function useCartCalculations(paymentMethod: string = 'cash', cardDetails?
     const total = roundTo2(subtotal - totalDiscount + taxAmount);
 
     // 5. Profitability check (Using Item Cost)
-    const totalCost = roundTo2(cart.reduce((sum, item) => {
-      // POSTerminal overrides `item.product.cost` to ALREADY include addon costs.
-      // So we just use it directly without adding addon costs again.
-      return sum + ((item.product.cost || 0) * item.quantity);
-    }, 0));
+    const totalCost = roundTo2(
+      cart.reduce((sum, item) => {
+        // POSTerminal overrides `item.product.cost` to ALREADY include addon costs.
+        // So we just use it directly without adding addon costs again.
+        return sum + ((item.product.cost || 0) * item.quantity);
+      }, 0) +
+      // A6: free-gift items are given to the customer and still carry COGS.
+      // Counting them here prevents phantom inventory / overstated profit.
+      gifts.reduce((sum, g) => sum + ((g.product.cost || 0) * g.quantity), 0)
+    );
     const isBelowCost = total < totalCost;
 
     return {

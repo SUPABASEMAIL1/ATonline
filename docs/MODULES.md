@@ -1,6 +1,6 @@
 # 🧱 SHARED MODULES REGISTRY — SINGLE SOURCE OF TRUTH
 
-> **THE ONE RULE:** Har page, har route, har component (except `src/components/pos/**`) ka har UI primitive, search/list/drag module, aur shared business logic SAME shared module se aata hai — **kabhi page-local copy/variant nahi banate.** POS (`src/components/pos/**`) is the ONLY exemption.
+> **THE ONE RULE (🛡️ ANTI-AI BREAKABLE MANDATE):** Har page, har route, har component (except `src/components/pos/**`) ka har UI primitive, search/list/drag module, aur shared business logic STRICTLY SAME shared module se aata hai — **kabhi page-local copy/variant nahi banate.** POS (`src/components/pos/**`) is the ONLY exemption. NO AI OR DEVELOPER MAY BUILD CUSTOM UI COMPONENTS for standard things like popups, buttons, icons, or media selection. Use the existing ones.
 >
 > ⚠️ **STAY UP TO DATE (MANDATORY):** This file is the live registry. When you add a new shared module, change a shared component's API, or add a new shared helper — **update this file in the SAME commit/change.** A stale MODULES.md is a violation.
 

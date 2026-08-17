@@ -194,7 +194,11 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
 
   const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
   const deliveryFee = fulfillmentMode === 'delivery' ? (settings?.estoreDeliveryFee || 0) : 0;
-  const total = cartTotal + deliveryFee;
+  // E6: compute tax on the estore checkout so the displayed total matches what the POS
+  // bill will charge (previously tax was always 0 here → customer over-charged at POS).
+  const taxRate = settings?.taxRate || 0;
+  const taxAmount = Math.round((cartTotal + deliveryFee) * (taxRate / 100) * 100) / 100;
+  const total = cartTotal + deliveryFee + taxAmount;
   
   const isDeliveryAllowed = (): boolean => {
     if (fulfillmentMode === 'pickup') return true; // self-pickup is always allowed
@@ -290,12 +294,13 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         items: cart,
         subtotal: cartTotal,
         discountAmount: 0,
-        taxAmount: 0,
+        taxAmount: taxAmount,
         deliveryFee: deliveryFee,
         total: total,
         paymentMethod: (selectedPaymentMethod === 'custom' ? 'digital' : selectedPaymentMethod) as any,
         status: 'pending',
         cashier: 'ONLINE_STORE',
+        cashierRole: 'online',
       };
 
       const remoteData = toRemoteStoreOrder(orderData);
@@ -633,9 +638,9 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
                   
                   bundlesMap.forEach((b) => {
                     const originalBundleDefId = b.bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || b.bundleId;
-                    let bundleDef = state.bundles?.find(x => x.id === originalBundleDefId);
+                    let bundleDef = bundles?.find(x => x.id === originalBundleDefId);
                     if (!bundleDef) {
-                      bundleDef = state.products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
+                      bundleDef = products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
                     }
                     
                     let bundleQty = 1;

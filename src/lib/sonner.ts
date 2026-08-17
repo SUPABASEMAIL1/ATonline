@@ -45,8 +45,8 @@ export const sonner = {
   },
 
   // Delete confirmation
-  deleteConfirm: (itemName: string) => {
-    return dialog.deleteConfirm(itemName);
+  deleteConfirm: (itemName: string, warning?: string) => {
+    return dialog.deleteConfirm(itemName, warning);
   },
 
   // Loading modal

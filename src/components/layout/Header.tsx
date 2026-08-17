@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Settings, LogOut, X, Sun, Moon, RefreshCw,
-  ChevronLeft, ChevronRight, Bell
+  ChevronLeft, ChevronRight, Bell, Users, Truck
 } from 'lucide-react';
 import { AppIcons } from '../../lib/icons';
 import { settingsService } from '../../lib/services';
@@ -177,6 +177,8 @@ export function Header({
     items.push({ id: 'discounts', label: t('discounts', 'Discounts'), icon: AppIcons.discounts, color: 'text-pink-500' });
     items.push({ id: 'reports', label: t('reports', 'Reports'), icon: AppIcons.reports, color: 'text-red-500' });
     items.push({ id: 'suppliers', label: t('suppliers', 'Suppliers'), icon: AppIcons.suppliers, color: 'text-amber-500' });
+    items.push({ id: 'purchase-orders', label: 'Purchase', icon: Truck, color: 'text-teal-500' });
+    items.push({ id: 'users', label: 'Users', icon: Users, color: 'text-indigo-500' });
 
     return items;
   };

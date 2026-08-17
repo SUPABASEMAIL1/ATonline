@@ -50,21 +50,43 @@ export { generateId };
 export async function commitSaleAuthoritative(
   remoteSale: any,
   movements: any[]
-): Promise<boolean> {
+): Promise<any> {
   try {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return null;
     const { data, error } = await (supabase as any).rpc('commit_sale', {
       p_sale: remoteSale,
       p_history: movements,
     });
     if (error) {
       console.error('[commit_sale] RPC error:', error.message);
-      return false;
+      return null;
     }
-    return true;
+    return data;
   } catch (e: any) {
     console.error('[commit_sale] exception:', e?.message || e);
-    return false;
+    return null;
+  }
+}
+
+// Revert a locally-written sale + restore local product stock when the cloud
+// reports it was already fulfilled by another device (race on the same estore order).
+async function revertLocalSaleStock(saleId: string, movements: any[]) {
+  try {
+    await localDb.sales.delete(saleId);
+    for (const m of movements || []) {
+      const pid = m?.product_id || m?.productId;
+      if (!pid) continue;
+      if (m?.variant_id || m?.variantId) continue;
+      const p = await localDb.products.get(pid);
+      if (p) {
+        const qty = Number(m.change_qty ?? m.changeQty) || 0;
+        // Sale movement change_qty is NEGATIVE (e.g. -5 sold). To RESTORE local stock
+        // we must add the absolute amount: stock - change_qty = stock + 5.
+        await localDb.products.update(pid, { stock: (p.stock || 0) - qty });
+      }
+    }
+  } catch (e) {
+    console.warn('[revertLocalSaleStock] failed:', e);
   }
 }
 
@@ -194,28 +216,6 @@ export function generateNextInvoiceNumber(settings: AppSettings): { invoiceNumbe
 }
 
 /**
- * CUSTOMER CREDIT CALCULATION HELPERS
- */
-export const getCustomerCreditStatus = (customer: Customer, newSaleTotal: number) => {
-  const limit = Number(customer.creditLimit) || 0;
-  const used = Number(customer.creditUsed) || 0;
-  const available = limit - used;
-  const afterSale = used + newSaleTotal;
-
-  return {
-    limit,
-    used,
-    available,
-    afterSale,
-    isUnlimited: limit === 0, // In this system, 0 usually means no limit set or blocked depending on context
-    isBlocked: limit === -1, // Hard block
-    willExceed: limit > 0 && afterSale > limit,
-    usagePercent: limit > 0 ? (used / limit) * 100 : 0,
-    isNearLimit: limit > 0 && (used / limit) >= 0.75
-  };
-};
-
-/**
  * MAPPERS: Transitioning from snake_case (DB) to CamelCase (Frontend)
  * and ensuring Date objects are consistent.
  */
@@ -257,8 +257,6 @@ export const mapSalesman = (item: any): any => ({
 export const mapCustomer = (item: any): Customer => ({
   ...item,
   priceTier: item.price_tier ?? item.priceTier,
-  creditLimit: item.credit_limit ?? item.creditLimit,
-  creditUsed: item.credit_used ?? item.creditUsed,
   totalPurchases: item.total_purchases ?? item.totalPurchases,
   lastPurchase: item.last_purchase ? new Date(item.last_purchase) : (item.lastPurchase ? new Date(item.lastPurchase) : undefined),
   preferredCategories: item.preferred_categories ?? item.preferredCategories,
@@ -270,19 +268,19 @@ export const mapCustomer = (item: any): Customer => ({
  * Shared Financial Utilities
  */
 export function getAmountByMethod(sale: any, method: string): number {
+  const want = normalizePaymentMethod(method);
+  const matches = (m: string) => {
+    const nm = normalizePaymentMethod(m);
+    if (want === 'online') return nm === 'online' || nm === 'digital';
+    return nm === want;
+  };
   if (sale.splitPayments && sale.splitPayments.length > 0) {
     return (sale.splitPayments || [])
-      .filter((sp: any) => sp.method === method)
+      .filter((sp: any) => matches(sp.method))
       .reduce((sum: number, sp: any) => sum + (Number(sp.amount) || 0), 0);
   }
 
-  if (sale.paymentMethod === 'credit') {
-    if (method === 'cash') return sale.receivedAmount || 0; // Advance paid in cash
-    if (method === 'credit') return (Number(sale.total) || 0) - (sale.receivedAmount || 0); // Remaining debt
-    return 0;
-  }
-
-  return sale.paymentMethod === method ? (Number(sale.total) || 0) : 0;
+  return matches(sale.paymentMethod) ? (Number(sale.total) || 0) : 0;
 }
 
 export const mapSale = (item: any): Sale => ({
@@ -453,7 +451,6 @@ export const mapSettings = (item: any): AppSettings => {
     soundEnabled: s.sound_enabled ?? s.soundEnabled ?? true,
     autoBackup: s.auto_backup ?? s.autoBackup ?? true,
     receiptPrinter: s.receipt_printer ?? s.receiptPrinter ?? false,
-    allowCreditOverLimit: s.allow_credit_over_limit ?? s.allowCreditOverLimit ?? true,
 
     invoicePrefix: s.invoice_prefix ?? s.invoicePrefix ?? 'INV',
     invoiceCounter: s.invoice_counter ?? s.invoiceCounter ?? 1000,
@@ -603,7 +600,6 @@ export const toRemoteSettings = (s: Partial<AppSettings>) => {
 
   if ('touchKeyboardEnabled' in s) { remote.touch_keyboard_enabled = s.touchKeyboardEnabled; }
   if ('soundEnabled' in s) { remote.sound_enabled = s.soundEnabled; }
-  if ('allowCreditOverLimit' in s) { remote.allow_credit_over_limit = s.allowCreditOverLimit; }
   if ('offlineMode' in s) { remote.offline_mode = s.offlineMode; }
   if ('autoSync' in s) { remote.auto_sync = s.autoSync; }
   if ('country' in s) { remote.country = s.country; }
@@ -760,8 +756,6 @@ export const toRemoteProduct = (p: Partial<Product>) => {
 export const toRemoteCustomer = (c: Partial<Customer>) => {
   const remote: any = { ...c };
   if ('priceTier' in c) { remote.price_tier = c.priceTier; delete remote.priceTier; }
-  if ('creditLimit' in c) { remote.credit_limit = c.creditLimit; delete remote.creditLimit; }
-  if ('creditUsed' in c) { remote.credit_used = c.creditUsed; delete remote.creditUsed; }
   if ('totalPurchases' in c) { remote.total_purchases = c.totalPurchases; delete remote.totalPurchases; }
   if ('lastPurchase' in c) { remote.last_purchase = c.lastPurchase instanceof Date ? c.lastPurchase.toISOString() : c.lastPurchase; delete remote.lastPurchase; }
   if ('preferredCategories' in c) { remote.preferred_categories = c.preferredCategories; delete remote.preferredCategories; }
@@ -787,6 +781,8 @@ export const toRemoteExpense = (e: Partial<Expense>) => {
   if ('paymentMethod' in e) { remote.payment_method = e.paymentMethod; delete remote.paymentMethod; }
   if ('storeType' in e) { remote.store_type = e.storeType; delete remote.storeType; }
   if ('addedBy' in e) { remote.added_by = (e as any).addedBy; delete remote.addedBy; }
+  if ('isManualOverride' in e) { remote.is_manual_override = e.isManualOverride; delete remote.isManualOverride; }
+  if ('overrideBy' in e) { remote.override_by = e.overrideBy; delete remote.overrideBy; }
   if ('createdAt' in e) { remote.created_at = e.createdAt instanceof Date ? e.createdAt.toISOString() : e.createdAt; delete remote.createdAt; }
   if ('updatedAt' in e) { remote.updated_at = e.updatedAt instanceof Date ? e.updatedAt.toISOString() : e.updatedAt; delete remote.updatedAt; }
   return remote;
@@ -869,6 +865,7 @@ export const toRemoteSale = (s: Partial<Sale>) => {
   if ('customerNotes' in s) { remote.customer_notes = s.customerNotes; delete remote.customerNotes; }
   if ('salesmanId' in s) { remote.salesman_id = s.salesmanId; delete remote.salesmanId; }
   if ('salesmanName' in s) { remote.salesman_name = s.salesmanName; delete remote.salesmanName; }
+  if ('cashierRole' in s) { remote.cashier_role = s.cashierRole; delete remote.cashierRole; }
   if ('createdAt' in s) { remote.created_at = s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt; delete remote.createdAt; }
   if ('updatedAt' in s) { remote.updated_at = s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt; delete remote.updatedAt; }
   if ('timestamp' in s) {
@@ -944,6 +941,141 @@ export const mapPayment = (item: any): any => ({
  * Products Service
  * Reads from Dexie, Writes to Dexie + Queues for Supabase
  */
+// ════════════════════════════════════════════════════════════════
+// PAYMENT MODES / WALLETS  (per-method authoritative balances)
+// ════════════════════════════════════════════════════════════════
+export const DEFAULT_PAYMENT_MODES = [
+  { id: 'cash', name: 'Cash', icon: 'cash', isActive: true },
+  { id: 'card', name: 'Card', icon: 'credit-card', isActive: true },
+  { id: 'online', name: 'Online', icon: 'globe', isActive: true },
+  { id: 'wallet', name: 'Wallet', icon: 'wallet', isActive: true },
+];
+
+/** Normalize legacy 'digital' method to 'online' wallet. */
+export const normalizePaymentMethod = (m: string): string => (m === 'digital' ? 'online' : m);
+
+export const mapPaymentMode = (item: any) => ({
+  id: item.id,
+  name: item.name,
+  icon: item.icon,
+  balance: Number(item.balance || 0),
+  isActive: item.is_active ?? item.isActive ?? true,
+  updatedAt: item.updated_at ? new Date(item.updated_at) : new Date(),
+});
+
+export const toRemotePaymentMode = (m: any) => ({
+  id: m.id,
+  name: m.name,
+  icon: m.icon,
+  balance: m.balance,
+  is_active: m.isActive ?? true,
+  updated_at: m.updatedAt instanceof Date ? m.updatedAt.toISOString() : m.updatedAt,
+});
+
+/** Idempotent seed: ensures the 4 default wallets exist locally + in cloud. */
+export const seedPaymentModes = async () => {
+  const existing = await localDb.paymentModes.toArray();
+  const existingIds = new Set(existing.map((m: any) => m.id));
+  for (const m of DEFAULT_PAYMENT_MODES) {
+    if (!existingIds.has(m.id)) {
+      await localDb.paymentModes.put({ ...m, balance: 0, updatedAt: new Date() });
+    }
+  }
+  try {
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      const cloud = await localDb.paymentModes.toArray();
+      await supabase.from('payment_modes').upsert(cloud.map(toRemotePaymentMode), { onConflict: 'id', ignoreDuplicates: true });
+    } else {
+      for (const m of await localDb.paymentModes.toArray()) {
+        await queueOp('payment_modes', 'upsert', m.id, toRemotePaymentMode(m));
+      }
+    }
+  } catch (e) { console.warn('[paymentModes] cloud seed failed', e); }
+};
+
+export const getPaymentModes = async () => {
+  const modes = await localDb.paymentModes.toArray();
+  if (modes.length === 0) { await seedPaymentModes(); return localDb.paymentModes.toArray(); }
+  return modes;
+};
+
+/**
+ * Atomically adjust per-method wallet balances.
+ * moves: { id, modeId, delta, referenceId?, note? }
+ * - Optimistically updates local Dexie (instant UI).
+ * - Online: applies via idempotent RPC (payment_movements ledger).
+ * - Offline/failed: queued for syncEngine to flush via the same RPC.
+ */
+export const adjustPaymentBalances = async (moves: any[], opts?: any) => {
+  if (!moves || moves.length === 0) return;
+  for (const mv of moves) {
+    const mode = await localDb.paymentModes.get(mv.modeId);
+    if (mode) {
+      await localDb.paymentModes.update(mv.modeId, {
+        balance: Number(mode.balance || 0) + Number(mv.delta),
+        updatedAt: new Date(),
+      });
+    }
+  }
+  const remoteMoves = moves.map(mv => ({
+    id: mv.id || generateId(),
+    mode_id: mv.modeId,
+    delta: Number(mv.delta),
+    reference_id: mv.referenceId || null,
+    note: mv.note || null,
+  }));
+  const online = typeof navigator === 'undefined' || navigator.onLine;
+  if (online) {
+    try {
+      await supabase.rpc('apply_payment_movements', { p_moves: remoteMoves as any });
+      return;
+    } catch (e) { console.warn('[paymentModes] rpc failed, queueing', e); }
+  }
+  await queueOp('payment_movements', 'apply', opts?.batchId || generateId(), remoteMoves, opts);
+};
+
+/** Build wallet moves for a completed sale (handles split + single method). */
+export const buildSalePaymentMoves = (sale: any): any[] => {
+  const ref = sale.id;
+  if (sale.paymentMethod === 'split' && sale.splitPayments?.length) {
+    return sale.splitPayments.map((p: any) => ({
+      id: generateId(),
+      modeId: normalizePaymentMethod(p.method),
+      delta: Number(p.amount || 0),
+      referenceId: ref,
+      note: `Sale ${sale.invoiceNumber || ref}`,
+    }));
+  }
+  return [{
+    id: generateId(),
+    modeId: normalizePaymentMethod(sale.paymentMethod),
+    delta: Number(sale.total || 0),
+    referenceId: ref,
+    note: `Sale ${sale.invoiceNumber || ref}`,
+  }];
+};
+
+/** Build reverse wallet moves (used on refund / delete). */
+export const buildReversePaymentMoves = (sale: any, ratio = 1): any[] => {
+  const ref = sale.id;
+  if (sale.paymentMethod === 'split' && sale.splitPayments?.length) {
+    return sale.splitPayments.map((p: any) => ({
+      id: generateId(),
+      modeId: normalizePaymentMethod(p.method),
+      delta: -Number(p.amount || 0) * ratio,
+      referenceId: ref,
+      note: `Reverse ${sale.invoiceNumber || ref}`,
+    }));
+  }
+  return [{
+    id: generateId(),
+    modeId: normalizePaymentMethod(sale.paymentMethod),
+    delta: -Number(sale.total || 0) * ratio,
+    referenceId: ref,
+    note: `Reverse ${sale.invoiceNumber || ref}`,
+  }];
+};
+
 export const productsService = {
   async getAll(): Promise<Product[]> {
     const items = await localDb.products.toArray();
@@ -1073,7 +1205,7 @@ export const productsService = {
         type: 'initial',
         changeQty: initialQty,
         balanceAfter: initialQty,
-        referenceId: 'INITIAL_STOCK',
+        referenceId: generateId(),
         note: 'Initial opening stock',
         createdAt: now
       };
@@ -1126,17 +1258,11 @@ export const productsService = {
     const now = new Date();
     const updated = { ...existing, ...updates, updatedAt: now };
 
-    // FINANCIAL SAFETY: stock (scalar + per-variant) is ledger-driven ONLY via
-    // stock_history / variant_stock_history triggers. Never let a generic product
-    // update silently write stock — that would desync local↔cloud ledger.
-    delete (updated as any).stock;
-    if (updated.variantData) {
-      updated.variantData = updated.variantData.map(v => {
-        const c = { ...v };
-        delete (c as any).stock;
-        return c;
-      });
-    }
+    // Keep LOCAL stock (scalar + per-variant) intact. Stock is ledger-driven via
+    // stock_history / variant_stock_history triggers on the CLOUD, and the remote
+    // payload below is already stripped of stock (remotePayload.stock / remoteV.stock
+    // deleted), so the cloud ledger stays authoritative while the local cache keeps
+    // its real on-device count (fixes A2: local stock was being wiped to undefined).
 
     // 1. Local Update
     await localDb.products.put(updated);
@@ -1342,29 +1468,6 @@ export const customersService = {
   async delete(id: string): Promise<void> {
     await localDb.customers.delete(id);
     queueOp('customers', 'delete', id, {});
-  },
-
-  async recordPayment(customerId: string, amount: number, method: string, notes: string): Promise<Customer> {
-    const customer = await localDb.customers.get(customerId);
-    if (!customer) throw new Error('Customer not found');
-
-    const newCreditUsed = Math.max(0, (customer.creditUsed || 0) - amount);
-    const updatedCustomer = await this.update(customerId, { creditUsed: newCreditUsed });
-
-    // Log Customer Payment to payments table for history
-    const payId = generateId();
-    const payment = {
-      id: payId,
-      customerId,
-      amount,
-      method,
-      notes,
-      createdAt: new Date(),
-    };
-    await localDb.payments.add(payment);
-    await queueOp('payments', 'create', payId, toRemotePayment(payment));
-
-    return updatedCustomer;
   },
 
   async getCustomerPayments(customerId: string): Promise<any[]> {
@@ -1876,6 +1979,49 @@ export const salesService = {
       }
     }
 
+    // --- FREE GIFT STOCK DEDUCTION (A6) ---
+    // Free-gift items live on sale.freeGifts (NOT sale.items), so previously they never
+    // deducted stock → phantom inventory drain + profit overstated by gift cost.
+    // Deduct them here and record their cost for accurate COGS reporting.
+    if (!skipStockEffects && newSale.freeGifts && newSale.freeGifts.length > 0) {
+      for (const gift of newSale.freeGifts) {
+        const gProduct = await localDb.products.get(gift.product?.id);
+        if (!gProduct || !gProduct.trackInventory) continue;
+        const gQty = Math.abs(gift.quantity || 1);
+        const gNewStock = (gProduct.stock || 0) - gQty;
+        if (gNewStock < 0) anyOversold = true;
+
+        (gift as any).purchaseCost = (Number(gProduct.cost) || 0) * gQty;
+
+        await localDb.products.update(gProduct.id, { stock: gNewStock, updatedAt: now });
+        const gHistId = generateId();
+        const gHistEntry: StockHistory = {
+          id: gHistId,
+          productId: gProduct.id,
+          changeQty: -gQty,
+          type: 'sale' as const,
+          referenceId: id,
+          note: `Free Gift — Sale ${newSale.invoiceNumber}`,
+          balanceAfter: gNewStock,
+          cashierName: newSale.cashier || 'System',
+          createdAt: now,
+          ...(gNewStock < 0 ? { wasOversold: true } : {}),
+        };
+        await localDb.stockHistory.add(gHistEntry);
+        movements.push({
+          id: gHistId,
+          product_id: gProduct.id,
+          change_qty: -gQty,
+          type: 'sale',
+          note: `Free Gift — Sale ${newSale.invoiceNumber}`,
+          variant_id: '',
+          variant_label: '',
+          cashier_name: newSale.cashier || 'System',
+        });
+        historyQueue.push({ entity: 'stock_history', histId: gHistId, remote: toRemoteStockHistory(gHistEntry), opts: { batchId: id } });
+      }
+    }
+
     // 1. Local Write (Now contains precise purchaseCost per item)
     await localDb.sales.add(newSale);
 
@@ -1887,7 +2033,13 @@ export const salesService = {
     const onlineNow = typeof navigator === 'undefined' || navigator.onLine;
     let cloudCommitted = false;
     if (onlineNow && !skipStockEffects && !isDraftSale && movements.length > 0) {
-      cloudCommitted = await commitSaleAuthoritative(toRemoteSale(newSale), movements);
+      const commitRes = await commitSaleAuthoritative(toRemoteSale(newSale), movements);
+      if (commitRes && commitRes.already_fulfilled) {
+        await revertLocalSaleStock(newSale.id, movements);
+        cloudCommitted = true;
+      } else if (commitRes) {
+        cloudCommitted = true;
+      }
     }
     if (!cloudCommitted) {
       await queueOp('sales', 'create', id, toRemoteSale(newSale), { batchId: id });
@@ -1948,7 +2100,7 @@ export const salesService = {
     // DRAFT RULE: pending drafts never deducted stock either — deleting a draft must
     // NOT restore anything (that would create a phantom +Q in the ledger).
     const isDraftSale = sale.status === 'pending' || !!sale.notes?.includes('DRAFT_SALE');
-    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'credit' || sale.status === 'partially_refunded')) {
+    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'partially_refunded' || sale.status === 'cancelled')) {
       for (const item of sale.items) {
         const product = await localDb.products.get(item.product.id);
         if (product && product.trackInventory) {
@@ -2108,6 +2260,12 @@ export const salesService = {
         }
       }
       await queueOp('sales', 'delete', id, {});
+    }
+
+    // 1c. Reverse wallet balances for the un-refunded portion (split-aware)
+    if (!isDraftSale && (sale.status === 'completed' || sale.status === 'partially_refunded' || sale.status === 'cancelled')) {
+      const delRatio = sale.total > 0 ? (sale.total - (sale.refundedAmount || 0)) / sale.total : 0;
+      await adjustPaymentBalances(buildReversePaymentMoves(sale, delRatio), { batchId: id });
     }
 
     // 2. Hard-Delete: Permanently remove from local database
@@ -2383,6 +2541,11 @@ export const salesService = {
     // 2. Update sale record
     const newRefundedAmount = (sale.refundedAmount || 0) + totalRefundAmount;
 
+    // Reverse the proportional tax so tax liability stays accurate on partial/full refund (B2)
+    const taxRatio = sale.total > 0 ? totalRefundAmount / sale.total : 0;
+    const baseTax = Number(sale.taxAmount || 0);
+    const newTaxAmount = Math.max(0, Math.round((baseTax - baseTax * taxRatio) * 100) / 100);
+
     // Check if fully refunded
     let allItemsFullyRefunded = true;
     for (const item of sale.items) {
@@ -2399,6 +2562,7 @@ export const salesService = {
       ...sale,
       items: sale.items, // updated with refundedQuantity
       refundedAmount: newRefundedAmount,
+      taxAmount: newTaxAmount,
       status: finalStatus as any,
       updatedAt: now
     };
@@ -2447,18 +2611,23 @@ export const salesService = {
 
     // 5. Create reversing payment record for audit trail
     if (totalRefundAmount > 0) {
+      const refundMethod = (request?.method && ['cash', 'card', 'digital'].includes(request.method))
+        ? request.method
+        : (sale.paymentMethod === 'split' ? 'cash' : (sale.paymentMethod || 'cash'));
       const refundPayId = generateId();
       const refundPayment = {
         id: refundPayId,
         customerId: sale.customerId || undefined,
         amount: totalRefundAmount,
-        method: sale.paymentMethod === 'split' ? 'cash' : (sale.paymentMethod || 'cash'),
+        method: refundMethod,
         direction: 'out' as const,
-        note: `${isFullRefund ? 'Full' : 'Partial'} Refund for sale ${sale.invoiceNumber || id}`,
+        note: `${isFullRefund ? 'Full' : 'Partial'} Refund for sale ${sale.invoiceNumber || id}${request?.reason ? ` — ${request.reason}` : ''}`,
         createdAt: now,
       };
       await localDb.payments.add(refundPayment);
       await queueOp('payments', 'create', refundPayId, toRemotePayment(refundPayment), { batchId: id });
+      // Reverse wallet balances proportionally for the refunded amount (split-aware)
+      await adjustPaymentBalances(buildReversePaymentMoves(sale, taxRatio), { batchId: id });
     }
     } finally {
       activeReturns.delete(id);
@@ -2700,6 +2869,15 @@ export const suppliersService = {
   },
 
   async recordBill(data: { supplierId: string; amount: number; note?: string; referenceId?: string; sourceType?: 'auto_purchase' | 'manual_bill' | 'opening_balance'; isManualOverride?: boolean; overrideBy?: string }) {
+    // X9 GUARD: never create a second supplier bill for the same stock-in / purchase record.
+    // Both PurchaseOrderSystem & BatchStockInSystem (and ProductDetailHub) funnel through
+    // commitStockInToInventory → recordBill with referenceId = purchase record id. Without this
+    // guard a re-run / double receive of the same delivery would double-count the payable.
+    if (data.referenceId) {
+      const existing = (await localDb.supplierTransactions.toArray())
+        .find(t => t.referenceId === data.referenceId);
+      if (existing) return existing;
+    }
     const id = generateId();
     const inferredType = data.note === 'Opening Balance' ? 'opening_balance' : 'purchase';
     const inferredSourceType = data.sourceType || (inferredType === 'opening_balance' ? 'opening_balance' : 'manual_bill');
@@ -2908,12 +3086,28 @@ export const discountsService = {
     const id = generateId();
     const discount = { ...data, id };
     await localDb.discounts.add(discount);
-    await queueOp('discounts', 'create', id, {
+    const remote: any = {
       ...discount,
+      min_amount: discount.minAmount,
+      max_discount: discount.maxDiscount,
+      free_gift_products: discount.freeGiftProducts || [],
+      valid_days: discount.validDays || [],
       valid_from: discount.validFrom.toISOString(),
       valid_to: discount.validTo.toISOString(),
-      is_auto_apply: discount.isAutoApply
-    });
+      is_auto_apply: discount.isAutoApply,
+      created_at: discount.createdAt instanceof Date ? discount.createdAt.toISOString() : (discount.createdAt || new Date().toISOString()),
+      updated_at: discount.updatedAt instanceof Date ? discount.updatedAt.toISOString() : (discount.updatedAt || new Date().toISOString()),
+    };
+    delete remote.minAmount;
+    delete remote.maxDiscount;
+    delete remote.freeGiftProducts;
+    delete remote.validDays;
+    delete remote.validFrom;
+    delete remote.validTo;
+    delete remote.isAutoApply;
+    delete remote.createdAt;
+    delete remote.updatedAt;
+    await queueOp('discounts', 'create', id, remote);
   },
 
   async fetchRemote(lastSyncTime?: Date): Promise<Discount[]> {
@@ -2924,6 +3118,38 @@ export const discountsService = {
     };
     const data = await fetchAllPages(queryFn);
     return data.map(mapDiscount);
+  },
+
+  async update(id: string, updates: Partial<Discount>): Promise<Discount> {
+    const existing = await localDb.discounts.get(id);
+    if (!existing) throw new Error('Discount not found');
+    const updated = { ...existing, ...updates, id, updatedAt: new Date() } as Discount;
+    await localDb.discounts.put(updated);
+    const remote: any = { ...updated };
+    remote.min_amount = updated.minAmount;
+    remote.max_discount = updated.maxDiscount;
+    remote.free_gift_products = updated.freeGiftProducts || [];
+    remote.valid_days = updated.validDays || [];
+    if (updated.validFrom) remote.valid_from = (updated.validFrom as Date).toISOString();
+    if (updated.validTo) remote.valid_to = (updated.validTo as Date).toISOString();
+    remote.is_auto_apply = updated.isAutoApply;
+    remote.updated_at = updated.updatedAt instanceof Date ? updated.updatedAt.toISOString() : (updated.updatedAt || new Date().toISOString());
+    delete remote.minAmount;
+    delete remote.maxDiscount;
+    delete remote.freeGiftProducts;
+    delete remote.validDays;
+    delete remote.validFrom;
+    delete remote.validTo;
+    delete remote.isAutoApply;
+    delete remote.createdAt;
+    delete remote.updatedAt;
+    await queueOp('discounts', 'update', id, remote);
+    return updated;
+  },
+
+  async delete(id: string): Promise<void> {
+    await localDb.discounts.delete(id);
+    await queueOp('discounts', 'delete', id, {});
   }
 };
 /**
@@ -3428,6 +3654,7 @@ export const mapBundle = (row: any): Bundle => ({
   endTime: row.end_time || undefined,
   hideItemPrices: row.hide_item_prices === true,
   image: row.image,
+  extraToppings: (row.extra_toppings as any) || [],
   items: (row.bundle_items || []).map((bi: any): BundleItem => ({
     id: bi.id,
     bundleId: bi.bundle_id,
@@ -3762,6 +3989,7 @@ export const bundlesService = {
         badge_icon: data.badgeIcon || null,
         badge_bg_color: data.badgeBgColor || null,
         badge_text_color: data.badgeTextColor || null,
+        extra_toppings: data.extraToppings || [],
         active: true,
         created_at: now,
         updated_at: now,
@@ -3805,6 +4033,7 @@ export const bundlesService = {
           badge_icon: data.badgeIcon || null,
           badge_bg_color: data.badgeBgColor || null,
           badge_text_color: data.badgeTextColor || null,
+          extra_toppings: data.extraToppings || [],
           active: true,
           created_at: now,
           updated_at: now,
@@ -3879,6 +4108,7 @@ export const bundlesService = {
     if (data.repeatDays !== undefined) updates.repeat_days = data.repeatDays || null;
     if (data.startTime !== undefined) updates.start_time = data.startTime || null;
     if (data.endTime !== undefined) updates.end_time = data.endTime || null;
+    if (data.extraToppings !== undefined) updates.extra_toppings = data.extraToppings;
 
     // Update local FIRST (offline-first)
     const localUpdates: any = { updatedAt: new Date(now) };
@@ -4062,18 +4292,25 @@ export const bundlesService = {
    * Converts a bundle into CartItems with PROPORTIONAL discount (Option A).
    * Each product's discount is proportional to its price share of the bundle total.
    */
-  getBundleCartItems(bundle: Bundle, products: Product[]): CartItem[] {
+   getBundleCartItems(bundle: Bundle, products: Product[], variantTier?: number): CartItem[] {
     if (!bundle.items || bundle.items.length === 0) return [];
 
-    // Build line items with resolved product data
+    // Build line items with resolved product data.
+    // E3: when a size tier is selected (e.g. Large), use the variant priceOverride instead of
+    // the base product.price — otherwise the cart charged the Small price while the modal showed
+    // the Large price, over-charging the customer. variantTier is optional so POS (which prices
+    // bundles at base) is unaffected when omitted.
     const lines: { product: Product; quantity: number; linePrice: number }[] = [];
     for (const bi of bundle.items) {
       const product = products.find(p => p.id === bi.productId);
       if (!product) continue;
+      const tierPrice = (typeof variantTier === 'number' && product.variantData && product.variantData.length > variantTier)
+        ? (product.variantData[variantTier].priceOverride ?? product.price)
+        : product.price;
       lines.push({
         product,
         quantity: bi.quantity,
-        linePrice: product.price * bi.quantity,
+        linePrice: tierPrice * bi.quantity,
       });
     }
 
@@ -4081,15 +4318,34 @@ export const bundlesService = {
 
     const totalBundlePrice = lines.reduce((sum, l) => sum + l.linePrice, 0);
 
-    // Calculate total discount amount
-    const totalDiscountAmount = bundle.discountType === 'percentage'
-      ? (totalBundlePrice * bundle.discountValue) / 100
-      : Math.min(bundle.discountValue, totalBundlePrice);
+    // Calculate total discount amount. If the bundle has a fixed overridePrice, the
+    // effective discount is the difference between the summed item price and that
+    // override (P1: previously overridePrice was ignored, so the cart charged the
+    // items-minus-discount total instead of the advertised fixed price).
+    const overridePrice = typeof bundle.overridePrice === 'number' && bundle.overridePrice >= 0
+      ? bundle.overridePrice
+      : null;
+    const totalDiscountAmount = overridePrice !== null
+      ? Math.max(0, Math.round((totalBundlePrice - overridePrice) * 100) / 100)
+      : (bundle.discountType === 'percentage'
+        ? (totalBundlePrice * bundle.discountValue) / 100
+        : Math.min(bundle.discountValue, totalBundlePrice));
 
     // Apply proportional discount to each line
-    return lines.map(line => {
+    const lineDiscounts = lines.map(line => {
       const proportion = totalBundlePrice > 0 ? line.linePrice / totalBundlePrice : 0;
-      const lineDiscount = Math.round(totalDiscountAmount * proportion * 100) / 100;
+      return Math.round(totalDiscountAmount * proportion * 100) / 100;
+    });
+    // Fix per-line rounding drift so Σ lineDiscount === totalDiscountAmount exactly (B4),
+    // otherwise the realised bundle discount leaks/over-charges by up to a few cents.
+    const discountSum = lineDiscounts.reduce((s, d) => s + d, 0);
+    const drift = Math.round((totalDiscountAmount - discountSum) * 100) / 100;
+    if (drift !== 0 && lineDiscounts.length > 0) {
+      lineDiscounts[lineDiscounts.length - 1] = Math.round((lineDiscounts[lineDiscounts.length - 1] + drift) * 100) / 100;
+    }
+
+    return lines.map((line, idx) => {
+      const lineDiscount = lineDiscounts[idx];
       const subtotal = line.linePrice - lineDiscount;
 
       return {
@@ -4248,7 +4504,8 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
   // 3. Fetch cloud products (with variant_data so we can audit variant stock too)
   const { data: productRows, error: pErr } = await supabase
     .from('products')
-    .select('id, name, stock, variant_data');
+    .select('id, name, stock, variant_data')
+    .eq('track_inventory', true);
   if (pErr) throw new Error(`Cannot fetch products for audit: ${pErr.message}`);
 
   const mismatches: ReconcileResult['mismatches'] = [];
@@ -4285,6 +4542,9 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
   //    history entry → the ledger stays append-only and self-consistent (offline-safe via queue).
   if (autoFix && mismatches.length > 0) {
     const now = new Date();
+    // Valid UUID for reference_id (column is UUID type, nullable) — the RECONCILE context
+    // already lives in the `note` field, so a generated UUID satisfies the constraint.
+    const reconcileRef = generateId();
     for (const m of mismatches) {
       const changeQty = m.expected - m.actual;
       if (changeQty === 0) continue;
@@ -4299,7 +4559,7 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
           variant_label: m.name,
           change_qty: changeQty,
           type: 'adjustment',
-          reference_id: `RECONCILE-${now.getTime()}`,
+          reference_id: reconcileRef,
           note: `[RECONCILE] variant auto-fix: expected ${m.expected}, was ${m.actual}`,
           cashier_name: 'System',
           created_at: now.toISOString(),
@@ -4311,7 +4571,7 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
           variantLabel: m.name,
           changeQty,
           type: 'adjustment' as const,
-          referenceId: `RECONCILE-${now.getTime()}`,
+          referenceId: reconcileRef,
           note: `[RECONCILE] variant auto-fix: expected ${m.expected}, was ${m.actual}`,
           balanceAfter: m.expected,
           cashierName: 'System',
@@ -4334,7 +4594,7 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
           product_id: m.productId,
           change_qty: changeQty,
           type: 'adjustment',
-          reference_id: `RECONCILE-${now.getTime()}`,
+          reference_id: reconcileRef,
           note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
           balance_after: m.expected,
           cashier_name: 'System',
@@ -4345,7 +4605,7 @@ export async function reconcileAllStock(autoFix = false): Promise<ReconcileResul
           productId: m.productId,
           changeQty,
           type: 'adjustment' as const,
-          referenceId: `RECONCILE-${now.getTime()}`,
+          referenceId: reconcileRef,
           note: `[RECONCILE] auto-fix: expected ${m.expected}, was ${m.actual}`,
           balanceAfter: m.expected,
           cashierName: 'System',

@@ -83,10 +83,12 @@ export function PurchaseOrderSystem() {
   // Active list with overrides applied
   const activeList = useMemo(() => {
     const base = poMode === 'auto' ? filteredList : manualList;
-    return base.map(item => ({
-      ...item,
-      ...(autoOverrides[item.id] || {})
-    }));
+    return base
+      .filter(item => !(autoOverrides[item.id] && autoOverrides[item.id].removed))
+      .map(item => ({
+        ...item,
+        ...(autoOverrides[item.id] || {})
+      }));
   }, [poMode, filteredList, manualList, autoOverrides]);
 
   const totalPages = Math.ceil(activeList.length / ITEMS_PER_PAGE);
@@ -228,6 +230,14 @@ export function PurchaseOrderSystem() {
 
   const removeFromManualList = (id: string) => {
     setManualList(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleRemoveFromPO = (id: string, name: string) => {
+    setAutoOverrides(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), removed: true }
+    }));
+    sonner.info(`Removed "${name}" from reorder list`);
   };
 
   const handleReset = async () => {

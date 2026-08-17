@@ -296,7 +296,9 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
       if (productExists) {
         onAddToCart(productExists, item.quantity, {
           selectedVariant: item.selectedVariant,
-          selectedModifiers: item.selectedModifiers
+          selectedVariantId: item.selectedVariantId,
+          selectedModifiers: item.selectedModifiers,
+          toppings: item.toppings
         });
         itemsAdded++;
       }
@@ -924,9 +926,9 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
 
                     bundlesMap.forEach((b) => {
                       const originalBundleDefId = b.bundleId.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?.[0] || b.bundleId;
-                      let bundleDef = state.bundles?.find(x => x.id === originalBundleDefId);
+                      let bundleDef = bundles?.find(x => x.id === originalBundleDefId);
                       if (!bundleDef) {
-                        bundleDef = state.products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
+                        bundleDef = products?.find(x => x.id === originalBundleDefId) as unknown as Bundle;
                       }
                       
                       let bundleQty = 1;

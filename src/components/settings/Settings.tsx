@@ -53,7 +53,6 @@ import { AppSettings } from '../../types';
 import { useSync } from '../../hooks/useSync';
 import { DatabaseTools } from './DatabaseTools';
 import { HelpTooltip } from '../common/HelpTooltip';
-import { CloudSyncTab } from './CloudSyncTab';
 
 import { SearchableSelect } from '../common/SearchableSelect';
 import { StickyFormFooter } from '../common/StickyFormFooter';
@@ -263,7 +262,6 @@ export function Settings() {
     language: (state.settings as any)?.language || 'en',
     theme: (state.settings as any)?.theme || 'dark',
     interfaceMode: (state.settings as any)?.interfaceMode || 'touch',
-    allowCreditOverLimit: state.settings?.allowCreditOverLimit ?? true,
     enableExtraCharges: state.settings?.enableExtraCharges ?? false,
     defaultSaleType: state.settings?.defaultSaleType || 'retail',
     barcodeBarWidth: state.settings?.barcodeBarWidth ?? 0.8
@@ -364,7 +362,6 @@ export function Settings() {
       language: (state.settings as any)?.language || 'en',
       theme: (state.settings as any)?.theme || 'dark',
       interfaceMode: (state.settings as any)?.interfaceMode || 'touch',
-      allowCreditOverLimit: state.settings?.allowCreditOverLimit ?? true,
       enableSplitPayment: state.settings?.enableSplitPayment ?? false,
       enableExtraCharges: state.settings?.enableExtraCharges ?? false,
       defaultSaleType: state.settings?.defaultSaleType || 'retail',
@@ -378,15 +375,12 @@ export function Settings() {
   const handleInstantUpdate = async (name: string, value: any) => {
     if (!canEditSettings) return;
 
-    // Validation: At least one sale type must be active
+    // Validation: Prevent disabling the only remaining active sale type
     const saleTypeFields = ['retailEnabled', 'wholesaleEnabled', 'estoreEnabled'];
     if (saleTypeFields.includes(name) && value === false) {
       const otherActive = saleTypeFields.filter(f => f !== name && formData[f as keyof typeof formData]);
       if (otherActive.length === 0) {
-        sonner.toast('System Policy: One sale type must remain active. Auto-enabling Retail Mode. 🏪', 'warning');
-        setFormData(prev => ({ ...prev, [name]: false, retailEnabled: true }));
-        // Continue saving but with retail forced to true
-        handleInstantUpdate('retailEnabled', true);
+        sonner.warning('At least one sale type must remain active. Re-enable another sale type before disabling this one.');
         return;
       }
     }
@@ -581,6 +575,7 @@ export function Settings() {
     { id: 'receipt', label: 'Receipt Design', icon: Printer },
     { id: 'security', label: 'Security & Account', icon: Shield },
     { id: 'database', label: 'Database', icon: Database, adminOnly: true },
+    { id: 'backup', label: 'Backup & Restore', icon: Database },
   ];
 
   // Role logic removed — show all configured tabs (adminOnly flag retired)
@@ -1077,10 +1072,7 @@ export function Settings() {
                             size="sm"
                             color="bg-violet-500"
                             checked={formData.wholesaleEnabled}
-                            onChange={(v) => {
-                              setFormData(p => ({ ...p, wholesaleEnabled: v }));
-                              handleInstantUpdate('wholesaleEnabled', v);
-                            }}
+                            onChange={(v) => handleInstantUpdate('wholesaleEnabled', v)}
                           />
                         </label>
 
@@ -1097,10 +1089,7 @@ export function Settings() {
                             size="sm"
                             color="bg-violet-500"
                             checked={formData.estoreEnabled}
-                            onChange={(v) => {
-                              setFormData(p => ({ ...p, estoreEnabled: v }));
-                              handleInstantUpdate('estoreEnabled', v);
-                            }}
+                            onChange={(v) => handleInstantUpdate('estoreEnabled', v)}
                           />
                         </label>
 
@@ -1165,22 +1154,6 @@ export function Settings() {
                           />
                         </label>
 
-                        {/* Hard Block Credit Limit Toggle */}
-                        <label className="flex items-center justify-between p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl cursor-pointer group transition-all">
-                          <div className="flex items-center gap-3">
-                            <AlertTriangle className="w-4 h-4 text-rose-500" />
-                            <div>
-                              <span className="text-xs font-bold text-rose-600 dark:text-rose-400 block leading-none">{t("hard_block_credit_limit", "Block Credit Limit")}</span>
-                              <span className="text-[8px] text-rose-500/70 uppercase tracking-wider block mt-1">{t("hard_block_credit_limit_subtitle", "Block invoice if over limit")}</span>
-                            </div>
-                          </div>
-                          <ToggleSwitch
-                            size="sm"
-                            color="bg-rose-500"
-                            checked={!formData.allowCreditOverLimit}
-                            onChange={(v) => handleInstantUpdate('allowCreditOverLimit', !v)}
-                          />
-                        </label>
                       </div>
                     </div>
                   </div>
@@ -1188,7 +1161,7 @@ export function Settings() {
               </section>
             )}
 
-            {activeTab === 'database' && (
+            {(activeTab === 'database' || activeTab === 'backup') && (
               <section className="space-y-8">
                 <DatabaseTools />
               </section>
@@ -1709,8 +1682,9 @@ export function Settings() {
                   </div>
                 </div>
 
-                <div className="p-4 sm:p-8 bg-emerald-50/20 dark:bg-emerald-900/5 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/20 space-y-6">
-                  <div className="flex items-center justify-between p-4 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/5 rounded-2xl">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  <div className="lg:col-span-8 space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-gray-50/50 dark:bg-white/[0.02] border border-gray-200 dark:border-white/5 rounded-[2rem]">
                     <div>
                       <h4 className="font-bold text-gray-900 dark:text-white">Your Public Store Link</h4>
                       <p className="text-[10px] text-gray-500 mt-1">Share this link with your customers to start receiving orders.</p>
@@ -1726,7 +1700,7 @@ export function Settings() {
                   </div>
 
                   {/* Fulfillment Methods */}
-                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-5">
+                  <div className="p-4 sm:p-5 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-5">
                     <h4 className="text-sm font-bold text-gray-800 dark:text-white">Fulfillment Methods</h4>
 
                     {/* Shop Hours */}
@@ -1834,7 +1808,7 @@ export function Settings() {
 
 
                   {/* Shop Location & Delivery Area */}
-                  <div className="p-4 sm:p-5 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
+                  <div className="p-4 sm:p-5 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-4">
                     <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-emerald-500" /> Shop Location &amp; Delivery Area
                     </h4>
@@ -2204,12 +2178,27 @@ export function Settings() {
 
                   </div>
 
-                  <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5 mt-6">
+                  <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-[2rem] border border-gray-100 dark:border-white/5 mt-6">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                       Note: You can turn individual products on or off for the E-Store from the Inventory section by checking the "Show in Online Store" option when editing a product.
                     </p>
                   </div>
-                </div>
+                  </div>{/* close lg:col-span-8 */}
+                  <div className="lg:col-span-4 space-y-6">
+                    <div className="p-4 sm:p-6 bg-gray-50/50 dark:bg-white/[0.02] rounded-[2rem] border border-gray-200 dark:border-white/5 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                          <Globe className="w-5 h-5 text-emerald-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-black text-gray-900 dark:text-white">E-Store Access</h3>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-widest">Quick links</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">Open your public store or copy its link from the box above. Changes save automatically.</p>
+                    </div>
+                  </div>{/* close lg:col-span-4 */}
+                </div>{/* close lg:grid-cols-12 */}
               </section>
             )}
           </form>

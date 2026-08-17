@@ -9,7 +9,7 @@ import { customersService, bundlesService } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { localDb } from '../../lib/localDb';
 import { Bundle, CartItem, Customer } from '../../types';
-import { useApp } from '../../context/SupabaseAppContext';
+import { useApp, getDiscountIneligibilityReason } from '../../context/SupabaseAppContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, getCurrencySymbol } from '../../lib/currencies';
@@ -205,8 +205,6 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
         phone: newCustomer.phone,
         email: newCustomer.email,
         address: '',
-        creditLimit: 0,
-        creditUsed: 0,
         priceTier: 'retail',
         totalPurchases: 0,
       };
@@ -372,7 +370,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 <User className="h-3.5 w-3.5" />
                 {t('select_customer', 'Select Customer')}
               </button>
-              <HelpTooltip content="Link a customer to track credit sales, loyalty history, and send instant WhatsApp receipts upon settlement." />
+              <HelpTooltip content="Link a customer to track loyalty history and send instant WhatsApp receipts upon settlement." />
             </div>
           )}
 
@@ -427,11 +425,6 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                                 {customer.phone || customer.email || 'No contact info'}
                               </p>
                             </div>
-                            {customer.creditUsed > 0 && (
-                              <span className="text-[9px] font-black text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                Credit: {formatCurrency(customer.creditUsed, state.settings.currency)}
-                              </span>
-                            )}
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); setViewingCustomer(customer); setShowCustomerSearch(false); }}
@@ -894,7 +887,7 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
                 >
                   {t('checkout', 'Checkout')}
                 </button>
-                <HelpTooltip content="Proceed to settlement modal to collect cash, split payments, record credit sales, and print/WhatsApp receipt." />
+                <HelpTooltip content="Proceed to settlement modal to collect cash, split payments, and print/WhatsApp receipt." />
               </span>
             </div>
           </div>
@@ -910,53 +903,78 @@ export function Cart({ onCheckout, onSaveDraft, isMobileDrawer, onClose }: CartP
         maxWidth="sm"
       >
         <div className="space-y-3">
-          {state.discounts.filter(d => d.active).map(d => (
-            <button
-              key={d.id}
-              onClick={() => {
-                setBillDiscountInput(String(d.value));
-                dispatch({
-                  type: 'UPDATE_SALES_TAB',
-                  payload: {
-                    id: state.activeSalesTab,
-                    updates: {
-                      billDiscountValue: d.value,
-                      billDiscountType: d.type === 'percentage' ? 'percentage' : 'fixed'
+          {state.discounts.filter(d => d.active).map(d => {
+            const reason = getDiscountIneligibilityReason(d, state.cart, state.selectedCustomer, 'cash', subtotal);
+            const isEligible = !reason;
+            const isAuto = d.isAutoApply !== false;
+            const disabled = !isEligible || isAuto;
+            return (
+              <button
+                key={d.id}
+                disabled={disabled}
+                onClick={() => {
+                  if (disabled) return;
+                  setBillDiscountInput(String(d.value));
+                  dispatch({
+                    type: 'UPDATE_SALES_TAB',
+                    payload: {
+                      id: state.activeSalesTab,
+                      updates: {
+                        billDiscountValue: d.value,
+                        billDiscountType: d.type === 'percentage' ? 'percentage' : 'fixed'
+                      }
                     }
-                  }
-                });
-                setShowPromoModal(false);
-                sonner.success(`"${d.name}" applied!`);
-              }}
-              className="w-full text-left p-5 bg-gray-50 dark:bg-white/5 hover:bg-emerald-50 dark:hover:bg-primary/10 border border-gray-200 dark:border-white/5 rounded-2xl transition-all active:scale-[0.98] group relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-8 -mt-8 group-hover:bg-primary/10 transition-colors" />
+                  });
+                  setShowPromoModal(false);
+                  sonner.success(`"${d.name}" applied!`);
+                }}
+                className={`w-full text-left p-5 bg-gray-50 dark:bg-white/5 border rounded-2xl transition-all relative overflow-hidden ${disabled
+                  ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5'
+                  : 'border-gray-200 dark:border-white/5 hover:bg-emerald-50 dark:hover:bg-primary/10 active:scale-[0.98] group'
+                  }`}
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-8 -mt-8 transition-colors" />
 
-              <div className="flex justify-between items-start mb-2 relative z-10">
-                <div className="space-y-0.5">
-                  <p className="font-black text-[12px] text-gray-900 dark:text-white uppercase tracking-tight group-hover:text-primary transition-colors">{d.name}</p>
-                  <p className="text-[8px] font-black text-gray-600 uppercase tracking-[0.2em]">Promotion ID: {d.id.slice(-6).toUpperCase()}</p>
+                <div className="flex justify-between items-start mb-2 relative z-10">
+                  <div className="space-y-0.5">
+                    <p className={`font-black text-[12px] uppercase tracking-tight transition-colors ${disabled ? 'text-gray-900 dark:text-white' : 'text-gray-900 dark:text-white group-hover:text-primary'}`}>{d.name}</p>
+                    <p className="text-[8px] font-black text-gray-600 uppercase tracking-[0.2em]">Promotion ID: {d.id.slice(-6).toUpperCase()}</p>
+                  </div>
+                  <span className="flex items-center gap-1.5">
+                    {isAuto && isEligible && (
+                      <span className="text-[8px] font-black text-white bg-blue-500 px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                        Auto
+                      </span>
+                    )}
+                    <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 shadow-sm">
+                      {d.type === 'percentage' ? d.value + '%' : formatCurrency(d.value, state.settings.currency)} OFF
+                    </span>
+                  </span>
                 </div>
-                <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 shadow-sm">
-                  {d.type === 'percentage' ? d.value + '%' : formatCurrency(d.value, state.settings.currency)} OFF
-                </span>
-              </div>
 
-              {d.minAmount ? (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-white/5 relative z-10">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-                  <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">
-                    Unlock at {formatCurrency(d.minAmount, state.settings.currency)}+
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-white/5 relative z-10">
-                  <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                  <p className="text-[9px] text-primary/60 font-black uppercase tracking-widest">Available for all orders</p>
-                </div>
-              )}
-            </button>
-          ))}
+                {!isEligible ? (
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-white/5 relative z-10">
+                    <AlertCircle className="h-3 w-3 text-rose-500 shrink-0" />
+                    <p className="text-[9px] text-rose-500 font-black uppercase tracking-widest">{reason}</p>
+                  </div>
+                ) : d.minAmount ? (
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-white/5 relative z-10">
+                    <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                    <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest">
+                      Unlock at {formatCurrency(d.minAmount, state.settings.currency)}+
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-white/5 relative z-10">
+                    <div className="w-1.5 h-1.5 bg-primary rounded-full" />
+                    <p className="text-[9px] text-primary/60 font-black uppercase tracking-widest">
+                      {isAuto ? 'Auto-applied to bill' : 'Available for all orders'}
+                    </p>
+                  </div>
+                )}
+              </button>
+            );
+          })}
 
           {state.discounts.filter(d => d.active).length === 0 && (
             <div className="py-12 text-center">

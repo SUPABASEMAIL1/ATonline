@@ -23,10 +23,9 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
     email: '',
     phone: '',
     address: '',
-    creditLimit: '',
     priceTier: 'retail' as 'retail' | 'wholesale' | 'premium',
     notes: '',
-    preferredCategories: '',
+    preferredCategories: [] as string[],
   });
 
   useEffect(() => {
@@ -36,10 +35,9 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
         email: customer.email,
         phone: customer.phone,
         address: customer.address,
-        creditLimit: customer.creditLimit.toString(),
         priceTier: customer.priceTier,
         notes: customer.notes || '',
-        preferredCategories: customer.preferredCategories?.join(', ') || '',
+        preferredCategories: customer.preferredCategories || [],
       });
     } else {
       setFormData({
@@ -47,13 +45,21 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
         email: '',
         phone: '',
         address: '',
-        creditLimit: '0',
         priceTier: 'retail',
         notes: '',
-        preferredCategories: '',
+        preferredCategories: [],
       });
     }
   }, [customer]);
+
+  const togglePreferredCategory = (categoryName: string) => {
+    setFormData(prev => ({
+      ...prev,
+      preferredCategories: prev.preferredCategories.includes(categoryName)
+        ? prev.preferredCategories.filter(c => c !== categoryName)
+        : [...prev.preferredCategories, categoryName],
+    }));
+  };
 
   if (!isOpen) return null;
 
@@ -78,10 +84,9 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
       email: formData.email,
       phone: formData.phone,
       address: formData.address,
-      creditLimit: parseFloat(formData.creditLimit) || 0,
       priceTier: formData.priceTier,
       notes: formData.notes,
-      preferredCategories: formData.preferredCategories.split(',').map(c => c.trim()).filter(c => c),
+      preferredCategories: formData.preferredCategories,
     };
 
 
@@ -188,18 +193,6 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('credit_limit_label', 'Credit Limit')}</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                name="creditLimit"
-                value={formData.creditLimit}
-                onChange={handleChange}
-                className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none text-gray-900 dark:text-white text-[20px] font-black rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 transition-all"
-                placeholder="0.00"
-              />
-            </div>
-            <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('pricing_tier_req', 'Pricing Tier *')}</label>
               <Select
                 name="priceTier"
@@ -210,6 +203,42 @@ export function CustomerModal({ isOpen, onClose, customer }: CustomerModalProps)
                 <option value="retail" className="dark:bg-surface">{t('standard_retail', 'Standard Retail')}</option>
                 <option value="wholesale" className="dark:bg-surface">{t('wholesale_logic', 'Wholesale Logic')}</option>
               </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Preferences */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          <h3 className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest flex items-center gap-3">
+            <span className="w-8 h-px bg-gray-200 dark:bg-white/10"></span>
+            {t('preferences', 'Preferences')}
+          </h3>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t('preferred_categories', 'Preferred Categories')}</label>
+            <div className="flex flex-wrap gap-2">
+              {state.categories.length === 0 ? (
+                <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400">{t('no_categories_available', 'No categories available')}</p>
+              ) : (
+                state.categories.map(category => {
+                  const isSelected = formData.preferredCategories.includes(category.name);
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => togglePreferredCategory(category.name)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border",
+                        isSelected
+                          ? "bg-emerald-500 text-white border-emerald-500 shadow-sm active:scale-95"
+                          : "bg-[#f8f9fa] dark:bg-black/75 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-white/10 hover:border-emerald-300 active:scale-95"
+                      )}
+                    >
+                      {category.name}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

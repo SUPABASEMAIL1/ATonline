@@ -161,7 +161,12 @@ export default function InventoryReportManager({
             const itemProdId = item.product?.id || (item as any).productId;
             return itemProdId === product.id;
           })
-          .reduce((s, item) => s + getItemCOGS(item).cost, 0);
+          .reduce((s, item) => {
+            const baseQty = item.weight ? Number(item.weight) : (Number(item.quantity) || 0);
+            const net = netItemQty(item);
+            const ratio = baseQty > 0 ? net / baseQty : 0;
+            return s + getItemCOGS(item).cost * ratio;
+          }, 0);
       }, 0);
 
       const grossProfit = revenue - cogs;

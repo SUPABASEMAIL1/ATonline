@@ -11,7 +11,7 @@ import {
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useApp } from '../../context/SupabaseAppContext';
 import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
-import { expensesService } from '../../lib/services';
+import { expensesService, suppliersService } from '../../lib/services';
 import { Expense, EXPENSE_CATEGORIES } from '../../types';
 import { ExpenseModal } from './ExpenseModal';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -159,15 +159,16 @@ export function ExpenseManager() {
   // Role logic removed — single-tenant POS: authenticated user has full access
   const isAdmin = true;
 
-  const handleSave = async (expenseData: Omit<Expense, 'id' | 'createdAt'>) => {
+  const handleSave = async (expenseData: Omit<Expense, 'id' | 'createdAt'> & { supplierId?: string }) => {
     // Only allow editing for admins, but anyone (manager/admin) can add
     if (editingExpense && !isAdmin) {
       sonner.error('Only administrators can edit expenses.');
       return;
     }
 
+    const { supplierId, ...expenseCore } = expenseData;
     const fullExpenseData = {
-      ...expenseData,
+      ...expenseCore,
       addedBy: state.currentUser?.name || state.currentUser?.username || 'Operator',
     };
 
@@ -180,6 +181,19 @@ export function ExpenseManager() {
         const created = await expensesService.create(fullExpenseData);
         dispatch({ type: 'ADD_EXPENSE', payload: created });
         sonner.success('Expense added successfully.');
+
+        // #17: a Supplies expense linked to a supplier raises their payable
+        if (supplierId) {
+          await suppliersService.recordBill({
+            supplierId,
+            amount: Number(fullExpenseData.amount),
+            note: fullExpenseData.description || 'Supplies expense',
+            referenceId: created.id,
+            sourceType: 'manual_bill',
+            isManualOverride: fullExpenseData.isManualOverride,
+            overrideBy: fullExpenseData.overrideBy,
+          });
+        }
       }
       setIsModalOpen(false);
       setEditingExpense(null);

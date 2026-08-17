@@ -285,7 +285,7 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={discount ? t('edit_privilege') : t('register_new_privilege')}
+      title={discount ? t('edit_privilege', 'Edit Discount') : t('register_new_privilege', 'New Discount')}
       maxWidth="lg"
       footer={
         <div className="flex items-center justify-end gap-2 sm:gap-3 w-full">
@@ -303,7 +303,7 @@ export function DiscountModal({ isOpen, onClose, discount }: DiscountModalProps)
             onClick={handleSubmit}
             className="flex-1 sm:flex-none sm:min-w-[240px]"
           >
-            {discount ? t('edit_privilege') : t('register_privilege')}
+            {discount ? t('edit_privilege', 'Edit Discount') : t('register_privilege', 'New Discount')}
           </Button>
         </div>
       }

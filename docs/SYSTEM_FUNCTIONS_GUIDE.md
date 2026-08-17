@@ -12,7 +12,8 @@
 ┌─────────────────────────────────────────────────────────┐
 │  APP LAYER (src/)                                       │
 │  · src/lib/services.ts        — all CRUD, applyVariant-  │
-│    StockMovement, reconcileAllStock                      │
+│    StockMovement, reconcileAllStock, adjustPaymentBalances│
+│    () + seedPaymentModes() (per-method wallets)          │
 │  · src/lib/syncEngine.ts      — offline queue, P0007     │
 │    handling, realtime merge, prune policies              │
 │  · src/lib/stockInCommit.ts   — SHARED commitStockIn-    │
@@ -31,7 +32,8 @@
 │  · trigger_release_estore_stock() — estore cancel →      │
 │    stock wapas                                            │
 │  · place_estore_order(), process_sale(), process_return(),│
-│    get_next_invoice_number()   — RPCs                     │
+│    get_next_invoice_number(), apply_payment_movements()   │
+│    — RPCs (wallets)                                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -50,6 +52,7 @@
 | 7 | `place_estore_order()` | RPC | inserts order (delivery_address) + reserve: product→`stock_history`, variant item→`variant_stock_history` (F22) | estore checkout | ✅ PASS reserve tracked+variant |
 | 8 | `process_sale()` / `process_return()` | RPC | atomic sale/return | invoice/stock committed server-side | ✅ present |
 | 9 | `get_next_invoice_number()` | RPC | invoice sequence | collision-safe invoice numbers | ✅ present |
+| 10 | `apply_payment_movements()` | RPC | `payment_modes` + `payment_movements` | F23: per-method wallet balances — atomic + idempotent delta adjust (ledger `payment_movements` with `ON CONFLICT DO NOTHING` → `IF FOUND` update balance). Splits proportional. | ✅ live on 3/4 projects (atonline skipped) |
 
 > ⚠️ **2026-08-12 FIX (TESTS_GUIDE battery):** estore functions were BROKEN on all projects — referenced never-existing columns (`address`/`table_number`/`fulfillment_mode`) + `reference_id` UUID cast `::text`. Fixed in migration `20260812235500_fix_estore_place_order_bugs.sql`: `delivery_address` used (jo app `toRemoteStoreOrder` bhejta hai), UUID refs, variant-aware reserve/release. Also fixed `products` post-launch columns (Minimahal missing `product_type` etc.) + `variant_stock_history` CHECK 7-type set (PizzaMilano missing `'purchase'`) — migration `20260813000000_fix_products_variant_history_schema_parity.sql`.
 
@@ -107,6 +110,48 @@ DELETE (reversal): purchaseRecordsService.delete() → ONE 'adjustment' entry (�
 
 ---
 
+## 4️⃣.5️⃣ FLOW — F23 PER-METHOD WALLET BALANCES (cash / card / online / wallet)
+
+Har payment method ka **apna authoritative balance** hai (`payment_modes` table). Sale/refund/delete har method ke wallet ko atomically + idempotently adjust karta hai — split payment proportional split hota hai.
+
+```
+SALE complete (CheckoutPage)
+   │
+   └─► adjustPaymentBalances(buildSalePaymentMoves(sale))
+            │  moves = sale.paymentMethod==='split'
+            │     ? splitPayments.map(p => {modeId:p.method, delta:+p.amount})
+            │     : [{modeId:sale.paymentMethod, delta:+sale.total}]
+            │
+            ├─ local optimistic: paymentModes.balance += delta  (instant UI)
+            └─ online: supabase.rpc('apply_payment_movements', {p_moves})
+                   │  RPC: har move ko payment_movements mein INSERT
+                   │       (id UUID, ON CONFLICT DO NOTHING → IF FOUND)
+                   │  idempotent: dobara send (offline flush) double-count NAHI
+                   └─ balance = balance + delta   (cloud authoritative)
+            offline: queueOp('payment_movements','apply',batchId,moves)
+                   └─ syncEngine flushes via same RPC (F20 self-heal)
+
+REFUND (returnSale):  ratio = refundedAmount / total
+   └─► adjustPaymentBalances(buildReversePaymentMoves(sale, ratio))
+         → har method se proportional minus (split-aware)
+
+DELETE (salesService.delete): delRatio = (total - refundedAmount)/total
+   └─► adjustPaymentBalances(buildReversePaymentMoves(sale, delRatio))
+         → sirf un-refunded portion reverse (refunded qty exclude — stock jaisa)
+
+REALTIME: SupabaseAppContext subscribes payment_modes → local mirror update
+   (doosre device ki sale is device ke wallet balance ko live update karti hai)
+```
+
+**RULES (enforced in code):**
+- `normalizePaymentMethod('digital') → 'online'` — legacy `digital` sales = `online` wallet (backward compat, reporting alias).
+- Methods: **cash, card, online, wallet** (+ `split`). `wallet` = customer prepaid wallet.
+- Balance sirf `apply_payment_movements` RPC se change hota hai — `payment_modes` row direct update client se KABHI nahi (stock jaisa F2 pattern).
+- Seed: 4 default modes `seedPaymentModes()` (boot par, `upsert ... ignoreDuplicates` — cloud balance KABHI reset na ho).
+- Idempotency: har move ka unique UUID id → RPC `ON CONFLICT DO NOTHING`, is liye offline re-flush double-count nahi karta.
+
+---
+
 ## 5️⃣ FLOW — SYNC & RECOVERY (syncEngine.ts)
 
 - **P0007 / `stale_write` response** → op `drop` (error-queue NAHI — retry kabhi kamyab nahi ho sakta) + cloud se refresh. `F20`: type/constraint errors (`22P02`/`22003`/`23514`) → op **error** mark (owner review) — kabhi hard-delete mat karo.
@@ -161,6 +206,24 @@ product with variant_data[{id:'v1',stock:2}] → INSERT variant_stock_history +3
 
 **D) Residue check (har project):** `count` test ids — har ek `= 0`. Production kabhi test data se pollute nahi.
 
+**E) Wallet RPC battery (F23 — 3/4 projects: jeanzone, minimahal, pizzamilano; atonline skipped):**
+```sql
+-- 1. tables + rpc exist
+SELECT count(*) FROM payment_modes;                 -- expect 4 (cash/card/online/wallet)
+SELECT proname FROM pg_proc WHERE proname='apply_payment_movements';  -- expect 1
+
+-- 2. atomic adjust (use REAL uuid for id!)
+SELECT apply_payment_movements('[{"id":"<uuid1>","mode_id":"cash","delta":250}]'::jsonb);  -- success
+SELECT balance FROM payment_modes WHERE id='cash';   -- expect 250.00
+SELECT apply_payment_movements('[{"id":"<uuid2>","mode_id":"cash","delta":-250}]'::jsonb); -- success
+SELECT balance FROM payment_modes WHERE id='cash';   -- expect 0.00  (idempotent, no double count)
+
+-- 3. cleanup (remove test ledger rows, reset balance)
+DELETE FROM payment_movements WHERE id IN ('<uuid1>','<uuid2>');
+UPDATE payment_modes SET balance=0 WHERE id='cash';
+```
+Expected: steps 1–2 PASS, balances exactly 250→0, zero residue after cleanup.
+
 ---
 
 ## 8️⃣ TROUBLESHOOTING CHEATSHEET (DB)
@@ -176,7 +239,7 @@ product with variant_data[{id:'v1',stock:2}] → INSERT variant_stock_history +3
 
 ---
 
-*Last verified: 2026-08-12 — F21+F22 full battery, 4/4 projects, 16/16 PASS, zero residue. Keep this guide updated in the SAME change as any schema/flow change.*
+*Last verified: 2026-08-17 — F21+F22 battery (4/4), + F23 per-method wallet system added & E2E verified on 3/4 projects (jeanzone, minimahal, pizzamilano; atonline skipped — invalid mgmt key). Keep this guide updated in the SAME change as any schema/flow change.*
 ## 5️⃣ CORE DATA GOVERNANCE RULES (Enforced in Code & DB)
 
 ### 🚫 SHIFT SYSTEM PERMANENTLY REMOVED (Rule F7)
@@ -191,4 +254,11 @@ To prevent database bloat without affecting POS financials:
 - **Trigger**: Runs automatically inside `startSyncEngine()` on startup (and hourly).
 - **Behavior**: Scans for `store_orders` where `status = 'cancelled'` and `updated_at` is older than 24 hours. Deletes them from the local cache and queues a remote hard-delete.
 - **Safety**: `trigger_release_estore_stock()` releases stock instantly upon cancellation. The 24-hour delayed deletion only removes the ghost record (it has zero inventory side-effects since stock was already restored).
+
+### 💳 PER-METHOD WALLET BALANCES ARE FINANCIAL LEDGER (Rule F23)
+As of 2026-08-17, each payment method (cash / card / online / wallet) holds an authoritative running balance in `payment_modes`, adjusted only via the `apply_payment_movements` RPC (idempotent ledger).
+- **Never** update `payment_modes.balance` directly from client/app code — always go through `adjustPaymentBalances()` → RPC (stock/F2 pattern).
+- **Never** delete `payment_modes` rows or reset balances outside a sale/refund/delete flow.
+- **Split** payments are proportional: each `splitPayments[]` entry credits its own wallet; refunds/deletes reverse per-method proportionally.
+- `normalizePaymentMethod('digital') → 'online'` keeps legacy sales compatible.
 

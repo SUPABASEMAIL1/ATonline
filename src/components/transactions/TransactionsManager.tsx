@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, RefreshCw, CreditCard, Banknote, Smartphone, Receipt, FileText, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag, MapPin, Briefcase } from 'lucide-react';
+import { Eye, RefreshCw, CreditCard, Banknote, Smartphone, X, ShoppingCart, Edit, Trash2, Printer, Share2, Store, Globe, ChevronLeft, LayoutGrid, Wallet, TrendingUp, Package, History, MessageCircle, RotateCcw, Hash, Layers, User, Gift, Building2, ShoppingBag, MapPin, Briefcase } from 'lucide-react';
 import { useApp } from '../../context/SupabaseAppContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
 import { formatCurrency, formatNumberWithPrecision, getCurrencySymbol } from '../../lib/currencies';
 import { Sale } from '../../types';
-import { CheckoutModal } from '../pos/CheckoutModal';
 import { ReceiptPrint } from '../pos/ReceiptPrint';
 import { salesService, productsService, customersService, getAmountByMethod } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
@@ -18,7 +17,7 @@ import { TransactionDetailModal } from './TransactionDetailModal';
 import RefundSaleModal from './RefundSaleModal';
 import { RefundRequest } from '../../types';
 import { SharedSearchBar } from '../../shared/modules/search-and-list';
-import { Badge, BadgeTone, Button, DateRangePicker, Pagination } from '../../shared/ui';
+import { Badge, BadgeTone, Button, DateRangePicker, Pagination, SegmentedControl } from '../../shared/ui';
 import { ExportButton } from '../../shared/export';
 
 
@@ -49,6 +48,7 @@ export function TransactionsManager() {
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
   const [saleTypeFilter, setSaleTypeFilter] = useState<'all' | 'retail' | 'wholesale' | 'estore'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'sales' | 'refunds'>('all');
   const [selectedCashier, setSelectedCashier] = useState('all');
   const [selectedSalesman, setSelectedSalesman] = useState('all');
   const [isSearchingRemote, setIsSearchingRemote] = useState(false);
@@ -257,9 +257,14 @@ export function TransactionsManager() {
       const matchesSaleType = saleTypeFilter === 'all' || sale.saleType === saleTypeFilter || (!sale.saleType && saleTypeFilter === 'retail');
       const matchesCashier = selectedCashier === 'all' || sale.cashier === selectedCashier;
       const matchesSalesman = selectedSalesman === 'all' || sale.salesmanName === selectedSalesman;
-      return matchesSearch && matchesPayment && matchesSaleType && matchesCashier && matchesSalesman;
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'sales'
+          ? (sale.status !== 'refunded' && sale.status !== 'partially_refunded')
+          : (sale.status === 'refunded' || sale.status === 'partially_refunded'));
+      return matchesSearch && matchesPayment && matchesSaleType && matchesCashier && matchesSalesman && matchesStatus;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [isCloudSearch, cloudResults, dateFiltered, searchTerm, paymentFilter, saleTypeFilter, selectedCashier, selectedSalesman]);
+  }, [isCloudSearch, cloudResults, dateFiltered, searchTerm, paymentFilter, saleTypeFilter, selectedCashier, selectedSalesman, statusFilter]);
 
   const totalRevenue = filteredTransactions.reduce((s, x) => s + (x.total - (x.refundedAmount || 0)), 0);
   const totalTransactions = filteredTransactions.length;
@@ -288,7 +293,6 @@ export function TransactionsManager() {
       cash: 0,
       card: 0,
       digital: 0,
-      credit: 0,
     };
 
     // UNIVERSAL WALLET RULE: wallet totals must mirror ReportsManager —
@@ -321,7 +325,6 @@ export function TransactionsManager() {
           ? refundedAmt * (getAmountByMethod(t, 'digital') / (t.total || 1))
           : (t.paymentMethod === 'digital' ? refundedAmt : 0)));
       }
-      totals.credit += getAmountByMethod(t, 'credit');
     });
 
     return totals;
@@ -336,34 +339,11 @@ export function TransactionsManager() {
   const canEditSale = isAdmin || profile?.canEditSale;
   const canDeleteSale = isAdmin || profile?.canDeleteSale;
 
-  const handleDeleteSale = async (tx: Sale) => {
-    if (!canDeleteSale) return;
-    const result = await sonner.confirm('Delete Sale?', 'This will permanently delete this record and revert stock.', 'Yes, delete it!');
-    if (!result.isConfirmed) return;
-    try {
-      sonner.loading('Deleting...');
-      if (tx.id) {
-        const affectedProducts = await salesService.delete(tx.id);
-        dispatch({ type: 'DELETE_SALE', payload: tx.id });
-
-        affectedProducts.forEach(p => {
-          dispatch({ type: 'UPDATE_PRODUCT', payload: p });
-        });
-      }
-      sonner.success('Sale deleted and stock reverted.');
-    } catch {
-      sonner.error('Failed to delete sale.');
-    } finally {
-      sonner.close();
-    }
-  };
-
   const getPaymentIcon = (method: string) => {
     switch (method) {
       case 'cash': return <Banknote className="h-4 w-4 text-primary dark:text-emerald-400" />;
       case 'card': return <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
       case 'digital': return <Smartphone className="h-4 w-4 text-primary dark:text-emerald-400" />;
-      case 'credit': return <Receipt className="h-4 w-4 text-amber-600 dark:text-amber-400" />;
       default: return <CreditCard className="h-4 w-4 text-gray-600" />;
     }
   };
@@ -375,7 +355,6 @@ export function TransactionsManager() {
       case 'pending':
       case 'partially_refunded': return 'warning';
       case 'refunded': return 'danger';
-      case 'credit': return 'info';
       default: return 'neutral';
     }
   };
@@ -607,18 +586,7 @@ export function TransactionsManager() {
             </div>
           </div>
 
-          {/* Credit Ledger Card */}
-          <div className="relative overflow-hidden bg-white dark:bg-[#1C1C1C] border border-gray-200 dark:border-white/5 rounded-2xl p-4 flex items-center justify-between transition-all hover:scale-[1.02] hover:border-rose-500/30 dark:hover:border-rose-500/30 shadow-sm">
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest leading-none">{t("credit", "Credit Ledger")}</span>
-              <span className="text-base font-black text-rose-600 dark:text-rose-500 tabular-nums mt-1.5 leading-none">
-                {formatCurrency(walletTotals.credit, state.settings.currency)}
-              </span>
-            </div>
-            <div className="w-8 h-8 bg-rose-500/10 rounded-xl flex items-center justify-center border border-rose-500/10">
-              <FileText className="h-4 w-4 text-rose-500" />
-            </div>
-          </div>
+          {/* Credit Ledger Card removed */}
         </div>
       </div>
 
@@ -640,6 +608,16 @@ export function TransactionsManager() {
                 onChange={(val: any) => { setSaleTypeFilter(val); setCurrentPage(1); }}
                 icon={LayoutGrid}
               />
+              <SegmentedControl
+                options={[
+                  { label: t("all_status", "All"), value: 'all' },
+                  { label: t("sales", "Sales"), value: 'sales' },
+                  { label: t("refunds", "Refunds"), value: 'refunds' }
+                ]}
+                value={statusFilter}
+                onChange={(val: string) => { setStatusFilter(val as any); setCurrentPage(1); }}
+                className="lg:w-[280px]"
+              />
             </div>
             <div className="grid grid-cols-2 lg:flex items-center gap-2 w-full lg:w-auto">
               <SearchableSelect
@@ -647,8 +625,7 @@ export function TransactionsManager() {
                   { id: 'all', label: t("payment_all", "Payment: All") },
                   { id: 'cash', label: t("cash", "Cash") },
                   { id: 'card', label: t("card", "Card") },
-                  { id: 'digital', label: t("digital", "Bank Transfer") },
-                  { id: 'credit', label: t("credit", "Credit Debt") }
+                  { id: 'digital', label: t("digital", "Bank Transfer") }
                 ]}
                 value={paymentFilter}
                 onChange={val => { setPaymentFilter(val); setCurrentPage(1); }}
@@ -819,7 +796,7 @@ export function TransactionsManager() {
             <div key={tx.id} onClick={() => setSelectedTransaction(tx)} className="p-3 rounded-[1.5rem] bg-white dark:bg-surface border border-gray-200 dark:border-white/5 shadow-sm active:scale-[0.98] transition-all">
               <div className="flex justify-between items-start gap-1">
                 <p className="text-[8px] font-black text-gray-600 dark:text-gray-400 uppercase mb-1">#{tx.invoiceNumber || tx.receiptNumber}</p>
-                {tx.status !== 'completed' && tx.status !== 'credit' && (
+                {tx.status !== 'completed' && (
                   <Badge tone={getStatusTone(tx.status)} size="sm">
                     {tx.status}
                   </Badge>
@@ -835,6 +812,60 @@ export function TransactionsManager() {
                   <span className="text-[11px] font-black text-rose-500 leading-none mt-0.5">
                     {formatCurrency(tx.total - tx.refundedAmount, state.settings.currency)}
                   </span>
+                )}
+              </div>
+              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/5 flex items-center justify-end gap-1.5">
+                <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedTransaction(tx); }} className="!min-h-0 !p-1.5 !rounded-lg !text-primary hover:!bg-emerald-50 dark:hover:!bg-primary/10" title="View Detail"><Eye className="h-4 w-4" /></Button>
+                <Button variant="ghost" onClick={(e) => { e.stopPropagation(); setReprintSale(tx); }} className="!min-h-0 !p-1.5 !rounded-lg !text-blue-600 hover:!bg-blue-50 dark:hover:!bg-blue-500/10" title="Quick Print"><Printer className="h-4 w-4" /></Button>
+                {canEditSale && (
+                  <Button
+                    variant="ghost"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const res = await sonner.confirm('Edit Sale?', 'Load items and notes to cart for editing?', 'Yes');
+                      if (res.isConfirmed) {
+                        try {
+                          dispatch({ type: 'CLEAR_CART' });
+                          tx.items.forEach(item => dispatch({ type: 'ADD_TO_CART', payload: item }));
+                          dispatch({ type: 'SET_NOTES', payload: tx.notes || '' });
+                          dispatch({ type: 'SET_EDITING_SALE_ID', payload: tx.id });
+                          if (tx.customerId) {
+                            const customer = state.customers.find(c => c.id === tx.customerId);
+                            if (customer) dispatch({ type: 'SET_SELECTED_CUSTOMER', payload: customer });
+                          }
+                          sonner.success('Loaded to POS for editing.');
+                          navigate('/pos');
+                        } catch { sonner.error('Error.'); }
+                      }
+                    }}
+                    className="!min-h-0 !p-1.5 !rounded-lg !text-amber-600 hover:!bg-amber-50"
+                    title="Edit Sale"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                )}
+                {canDeleteSale && (
+                  <Button
+                    variant="ghost"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const isGhost = !tx.items || tx.items.length === 0 || !tx.total;
+                      const title = isGhost ? 'Delete Empty Record?' : 'Delete Sale?';
+                      const msg = isGhost ? 'Remove this empty/ghost row?' : 'Revert all records?';
+                      const res = await sonner.confirm(title, msg, 'Delete');
+                      if (res.isConfirmed) {
+                        try {
+                          await salesService.delete(tx.id, profile?.name || 'Admin');
+                          dispatch({ type: 'DELETE_SALE', payload: tx.id });
+                          sonner.success('Deleted.');
+                        } catch { sonner.error('Error.'); }
+                      }
+                    }}
+                    className="!min-h-0 !p-1.5 !rounded-lg !text-rose-600 hover:!bg-rose-50"
+                    title="Delete Permanently"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 )}
               </div>
             </div>

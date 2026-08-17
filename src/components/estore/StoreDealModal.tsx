@@ -74,8 +74,6 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
     }
   }, [isOpen, bundle.id]);
 
-  if (!isOpen) return null;
-
   const nameBasedTier = useMemo(() => {
     const lower = bundle.name.toLowerCase();
     if (lower.includes(' - large')) return 1;
@@ -255,26 +253,27 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
       }
 
       const effectiveBundle = { ...bundle, items: effectiveItems };
-      const cartItems = bundlesService.getBundleCartItems(effectiveBundle, products);
+
+      // E3: price the cart at the selected size tier so it matches the modal's displayed price.
+      // For fixed-price (overridePrice) bundles the tier is ignored — the advertised fixed price wins.
+      const useTier = (bundle.overridePrice !== undefined && bundle.overridePrice !== null)
+        ? undefined
+        : effectiveTier;
+      const cartItems = bundlesService.getBundleCartItems(effectiveBundle, products, useTier);
 
       if (!cartItems || cartItems.length === 0) {
         sonner.error('No products available in this deal');
         return;
       }
 
-      // Apply variant pricing when size tier is selected
-      const sizedCartItems = effectiveTier > 0 ? cartItems.map(item => {
+      // Attach the chosen variant label only — price/subtotal already handled by getBundleCartItems via useTier.
+      const sizedCartItems = cartItems.map(item => {
         const p = products.find(pr => pr.id === item.product.id);
-        if (p?.variantData?.[effectiveTier]?.priceOverride) {
-          const vp = p.variantData[effectiveTier].priceOverride;
-          return {
-            ...item,
-            subtotal: (vp * item.quantity) - item.discount,
-            selectedVariant: p.variantData[effectiveTier].option1 || undefined,
-          };
-        }
-        return item;
-      }) : cartItems;
+        const vLabel = (typeof useTier === 'number' && p?.variantData?.[useTier])
+          ? (p.variantData[useTier].option1 || undefined)
+          : item.selectedVariant;
+        return { ...item, selectedVariant: vLabel };
+      });
 
       // Merge deal-level toppings into ALL cart items (price added only once)
       const finalCartItems = sizedCartItems.map((item, idx) => {
@@ -310,6 +309,8 @@ export function StoreDealModal({ bundle, products, currency, isOpen, onClose, on
       return (bundle.items || []).map(bi => products.find(p => p.id === bi.productId)).filter(Boolean) as Product[];
     }
   }, [bundle, products]);
+
+  if (!isOpen) return null;
 
   const bannerImage = previewProducts[0]?.image || null;
 

@@ -1,15 +1,15 @@
-# 🏗️ Zaynahs POS — MASTER CURSOR RULES (ALL FIXES MERGED)
-> Replace your entire .cursorrules file with this. Every known bug is addressed here permanently.
+# 🏗️ Zaynahs POS — MASTER RULES (ALL FIXES MERGED)
+> Every known bug is addressed here permanently. Yeh file AI agents ke liye single source of truth hai.
 
 > ⚡ **Supabase Management API Only** — All database operations MUST use the `sbp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` token + curl/API. 
 > Prisma and direct DB connections have been completely removed. See [@docs/supabase-api-guide.md](docs/supabase-api-guide.md) for complete API reference.
 
 ---
 
-## 🚀 MANDATORY ALL-PROJECT PUSH RULE (MANDATORY)
+## 🚀 MANDATORY PROJECT PUSH RULE (MANDATORY)
 
-- **Push Everywhere:** Whenever you make ANY code change, bug fix, or schema update, you MUST ALWAYS push the updated code to ALL 4 projects immediately. 
-- **Command:** `git push origin main && git push atonline main && git push minimahalpos main && git push pizzamilano main`
+- **Push Everywhere:** Whenever you make ANY code change, bug fix, or schema update, you MUST ALWAYS push the updated code to ALL active clone projects immediately.
+- **Command:** `git push origin main` (har active clone ka apna repo/remote — current list: `zaynahspos v2` single project)
 - **Never Skip:** Never assume a fix is just for one project. Code updates must be synced globally so all clones stay 100% identical.
 
 
@@ -20,10 +20,46 @@
 - **Global Code Changes:** ALL fixes (whether it's CSS, layout, logic, or bug fixes) MUST be implemented in the core codebase (`src/`, `index.css`, `shared/`) so that the exact same code runs universally across all current and future clones.
 - **Future-Proofing:** Every time you write code, ask yourself: *"Will this work seamlessly on the next new clone without any manual changes?"* If the answer is no, your code is wrong.
 
+## 🧩 SHARED MODULES UNIVERSAL RULE (MANDATORY — ANTI-AI-BREAKABLE)
 
+**THE SYSTEM IS ONE SHARED DESIGN LANGUAGE. NO DUPLICATES. NO VARIANTS. NOWHERE.**
+
+- **Single Source of Truth:** Har cheez EK hi shared module se aati hai — `src/shared/ui/` (Button, Card, Badge, Modal, Dialog, BottomSheet, Select, DateRangePicker, Pagination, EmptyState, ToggleSwitch, SegmentedControl, Avatar, LoadMoreButton) aur `src/shared/modules/search-and-list/` (SharedSearchBar, SharedProductList, useDragDropList).
+- **Icons:** Ek hi icon set (Lucide) sab jagah — har page/component me alag alag icon pack/emoji ban. Icons sirf shared wrappers se import.
+- **Buttons:** `.btn-md` default — sab buttons shared `Button` se. Page-local button styling BANNED.
+- **Modals & Popups:** Sab modals/dialogs/popups shared `Dialog`/`ModernModal`/`BottomSheet` se. Form modals `maxWidth="lg"|"xl"` + `md:grid-cols-2`. Alag-alag popup implementations BANNED. Mobile pe center (`items-center justify-center`) — bottom sheets never.
+- **Media Selection:** ALL image upload/selection (products, deals, settings, logo) MUST route through centralized `MediaLibrary` — direct file-picker triggers BANNED. Compression (WebP 20-50KB) via shared `compressImage`.
+- **Drag & Reorder:** Sorted/drag lists shared `useDragDropList` + `DragHandle` se — page-local reorder logic BANNED.
+- **Loaders:** Primary loaders sirf `<SkeletonLoader />` — generic spinners BANNED for primary loads.
+- **Business Logic:** Ek hi shared helper (`commitStockInToInventory` = ONLY stock-in path). Parallel implementations BANNED (AGENTS.md rule 18).
+- **POS Exemption ONLY:** `src/components/pos/**` is the ONLY folder exempt from shared UI (fast dense UI), BUT logic/rules F1-F23 still apply. Estore uses shared wrappers with `!`-prefixed className theme overrides only.
+- **Verification:** New page banane se pehle docs/MODULES.md registry check karo — agar module exist karta hai, use karo; naya same-purpose module banane se pehle register aur justify karo.
+- **Failure = Rule Violation:** Koi bhi page jo shared module ko copy-paste karke alag version banaye, usse REJECT karo aur shared se replace karo.
+
+## 🧩 FEATURE PLAN — POS PRODUCT SORT (STORE SORT MIRROR)
+
+**Goal:** POS product grid pe bhi wahi drag up/down sort system chahiye jo `STORE SORT` (`/inventory/store-sort`) mein hai — cashier apni POS grid me products arrange kar sake.
+
+**MANDATORY design (anti-AI-breakable):**
+1. **Shared module ONLY:** Sort UI `useDragDropList` + `DragHandle` (src/shared/modules/search-and-list) se banega. STORE SORT ka same look/feel. Custom drag logic BANNED.
+2. **Trigger:** POS header me `Sort` button (Grid Density controller ke paas) → Sort Mode on. Ya product card pe grip icon jo sirf Sort Mode me visible ho.
+3. **Persistence:** Order `app_settings` JSON field `pos_product_order` me save (structure: `{ [categoryId|'all']: string[] /* product IDs */ }`) — bilkul STORE SORT ki tarah. No new table needed.
+4. **Scope:** Per-category ordering (har category apni order). Category switch par respective order apply.
+5. **Sync:** Local-first → Dexie `appSettings` + `queueOp('app_settings','update')` + `dispatch SET_SETTINGS` (settings singleton pattern follow karo).
+6. **Reset:** "Reset to Default" button (clears `pos_product_order` for that category).
+7. **Behavior:** Drag → order change → save → grid turant reflect → Sort Mode exit par normal grid.
+
+**Implementation checklist (jab src available ho):**
+- [ ] `AppSettings` interface me `posProductOrder?: Record<string, string[]>` add (types/index.ts)
+- [ ] `mapSettings`/`toRemoteSettings` me map
+- [ ] `SUPER_MASTER_SCHEMA.sql` app_settings ALTER TABLE add (`pos_product_order JSONB DEFAULT '{}'::jsonb`)
+- [ ] POS header `Sort` toggle + `useDragDropList` wire
+- [ ] ProductGrid reads `pos_product_order[category]` for display order
+- [ ] MODULES.md / UI_RULES.md update
+
+> NOTE: Yeh folder me `src/` nahi hai — rule + plan yahan documented hai; actual code tab likhega jab real project folder dikhayein.
 
 # ⛔ RULE #0 — ABSOLUTE PRIME DIRECTIVE
-
 ## 🏢 Business Scope & Safety Rules
 - **Applies to:** Universal Business System (Clothing, Pharmacy, Restaurant, Retail, Electronics, Mobile, Tech, Shoes, Grocery). NO logic or layout may be hardcoded to a specific niche.
 - **Enforced Terminology:** `item` / `product` / `unit` / `category` / `listing` / `variant` / `modifier` / `addon`.
@@ -44,6 +80,7 @@
    - Failure to keep both in sync is a violation.
 10. **💀 SKELETON LOADING RULE (MANDATORY)**: All loading states for main layout switches, routes, or grid views (storefront, product grid, list pages) MUST use the centralized `<SkeletonLoader />` component (`src/components/common/SkeletonLoader.tsx`) to provide a premium, smooth shimmer load experience. Generic spinner loaders are strictly prohibited for primary loaders.
 11. **📚 DOCS STAY CURRENT RULE (MANDATORY)**: `docs/MODULES.md` (shared module registry) and `docs/UI_RULES.md` (design rules) are the live source of truth — **always kept up to date**. Whenever you create a new shared module/component/helper, change a shared module's API, or change any UI rule/pattern, you MUST update BOTH docs in the SAME change — a stale registry is a violation. All new shared modules go under `src/shared/**` with barrel export; parallel/duplicate implementations of shared business logic are BANNED — always import the existing shared one (e.g. `commitStockInToInventory` from `src/lib/stockInCommit.ts` is the ONLY stock-in path).
+12. **🛡️ ANTI-AI BREAKABLE UI RULE (STRICT MANDATE)**: You MUST use existing shared modules (`src/shared/*` or `src/components/common/*`) for EVERYTHING. NEVER build separate, page-specific or one-off versions of buttons, icons, popups, media selection libraries, drag-and-drop lists, or search bars. If a popup, button, or icon is used in one place, it MUST be exactly the same (using the shared component) in all other places. Always reuse the shared library of modules. This ensures modern consistency across the entire app and prevents AI from hallucinating custom, broken UI components.
 
 ---
 
@@ -135,43 +172,30 @@ HAVING p.stock != COALESCE(SUM(pb.qty_remaining), 0);
 
 ---
 
-## RULE F4 — BILL EDIT MUST BE ATOMIC
+## RULE F4 — BILL EDIT MUST BE ATOMIC (create-first + rollback — see F10)
 
-Bill edit = delete old sale + create new sale. These are TWO operations that must behave as ONE.
+Bill edit = create new sale + delete old sale. These are TWO operations that must behave as ONE.
 
-**If delete succeeds but create fails → stock gets over-inflated and revenue disappears. This is a critical financial bug.**
+**The ONLY correct pattern is F10 (create-first, delete-second + rollback). F4's old "delete-first" pattern is BANNED** — if delete succeeds but create fails, stock gets over-inflated and revenue disappears.
 
-Required pattern in `CheckoutModal.tsx` and `services.ts`:
+> ⚠️ NOTE: Purana F4 delete-first pattern REMOVED (2026-08-16). Sirf F10 pattern valid hai. Yeh rule ab F10 ka reference hai, apna code block nahi.
+
+Required pattern — **F10 (create-first + rollback)**:
 ```typescript
-// CORRECT: Use a flag to detect partial failure
-const editSale = async (oldSaleId: string, newSaleData: Sale) => {
-  let deleteSucceeded = false;
-  
+// CORRECT: Phase 1 create new sale, Phase 2 delete old, failure → rollback Phase 1
+try {
+  const savedSale = await salesService.create(newSaleData);
+  await salesService.delete(oldSaleId);
+  return savedSale;
+} catch (deleteError) {
+  // Rollback the new sale's stock
   try {
-    // Phase 1: Delete old sale (restores stock)
-    await salesService.delete(oldSaleId);
-    deleteSucceeded = true;
-    
-    // Phase 2: Create new sale (deducts stock)
-    const newSale = await salesService.create(newSaleData);
-    return newSale;
-    
-  } catch (error) {
-    if (deleteSucceeded) {
-      // Phase 1 succeeded but Phase 2 failed
-      // Stock is now over-inflated — alert user immediately
-      console.error('CRITICAL: Bill edit partially failed. Stock may be incorrect.', { oldSaleId });
-      await sonner.alert(
-        '⚠️ Bill Edit Incomplete',
-        'The original sale was removed but the new one could not be saved. Please check stock levels and re-enter the sale manually.',
-        'Understood'
-      );
-      // Log to pendingOps for manual review
-      await logPendingOpError('bill_edit_partial', { oldSaleId, newSaleData });
-    }
-    throw error;
+    await salesService.delete(savedSale.id, profile?.name || 'Admin');
+  } catch (rollbackError) {
+    console.error('Failed to rollback new sale stock after edit failure:', rollbackError);
   }
-};
+  throw deleteError;
+}
 ```
 
 ---
@@ -388,8 +412,19 @@ Drafts (`status:'pending'` / `DRAFT_SALE` note) are saved CARTS, not revenue.
 
 - 📖 **[docs/SYSTEM_FUNCTIONS_GUIDE.md](docs/SYSTEM_FUNCTIONS_GUIDE.md) is the live source of truth** for every DB function/trigger/flow (F21 guard flow, F22 variant ledger, sync/recovery, troubleshooting). Read it before touching SQL/sync/financial logic; UPDATE it in the SAME change as any schema/flow change (stale guide = violation, same spirit as AGENTS.md rule 18).
 - EVERY new financial table/function MUST follow the guard pattern checklist (§6 of the guide): 3 triggers per table (`guard_stale_write_*`, `record_row_tombstone_*`, `update_*_updated_at`), append-only ledger triggers for stock/log tables, shared-helper service layer (F12 single-reversal), localDb + SyncEngine (P0007/F17/F18) wiring.
-- Register the new function in the guide's §2 registry + add SCHEMA CHANGE LOG entry + run the §7 TEST BATTERY on ALL 4 projects (expect identical results: currently `f21_guards=24`, `tombstones=1`, `functions=7`) — no PASS = no "done".
+- Register the new function in the guide's §2 registry + add SCHEMA CHANGE LOG entry + run the §7 TEST BATTERY on ALL active clone projects (expect identical results: currently `f21_guards=24`, `tombstones=1`, `functions=7`) — no PASS = no "done".
 - NEVER add a financial write path without its guards — the DB layer is the last line of defense against cross-device corruption (F21) and silent stock loss (F22).
+
+## RULE F24 — ESTORE/ONLINE ORDER: NO SALE & NO STOCK UNTIL POS BILL (PERMANENT)
+
+- 🛒 **An online store order (store_orders) MUST NOT create a Sale and MUST NOT change inventory stock (product.stock / variant stock / batches) until it is billed at the POS (CheckoutPage → commitSaleAuthoritative).**
+- Flow (BY DESIGN, never deviate):
+  1. Customer places order on e-store → only a `store_orders` row is created (status `pending`/`preparing`/`out_for_delivery`/`delivered`). **No sale, no stock delta.**
+  2. Admin opens Online Orders → "Load to POS" → `SET_CART` (cart carried to POS only). Still **no sale, no stock delta.**
+  3. Cashier bills at POS → `commitSaleAuthoritative` runs → Sale created + stock deducted (and reserved stock released) — THIS is the single point of inventory truth.
+- ⛔ Forbidden: any RPC/function/UI that reserves, deducts, or otherwise mutates stock on order placement; any code that creates a Sale/transaction from a store order outside the POS bill path.
+- Order status auto-advance (OrderTracker `delivered`) does NOT create a sale or touch stock — status is cosmetic only.
+- This rule exists so inventory can NEVER be wrong: stock only ever moves when a real bill is struck at POS. Violation = data-corruption bug.
 
 ---
 
@@ -601,11 +636,9 @@ Read all of these completely:
 - `src/lib/syncEngine.ts`
 - `supabase/schema/SUPER_MASTER_SCHEMA.sql`
 
-... (Rest of the Fix Prompt steps should follow here, but I will truncate for brevity as it's a template) ...
-
 ---
 
-jab tak kaha na jaye npm run build ma kro
+> 🔧 Fix process: bugs ko exact order me fix karo, existing functionality mat todo. Ek response me complete fix do, back-and-forth nahi.
 
 ---
 
@@ -849,10 +882,10 @@ Whenever a database change is made, it MUST be recorded here.
     *   Documented system design and operational rules for future auto-deletion extensions.
 
 ### [2026-05-19] Universal Code 128 Barcode System Implementation
-**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `schema.prisma`, `localDb.ts`, `services.ts`, `barcode.ts`, `BarcodePreview.tsx`, `ProductModal.tsx`, `ProductDetailHub.tsx`, `InventoryManager.tsx`, `useHardwareScanner.ts`, `POSTerminal.tsx`, `ProductGrid.tsx`, `BarcodeGenerator.tsx`, `ReceiptPrint.tsx`, `DatabaseTools.tsx`, `Settings.tsx`
+**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `localDb.ts`, `services.ts`, `barcode.ts`, `BarcodePreview.tsx`, `ProductModal.tsx`, `ProductDetailHub.tsx`, `InventoryManager.tsx`, `useHardwareScanner.ts`, `POSTerminal.tsx`, `ProductGrid.tsx`, `BarcodeGenerator.tsx`, `ReceiptPrint.tsx`, `DatabaseTools.tsx`, `Settings.tsx`
 **Changes:**
-1.  **Database & Schema Parity (`SUPER_MASTER_SCHEMA.sql`, `schema.prisma`, `localDb.ts`)**:
-    *   Added `barcode_value TEXT` column and `CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode_value` across SQL schemas and Prisma models. Bumped Dexie IndexedDB version to v12 to seamlessly register `barcodeValue`.
+1.  **Database & Schema Parity (`SUPER_MASTER_SCHEMA.sql`, `localDb.ts`)**:
+    *   Added `barcode_value TEXT` column and `CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode_value` across SQL schema and Dexie IndexedDB. Bumped Dexie IndexedDB version to v12 to seamlessly register `barcodeValue`.
 2.  **Robust Code 128 Generation (`barcode.ts`, `BarcodePreview.tsx`)**:
     *   Installed `jsbarcode` and authored standard generation utility (`generateBarcodeValue`) outputting formatted `ZP-{5-digit padded integer}` hashes derived from UUID keys. Created beautiful high-fidelity SVG preview component (`BarcodePreview`) for crisp rendering across table cells and dialogs.
 3.  **Universal Inventory & POS Barcode Integration (`ProductModal`, `ProductDetailHub`, `InventoryManager`, `POSTerminal`, `ProductGrid`)**:
@@ -964,7 +997,7 @@ Whenever a database change is made, it MUST be recorded here.
     *   Standardized the state-of-the-art safe two-phase create-then-delete bill editing pattern with fallback voiding in `CheckoutPage.tsx` to perfectly mirror `CheckoutModal.tsx`, eliminating any potential for corrupted inventory or lost revenue during bill edits.
 
 ### [2026-05-18] Universal POS Products & Advanced Reporting
-**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `prisma/schema.prisma`, `types/index.ts`, `services.ts`, `ProductModal.tsx`, `POSTerminal.tsx`, `Cart.tsx`, `ReceiptPrint.tsx`
+**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `types/index.ts`, `services.ts`, `ProductModal.tsx`, `POSTerminal.tsx`, `Cart.tsx`, `ReceiptPrint.tsx`
 **Changes:**
 1.  **Products Table**:
     *   Added `is_service` (BOOLEAN): Flags items as services (no stock tracking needed).
@@ -976,7 +1009,7 @@ Whenever a database change is made, it MUST be recorded here.
     *   Added `recentSales` ledger in `InventoryReportManager` to track item-level sales dates.
 
 ### [2026-05-09] POS Enhancements, Split Payments & DC Charges
-**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `prisma/schema.prisma`, `localDb.ts`, `types/index.ts`, `services.ts`
+**Files Updated:** `SUPER_MASTER_SCHEMA.sql`, `localDb.ts`, `types/index.ts`, `services.ts`
 **Changes:**
 1.  **Sales Table**:
     *   Added `extra_charges` (JSONB): Consolidated DC and other charges into a single flexible array.
@@ -1031,7 +1064,7 @@ Whenever a database change is made, it MUST be recorded here.
 
 # 📝 TASK MANAGEMENT RULE (MANDATORY)
 
-For every large or multi-step task, you MUST create a `todo.md` file in the project root to plan and track your progress.
+For every large or multi-step task, you MUST create a `todo.md` file in the project root (ya agent ka built-in todo tracker use karo — opencode `todowrite` tool) to plan and track your progress.
 1. Break down the task into clear, actionable steps.
 2. Check off items as you complete them.
 3. This ensures you do not forget pending items and allows you to work faster without repeatedly scanning or reading the same files.
@@ -1064,10 +1097,13 @@ Jab bhi aap is project ko kisi **naye Supabase project** par shift (clone) karei
 ---
 
 ## STEP 1: Credentials Update (Env Variables)
-Sab se pehle naye Supabase project ki details in 2 files mein update karein:
+Sab se pehle naye Supabase project ki details in files mein update karein:
 
 1. **`.env.local`** — `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_MGMT_API_KEY`
-2. **`.env`** (Root folder mein) — same values
+2. **`.env.local 2`** (pos-admin clone wala env) — same values + `SUPABASE_PROJECT_REF`
+3. **`.env`** (Root folder mein, agar exist kare) — same values
+
+> Naming rule: Ye project files `.env.local` aur `.env.local 2` use karta hai — naye files mat banao, inhi ko update karo. Docs/setup.md ka `env_backups/` rule bhi follow karo — kabhi credentials guess/mix nahi.
 
 > `SUPABASE_MGMT_API_KEY` wohi `sbp_...` token hai jo aapne pehle [Supabase Dashboard → Access Tokens](https://supabase.com/dashboard/account/tokens) se generate kiya tha. Ek hi token sab projects ke liye kaam karta hai.
 
@@ -1120,7 +1156,10 @@ Naye project mein login ka issue na aaye, iske liye yeh lazmi karein:
      -H "Content-Type: application/json" \
      -d '{"email": "admin@email.com", "password": "Admin@123", "email_confirm": true}'
    ```
-   *Note: Kyunke humne `SUPER_MASTER_SCHEMA.sql` mein auto-admin trigger add kar diya hai, jo bhi project ka **pehla user** banega woh khud-ba-khud **Admin** ban jayega.*
+   *Note: `handle_new_user` first-user auto-admin REMOVED (2026-08-16). Role CHECK ab sirf `(cashier, salesman)` hai. Admin role DB level pe auto-set nahi hota — admin user banane ke liye:
+   1. User create karo (upar wali command)
+   2. Phir `users` table me us user ki row update karke role admin logic app side handle karo — ya pehle user ko app ke andar manually admin banao (app settings > Users > role).
+   `user_metadata.role` sirf metadata hai — DB `users.role` column hi authoritative hai.*
 
 ---
 

@@ -168,10 +168,10 @@ export function FinancialReport({
             </div>
           </div>
           <div className="text-center md:text-right relative z-10">
-            <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-2">
-              {t("grand_total_net", "Grand Total Net")}
-            </p>
-            <p className="text-5xl font-black text-white tracking-tighter drop-shadow-2xl">{formatCurrency(totalRevenue - totalExpenseAmount, currency)}</p>
+              <p className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.4em] mb-2">
+                {t("grand_total_net", "Net Profit (Final)")}
+              </p>
+              <p className="text-5xl font-black text-white tracking-tighter drop-shadow-2xl">{formatCurrency(netProfit, currency)}</p>
           </div>
         </div>
       </div>

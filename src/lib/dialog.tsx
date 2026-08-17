@@ -83,7 +83,7 @@ export const dialog = {
     });
   },
 
-  deleteConfirm: (itemName: string): Promise<{ isConfirmed: boolean }> => {
+  deleteConfirm: (itemName: string, warning?: string): Promise<{ isConfirmed: boolean }> => {
     if (activeDialogId) return Promise.resolve({ isConfirmed: false });
 
     return new Promise((resolve) => {
@@ -95,7 +95,7 @@ export const dialog = {
           id,
           type: 'delete',
           title: 'ARE YOU SURE?',
-          text: `You won't be able to revert this! The <span class="text-rose-500">${itemName}</span> will be permanently deleted.`,
+          text: `You won't be able to revert this! The <span class="text-rose-500">${itemName}</span> will be permanently deleted.${warning ? `<div class="mt-3 p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-bold">${warning}</div>` : ''}`,
           confirmText: 'YES, DELETE IT',
           cancelText: 'CANCEL',
           resolve: (isConfirmed: boolean) => {

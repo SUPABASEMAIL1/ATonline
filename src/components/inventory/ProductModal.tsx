@@ -137,7 +137,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
 
   const categories = useMemo(() => {
     // PRIMARY: use state.categories
-    const fromCatTable = state.categories.map(c => {
+    const fromCatTable = (state.categories || []).map(c => {
       if (typeof c === 'object' && c !== null) {
         if (typeof c.name === 'string' && c.name.trim().startsWith('{')) {
           try {

@@ -86,6 +86,7 @@ export class PosDB extends Dexie {
   purchaseOrderItems!: Table<any>;
   supplierTransactions!: Table<any>;
   payments!: Table<any>;
+  paymentModes!: Table<any>;
   stockHistory!: Table<any>;
   salesTabs!: Table<SalesTab>;
   expenses!: Table<Expense>;
@@ -129,6 +130,41 @@ export class PosDB extends Dexie {
       purchaseOrderItems: 'id, poId, productId',
       supplierTransactions: 'id, supplierId',
       payments: 'id, supplierId',
+      stockHistory: 'id, productId, timestamp, type',
+      salesTabs: 'id, userId',
+      appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',
+      pendingOps: '++id, [entity+entityId], status, createdAt',
+      syncHistory: '++id, timestamp',
+      bundles: 'id, name, active',
+      bundleItems: 'id, bundleId, productId',
+      bundleSlots: 'id, bundleId',
+      bundleSlotOptions: 'id, slotId, productId',
+      toppings: 'id, name',
+      variantStockHistory: 'id, productId, variantId, createdAt',
+      productAddons: 'id, productId, addonProductId, active',
+      storeOrders: 'id, invoiceNumber, customerId, status, createdAt',
+      // Legacy compatibility:
+      app_settings: 'id, storeName, currency, enableSplitPayment, enableExtraCharges',
+      purchase_records: 'id, productId, supplierId, date'
+    });
+
+    this.version(20).stores({
+      savedReceiptPngs: 'id, invoiceNumber, saleDate',
+      products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock, showInEstore',
+      categories: 'id, name',
+      suppliers: 'id, name',
+      sales: 'id, invoiceNumber, customerId, timestamp, saleDate, status, dcNumber, extraCharges',
+      customers: 'id, name, phone, email',
+      expenses: 'id, categoryId, date',
+      discounts: 'id, name, type, active',
+      users: 'id, username, email',
+      productBatches: 'id, productId, created_at, status',
+      purchaseRecords: 'id, productId, supplierId, date',
+      purchaseOrders: 'id, poNumber, supplierId',
+      purchaseOrderItems: 'id, poId, productId',
+      supplierTransactions: 'id, supplierId',
+      payments: 'id, supplierId',
+      paymentModes: 'id, name, isActive',
       stockHistory: 'id, productId, timestamp, type',
       salesTabs: 'id, userId',
       appSettings: 'id, storeName, currency, theme, interfaceMode, receiptPaperSize, receiptTemplate, country, businessType, posGridColumns, enableSplitPayment',

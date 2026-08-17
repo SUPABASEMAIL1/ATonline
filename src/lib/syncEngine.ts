@@ -1,6 +1,6 @@
 import { supabase, enableFullAuthInit } from './supabase';
 import { localDb, PendingOp, SETTINGS_ID } from './localDb';
-import { mapProduct, mapCustomer, salesService, reconcileAllStock, commitSaleAuthoritative } from './services';
+import { mapProduct, mapCustomer, salesService, reconcileAllStock, seedMissingBarcodes, commitSaleAuthoritative } from './services';
 
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
 const BACKOFF_INITIAL = 5 * 1000; // 5s
@@ -135,6 +135,18 @@ export async function getSyncTime(): Promise<Date | null> {
 // ---------- Execute Workers ----------
 
 async function executeOp(op: PendingOp): Promise<void> {
+    // Special-case: wallet balance adjustments via idempotent RPC.
+    if (op.entity === 'payment_movements') {
+      try {
+        await supabase.rpc('apply_payment_movements', { p_moves: op.payload });
+        await localDb.pendingOps.delete(op.id!);
+      } catch (e) {
+        console.warn('[SyncEngine] payment_movements rpc failed', e);
+        throw e;
+      }
+      return;
+    }
+
     const tableMap: Record<string, string> = {
         products: 'products',
         customers: 'customers',
@@ -351,6 +363,28 @@ async function executeOp(op: PendingOp): Promise<void> {
                         const movements = movementOps.map(m => m.payload);
                         const committed = await commitSaleAuthoritative(payload, movements);
                         if (committed) {
+                            if (committed.already_fulfilled) {
+                                // Sale already billed by another device — drop the orphan local sale + its movements, restore local stock.
+                                try {
+                                    await localDb.sales.delete(payload.id);
+                                    const orphanIds = movementOps.map(m => m.id).filter((x): x is number => typeof x === 'number');
+                                    if (orphanIds.length) await localDb.pendingOps.bulkDelete(orphanIds);
+                                    for (const m of movementOps) {
+                                        const pid = m?.payload?.product_id || m?.payload?.productId;
+                                        if (!pid || m?.payload?.variant_id || m?.payload?.variantId) continue;
+                                        const p = await localDb.products.get(pid);
+                                        if (p) {
+                                            const qty = Number(m?.payload?.change_qty ?? m?.payload?.changeQty) || 0;
+                                            // Sale movement change_qty is NEGATIVE (e.g. -5 sold). To RESTORE
+                                            // local stock we add the absolute amount: stock - change_qty = stock + 5.
+                                            await localDb.products.update(pid, { stock: (p.stock || 0) - qty });
+                                        }
+                                    }
+                                } catch (revErr) {
+                                    console.warn('[SyncEngine] already_fulfilled revert failed:', revErr);
+                                }
+                                return; // success (idempotent) — skip legacy path
+                            }
                             const idsToDelete = [op.id, ...movementOps.map(m => m.id)].filter(
                                 (x): x is number => typeof x === 'number'
                             );
@@ -408,7 +442,9 @@ async function executeOp(op: PendingOp): Promise<void> {
                         }
                     }
                 }
-                const result = await supabase.from(table as any).upsert(payload, { onConflict: 'id' });
+                const result = await (op.entity === 'stock_history' || op.entity === 'variant_stock_history'
+                    ? supabase.from(table as any).insert(payload)
+                    : supabase.from(table as any).upsert(payload, { onConflict: 'id' }));
                 error = result.error;
             } else if (opType === 'update') {
                 // Use upsert even for updates to ensure the record exists (self-healing for lost CREATE ops)
@@ -996,6 +1032,29 @@ async function pruneGhostSales() {
     }
 }
 
+/**
+ * Removes permanently-failed reconcile ops that were created with an invalid
+ * (non-UUID) `reference_id` prior to the bug fix. Those ops can never sync, so
+ * they are deleted from the local queue to keep pendingOps clean.
+ */
+async function clearBogusReconcileOps(): Promise<void> {
+    try {
+        const all = await localDb.pendingOps.toArray();
+        const bogus = all.filter(
+            (op) =>
+                (op.entity === 'stock_history' || op.entity === 'variant_stock_history') &&
+                typeof (op as any).payload?.reference_id === 'string' &&
+                (op as any).payload.reference_id.startsWith('RECONCILE-')
+        );
+        if (bogus.length > 0) {
+            await localDb.pendingOps.bulkDelete(bogus.map((o) => o.id).filter(Boolean) as number[]);
+            console.log(`[POS MAINT] Cleared ${bogus.length} bogus reconcile op(s) from queue.`);
+        }
+    } catch (err) {
+        console.error('[POS MAINT] Error clearing bogus reconcile ops:', err);
+    }
+}
+
 export function startSyncEngine() {
     clearBlacklist();
     pruneStaleOps();
@@ -1003,12 +1062,19 @@ export function startSyncEngine() {
     pruneExpiredCancelledOrders();
     pruneGhostSales();
 
-    // Auto-maintenance: Repair legacy sales data and auto-reconcile stock silently in background
+    // Drop any stale, permanently-failed reconcile ops that were written with an
+    // invalid (non-UUID) reference_id before the bug fix. They can never sync, so
+    // removing them un-jams the queue.
+    clearBogusReconcileOps().catch(() => { });
+
+    // Auto-maintenance: Repair legacy sales, populate missing barcodes, and
+    // auto-reconcile stock silently in background so the system stays accurate
+    // without manual intervention. reconcileAllStock(autoFix=true) only writes a
+    // corrective entry when real drift exists, so it cannot loop.
     setTimeout(() => {
         salesService.patchLegacySales().catch(() => { });
-        // Report-only on boot: autoFix(NO) so unsynced offline stock deductions are
-        // never silently erased. The owner triggers an explicit auto-fix when needed.
-        reconcileAllStock(false).catch(() => { });
+        seedMissingBarcodes().catch(() => { });
+        reconcileAllStock(true).catch(() => { });
     }, 5000); // 5 seconds delay to not block UI load
 
     syncToCloud().catch(() => { });
