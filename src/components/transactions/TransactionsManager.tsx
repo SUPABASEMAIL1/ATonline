@@ -7,7 +7,7 @@ import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartO
 import { formatCurrency, formatNumberWithPrecision, getCurrencySymbol } from '../../lib/currencies';
 import { Sale } from '../../types';
 import { ReceiptPrint } from '../pos/ReceiptPrint';
-import { salesService, productsService, customersService, getAmountByMethod } from '../../lib/services';
+import { salesService, productsService, customersService, getAmountByMethod, normalizePaymentMethod } from '../../lib/services';
 import { sonner } from '../../lib/sonner';
 import { useTranslation } from '../../hooks/useTranslation';
 import { getDealCountBreakdown } from '../../lib/utils';
@@ -253,7 +253,10 @@ export function TransactionsManager() {
         (sale.customerName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (sale.cashier ?? '').toLowerCase().includes(searchTerm.toLowerCase())
       );
-      const matchesPayment = paymentFilter === 'all' || sale.paymentMethod === paymentFilter;
+      // Match a sale by its effective method (split sales match if they contain the method)
+      const matchesPayment = paymentFilter === 'all' ||
+        sale.paymentMethod === paymentFilter ||
+        (sale.paymentMethod === 'split' && (sale.splitPayments || []).some((sp: any) => sp.method === paymentFilter || normalizePaymentMethod(sp.method) === paymentFilter));
       const matchesSaleType = saleTypeFilter === 'all' || sale.saleType === saleTypeFilter || (!sale.saleType && saleTypeFilter === 'retail');
       const matchesCashier = selectedCashier === 'all' || sale.cashier === selectedCashier;
       const matchesSalesman = selectedSalesman === 'all' || sale.salesmanName === selectedSalesman;
@@ -292,27 +295,27 @@ export function TransactionsManager() {
     const totals = {
       cash: 0,
       card: 0,
-      digital: 0,
+      online: 0,
     };
 
     // UNIVERSAL WALLET RULE: wallet totals must mirror ReportsManager —
     // fully refunded sales subtract their full method share, partially
     // refunded sales subtract the refunded amount (pro-rata for split).
     filteredTransactions.forEach(t => {
-      const addToWallet = (method: 'cash' | 'card' | 'digital', amt: number) => {
+      const addToWallet = (method: 'cash' | 'card' | 'online', amt: number) => {
         totals[method] = Math.round((totals[method] + amt) * 100) / 100;
       };
 
       if (t.status !== 'pending') {
         addToWallet('cash', getAmountByMethod(t, 'cash'));
         addToWallet('card', getAmountByMethod(t, 'card'));
-        addToWallet('digital', getAmountByMethod(t, 'digital'));
+        addToWallet('online', getAmountByMethod(t, 'online'));
       }
 
       if (t.status === 'refunded') {
         addToWallet('cash', -getAmountByMethod(t, 'cash'));
         addToWallet('card', -getAmountByMethod(t, 'card'));
-        addToWallet('digital', -getAmountByMethod(t, 'digital'));
+        addToWallet('online', -getAmountByMethod(t, 'online'));
       } else if (t.status === 'partially_refunded') {
         const refundedAmt = t.refundedAmount || 0;
         addToWallet('cash', -(t.paymentMethod === 'split'
@@ -321,9 +324,9 @@ export function TransactionsManager() {
         addToWallet('card', -(t.paymentMethod === 'split'
           ? refundedAmt * (getAmountByMethod(t, 'card') / (t.total || 1))
           : (t.paymentMethod === 'card' ? refundedAmt : 0)));
-        addToWallet('digital', -(t.paymentMethod === 'split'
-          ? refundedAmt * (getAmountByMethod(t, 'digital') / (t.total || 1))
-          : (t.paymentMethod === 'digital' ? refundedAmt : 0)));
+        addToWallet('online', -(t.paymentMethod === 'split'
+          ? refundedAmt * (getAmountByMethod(t, 'online') / (t.total || 1))
+          : (t.paymentMethod === 'online' ? refundedAmt : 0)));
       }
     });
 
@@ -343,7 +346,8 @@ export function TransactionsManager() {
     switch (method) {
       case 'cash': return <Banknote className="h-4 w-4 text-primary dark:text-emerald-400" />;
       case 'card': return <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
-      case 'digital': return <Smartphone className="h-4 w-4 text-primary dark:text-emerald-400" />;
+      case 'digital': return <Smartphone className="h-4 w-4 text-cyan-500" />;
+      case 'online': return <Building2 className="h-4 w-4 text-cyan-500" />;
       default: return <CreditCard className="h-4 w-4 text-gray-600" />;
     }
   };
@@ -573,12 +577,12 @@ export function TransactionsManager() {
             </div>
           </div>
 
-          {/* Digital / Bank Card */}
+          {/* Online Wallet Card */}
           <div className="relative overflow-hidden bg-white dark:bg-[#1C1C1C] border border-gray-200 dark:border-white/5 rounded-2xl p-4 flex items-center justify-between transition-all hover:scale-[1.02] hover:border-cyan-500/30 dark:hover:border-cyan-500/30 shadow-sm">
             <div className="flex flex-col">
-              <span className="text-[9px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest leading-none">{t("digital", "Bank Transfer")}</span>
+              <span className="text-[9px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest leading-none">{t("online_wallet", "Online Wallet")}</span>
               <span className="text-base font-black text-cyan-600 dark:text-cyan-500 tabular-nums mt-1.5 leading-none">
-                {formatCurrency(walletTotals.digital, state.settings.currency)}
+                {formatCurrency(walletTotals.online, state.settings.currency)}
               </span>
             </div>
             <div className="w-8 h-8 bg-cyan-500/10 rounded-xl flex items-center justify-center border border-cyan-500/10">
@@ -625,7 +629,7 @@ export function TransactionsManager() {
                   { id: 'all', label: t("payment_all", "Payment: All") },
                   { id: 'cash', label: t("cash", "Cash") },
                   { id: 'card', label: t("card", "Card") },
-                  { id: 'digital', label: t("digital", "Bank Transfer") }
+                  { id: 'online', label: t("online_wallet", "Online Wallet") }
                 ]}
                 value={paymentFilter}
                 onChange={val => { setPaymentFilter(val); setCurrentPage(1); }}

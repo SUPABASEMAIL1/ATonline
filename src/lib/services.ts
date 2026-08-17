@@ -947,7 +947,7 @@ export const mapPayment = (item: any): any => ({
 export const DEFAULT_PAYMENT_MODES = [
   { id: 'cash', name: 'Cash', icon: 'cash', isActive: true },
   { id: 'card', name: 'Card', icon: 'credit-card', isActive: true },
-  { id: 'online', name: 'Online', icon: 'globe', isActive: true },
+  { id: 'online', name: 'Online Wallet', icon: 'globe', isActive: true },
 ];
 
 /** Normalize legacy 'digital'/'wallet' methods to 'online' wallet. */
@@ -980,6 +980,12 @@ export const seedPaymentModes = async () => {
   for (const m of DEFAULT_PAYMENT_MODES) {
     if (!existingIds.has(m.id)) {
       await localDb.paymentModes.put({ ...m, balance: 0, updatedAt: new Date() });
+    } else {
+      // Reconcile display name (e.g. 'Online' → 'Online Wallet') without touching balance
+      const cur = existing.find((x: any) => x.id === m.id);
+      if (cur && cur.name !== m.name) {
+        await localDb.paymentModes.update(m.id, { name: m.name, updatedAt: new Date() });
+      }
     }
   }
   // Cleanup legacy modes (transfer any balance → online, then delete)
@@ -2632,7 +2638,7 @@ export const salesService = {
 
     // 5. Create reversing payment record for audit trail
     if (totalRefundAmount > 0) {
-      const refundMethod = (request?.method && ['cash', 'card', 'digital'].includes(request.method))
+      const refundMethod = (request?.method && ['cash', 'card', 'digital', 'online'].includes(request.method))
         ? request.method
         : (sale.paymentMethod === 'split' ? 'cash' : (sale.paymentMethod || 'cash'));
       const refundPayId = generateId();

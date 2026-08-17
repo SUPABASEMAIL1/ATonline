@@ -19,7 +19,7 @@ export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund
   const [refundMode, setRefundMode] = useState<'full' | 'partial'>('full');
 
   // Default refund method = original sale method (fall back to cash for split/cheque)
-  const defaultMethod = (['cash', 'card', 'digital'].includes(sale.paymentMethod))
+  const defaultMethod = (['cash', 'card', 'online', 'digital'].includes(sale.paymentMethod))
     ? sale.paymentMethod
     : 'cash';
   const [reason, setReason] = useState('');
@@ -123,7 +123,7 @@ export default function RefundSaleModal({ isOpen, onClose, sale, onConfirmRefund
             >
               <option value="cash">Cash</option>
               <option value="card">Card</option>
-              <option value="digital">Digital / Bank</option>
+              <option value="online">Online Wallet</option>
             </Select>
           </div>
           <div className="space-y-1.5 sm:col-span-1">

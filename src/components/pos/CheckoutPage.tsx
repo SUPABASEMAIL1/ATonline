@@ -100,15 +100,18 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
 
   // Split payment state (two parts across cash/card/digital)
   const [splitMethodA, setSplitMethodA] = useState<'cash' | 'card' | 'online'>('cash');
-  const [splitMethodB, setSplitMethodB] = useState<'cash' | 'card' | 'online'>('online');
+  const [splitMethodB, setSplitMethodB] = useState<'cash' | 'card' | 'online'>('card');
   const [splitAmountA, setSplitAmountA] = useState('');
   const [splitAmountB, setSplitAmountB] = useState('');
 
   const handleSelectMethod = (m: string) => {
     setPaymentMethod(m as any);
     if (m === 'split') {
-      setSplitAmountA(finalTotal.toString());
-      setSplitAmountB('0');
+      // Default to an even 50/50 split so a bill is never accidentally booked
+      // to a single method (prevents the "whole amount landed on one method" bug).
+      const half = (finalTotal / 2).toString();
+      setSplitAmountA(half);
+      setSplitAmountB(half);
     }
   };
 
@@ -127,7 +130,14 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
     extraCharges.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0)
     , [extraCharges]);
 
-  const finalTotal = Number(Math.round(Number((baseTotal + extraChargesTotal) + 'e2')) + 'e-2');
+  // C1 FIX: delivery/service extra charges must be taxed consistently with the e-store
+  // (StoreCheckout taxes the delivery fee). Previously extraCharges were added to the total
+  // but excluded from the tax base, so a direct-POS delivery was under-taxed vs an e-store order.
+  const taxRate = state.settings.taxRate || 0;
+  const extraChargesTax = Math.round(extraChargesTotal * (taxRate / 100) * 100) / 100;
+  const finalTax = Math.round((taxAmount + extraChargesTax) * 100) / 100;
+
+  const finalTotal = Number(Math.round(Number((baseTotal + extraChargesTotal + extraChargesTax) + 'e2')) + 'e-2');
 
   const showDiscount = state.settings.receiptShowDiscount !== false &&
     !checkoutCartItems.some(item => item.bundleHideItemPrices === true || item.bundle_hide_item_prices === true);
@@ -291,7 +301,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
         customerName: state.selectedCustomer?.name,
         customerPhone: state.selectedCustomer?.phone,
         items: checkoutCartItems, subtotal,
-        discountAmount: totalDiscount, taxAmount, total: finalTotal,
+        discountAmount: totalDiscount, taxAmount: finalTax, total: finalTotal,
         billDiscountValue: state.billDiscountValue,
         billDiscountType: state.billDiscountType,
         paymentMethod: paymentMethod as any,
@@ -431,7 +441,7 @@ export function CheckoutPage({ onClose, onComplete }: CheckoutPageProps) {
   const payMethods = [
     { id: 'cash', label: 'Cash', icon: Banknote },
     { id: 'card', label: 'Card', icon: CreditCard },
-    { id: 'online', label: 'Online', icon: Building2 },
+    { id: 'online', label: 'Online Wallet', icon: Building2 },
     { id: 'split', label: 'Split', icon: Layers },
   ];
 

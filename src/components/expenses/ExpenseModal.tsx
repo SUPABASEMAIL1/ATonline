@@ -25,7 +25,7 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
     amount: '',
     category: EXPENSE_CATEGORIES[0],
     date: format(new Date(), 'yyyy-MM-dd'),
-    paymentMethod: 'cash' as 'cash' | 'card' | 'digital',
+    paymentMethod: 'cash' as 'cash' | 'card' | 'online',
     storeType: 'retail' as 'retail' | 'wholesale' | 'estore' | undefined,
     notes: ''
   });
@@ -212,7 +212,7 @@ export function ExpenseModal({ isOpen, onClose, onSave, expense }: ExpenseModalP
               >
                 <option value="cash" className="dark:bg-surface">{t('cash_settlement')}</option>
                 <option value="card" className="dark:bg-surface">{t('card_payment')}</option>
-                <option value="digital" className="dark:bg-surface">{t('digital_transfer')}</option>
+                <option value="online" className="dark:bg-surface">{t('online_wallet')}</option>
               </Select>
             </div>
             {formData.category === 'Supplies' && (

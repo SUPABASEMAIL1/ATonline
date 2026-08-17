@@ -61,7 +61,7 @@ export function DashboardManager() {
   }, [state.sales, timezone]); // Re-run when state.sales changes so it stays live
 
   const todaySalesStats = useMemo(() => {
-    let revenue = 0, cash = 0, card = 0, digital = 0;
+    let revenue = 0, cash = 0, card = 0, online = 0;
     for (const s of dashboardSales) {
       if (s.status === 'refunded' || s.status === 'deleted') continue; // net 0
       const total = s.total || 0;
@@ -77,9 +77,9 @@ export function DashboardManager() {
       };
       cash += netFor('cash');
       card += netFor('card');
-      digital += netFor('digital');
+      online += netFor('online');
     }
-    return { revenue, cash, card, digital };
+    return { revenue, cash, card, online };
   }, [dashboardSales]);
 
   const todayStats = useMemo(() => {

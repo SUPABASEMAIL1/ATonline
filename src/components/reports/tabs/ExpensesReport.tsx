@@ -1,10 +1,11 @@
 import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
-import { TrendingDown, BarChart3, Banknote, CreditCard, Smartphone, Package } from 'lucide-react';
+import { TrendingDown, BarChart3, Banknote, CreditCard, Smartphone, Package, Building2 } from 'lucide-react';
 import { formatCurrency, getCurrencySymbol } from '../../../lib/currencies';
 import { formatAppDate } from '../../../lib/dateUtils';
 import { EXPENSE_CATEGORIES } from '../../../types';
 import { Expense } from '../../../types';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { normalizePaymentMethod } from '../../../lib/services';
 import { Pagination, usePagination } from '../../../shared/ui';
 import { ExportButton } from '../../../shared/export';
 import { useMemo } from 'react';
@@ -60,13 +61,13 @@ export function ExpensesReport({
     <>
       {/* Wallet Breakdown */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-        {['cash', 'card', 'digital'].map(method => {
-          const walletExpenses = filteredExpenses.filter(e => e.paymentMethod === method).reduce((s, e) => s + Number(e.amount), 0);
-          const walletCount = filteredExpenses.filter(e => e.paymentMethod === method).length;
+        {['cash', 'card', 'online'].map(method => {
+          const walletExpenses = filteredExpenses.filter(e => normalizePaymentMethod(e.paymentMethod) === method).reduce((s, e) => s + Number(e.amount), 0);
+          const walletCount = filteredExpenses.filter(e => normalizePaymentMethod(e.paymentMethod) === method).length;
           const config: Record<string, { gradient: string; icon: any }> = {
             cash: { gradient: 'from-emerald-500 to-teal-700', icon: Banknote },
             card: { gradient: 'from-blue-500 to-indigo-700', icon: CreditCard },
-            digital: { gradient: 'from-purple-500 to-fuchsia-700', icon: Smartphone },
+            online: { gradient: 'from-purple-500 to-fuchsia-700', icon: Building2 },
           };
           const item = config[method];
           const Icon = item.icon;

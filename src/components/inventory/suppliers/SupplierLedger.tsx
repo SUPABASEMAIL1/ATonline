@@ -548,7 +548,7 @@ export function SupplierLedger({ supplier, onBack, startDate, endDate, dateFilte
               >
                 <option value="cash">{t('cash', 'Cash')}</option>
                 <option value="card">{t('card', 'Credit/Debit Card')}</option>
-                <option value="digital">{t('digital', 'Digital Transfer')}</option>
+                <option value="online">{t('online_wallet', 'Online Wallet')}</option>
               </Select>
             </div>
             <div>

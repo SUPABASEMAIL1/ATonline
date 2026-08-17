@@ -11,7 +11,7 @@ import {
 import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useApp } from '../../context/SupabaseAppContext';
 import { formatAppDate, formatAppTime, formatAppDateTime, getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, getStartOfInputDayInTimezone, getEndOfInputDayInTimezone } from '../../lib/dateUtils';
-import { expensesService, suppliersService } from '../../lib/services';
+import { expensesService, suppliersService, normalizePaymentMethod } from '../../lib/services';
 import { Expense, EXPENSE_CATEGORIES } from '../../types';
 import { ExpenseModal } from './ExpenseModal';
 import { SearchableSelect } from '../common/SearchableSelect';
@@ -25,7 +25,7 @@ export function ExpenseManager() {
   const { state, dispatch } = useApp();
   const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'all' | 'cash' | 'card' | 'digital'>('all');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'all' | 'cash' | 'card' | 'online'>('all');
   const [selectedCashier, setSelectedCashier] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -125,7 +125,7 @@ export function ExpenseManager() {
 
       const matchesSearch = (expense.description || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || expense.category === selectedCategory;
-      const matchesPayment = selectedPaymentMethod === 'all' || expense.paymentMethod === selectedPaymentMethod;
+      const matchesPayment = selectedPaymentMethod === 'all' || normalizePaymentMethod(expense.paymentMethod) === selectedPaymentMethod;
       const matchesDate = dateRange === 'all' || (expenseDate >= effectiveStart && expenseDate <= effectiveEnd);
       const matchesCashier = selectedCashier === 'all' || expense.addedBy === selectedCashier;
       return matchesSearch && matchesCategory && matchesPayment && matchesDate && matchesCashier;
@@ -295,7 +295,7 @@ export function ExpenseManager() {
                 { id: 'all', label: t("all_methods", "All Methods") },
                 { id: 'cash', label: t("cash", "Cash") },
                 { id: 'card', label: t("card", "Card") },
-                { id: 'digital', label: t("digital", "Digital") }
+                { id: 'online', label: t("online_wallet", "Online Wallet") }
               ]}
               value={selectedPaymentMethod}
               onChange={(val: any) => setSelectedPaymentMethod(val)}

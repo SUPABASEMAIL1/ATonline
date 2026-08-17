@@ -297,7 +297,7 @@ export function StoreCheckout({ settings, cart, onClearCart, onUpdateCart }: Sto
         taxAmount: taxAmount,
         deliveryFee: deliveryFee,
         total: total,
-        paymentMethod: (selectedPaymentMethod === 'custom' ? 'digital' : selectedPaymentMethod) as any,
+        paymentMethod: (selectedPaymentMethod === 'custom' ? 'online' : selectedPaymentMethod) as any,
         status: 'pending',
         cashier: 'ONLINE_STORE',
         cashierRole: 'online',
