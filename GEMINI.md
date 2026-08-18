@@ -426,6 +426,13 @@ Drafts (`status:'pending'` / `DRAFT_SALE` note) are saved CARTS, not revenue.
 - Order status auto-advance (OrderTracker `delivered`) does NOT create a sale or touch stock — status is cosmetic only.
 - This rule exists so inventory can NEVER be wrong: stock only ever moves when a real bill is struck at POS. Violation = data-corruption bug.
 
+## RULE F25 — TRUE CLOUD SYNC ON MANUAL REFRESH (PERMANENT)
+
+- **Problem:** Devices lose sync sync when offline or if realtime websocket fails. Clicking standard refresh (`window.location.reload()`) reads stale data from local IndexedDB instantly, dismissing loaders while the actual cloud fetch happens invisibly in the background. Users think the data is still broken/stale.
+- **Requirement:** The global Refresh button (in `Header.tsx` or anywhere else) MUST invoke a dedicated `forceSync()` method (from `useApp()`).
+- **Implementation:** `forceSync()` clears the local sync cursor (`localDb.syncHistory.clear()`) and triggers `loadData(false, true)` where `forceCloudSync = true`. This parameter ensures that `loading = true` is maintained until the complete background fetch is finished and data is merged locally. Only then is the loader dismissed. 
+- **Result:** Manual refresh guarantees a 100% exact parity with the cloud database across all tables immediately upon completion. Any generic `window.location.reload()` for data sync purposes is completely banned.
+
 ---
 
 # 🗄️ DATABASE MIGRATION RULES (THE GOLDEN RULE)

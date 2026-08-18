@@ -437,6 +437,7 @@ but it must be a documented decision, not a silent accidental gap.
   re-run §7's I1 query — must return 0 mismatch rows. If `allowNegativeStock=false`, exactly one of the
   concurrent attempts must succeed and the others must fail cleanly with a stock-unavailable error (DB
   transaction/row-lock enforced, not a frontend race that both "succeed" client-side).
+- **True Cloud Sync / Manual Refresh Requirement (MANDATORY)**: A simple `window.location.reload()` is insufficient for cross-device synchronization (as it reads stale IndexedDB data instantly, hiding the background cloud fetch). The global Refresh button MUST invoke a dedicated `forceSync()` method: this method clears `localDb.syncHistory` (forcing a full delta pull) and invokes `loadData(false, true)` to hold the UI in a loading state until the remote cloud data has fully overwritten the local cache. This guarantees that a manual refresh provides instantaneous, 100% exact parity with the cloud database.
 
 ---
 
