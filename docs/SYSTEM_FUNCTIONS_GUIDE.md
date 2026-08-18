@@ -234,6 +234,7 @@ Expected: steps 1–2 PASS, balances exactly 250→0, zero residue after cleanup
 | `AUTO-BLACKLISTED COLUMN: xyz` | column Supabase par missing | `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` (post-launch block) |
 | Variant stock change "show nahi hota" | `variant_data` direct product payload se bheja | `variant_stock_history` flow use karo (F22) |
 | Stock double-counted | UI handler ne service ke baad phir stock reverse kiya | reversal sirf owning service mein (F12) |
+| **Sale save ho rahi but stock kam/ziada ni hoti (ya refresh par wapas purani value)** | auto-background `reconcileAllStock(true)` app boot par chalta tha — ye ledger snapshot (jo sale ke `stock_history` se lag karti hai) se `products.stock` ko force-reset kar deta tha, sale ka decrease mita kar. Plus self-fighting loop ne `[RECONCILE] auto-fix` ±4/±5 adjustments spam kiye. | **PROHIBITED (2026-08-18):** auto-background reconcile hata diya gaya hai (`syncEngine.startSyncEngine` se `reconcileAllStock(true)` call remove). Reconcile sirf MANUAL purple "Reconcile" button se chalega. Stock accuracy per-transaction `on_stock_history_insert` trigger se hoti hai — auto-run ki zaroorat nahi. Drift fix ke liye admin Reconcile button dabaye. |
 | Queue par op stuck "pending" | merge ne retries/status reset nahi kiye | F17 merge rules check |
 | Report totals galat | `.limit()`/`.slice` ya refunds double-merge (F14/F15) | `fetchAllPages()` + sale-id merge (sales copy wins) |
 
