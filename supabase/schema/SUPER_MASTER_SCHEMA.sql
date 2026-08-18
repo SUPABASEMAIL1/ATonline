@@ -3253,7 +3253,7 @@ BEGIN
   LOOP
     INSERT INTO payment_movements (id, mode_id, delta, reference_id, note, created_at)
     VALUES (
-      COALESCE((h->>'id')::uuid, uuid_generate_v4()),
+      COALESCE((h->>'id')::uuid, gen_random_uuid()),
       h->>'mode_id',
       (h->>'delta')::numeric,
       NULLIF(h->>'reference_id','')::uuid,

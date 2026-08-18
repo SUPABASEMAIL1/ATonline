@@ -678,6 +678,11 @@ Whenever a database change is made, it MUST be recorded here.
 
 > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
 
+### [2026-08-18] apply_payment_movements uuid bug — Sale Delete Abort Fix
+**Files:** `supabase/migrations/20260818160000_fix_apply_payment_movements_uuid.sql` (NEW), `SUPER_MASTER_SCHEMA.sql`
+**Context (sync round-4):** `apply_payment_movements` used `uuid_generate_v4()` but the function sets `SET search_path TO 'public'` — `uuid_generate_v4` lives in the `uuid-ossp` schema, so it was invisible → every real payment movement returned **404** (masked SQLSTATE 42883 `function uuid_generate_v4() does not exist`). `adjustPaymentBalances` calls this RPC during a sale **delete** and was NOT in a try/catch → threw → `localDb.sales.delete(id)` never ran → cloud sale remained → `cloudPull` re-pulled it back ("delet ni hote wapis aa jate hain"). `apply_stock_movements` already used built-in `gen_random_uuid()` (always visible) and worked. Fix: `uuid_generate_v4()` → `gen_random_uuid()` (verified live: real payload now executes instead of 404ing). This also unblocks all app-originated wallet/payment-movement syncs (sales, refunds, expenses) that were silently 404ing.
+**Applied live:** jeanzone 2026-08-18 (CREATE OR REPLACE via Management API). New migration replays the fix on remaining clone projects on next deploy.
+
 ### [2026-08-18] sales(created_at) Index — Full-Pull Timeout Fix
 **Files:** `supabase/migrations/20260818150000_sales_created_at_index.sql` (NEW, applied live), `SUPER_MASTER_SCHEMA.sql`, `src/lib/services.ts`, `src/lib/cloudPull.ts`, `src/lib/syncEngine.ts`
 **Context (sync round-3):**
