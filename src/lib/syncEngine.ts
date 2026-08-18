@@ -363,7 +363,12 @@ async function executeOp(op: PendingOp): Promise<void> {
                 // transaction via commit_sale RPC (same path as online sales) so cloud stock can
                 // NEVER diverge from the sale. Sibling stock_history / variant_stock_history ops
                 // (same batchId) are committed together, then dropped (idempotent ids make any
-                // accidental re-apply a no-op). Falls back to the legacy process_sale path on any error.
+                // accidental re-apply a no-op).
+                // CRITICAL FIX (MASTER §5 / §0): a sale is NEVER committed without its stock
+                // ledger. The old `process_sale` fallback inserted the sale but NOT stock_history,
+                // so ~60% of sales never moved cloud stock. We removed that fallback: if the atomic
+                // commit does not confirm, we RE-QUEUE (throw) and retry on the next tick instead
+                // of silently committing a sale with no inventory effect.
                 if (typeof navigator === 'undefined' || navigator.onLine) {
                     try {
                         const siblings = await localDb.pendingOps.where('batchId').equals(op.entityId).toArray();
@@ -393,24 +398,25 @@ async function executeOp(op: PendingOp): Promise<void> {
                                 } catch (revErr) {
                                     console.warn('[SyncEngine] already_fulfilled revert failed:', revErr);
                                 }
-                                return; // success (idempotent) — skip legacy path
+                                return; // success (idempotent) — skip
                             }
                             const idsToDelete = [op.id, ...movementOps.map(m => m.id)].filter(
                                 (x): x is number => typeof x === 'number'
                             );
                             if (idsToDelete.length) await localDb.pendingOps.bulkDelete(idsToDelete);
                             console.log(`[SyncEngine] Atomic flush of buffered sale ${op.entityId} (sale + ${movements.length} stock movements).`);
-                            return; // success — skip legacy process_sale path
+                            return; // success
                         }
+                        // Atomic RPC did not confirm (transient) — re-queue instead of committing
+                        // a sale WITHOUT its stock_history. Throwing retries on the next sync tick.
+                        throw new Error('commit_sale returned no result — re-queuing sale for atomic retry');
                     } catch (atomicErr) {
-                        console.warn('[SyncEngine] Atomic buffered-sale flush failed, falling back to process_sale:', atomicErr);
+                        console.warn('[SyncEngine] Atomic buffered-sale flush failed, will retry:', atomicErr);
+                        throw atomicErr; // re-queue (never the legacy no-history process_sale)
                     }
                 }
-                const result = await supabase.rpc('process_sale', { sale_data: payload });
-                error = result.error;
-                if (!error && result.data && result.data.success === false) {
-                    error = new Error(result.data.error || 'Unknown process_sale RPC error');
-                }
+                // Offline: leave queued; the next online sync tick retries atomically.
+                return;
             } else if (op.entity === 'sales' && opType === 'update' && (payload.status === 'refunded' || payload.status === 'partially_refunded')) {
                 const result = await supabase.rpc('process_return', { sale_id: entityId, return_data: payload });
                 error = result.error;
@@ -1086,14 +1092,18 @@ export function startSyncEngine() {
     // removing them un-jams the queue.
     clearBogusReconcileOps().catch(() => { });
 
-    // Auto-maintenance: Repair legacy sales, populate missing barcodes, and
-    // auto-reconcile stock silently in background so the system stays accurate
-    // without manual intervention. reconcileAllStock(autoFix=true) only writes a
-    // corrective entry when real drift exists, so it cannot loop.
+    // Auto-maintenance: Repair legacy sales, populate missing barcodes.
+    // NOTE: auto-reconciling stock in the background is DISABLED on purpose.
+    // reconcileAllStock(autoFix=true) resets products.stock to Σ stock_history,
+    // but it reads a snapshot of the ledger that can lag behind a just-made sale
+    // (the sale's stock_history may not be in the cloud yet at startup). That made
+    // it slam stock back to the pre-sale value on every refresh — erasing legit
+    // sale/delete stock movements (user-reported: "stock kam ziada ni ho rahi").
+    // Stock is already kept consistent by the stock_history trigger, so the
+    // reconcile is now a MANUAL tool only (Reconciliation tab).
     setTimeout(() => {
         salesService.patchLegacySales().catch(() => { });
         seedMissingBarcodes().catch(() => { });
-        reconcileAllStock(true).catch(() => { });
     }, 5000); // 5 seconds delay to not block UI load
 
     syncToCloud().catch(() => { });
