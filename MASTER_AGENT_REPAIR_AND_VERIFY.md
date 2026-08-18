@@ -56,6 +56,9 @@ this behavior before touching anything nearby.
 | P11 | Order-again on E-store restores exact variant + toppings | `StoreFront.tsx handleOrderAgain` |
 | P12 | OrderTracker auto-deliver timer no longer fires on a stale/cancelled order | `OrderTracker.tsx` |
 | P13 | Offline-first: local write succeeds immediately, cloud RPC commits async, sync engine queues | `syncEngine.ts`, `commitSaleAuthoritative` |
+| P14 | Background sync loops (15s/30s) removed; system relies on Supabase Realtime & explicit sync to prevent bandwidth limit exhaustion | `cloudPull.ts`, `syncEngine.ts` |
+| P15 | PWA Service Worker correctly routes offline fallback to `index.html` to prevent offline Dinosaur crash screen | `vite.config.ts` |
+| P16 | Inventory double-deduction fixed; `ADD_SALE` in-memory stock mutation removed, relies entirely on `localDb` optimistic write + cloud realtime | `SupabaseAppContext.tsx` |
 
 **Before any refactor touching these areas, write a failing-if-broken test for the row above, THEN change code.**
 
