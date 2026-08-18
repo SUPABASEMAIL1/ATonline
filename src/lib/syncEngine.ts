@@ -1,7 +1,7 @@
 import { supabase, enableFullAuthInit } from './supabase';
 import { localDb, queueOp, PendingOp, SETTINGS_ID } from './localDb';
 import { mapProduct, mapCustomer, salesService, reconcileAllStock, seedMissingBarcodes, commitSaleAuthoritative } from './services';
-import { signAction } from './actionToken';
+import { signAction, withActor } from './actionToken';
 
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
 const BACKOFF_INITIAL = 5 * 1000; // 5s
@@ -102,19 +102,12 @@ function recordBlacklistedColumn(entity: string, errorMsg: string) {
 export async function updateSyncTime() {
     try {
         const now = new Date().toISOString();
-
-        const { data: firstRow } = await supabase.from('app_settings').select('id').limit(1).maybeSingle();
-
-        if (firstRow) {
-            await supabase.from('app_settings').update({ updated_at: now } as any).eq('id', firstRow.id);
-        } else {
-            await supabase.from('app_settings').insert({ updated_at: now, id: SETTINGS_ID } as any);
-        }
-
+        // Removed aggressive write to 'app_settings' which was causing infinite loops
+        // of realtime events and massive bandwidth consumption. 
         localStorage.setItem('local_handshake', now);
         window.dispatchEvent(new Event('sync-status-changed'));
     } catch (err) {
-        console.error('Failed to update remote sync time:', err);
+        console.error('Failed to update local sync time:', err);
     }
 }
 
@@ -340,13 +333,13 @@ async function executeOp(op: PendingOp): Promise<void> {
                 // Settings is a singleton. We always target the master ID.
                 const { error: upsertError } = await supabase
                     .from('app_settings')
-                    .upsert({ ...payload, id: SETTINGS_ID, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+                    .upsert(await withActor({ ...payload, id: SETTINGS_ID, updated_at: new Date().toISOString() }, 'app_settings'), { onConflict: 'id' });
 
                 if (upsertError) {
                     // Fallback: If upsert fails (e.g. unique constraint issues), try to update the first row found
                     const { data: firstRow } = await supabase.from('app_settings').select('id').limit(1).maybeSingle();
                     if (firstRow) {
-                        const { error: updateError } = await supabase.from('app_settings').update(payload).eq('id', firstRow.id);
+                        const { error: updateError } = await supabase.from('app_settings').update(await withActor(payload, 'app_settings')).eq('id', firstRow.id);
                         error = updateError;
                     } else {
                         error = upsertError;
@@ -459,9 +452,10 @@ async function executeOp(op: PendingOp): Promise<void> {
                         }
                     }
                 }
+                const guardedPayload = await withActor(payload, op.entity);
                 const result = await (op.entity === 'stock_history' || op.entity === 'variant_stock_history'
-                    ? supabase.from(table as any).insert(payload)
-                    : supabase.from(table as any).upsert(payload, { onConflict: 'id' }));
+                    ? supabase.from(table as any).insert(guardedPayload)
+                    : supabase.from(table as any).upsert(guardedPayload, { onConflict: 'id' }));
                 error = result.error;
             } else if (opType === 'update') {
                 // Use upsert even for updates to ensure the record exists (self-healing for lost CREATE ops)
@@ -481,7 +475,7 @@ async function executeOp(op: PendingOp): Promise<void> {
                         }
                     }
                 }
-                const result = await supabase.from(table as any).upsert({ ...payload, id: entityId }, { onConflict: 'id' });
+                const result = await supabase.from(table as any).upsert(await withActor({ ...payload, id: entityId }, op.entity), { onConflict: 'id' });
                 error = result.error;
             } else if (opType === 'delete') {
                 if (op.entity === 'sales') {

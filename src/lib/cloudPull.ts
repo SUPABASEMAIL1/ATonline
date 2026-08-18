@@ -575,23 +575,20 @@ export function startCloudPull(onChanged?: (entities: PullEntity[]) => void) {
   _sessionActive = true;
   _onChanged = onChanged || null;
 
-  if (_timer) clearInterval(_timer);
-  _timer = setInterval(() => {
-    if (navigator.onLine) {
-      pullCloudChanges(false).catch(() => { });
-    }
-  }, PULL_INTERVAL);
+  // Removed aggressive 15-second polling that was causing massive bandwidth usage.
+  // The app will now sync automatically only on tab focus, reconnect, and login.
 
   // Instant pull on reconnect + window focus (device resumed).
   window.addEventListener('online', handleNetworkEvent);
   document.addEventListener('visibilitychange', handleVisibility);
 
-  startRealtime();
+  // Removed realtime listener that was triggering full syncs on every DB change.
+  // startRealtime();
 
   // Kick off immediately (incremental — respects last cursor).
   pullCloudChanges(false).catch(() => { });
 
-  console.log(`[CloudPull] Engine started (interval ${PULL_INTERVAL / 1000}s).`);
+  console.log(`[CloudPull] Engine started.`);
 }
 
 function handleNetworkEvent() {
