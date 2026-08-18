@@ -263,3 +263,49 @@ As of 2026-08-17, each payment method (cash / card / online / wallet) holds an a
 - **Split** payments are proportional: each `splitPayments[]` entry credits its own wallet; refunds/deletes reverse per-method proportionally.
 - `normalizePaymentMethod('digital') → 'online'` keeps legacy sales compatible.
 
+---
+
+## 9️⃣ STOCK MOVEMENT & INVENTORY ACCURACY SYSTEM (post 2026-08-18 fixes)
+
+**Goal:** Har action (sale / return / delete / refund / partial refund) REAL inventory kam/ziada kare aur Movement History mein sahi IN/OUT row likhe. Ye system 2026-08-18 ke fixes ke baad kaam karta hai.
+
+### Architecture (single source of truth)
+- `stock_history` append-only ledger = stock movement ki authoritative record.
+- Trigger `on_stock_history_insert` (cloud) har `stock_history` row par `products.stock` update karta hai (`stock += change_qty`). Local par bhi same trigger/changes apply hote hain.
+- `productsService.update` `stock` strip karta hai (absolute stock bhejna MANA — double-count hota). Stock SIRF `stock_history` ke zariye badalta hai.
+- `products.stock` = `SUM(stock_history.change_qty)` hona chahiye. Drift hone par admin **manual Reconcile button** (purple, Inventory toolbar) chale — AUTO background reconcile MANA hai.
+
+### Har action ka behaviour (verified live via real RPCs — jeanzone/minimahal/pizzamilano)
+| Action | RPC / code | `stock_history.type` | Qty sign | Stock | Movement History label |
+|--------|-----------|---------------------|----------|-------|-------------------------|
+| Sale | `commit_sale` (`addSale`) | `sale` | −QTY (OUT) | decreases | `POS Sale` (red OUT) |
+| Return / full refund | `refund_sale_atomic` (`returnSale`) | `return` | +QTY (IN) | increases | `POS Return` (yellow IN) |
+| Sale delete | `delete_sale_atomic` (`salesService.delete`) | `return` | +QTY (IN) | increases | `Sale Deleted` (yellow IN) |
+| Partial refund | `refund_sale_atomic` (`returnSale`, partial) | `return` | +partialQTY (IN) | increases (partial) | `Partial Refund` (yellow IN) |
+| Purchase / Stock IN | `purchaseRecordsService` | `purchase` / `stock_in` | +QTY (IN) | increases | `Purchase` / `Stock IN` |
+| Adjustment | purchase delete / manual | `adjustment` | signed | ± | `Adjustment` |
+
+- Code paths: `src/lib/services.ts` → `addSale` (sale), `returnSale` (return/partial), `salesService.delete` (delete), `commitStockInToInventory` (stock in). Sab `type:'return'` stock_history likhte hain aur atomic RPC se cloud commit karte hain.
+- Idempotency: `ux_stock_history_idem` unique index `(reference_id, type, product_id)` duplicate movements rokta hai.
+
+### Movement History UI (ProductDetailHub) — AB IMPORTANT
+- Screen `src/components/inventory/ProductDetailHub.tsx` ab **`stock_history` ledger se read karti hai** (live `localDb.stock_history`, cloud-pulled + local) — pehle `sales`/`purchases` se derive ho rahi thi.
+- Purani bug: deleted sale ka `status='deleted'` tha → `sales` list se filter ho jata tha → koi reverse IN record nahi dikhta tha ("sale delete krne pe wapis ad hone ka record ni banta"). Ab `stock_history` se sab dikhta hai.
+- Filter: `ALL / IN / OUT`. Sale=OUT, return/delete/refund/purchase=IN.
+
+### 🚫 RULES (INHERITED FROM AUG-18 INCIDENT — NEVER VIOLATE)
+1. **Anon-key data path REQUIRED.** App ships PUBLIC `anon` key + offline-login fallback → `auth.uid()` hamesha NULL. `commit_sale` / `delete_sale_atomic` / `refund_sale_atomic` / `apply_payment_movements` must NOT `RAISE FORBIDDEN` on `auth.uid() IS NULL`. Auth-dependent role guards hata diye gaye hain (migration `20260819000000_restore_anon_compat.sql`).
+2. **Auto-background reconcile PROHIBITED.** `syncEngine.startSyncEngine` mein `reconcileAllStock(true)` call hata diya gaya. Ye boot par `products.stock` ko stale ledger-snapshot par force-reset kar deta tha → sale/delete ka stock effect mita deta tha. Reconcile SIRF manual button se.
+3. **Schema drift check.** Har clone ki `sales` table mein `idempotency_key` column + `sales_status_check` constraint `'deleted'`/`'cancelled'` allow kare. Missing hone par `commit_sale` INSERT ya `delete_sale_atomic` fail hota tha (minimahal/pizzamilano pe fix hua: migration `20260819010000_fix_drifted_schemas.sql`).
+4. **Stock absolute mat bhejo.** `products` payload se `stock` strip karo — sirf `stock_history` trigger se.
+
+### Files
+- `src/lib/services.ts` — `addSale`/`returnSale`/`salesService.delete`/`commitStockInToInventory`, `reconcileAllStock` (manual tool only).
+- `src/lib/syncEngine.ts` — auto-background reconcile removed from `startSyncEngine`.
+- `src/components/inventory/ProductDetailHub.tsx` — Movement History ab `stock_history` se.
+- `supabase/migrations/20260819000000_restore_anon_compat.sql` — anon path restore.
+- `supabase/migrations/20260819010000_fix_drifted_schemas.sql` — idempotency_key + status check.
+- `GEMINI.md` SCHEMA CHANGE LOG (2026-08-18 entry) — audit trail.
+
+*Last updated: 2026-08-18 — anon-path restore + drifted-schema fix + auto-reconcile removal + Movement History stock_history source, verified live (sale→stock↓, return/delete→stock↑ with stock_history rows) on jeanzone/minimahal/pizzamilano.*
+

@@ -1,7 +1,6 @@
 // Standardized Settings Layout - Fixed Imports
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Save,
   PlusCircle,
   Layers,
   Store,
@@ -62,7 +61,7 @@ import { useSoundFeedback } from '../../hooks/useSoundFeedback';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Button, ToggleSwitch, SegmentedControl, Select } from '../../shared/ui';
 
-type TabType = 'general' | 'receipt' | 'backup' | 'security' | 'database' | 'estore';
+type TabType = 'general' | 'receipt' | 'backup' | 'security' | 'estore';
 
 const TIME_OPTIONS = Array.from({ length: 48 }).map((_, i) => {
   const hour = Math.floor(i / 2);
@@ -576,7 +575,6 @@ export function Settings() {
     ...(state.settings?.estoreEnabled ? [{ id: 'estore' as TabType, label: 'Online Store', icon: Globe }] : []),
     { id: 'receipt', label: 'Receipt Design', icon: Printer },
     { id: 'security', label: 'Security & Account', icon: Shield },
-    { id: 'database', label: 'Database', icon: Database, adminOnly: true },
     { id: 'backup', label: 'Backup & Restore', icon: Database },
   ];
 
@@ -1180,7 +1178,7 @@ export function Settings() {
               </section>
             )}
 
-            {(activeTab === 'database' || activeTab === 'backup') && (
+            {(activeTab === 'backup') && (
               <section className="space-y-8">
                 <DatabaseTools />
               </section>
@@ -1583,98 +1581,6 @@ export function Settings() {
             {activeTab === 'security' && (
               <section>
                 <PasswordChange />
-              </section>
-            )}
-
-            {activeTab === 'database' && (window as any).electronAPI?.isElectron && (
-              <section className="space-y-8">
-                <div className="flex items-center gap-3 pb-2 border-b border-gray-50 dark:border-white/5">
-                  <div className="w-10 h-10 bg-cyan-100/30 rounded-xl flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-cyan-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Database Adapter</h2>
-                    <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Cloud Backend Provisioning</p>
-                  </div>
-                </div>
-
-                <div className="p-4 sm:p-8 bg-cyan-50/20 dark:bg-cyan-900/5 rounded-[2rem] border border-cyan-100 dark:border-cyan-900/20 space-y-6">
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Database API URL</label>
-                      <input
-                        type="url"
-                        id="electron-supabase-url"
-                        placeholder="https://xxxxxx.supabase.co"
-                        className="w-full bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-2xl py-3.5 px-5 font-mono text-xs font-bold"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Client Anon Key</label>
-                      <input
-                        type="password"
-                        id="electron-supabase-anon"
-                        placeholder="Public token..."
-                        className="w-full bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-2xl py-3.5 px-5 font-mono text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-gray-600 uppercase tracking-widest ml-1">Service Role Key (Admin)</label>
-                      <input
-                        type="password"
-                        id="electron-supabase-service"
-                        placeholder="Private role key..."
-                        className="w-full bg-white dark:bg-white/5 border-gray-200 dark:border-white/10 rounded-2xl py-3.5 px-5 font-mono text-xs"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Button
-                      type="button"
-                      onClick={async () => {
-                        const url = (document.getElementById('electron-supabase-url') as HTMLInputElement)?.value;
-                        const anon = (document.getElementById('electron-supabase-anon') as HTMLInputElement)?.value;
-                        const service = (document.getElementById('electron-supabase-service') as HTMLInputElement)?.value;
-                        if (!url || !anon || !service) return sonner.warning('Credentials missing.');
-                        try {
-                          sonner.loading('Securing connection...');
-                          await (window as any).electronAPI.saveConfig({
-                            supabaseUrl: url,
-                            supabaseAnonKey: anon,
-                            supabaseServiceRoleKey: service
-                          });
-                          sonner.close();
-                          const res = await sonner.confirm('Connection Saved', 'Restart system now?', 'Restart App');
-                          if (res.isConfirmed) (window as any).electronAPI.restartApp();
-                        } catch {
-                          sonner.close();
-                          sonner.error('Adapter rejection.');
-                        }
-                      }}
-                      icon={<Save className="w-5 h-5" />}
-                      className="flex-1 !py-4 !rounded-2xl !font-black !text-sm !gap-2 !bg-cyan-600 hover:!bg-cyan-700 !shadow-none"
-                    >
-                      Apply & Restart System
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const config = await (window as any).electronAPI.getConfig();
-                          (document.getElementById('electron-supabase-url') as HTMLInputElement).value = config.supabaseUrl || '';
-                          (document.getElementById('electron-supabase-anon') as HTMLInputElement).value = config.supabaseAnonKey || '';
-                          (document.getElementById('electron-supabase-service') as HTMLInputElement).value = config.supabaseServiceRoleKey || '';
-                          sonner.info('Configuration loaded.');
-                        } catch { sonner.error('Read failure.'); }
-                      }}
-                      icon={<RefreshCw className="w-5 h-5" />}
-                      className="!min-h-0 !p-4 !rounded-2xl !shadow-none !bg-gray-100 dark:!bg-white/5 !text-gray-600 !hover:bg-gray-200 dark:!hover:bg-white/5"
-                    />
-                  </div>
-                  <p className="text-[10px] text-gray-600 font-bold text-center uppercase tracking-widest leading-relaxed">
-                    Connecting to restricted infrastructure.<br />Ensure SSL/TLS endpoint is verified.
-                  </p>
-                </div>
               </section>
             )}
 
