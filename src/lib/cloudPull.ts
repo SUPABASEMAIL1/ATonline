@@ -18,6 +18,7 @@ import {
   mapVariantStockHistory,
   mapProductAddon,
   mapBundle,
+  fetchAllPages,
 } from './services';
 
 /**
@@ -106,10 +107,13 @@ async function hasPendingOpsFor(entity: PullEntity, id: string): Promise<boolean
 async function applyTombstones(since: Date): Promise<PullEntity[]> {
   const changed: PullEntity[] = [];
   try {
+    // NOTE: row_tombstones has NO created_at column — only table_name, ref_id,
+    // deleted_at. Filtering by created_at made this query fail silently every
+    // time (error → early return), so cloud deletes NEVER reached local devices.
     const { data: tombs, error } = await supabase
       .from('row_tombstones')
       .select('table_name, ref_id')
-      .gte('created_at', since.toISOString())
+      .gte('deleted_at', since.toISOString())
       .limit(500);
     if (error) return changed;
     if (!tombs || tombs.length === 0) return changed;
@@ -174,10 +178,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'products',
     remoteTable: 'products',
     fetch: async (since) => {
-      let q = supabase.from('products').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapProduct);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('products').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapProduct);
     },
     write: async (rows) => { if (rows.length) await localDb.products.bulkPut(rows as any); },
   },
@@ -185,10 +191,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'customers',
     remoteTable: 'customers',
     fetch: async (since) => {
-      let q = supabase.from('customers').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapCustomer);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('customers').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapCustomer);
     },
     write: async (rows) => { if (rows.length) await localDb.customers.bulkPut(rows as any); },
   },
@@ -198,10 +206,12 @@ const PULL_DEFS: PullDef[] = [
     fetch: async (since) => {
       // Soft-deleted sales (status='deleted', deleted_at set) are historical
       // audit rows — never re-surface them. Tombstones remove them locally.
-      let q = supabase.from('sales').select('*').is('deleted_at', null);
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapSale);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('sales').select('*').is('deleted_at', null);
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapSale);
     },
     write: async (rows) => { if (rows.length) await localDb.sales.bulkPut(rows as any); },
   },
@@ -209,10 +219,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'store_orders',
     remoteTable: 'store_orders',
     fetch: async (since) => {
-      let q = supabase.from('store_orders').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapStoreOrder);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('store_orders').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapStoreOrder);
     },
     write: async (rows) => { if (rows.length) await localDb.storeOrders.bulkPut(rows as any); },
   },
@@ -220,10 +232,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'expenses',
     remoteTable: 'expenses',
     fetch: async (since) => {
-      let q = supabase.from('expenses').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapExpense);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('expenses').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapExpense);
     },
     write: async (rows) => { if (rows.length) await localDb.expenses.bulkPut(rows as any); },
   },
@@ -231,10 +245,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'suppliers',
     remoteTable: 'suppliers',
     fetch: async (since) => {
-      let q = supabase.from('suppliers').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapSupplier);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('suppliers').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapSupplier);
     },
     write: async (rows) => { if (rows.length) await localDb.suppliers.bulkPut(rows as any); },
   },
@@ -242,10 +258,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'categories',
     remoteTable: 'categories',
     fetch: async (since) => {
-      let q = supabase.from('categories').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapCategory);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('categories').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapCategory);
     },
     write: async (rows) => { if (rows.length) await localDb.categories.bulkPut(rows as any); },
   },
@@ -253,10 +271,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'discounts',
     remoteTable: 'discounts',
     fetch: async (since) => {
-      let q = supabase.from('discounts').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapDiscount);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('discounts').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapDiscount);
     },
     write: async (rows) => { if (rows.length) await localDb.discounts.bulkPut(rows as any); },
   },
@@ -264,10 +284,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'purchase_records',
     remoteTable: 'purchase_records',
     fetch: async (since) => {
-      let q = supabase.from('purchase_records').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapPurchaseRecord);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('purchase_records').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapPurchaseRecord);
     },
     write: async (rows) => { if (rows.length) await localDb.purchaseRecords.bulkPut(rows as any); },
   },
@@ -275,10 +297,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'salesmen',
     remoteTable: 'salesmen',
     fetch: async (since) => {
-      let q = supabase.from('salesmen').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapSalesman);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('salesmen').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapSalesman);
     },
     write: async (rows) => { if (rows.length) await localDb.salesmen.bulkPut(rows as any); },
   },
@@ -286,10 +310,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'users',
     remoteTable: 'users',
     fetch: async (since) => {
-      let q = supabase.from('users').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapUser);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('users').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapUser);
     },
     write: async (rows) => { if (rows.length) await localDb.users.bulkPut(rows as any); },
   },
@@ -310,10 +336,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'payments',
     remoteTable: 'payments',
     fetch: async (since) => {
-      let q = supabase.from('payments').select('*');
-      if (since && since.getTime() > 0) q = q.gte('created_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapPayment);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('payments').select('*');
+        if (since && since.getTime() > 0) q = q.gte('created_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapPayment);
     },
     write: async (rows) => { if (rows.length) await localDb.payments.bulkPut(rows as any); },
   },
@@ -321,10 +349,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'supplier_transactions',
     remoteTable: 'supplier_transactions',
     fetch: async (since) => {
-      let q = supabase.from('supplier_transactions').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('supplier_transactions').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows;
     },
     write: async (rows) => { if (rows.length) await localDb.supplierTransactions.bulkPut(rows as any); },
   },
@@ -332,10 +362,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'stock_history',
     remoteTable: 'stock_history',
     fetch: async (since) => {
-      let q = supabase.from('stock_history').select('*');
-      if (since && since.getTime() > 0) q = q.gte('created_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapStockHistory);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('stock_history').select('*');
+        if (since && since.getTime() > 0) q = q.gte('created_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapStockHistory);
     },
     write: async (rows) => { if (rows.length) await localDb.stockHistory.bulkPut(rows as any); },
   },
@@ -343,10 +375,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'variant_stock_history',
     remoteTable: 'variant_stock_history',
     fetch: async (since) => {
-      let q = supabase.from('variant_stock_history').select('*');
-      if (since && since.getTime() > 0) q = q.gte('created_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapVariantStockHistory);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('variant_stock_history').select('*');
+        if (since && since.getTime() > 0) q = q.gte('created_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapVariantStockHistory);
     },
     write: async (rows) => { if (rows.length) await localDb.variantStockHistory.bulkPut(rows as any); },
   },
@@ -354,10 +388,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'product_addons',
     remoteTable: 'product_addons',
     fetch: async (since) => {
-      let q = supabase.from('product_addons').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapProductAddon);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('product_addons').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapProductAddon);
     },
     write: async (rows) => { if (rows.length) await localDb.productAddons.bulkPut(rows as any); },
   },
@@ -365,10 +401,12 @@ const PULL_DEFS: PullDef[] = [
     entity: 'bundles',
     remoteTable: 'bundles',
     fetch: async (since) => {
-      let q = supabase.from('bundles').select('*');
-      if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
-      const { data } = await q;
-      return (data || []).map(mapBundle);
+      const rows = await fetchAllPages(() => {
+        let q = supabase.from('bundles').select('*');
+        if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
+        return q;
+      });
+      return rows.map(mapBundle);
     },
     write: async (rows) => { if (rows.length) await localDb.bundles.bulkPut(rows as any); },
   },
@@ -427,8 +465,18 @@ async function checkUserStatus(): Promise<void> {
  */
 export async function pullCloudChanges(forceFull = false): Promise<PullEntity[]> {
   if (!_sessionActive) return [];
-  if (_pullRunning) return [];
   if (!navigator.onLine) return [];
+  if (_pullRunning) {
+    // A periodic 15s pull is in flight — wait briefly (bounded) instead of
+    // skipping: a manual Force Sync that returns immediately with zero changes
+    // looks like a fake success. 8s covers a normal cycle; past that, give up
+    // rather than pile onto a stuck cycle.
+    const deadline = Date.now() + 8000;
+    while (_pullRunning && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if (_pullRunning) return [];
+  }
 
   _pullRunning = true;
   const changed: PullEntity[] = [];

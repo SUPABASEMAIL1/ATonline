@@ -51,8 +51,6 @@ import {
   startCloudPull,
   stopCloudPull,
   pullCloudChanges,
-  resetLastPullTime,
-  waitForPullIdle,
   type PullEntity
 } from '../lib/cloudPull';
 
@@ -2305,12 +2303,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       await localDb.syncHistory.clear();
-      // Don't collide with an in-flight 15s timer pull — a concurrent full pull
-      // would be skipped by the `_pullRunning` guard and the refresh would do
-      // nothing. Wait for the running cycle, then do the authoritative full pull.
-      await waitForPullIdle(30000);
-      resetLastPullTime();
-      const changed = await pullCloudChanges(true);
+      // FAST force sync: the 15s timer pull keeps the cursor continuously
+      // fresh, so an incremental pull IS the authoritative "fresh from cloud"
+      // refresh. It only downloads rows changed since the last cursor
+      // (usually a handful) instead of re-downloading every row of all 18
+      // tables (the old epoch-reset approach = the "much load" the modal
+      // showed for 30-45s). A full epoch pull still happens automatically on
+      // first run / after site-data clear (cursor = epoch).
+      const changed = await pullCloudChanges(false);
       if (changed.length > 0) {
         await handleCloudPullChanged(changed);
       }
