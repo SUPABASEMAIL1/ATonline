@@ -23,6 +23,7 @@ import { formatCurrency } from '../../lib/currencies';
 import { productsService, purchaseRecordsService, generateId, toRemoteStockHistory, toRemoteProduct, productToppingsService, applyVariantStockMovement } from '../../lib/services';
 import { commitStockInToInventory } from '../../lib/stockInCommit';
 import { localDb, queueOp } from '../../lib/localDb';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { compressImage } from '../../lib/imageCompression';
 import { sonner } from '../../lib/sonner';
 import { BatchStockInSystem } from './BatchStockInSystem';
@@ -171,6 +172,16 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       return r.productId === product.id && !isDuplicateSale;
     });
   }, [state.purchaseRecords, product.id]);
+
+  // Authoritative append-only stock ledger for this product (sales=OUT,
+  // returns/deletes/refunds/purchases/stock_in/adjustment=IN/OUT). Sourced
+  // LIVE from localDb so cloud-pulled + local movements both appear — this is
+  // what the Movement History must show (derived sales/purchases missed
+  // delete-reversals because deleted sales are filtered out of `sales`).
+  const productStockHistory = useLiveQuery(
+    () => localDb.stockHistory.where('productId').equals(product.id).toArray(),
+    [product.id]
+  ) || [];
 
   // ─── KPIs ───
   const totalPurchased = productPurchases.reduce((s, r) => s + (r.quantity || 0), 0);
@@ -506,66 +517,63 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
 
 
   // ─── Unified Audit Logic ───
+  // Sourced from the authoritative `stock_history` ledger (live from localDb),
+  // so EVERY movement shows: sale=OUT, return/delete/refund=IN, purchase/stock_in=IN,
+  // adjustment=signed. This fixes the old bug where deleted sales vanished with no
+  // reverse record (they were filtered out of `sales`).
   const movementHistory = useMemo(() => {
     const history: any[] = [];
 
-    productSales.forEach(s => {
-      // Use String comparison for IDs to prevent type mismatch failures
-      const items = (s.items || []).filter(i => String(i.product?.id) === String(product.id));
+    (productStockHistory as any[]).forEach(h => {
+      const qty = Number(h.changeQty || 0);
+      const isOut = qty < 0;
+      const displayType = isOut ? 'OUT' : 'IN';
+      const displayQty = Math.abs(qty);
+      const note = (h.note || '').toLowerCase();
 
-      const qty = items.reduce((a, i) => a + (Number(i.weight || 0) || Number(i.quantity || 0) || 0), 0);
-      const isNegativeSubtotal = items.some(i => Number(i.subtotal || 0) < 0);
-      const isReturnNote = s.notes?.toLowerCase().includes('return') || s.invoiceNumber?.toLowerCase().includes('ret');
-      const isNegativeTotal = Number(s.total || 0) < 0;
+      let label = 'Movement';
+      let color = isOut ? 'text-red-500' : 'text-primary';
+      let bg = isOut ? 'bg-red-500/10' : 'bg-primary/10';
+      let icon = isOut ? ArrowUpRight : ArrowDownLeft;
 
-      // ULTIMATE RETURN DETECTION: If total is negative OR qty is negative OR notes say return, IT IS A RETURN.
-      const isReturn = s.status === 'refunded' || qty < 0 || isNegativeSubtotal || isReturnNote || isNegativeTotal;
+      if (h.type === 'sale') {
+        label = 'POS Sale';
+        color = 'text-red-500';
+        bg = 'bg-red-500/10';
+        icon = ArrowUpRight;
+      } else if (h.type === 'return') {
+        const isDeleted = note.includes('deleted');
+        label = isDeleted ? 'Sale Deleted' : (note.includes('partial') ? 'Partial Refund' : 'POS Return');
+        color = 'text-yellow-500 font-black';
+        bg = 'bg-yellow-500/10';
+        icon = ArrowDownLeft;
+      } else if (h.type === 'purchase' || h.type === 'stock_in') {
+        label = h.type === 'stock_in' ? 'Stock IN' : 'Purchase';
+      } else if (h.type === 'initial') {
+        label = 'Initial Stock';
+      } else if (h.type === 'adjustment' || h.type === 'adjustment_out') {
+        label = 'Adjustment';
+        color = isOut ? 'text-orange-500' : 'text-amber-500';
+        bg = isOut ? 'bg-orange-500/10' : 'bg-amber-500/10';
+        icon = isOut ? Ban : ArrowDownLeft;
+      }
 
-      const safeDate = s.date ? (s.date instanceof Date ? s.date : new Date(s.date)) :
-        (s.timestamp ? (s.timestamp instanceof Date ? s.timestamp : new Date(s.timestamp)) : new Date());
-
-      // FORCE THE SIGN: Returns are ALWAYS plus (IN), Sales are ALWAYS minus (OUT)
-      // We use Math.abs to avoid double-negative confusion
-      const displayQty = isReturn ? Math.abs(qty) : -Math.abs(qty);
-      const displayType = isReturn ? 'IN' : 'OUT';
+      const safeDate = h.createdAt ? (h.createdAt instanceof Date ? h.createdAt : new Date(h.createdAt))
+        : (h.timestamp ? (h.timestamp instanceof Date ? h.timestamp : new Date(h.timestamp)) : new Date());
 
       history.push({
-        id: s.id,
+        id: h.id,
         date: isNaN(safeDate.getTime()) ? new Date() : safeDate,
         type: displayType,
-        label: s.status === 'refunded' ? 'Refunded Sale' : (isReturn ? 'POS Return' : 'POS Sale'),
+        label,
         qty: displayQty,
-        reference: s.orderNumber || s.invoiceNumber || s.receiptNumber || s.id.slice(-6).toUpperCase(),
-        entity: s.customerName || 'Walk-in',
-        user: s.cashier,
-        icon: isReturn ? ArrowDownLeft : ArrowUpRight,
-        // Using Yellow for returns as requested (+)
-        color: isReturn ? 'text-yellow-500 font-black' : 'text-red-500',
-        bg: isReturn ? 'bg-yellow-500/10' : 'bg-red-500/10'
-      });
-    });
-
-
-    // Purchases/Stock IN
-    productPurchases.forEach(r => {
-      const isAdjustment = r.type === 'Adjustment';
-      const qty = r.quantity;
-      const safeDate = r.date ? (r.date instanceof Date ? r.date : new Date(r.date)) : new Date();
-
-      history.push({
-        id: r.id,
-        date: isNaN(safeDate.getTime()) ? new Date() : safeDate,
-        type: qty >= 0 ? 'IN' : 'OUT',
-        label: isAdjustment ? `ADJ: ${r.supplier}` : (r.type === 'Return' ? 'Return' : (r.type || 'Stock Movement')),
-        qty: qty,
-        reference: r.id.slice(-6).toUpperCase(),
-        entity: r.supplier || 'System',
-
-        user: r.addedBy,
-        notes: r.notes,
-        icon: qty >= 0 ? ArrowDownLeft : Ban,
-        color: qty >= 0 ? 'text-primary' : (isAdjustment ? 'text-amber-500' : 'text-orange-500'),
-        bg: qty >= 0 ? 'bg-primary/10' : (isAdjustment ? 'bg-amber-500/10' : 'bg-orange-500/10')
+        reference: (h.referenceId ? String(h.referenceId).slice(-6).toUpperCase() : (h.note ? h.note.slice(0, 14) : '')),
+        entity: h.cashierName || 'System',
+        user: h.cashierName || 'System',
+        note: h.note,
+        icon,
+        color,
+        bg
       });
     });
 
@@ -574,7 +582,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     return rawHistory
       .filter(h => filterType === 'ALL' || h.type === filterType || (filterType === 'RETURN' && h.label.includes('Return')))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [productSales, productPurchases, filterType]);
+  }, [productStockHistory, filterType]);
 
   const totalHistoryPages = Math.ceil(movementHistory.length / HISTORY_PER_PAGE);
   const paginatedHistory = movementHistory.slice(
