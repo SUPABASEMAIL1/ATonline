@@ -6,6 +6,7 @@ dist/
 *.local
 tsconfig.tsbuildinfo
 env_backups/
+env backup/
 .vercel
 scratch/
 *.log

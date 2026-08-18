@@ -27,7 +27,7 @@ import {
 } from '../types';
 import { localDb, queueOp, generateId, SETTINGS_ID } from './localDb';
 import { generateBarcodeValue } from '../utils/barcode';
-import { signAction } from './actionToken';
+import { signAction, withActor } from './actionToken';
 
 // Re-entrancy mutex for returnSale: local stock/refund mutations are NOT idempotent,
 // so a concurrent double-click or retry could restore stock twice. The cloud RPC is
@@ -3709,7 +3709,7 @@ export const seedMissingBarcodes = async (): Promise<{ count: number; updated: s
   const updatedNames: string[] = [];
   for (const prod of products) {
     const val = prod.barcode || generateBarcodeValue(prod.name || prod.id);
-    await supabase.from('products').update({ barcode_value: val }).eq('id', prod.id);
+    await supabase.from('products').update(await withActor({ barcode_value: val }, 'products')).eq('id', prod.id);
     await localDb.products.where('id').equals(prod.id).modify({ barcodeValue: val, barcode: val });
     updatedNames.push(prod.name);
   }

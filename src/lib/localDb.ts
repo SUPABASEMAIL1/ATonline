@@ -183,6 +183,10 @@ export class PosDB extends Dexie {
       purchase_records: 'id, productId, supplierId, date'
     });
 
+    this.version(21).stores({
+      pendingOps: '++id, [entity+entityId], status, createdAt, batchId'
+    });
+
     this.version(18).stores({
       savedReceiptPngs: 'id, invoiceNumber, saleDate',
       products: 'id, name, barcode, barcodeValue, sku, categoryId, supplierId, isDraft, trackInventory, stock, showInEstore',

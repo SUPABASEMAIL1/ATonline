@@ -35,9 +35,11 @@ DECLARE
   v_stored_role text;
   v_expected text;
 BEGIN
-  -- No signature => reject (fail-closed), unless this is a legacy user whose
-  -- offline_hash was never synced (extremely rare; allows them to keep working
-  -- until their next online login re-syncs the hash).
+  -- Unknown actor => never allowed (fail-closed).
+  IF p_user_id IS NULL THEN RETURN false; END IF;
+
+  -- No signature => reject, unless this is a legacy user whose offline_hash was
+  -- never synced (extremely rare; lets them keep working until next online sync).
   IF p_sig IS NULL OR p_sig = '' THEN
     SELECT offline_hash, role INTO v_hash, v_stored_role FROM users WHERE id = p_user_id;
     IF v_hash IS NULL THEN RETURN true; END IF;   -- legacy allow

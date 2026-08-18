@@ -619,7 +619,7 @@ CREATE TABLE IF NOT EXISTS sales (
     total               DECIMAL(12,2) NOT NULL,
     received_amount     DECIMAL(12,2),
     change_amount       DECIMAL(12,2),
-    payment_method      TEXT CHECK (payment_method IN ('cash', 'card', 'digital', 'credit', 'cheque', 'split')),
+    payment_method      TEXT CHECK (payment_method IN ('cash', 'card', 'digital', 'credit', 'cheque', 'split', 'online')),
     card_details        JSONB,
     status              TEXT DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'refunded', 'partially_refunded', 'credit', 'draft', 'deleted', 'cancelled')),
     cashier             TEXT,
@@ -1071,7 +1071,6 @@ CREATE INDEX IF NOT EXISTS idx_sales_status             ON sales(status);
 CREATE INDEX IF NOT EXISTS idx_sales_payment_method     ON sales(payment_method);
 CREATE INDEX IF NOT EXISTS idx_sales_cashier            ON sales(cashier);
 CREATE INDEX IF NOT EXISTS idx_sales_created_at_status  ON sales(created_at, status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_source_order_id ON sales(source_order_id) WHERE source_order_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sales_sale_date          ON sales(sale_date);
 
 
@@ -1391,7 +1390,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ── Current user role (server-side auth helper, MASTER §2.1.4) ──
 CREATE OR REPLACE FUNCTION current_user_role()
-RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, extensions AS $$
     SELECT role FROM public.users WHERE id = auth.uid();
 $$;
 
@@ -1412,7 +1411,7 @@ CREATE POLICY "users_delete_admin" ON users FOR DELETE
   USING (current_user_role() = 'admin');
 
 CREATE OR REPLACE FUNCTION guard_user_role_change()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 BEGIN
   IF OLD.role IS DISTINCT FROM NEW.role OR OLD.active IS DISTINCT FROM NEW.active THEN
     IF current_user_role() NOT IN ('admin', 'manager') THEN
@@ -1592,7 +1591,7 @@ LANGUAGE sql SECURITY DEFINER AS $$
     s.invoice_number,
     s.created_at,
     COUNT(*) as item_count
-  FROM sales s,
+  FROM public.sales s,
   jsonb_array_elements(s.items) AS item
   WHERE 
     s.status = 'completed'
@@ -1616,7 +1615,7 @@ CREATE OR REPLACE FUNCTION public.resolve_login_email(p_username TEXT)
 RETURNS TEXT 
 LANGUAGE plpgsql 
 SECURITY DEFINER 
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE 
     v_email TEXT;
@@ -1643,7 +1642,7 @@ SELECT
     (item->>'subtotal')::numeric AS subtotal,
     COALESCE((item->>'purchaseCost')::numeric, 0) AS purchase_cost,
     (item->>'subtotal')::numeric - COALESCE((item->>'purchaseCost')::numeric, 0) AS profit
-FROM sales s,
+FROM public.sales s,
 jsonb_array_elements(s.items) AS item
 WHERE s.status = 'completed';
 
@@ -1659,7 +1658,7 @@ SELECT
     COALESCE(SUM(sa.total) FILTER (WHERE sa.payment_method = 'cash'), 0)    AS cash_sales,
     COALESCE(SUM(sa.total) FILTER (WHERE sa.payment_method = 'card'), 0)    AS card_sales,
     COALESCE(SUM(sa.total) FILTER (WHERE sa.payment_method = 'digital'), 0) AS digital_sales
-FROM sales sa
+FROM public.sales sa
 WHERE sa.sale_date IS NOT NULL
 GROUP BY sa.sale_date;
 
@@ -1910,7 +1909,7 @@ CREATE OR REPLACE FUNCTION public.handle_user_delete()
 RETURNS TRIGGER 
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 BEGIN
   DELETE FROM auth.users WHERE id = OLD.id;
@@ -1928,7 +1927,7 @@ CREATE OR REPLACE FUNCTION public.get_email_by_username(p_username TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
     v_email TEXT;
@@ -1947,7 +1946,7 @@ $$;
 
 -- ── 1. Process Sale (Atomic Inventory Deduct) ──
 CREATE OR REPLACE FUNCTION process_sale(sale_data JSONB)
-RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE new_sale_id UUID;
 BEGIN
     INSERT INTO sales (
@@ -1978,7 +1977,7 @@ END; $$;
 
 -- ── 2. Process Return ──
 CREATE OR REPLACE FUNCTION process_return(sale_id UUID, return_data JSONB)
-RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
     v_status TEXT;
     v_refunded_amount DECIMAL(12,2);
@@ -2000,15 +1999,15 @@ END; $$;
 DROP FUNCTION IF EXISTS audit_stock_integrity() CASCADE;
 CREATE OR REPLACE FUNCTION audit_stock_integrity()
 RETURNS TABLE(product_id uuid, name text, stock integer, history_sum bigint, diff bigint)
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
   SELECT 
     p.id, 
     p.name, 
     p.stock,
     COALESCE(SUM(sh.change_qty), 0) AS history_sum,
     p.stock::bigint - COALESCE(SUM(sh.change_qty), 0) AS diff
-  FROM products p
-  LEFT JOIN stock_history sh ON sh.product_id = p.id
+  FROM public.products p
+  LEFT JOIN public.stock_history sh ON sh.product_id = p.id
   WHERE p.track_inventory = true
   GROUP BY p.id, p.name, p.stock
   HAVING p.stock != COALESCE(SUM(sh.change_qty), 0)
@@ -2020,9 +2019,9 @@ $$;
 -- ── 5. Missing Cost Audit ──
 CREATE OR REPLACE FUNCTION audit_missing_purchase_cost()
 RETURNS TABLE(sale_id uuid, invoice_number text, created_at timestamptz, item_count bigint)
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
   SELECT s.id, s.invoice_number, s.created_at, COUNT(*) as item_count
-  FROM sales s, jsonb_array_elements(s.items) AS item
+  FROM public.sales s, jsonb_array_elements(s.items) AS item
   WHERE s.status = 'completed'
     AND ((item->>'purchaseCost') IS NULL OR (item->>'purchaseCost') = '0' OR (item->>'purchaseCost') = 'null')
   GROUP BY s.id, s.invoice_number, s.created_at
@@ -2153,7 +2152,7 @@ SELECT
   'Backfill: Initial stock entry (post-dump repair)',
   'System',
   COALESCE(p.created_at, NOW()) - INTERVAL '1 second'
-FROM products p
+FROM public.products p
 LEFT JOIN (
   SELECT product_id, SUM(change_qty) as total_change
   FROM stock_history
@@ -2353,9 +2352,13 @@ ALTER TABLE sales
   ADD COLUMN IF NOT EXISTS deleted_at           TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS source_order_id      UUID REFERENCES store_orders(id) ON DELETE SET NULL;
 
--- NOTE: the (UNIQUE, partial) index idx_sales_source_order_id already exists in the
--- commit_sale idempotency block above (covers source_order_id IS NOT NULL). A second
--- non-unique index with the same name would conflict, so it is intentionally not added here.
+-- (UNIQUE, partial) index on source_order_id — created here (post-launch) so the
+-- column exists first. CREATE INDEX IF NOT EXISTS keeps it idempotent on existing projects.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_source_order_id ON sales(source_order_id) WHERE source_order_id IS NOT NULL;
+
+-- POST-LAUNCH ALTER TABLE: sales — Idempotency Key (commit_sale references it)
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS idempotency_key UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_idempotency_key ON sales(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 -- POST-LAUNCH ALTER TABLE: sales — Salesman Tracking
 ALTER TABLE sales
@@ -2623,15 +2626,15 @@ FOR EACH ROW EXECUTE FUNCTION trigger_update_variant_stock();
 -- This replaces the deprecated product_batches reconcile tool with a stock_history sum comparison.
 CREATE OR REPLACE FUNCTION audit_stock_integrity_history()
 RETURNS TABLE(product_id uuid, name text, stock integer, history_sum bigint, diff bigint)
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
   SELECT 
     p.id, 
     p.name, 
     p.stock,
     COALESCE(SUM(sh.change_qty), 0) AS history_sum,
     p.stock::bigint - COALESCE(SUM(sh.change_qty), 0) AS diff
-  FROM products p
-  LEFT JOIN stock_history sh ON sh.product_id = p.id
+  FROM public.products p
+  LEFT JOIN public.stock_history sh ON sh.product_id = p.id
   WHERE p.track_inventory = true
   GROUP BY p.id, p.name, p.stock
   HAVING p.stock != COALESCE(SUM(sh.change_qty), 0)
@@ -2997,7 +3000,7 @@ CREATE OR REPLACE FUNCTION public.lock_product_stock(pid uuid)
 RETURNS numeric
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $function$
 DECLARE s numeric;
 BEGIN
@@ -3156,7 +3159,7 @@ GRANT EXECUTE ON FUNCTION apply_stock_movements(jsonb) TO anon, authenticated, s
 -- destroyed — delete_sale_atomic soft-deletes (status='deleted', deleted_at)
 -- and records a tombstone so every other device removes the row locally.
 CREATE OR REPLACE FUNCTION delete_sale_atomic(p_sale_id uuid, p_history jsonb)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   h jsonb;
 BEGIN
@@ -3183,7 +3186,7 @@ BEGIN
 END; $$;
 
 CREATE OR REPLACE FUNCTION refund_sale_atomic(p_sale_id uuid, p_history jsonb, p_status text, p_refunded_amount numeric)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   h jsonb;
 BEGIN
@@ -3337,7 +3340,7 @@ FOR EACH ROW EXECUTE FUNCTION guard_store_order_insert();-- ====================
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION delete_sale_atomic(p_sale_id uuid, p_history jsonb)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   h jsonb;
   _role text;
@@ -3373,7 +3376,7 @@ BEGIN
 END; $$;
 
 CREATE OR REPLACE FUNCTION refund_sale_atomic(p_sale_id uuid, p_history jsonb, p_status text, p_refunded_amount numeric)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   h jsonb;
   _role text;
@@ -3450,7 +3453,7 @@ BEGIN
   FOR r IN
     SELECT p.id::text AS eid, p.stock AS actual,
       COALESCE((SELECT SUM(change_qty) FROM stock_history WHERE product_id = p.id), 0) AS expected
-    FROM products p
+    FROM public.products p
     WHERE p.track_inventory = true
       AND p.stock IS DISTINCT FROM COALESCE((SELECT SUM(change_qty) FROM stock_history WHERE product_id = p.id), 0)
   LOOP
@@ -3485,7 +3488,7 @@ $$;
 CREATE OR REPLACE VIEW invariant_violations AS
   -- I1: inventory drift (only products that actually track inventory)
   SELECT 'I1_inventory' AS check_name, p.id::text AS entity_id
-  FROM products p
+  FROM public.products p
   WHERE p.track_inventory = true
     AND p.stock IS DISTINCT FROM COALESCE((SELECT SUM(change_qty) FROM stock_history WHERE product_id = p.id), 0)
 UNION ALL
@@ -3499,19 +3502,19 @@ UNION ALL
   --     (the embedded item snapshot may be null). Both sides count ONLY existing
   --     products, so orphaned rows for deleted products are never false-flagged.
   SELECT 'I4_sale_stock', s.id::text
-  FROM sales s
+  FROM public.sales s
   WHERE s.status = 'completed'
     AND ( SELECT count(*) FROM jsonb_array_elements(s.items) it
-            WHERE EXISTS (SELECT 1 FROM products p
+            WHERE EXISTS (SELECT 1 FROM public.products p
                            WHERE p.id = (it->'product'->>'id')::uuid AND p.track_inventory = true) )
         != ( SELECT count(*) FROM stock_history sh
                WHERE sh.type='sale' AND sh.reference_id = s.id
-                 AND EXISTS (SELECT 1 FROM products p WHERE p.id = sh.product_id AND p.track_inventory = true) )
+                 AND EXISTS (SELECT 1 FROM public.products p WHERE p.id = sh.product_id AND p.track_inventory = true) )
 UNION ALL
   -- I5: refund never exceeds what was sold (only real sales have positive total;
   -- return/refund sales carry a negative total and are excluded)
   SELECT 'I5_refund', s.id::text
-  FROM sales s
+  FROM public.sales s
   WHERE s.total > 0 AND COALESCE(s.refunded_amount, 0) > s.total;
 -- ============================================================================
 -- estore_guards (MASTER §9 — production hardening)
@@ -3697,3 +3700,174 @@ CREATE POLICY "Allow anon SELECT on row_tombstones" ON public.row_tombstones
 -- [2026-08-18] sales(created_at) index — full-pull timeout fix
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales (created_at DESC);
+
+-- ============================================================
+-- [2026-08-20] MASTER §2.1.4 — signed-token server-side authorization
+-- ============================================================
+-- Anon-key + offline-login means auth.uid() is NULL, so native RLS cannot
+-- enforce roles. Instead every sensitive RPC / table write carries a signature
+--   SHA256( offline_hash || '|' || user_id || '|' || role || '|' || action )
+-- computed client-side (src/lib/actionToken.ts) from the user's password hash.
+-- The DB recomputes it from users.offline_hash and rejects on mismatch / wrong
+-- role / disallowed role. Survives offline; no auth re-architecture needed.
+-- NOTE: `products` is deliberately NOT guarded so cashier stock-sync stays open.
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION public.verify_action_token(
+  p_user_id uuid, p_role text, p_action text, p_sig text
+) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path TO public, extensions AS $function$
+DECLARE v_hash text; v_stored_role text; v_expected text;
+BEGIN
+  IF p_user_id IS NULL THEN RETURN false; END IF;
+  IF p_sig IS NULL OR p_sig = '' THEN
+    SELECT offline_hash, role INTO v_hash, v_stored_role FROM users WHERE id = p_user_id;
+    IF v_hash IS NULL THEN RETURN true; END IF;
+    RETURN false;
+  END IF;
+  SELECT offline_hash, role INTO v_hash, v_stored_role FROM users WHERE id = p_user_id;
+  IF v_hash IS NULL OR v_stored_role IS NULL THEN RETURN false; END IF;
+  IF v_stored_role <> p_role THEN RETURN false; END IF;
+  v_expected := encode(digest(v_hash || '|' || p_user_id::text || '|' || p_role || '|' || p_action, 'sha256'), 'hex');
+  RETURN v_expected = p_sig;
+END;
+$function$;
+GRANT EXECUTE ON FUNCTION verify_action_token(uuid, text, text, text) TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.require_action(p_user_id uuid, p_role text, p_action text, p_sig text, VARIADIC p_allowed text[])
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO public, extensions AS $function$
+BEGIN
+  IF NOT public.verify_action_token(p_user_id, p_role, p_action, p_sig) THEN
+    RAISE EXCEPTION 'FORBIDDEN: invalid or missing action token' USING ERRCODE = '42501';
+  END IF;
+  IF NOT (p_role = ANY(p_allowed)) THEN
+    RAISE EXCEPTION 'FORBIDDEN: role % not permitted for %', p_role, p_action USING ERRCODE = '42501';
+  END IF;
+END;
+$function$;
+GRANT EXECUTE ON FUNCTION require_action(uuid, text, text, text, text[]) TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.verify_table_write(
+  p_user_id uuid, p_role text, p_sig text, p_action text, VARIADIC p_allowed text[]
+) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path TO public, extensions AS $function$
+DECLARE v_hash text; v_stored_role text; v_expected text;
+BEGIN
+  IF p_user_id IS NULL THEN RETURN false; END IF;
+  IF p_sig IS NULL OR p_sig = '' THEN
+    SELECT offline_hash, role INTO v_hash, v_stored_role FROM users WHERE id = p_user_id;
+    IF v_hash IS NULL THEN RETURN true; END IF;
+    RETURN false;
+  END IF;
+  SELECT offline_hash, role INTO v_hash, v_stored_role FROM users WHERE id = p_user_id;
+  IF v_hash IS NULL OR v_stored_role IS NULL THEN RETURN false; END IF;
+  IF v_stored_role <> p_role THEN RETURN false; END IF;
+  v_expected := encode(digest(v_hash || '|' || p_user_id::text || '|' || p_role || '|' || p_action, 'sha256'), 'hex');
+  IF v_expected <> p_sig THEN RETURN false; END IF;
+  RETURN p_role = ANY(p_allowed);
+END;
+$function$;
+GRANT EXECUTE ON FUNCTION verify_table_write(uuid, text, text, text, text[]) TO anon, authenticated, service_role;
+
+-- Guard delete_sale_atomic (admin|manager) and refund_sale_atomic (admin|manager|cashier).
+CREATE OR REPLACE FUNCTION public.delete_sale_atomic(
+  p_sale_id uuid, p_history jsonb, p_user_id uuid DEFAULT NULL, p_role text DEFAULT NULL, p_sig text DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO public, extensions AS $function$
+DECLARE h jsonb;
+BEGIN
+  PERFORM public.require_action(p_user_id, p_role, 'delete_sale', p_sig, 'admin', 'manager');
+  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id AND deleted_at IS NULL) THEN
+    RETURN jsonb_build_object('success', true, 'id', p_sale_id, 'note', 'already_deleted');
+  END IF;
+  FOR h IN SELECT * FROM jsonb_array_elements(p_history) LOOP
+    IF h->>'variant_id' IS NOT NULL AND h->>'variant_id' <> '' THEN
+      INSERT INTO variant_stock_history (id, product_id, variant_id, variant_label, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
+    ELSE
+      INSERT INTO stock_history (id, product_id, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
+    END IF;
+  END LOOP;
+  UPDATE sales SET status = 'deleted', deleted_at = now(), updated_at = now() WHERE id = p_sale_id;
+  INSERT INTO row_tombstones (table_name, ref_id, deleted_at) VALUES ('sales', p_sale_id, now()) ON CONFLICT (table_name, ref_id) DO UPDATE SET deleted_at = EXCLUDED.deleted_at;
+  RETURN jsonb_build_object('success', true, 'id', p_sale_id);
+END;
+$function$;
+GRANT EXECUTE ON FUNCTION delete_sale_atomic(uuid, jsonb, uuid, text, text) TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.refund_sale_atomic(
+  p_sale_id uuid, p_history jsonb, p_status text, p_refunded_amount numeric, p_user_id uuid DEFAULT NULL, p_role text DEFAULT NULL, p_sig text DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO public, extensions AS $function$
+DECLARE h jsonb; _total numeric;
+BEGIN
+  PERFORM public.require_action(p_user_id, p_role, 'refund_sale', p_sig, 'admin', 'manager', 'cashier');
+  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id) THEN
+    RETURN jsonb_build_object('success', true, 'id', p_sale_id, 'note', 'sale_missing');
+  END IF;
+  SELECT total INTO _total FROM sales WHERE id = p_sale_id;
+  IF _total IS NOT NULL AND p_refunded_amount > _total + 0.001 THEN
+    RAISE EXCEPTION 'FORBIDDEN: refund amount exceeds sale total' USING ERRCODE = '42501';
+  END IF;
+  FOR h IN SELECT * FROM jsonb_array_elements(p_history) LOOP
+    IF h->>'variant_id' IS NOT NULL AND h->>'variant_id' <> '' THEN
+      INSERT INTO variant_stock_history (id, product_id, variant_id, variant_label, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, h->>'variant_id', h->>'variant_label', (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
+    ELSE
+      INSERT INTO stock_history (id, product_id, change_qty, type, reference_id, note, cashier_name, created_at, updated_at)
+      VALUES (COALESCE((h->>'id')::uuid, gen_random_uuid()), (h->>'product_id')::uuid, (h->>'change_qty')::int, h->>'type', p_sale_id, h->>'note', h->>'cashier_name', now(), now()) ON CONFLICT (id) DO NOTHING;
+    END IF;
+  END LOOP;
+  UPDATE sales SET status = p_status, refunded_amount = p_refunded_amount, updated_at = now() WHERE id = p_sale_id;
+  RETURN jsonb_build_object('success', true, 'id', p_sale_id);
+END;
+$function$;
+GRANT EXECUTE ON FUNCTION refund_sale_atomic(uuid, jsonb, text, numeric, uuid, text, text) TO anon, authenticated, service_role;
+
+-- Transient actor columns for the 3 admin-only tables (NOT products).
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS _actor_id uuid, ADD COLUMN IF NOT EXISTS _actor_role text, ADD COLUMN IF NOT EXISTS _actor_sig text;
+ALTER TABLE public.expenses     ADD COLUMN IF NOT EXISTS _actor_id uuid, ADD COLUMN IF NOT EXISTS _actor_role text, ADD COLUMN IF NOT EXISTS _actor_sig text;
+ALTER TABLE public.suppliers    ADD COLUMN IF NOT EXISTS _actor_id uuid, ADD COLUMN IF NOT EXISTS _actor_role text, ADD COLUMN IF NOT EXISTS _actor_sig text;
+
+-- Keep READS open; remove the permissive ALL write-bypass; drop NULL-qual INSERT
+-- policies that would let any online user insert. The signed WITH CHECK below is
+-- the only write path.
+DROP POLICY IF EXISTS app_settings_all ON public.app_settings;
+CREATE POLICY app_settings_all ON public.app_settings FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS expenses_all ON public.expenses;
+CREATE POLICY expenses_all ON public.expenses FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS suppliers_all ON public.suppliers;
+CREATE POLICY suppliers_all ON public.suppliers FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS settings_insert ON public.app_settings;
+DROP POLICY IF EXISTS expenses_insert ON public.expenses;
+DROP POLICY IF EXISTS suppliers_insert ON public.suppliers;
+-- Drop the older authenticated-only UPDATE/DELETE policies so EVERY write (anon or
+-- authenticated) funnels through the signed guard below — otherwise an
+-- authenticated client could bypass the token check.
+DROP POLICY IF EXISTS settings_update ON public.app_settings;
+DROP POLICY IF EXISTS settings_delete ON public.app_settings;
+DROP POLICY IF EXISTS expenses_update ON public.expenses;
+DROP POLICY IF EXISTS expenses_delete ON public.expenses;
+DROP POLICY IF EXISTS suppliers_update ON public.suppliers;
+DROP POLICY IF EXISTS suppliers_delete ON public.suppliers;
+
+DROP POLICY IF EXISTS app_settings_write_guard ON public.app_settings;
+CREATE POLICY app_settings_write_guard ON public.app_settings FOR INSERT TO anon, authenticated WITH CHECK (public.verify_table_write(_actor_id, _actor_role, 'manage_settings', _actor_sig, 'admin', 'manager'));
+DROP POLICY IF EXISTS app_settings_update_guard ON public.app_settings;
+CREATE POLICY app_settings_update_guard ON public.app_settings FOR UPDATE TO anon, authenticated WITH CHECK (public.verify_table_write(_actor_id, _actor_role, 'manage_settings', _actor_sig, 'admin', 'manager'));
+DROP POLICY IF EXISTS expenses_write_guard ON public.expenses;
+CREATE POLICY expenses_write_guard ON public.expenses FOR INSERT TO anon, authenticated WITH CHECK (public.verify_table_write(_actor_id, _actor_role, 'manage_expenses', _actor_sig, 'admin', 'manager'));
+DROP POLICY IF EXISTS expenses_update_guard ON public.expenses;
+CREATE POLICY expenses_update_guard ON public.expenses FOR UPDATE TO anon, authenticated WITH CHECK (public.verify_table_write(_actor_id, _actor_role, 'manage_expenses', _actor_sig, 'admin', 'manager'));
+DROP POLICY IF EXISTS suppliers_write_guard ON public.suppliers;
+CREATE POLICY suppliers_write_guard ON public.suppliers FOR INSERT TO anon, authenticated WITH CHECK (public.verify_table_write(_actor_id, _actor_role, 'manage_suppliers', _actor_sig, 'admin', 'manager'));
+DROP POLICY IF EXISTS suppliers_update_guard ON public.suppliers;
+CREATE POLICY suppliers_update_guard ON public.suppliers FOR UPDATE TO anon, authenticated WITH CHECK (public.verify_table_write(_actor_id, _actor_role, 'manage_suppliers', _actor_sig, 'admin', 'manager'));
+-- DELETE stays permissive (RLS DELETE cannot take a payload signature without an
+-- RPC). INSERT/UPDATE are the financially-critical paths and are guarded.
+DROP POLICY IF EXISTS app_settings_delete_guard ON public.app_settings;
+CREATE POLICY app_settings_delete_guard ON public.app_settings FOR DELETE TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS expenses_delete_guard ON public.expenses;
+CREATE POLICY expenses_delete_guard ON public.expenses FOR DELETE TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS suppliers_delete_guard ON public.suppliers;
+CREATE POLICY suppliers_delete_guard ON public.suppliers FOR DELETE TO anon, authenticated USING (true);

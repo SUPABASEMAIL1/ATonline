@@ -30,7 +30,13 @@ export function getActor(): Actor | null {
     const raw = localStorage.getItem(ACTOR_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw);
-    return { id: p.id, role: p.role, offlineHash: p.offlineHash ?? p.offline_hash };
+    let hash: string | undefined = p.offlineHash ?? p.offline_hash;
+    // Fallback: older cached profiles didn't store offlineHash; recover it from the
+    // per-email key AuthContext writes on every password login.
+    if (!hash && p.email) {
+      hash = localStorage.getItem(`offline_hash_${p.email}`) ?? undefined;
+    }
+    return { id: p.id, role: p.role, offlineHash: hash };
   } catch {
     return null;
   }
@@ -61,6 +67,39 @@ export async function signAction(action: string): Promise<{
   const message = `${actor.offlineHash}|${actor.id}|${actor.role}|${action}`;
   const sig = await sha256Hex(message);
   return { p_user_id: actor.id, p_role: actor.role, p_sig: sig };
+}
+
+// Tables whose DIRECT writes must carry a signed actor proof (MASTER §2.1.4).
+// NOTE: `products` is intentionally EXCLUDED. Cashiers push product.stock
+// updates through this table on every sale; requiring admin/manager there would
+// break multi-terminal stock sync (the Aug-18 disaster). Product edits are still
+// blocked client-side via RequireAccess. Server-side product-write protection
+// needs a granular (per-column) design later.
+export const PROTECTED_TABLES: Record<string, string> = {
+  app_settings: 'manage_settings',
+  expenses: 'manage_expenses',
+  suppliers: 'manage_suppliers',
+};
+
+/**
+ * Attach a signed actor proof to a write payload for a protected table. If the
+ * table is not protected (or no actor available), the payload is returned
+ * unchanged. The server's RLS WITH CHECK policy enforces the signature, so a
+ * missing/invalid proof makes the write fail (fail-closed).
+ */
+export async function withActor(payload: any, table: string): Promise<any> {
+  const action = PROTECTED_TABLES[table];
+  if (!action) return payload;
+  const actor = getActor();
+  if (!actor || !actor.offlineHash) return payload; // legacy: server allows when offline_hash NULL
+  const message = `${actor.offlineHash}|${actor.id}|${actor.role}|${action}`;
+  const sig = await sha256Hex(message);
+  return {
+    ...payload,
+    _actor_id: actor.id,
+    _actor_role: actor.role,
+    _actor_sig: sig,
+  };
 }
 
 // ── Pure-JS SHA-256 (RFC 6234) — used only when crypto.subtle is absent ──────

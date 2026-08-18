@@ -2073,15 +2073,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               productDelta.set(pid, (productDelta.get(pid) || 0) + dq);
             }
           }
+          // Local optimistic stock (written in salesService.create / delete BEFORE the
+          // cloud is updated) is the source of truth for any product that has a pending
+          // unsynced ledger movement. Re-adding the ledger delta on top of the already
+          // updated cloud value double-counts and over-deducts stock (e.g. 60 -> shows 50
+          // instead of 55). Use the local optimistic value so it can NEVER go below the
+          // real remaining stock, while the cloud value (post-sync) is already correct too.
+          const localProdMap = new Map((await localDb.products.toArray()).map((p: any) => [p.id, p]));
           for (const prod of mergedProducts) {
             // A pending `products` op already carries the absolute (correct) stock
-            // via smartMerge overlay — don't double-count by also adding the ledger delta.
+            // via smartMerge overlay — don't touch it.
             if (pendingProductOpIds.has(prod.id)) continue;
             const d = productDelta.get(prod.id);
-            if (d) prod.stock = (prod.stock || 0) + d;
+            if (d) {
+              const localProd = localProdMap.get(prod.id);
+              prod.stock = localProd && typeof localProd.stock === 'number'
+                ? localProd.stock
+                : (prod.stock || 0) + d;
+            }
             const vMap = variantDelta.get(prod.id);
-            if (vMap && prod.variantData) {
-              prod.variantData = prod.variantData.map((v: any) => {
+            if (vMap) {
+              const localProd = localProdMap.get(prod.id);
+              const baseVariants = (localProd && localProd.variantData) || prod.variantData || [];
+              prod.variantData = baseVariants.map((v: any) => {
                 const vd = vMap.get(v.id);
                 return vd ? { ...v, stock: (v.stock || 0) + vd } : v;
               });

@@ -278,7 +278,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           canEditSale: can(pData.role, 'edit_price'),
           active: pData.active ?? true,
           lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
-          avatar: pData.avatar || undefined
+          avatar: pData.avatar || undefined,
+          offlineHash: (pData as any).offline_hash ?? (pData as any).offlineHash,
         };
 
         setProfile(profileData);
@@ -343,7 +344,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 canManageStock: can(pData.role, 'manage_stock'), canManagePO: !!pData.can_manage_po,
                 canViewRecords: can(pData.role, 'view_records'), canEditSale: !!pData.can_edit_sale,
                 active: pData.active ?? true, lastLogin: pData.last_login ? new Date(pData.last_login) : undefined,
-                avatar: pData.avatar || undefined
+                avatar: pData.avatar || undefined,
+                offlineHash: (pData as any).offline_hash ?? (pData as any).offlineHash,
               };
               setProfile(profileData);
               localStorage.setItem('pos_offline_profile', JSON.stringify(profileData));

@@ -21,6 +21,7 @@ import { getAmountByMethod } from '../../lib/services';
 import { getTimezone, getStartOfDayInTimezone, getEndOfDayInTimezone, formatInTimeZone } from '../../lib/dateUtils';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Button } from '../../shared/ui';
+import { localDb } from '../../lib/localDb';
 
 export function DashboardManager() {
   const navigate = useNavigate();
