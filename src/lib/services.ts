@@ -27,6 +27,7 @@ import {
 } from '../types';
 import { localDb, queueOp, generateId, SETTINGS_ID } from './localDb';
 import { generateBarcodeValue } from '../utils/barcode';
+import { signAction } from './actionToken';
 
 // Re-entrancy mutex for returnSale: local stock/refund mutations are NOT idempotent,
 // so a concurrent double-click or retry could restore stock twice. The cloud RPC is
@@ -57,10 +58,14 @@ export async function commitSaleAuthoritative(
     // retry / offline replay of the SAME local sale is a no-op server-side, not a
     // second sale. Stable across retries because the local sale id never changes.
     const salePayload = { ...remoteSale, idempotency_key: remoteSale?.id };
-    const { data, error } = await (supabase as any).rpc('commit_sale', {
-      p_sale: salePayload,
-      p_history: movements,
-    });
+    const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000));
+    const { data, error } = await Promise.race([
+      (supabase as any).rpc('commit_sale', {
+        p_sale: salePayload,
+        p_history: movements,
+      }),
+      timeoutPromise
+    ]);
     if (error) {
       console.error('[commit_sale] RPC error:', error.message);
       return null;
@@ -119,18 +124,10 @@ export async function applyStockMovementsRemote(movements: any[]): Promise<boole
 export async function deleteSaleAtomic(saleId: string, movements: any[]): Promise<boolean> {
   try {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
-    if (movements.length === 0) {
-      const { error } = await (supabase as any).rpc('delete_sale_atomic', {
-        p_sale_id: saleId,
-        p_history: [],
-      });
-      if (error) { console.error('[delete_sale_atomic] RPC error:', error.message); return false; }
-      return true;
-    }
-    const { error } = await (supabase as any).rpc('delete_sale_atomic', {
-      p_sale_id: saleId,
-      p_history: movements,
-    });
+    const token = await signAction('delete_sale');
+    const base: any = { p_sale_id: saleId, p_history: movements };
+    if (token) { base.p_user_id = token.p_user_id; base.p_role = token.p_role; base.p_sig = token.p_sig; }
+    const { error } = await (supabase as any).rpc('delete_sale_atomic', base);
     if (error) { console.error('[delete_sale_atomic] RPC error:', error.message); return false; }
     return true;
   } catch (e: any) {
@@ -146,12 +143,15 @@ export async function deleteSaleAtomic(saleId: string, movements: any[]): Promis
 export async function refundSaleAtomic(saleId: string, movements: any[], status: string, refundedAmount: number): Promise<boolean> {
   try {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
-    const { error } = await (supabase as any).rpc('refund_sale_atomic', {
+    const token = await signAction('refund_sale');
+    const base: any = {
       p_sale_id: saleId,
       p_history: movements,
       p_status: status,
       p_refunded_amount: refundedAmount,
-    });
+    };
+    if (token) { base.p_user_id = token.p_user_id; base.p_role = token.p_role; base.p_sig = token.p_sig; }
+    const { error } = await (supabase as any).rpc('refund_sale_atomic', base);
     if (error) { console.error('[refund_sale_atomic] RPC error:', error.message); return false; }
     return true;
   } catch (e: any) {

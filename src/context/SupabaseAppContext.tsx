@@ -1903,6 +1903,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         if (!silent) dispatch({ type: 'SET_SYNC_PROGRESS', payload: { status: 'Connecting to cloud...', current: currentStep, total: totalSteps } });
 
+        // Unblock UI after 4 seconds if network is extremely slow
+        const abortUIBlocker = setTimeout(() => {
+          if (!silent) {
+            console.warn('[SupabaseAppContext] Cloud sync taking too long. Backgrounding UI...');
+            dispatch({ type: 'SET_SYNC_PROGRESS', payload: null });
+          }
+        }, 4000);
+
         // Phase 1
         const [settings, categoriesData] = await Promise.all([
           settingsService.fetchRemote(),
@@ -2555,7 +2563,11 @@ export function useInvoiceGeneration() {
     // 1. Attempt Server-Side Atomic Generation First (Prevention of collisions)
     try {
        if (navigator.onLine) {
-           const { data, error } = await supabase.rpc('get_next_invoice_number');
+           const timeoutPromise = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000));
+           const { data, error } = await Promise.race([
+               supabase.rpc('get_next_invoice_number'),
+               timeoutPromise
+           ]);
            if (!error && data && typeof data === 'string') {
                const invoiceNumber = data;
                const parts = invoiceNumber.split('-');
@@ -2570,7 +2582,7 @@ export function useInvoiceGeneration() {
            }
        }
     } catch (e) {
-       console.warn('[Invoice] Server-side generation failed, falling back to local counter', e);
+       console.warn('[Invoice] Server-side generation failed or timed out, falling back to local counter', e);
     }
 
     // 2. Fallback: Local optimistic generation (SyncEngine will handle collisions when online)

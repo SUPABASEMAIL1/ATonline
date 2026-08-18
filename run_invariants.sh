@@ -20,7 +20,9 @@ echo -e "\n=== Checking invariant_violations view (I1, I2, I5) ==="
 run_query "SELECT * FROM invariant_violations;"
 
 echo -e "\n=== Checking I4: sale <=> stock exactly once ==="
-run_query "select id from sales s where (select count(*) from stock_history where type='sale' and reference_id=s.id) != jsonb_array_length(s.items);"
+# Robust: some legacy sales store `items` as a scalar (not a JSON array), so
+# guard jsonb_array_length with a type check instead of erroring out.
+run_query "select id from sales s where (select count(*) from stock_history where type='sale' and reference_id=s.id) != CASE WHEN jsonb_typeof(s.items)='array' THEN jsonb_array_length(s.items) ELSE 0 END;"
 
 echo -e "\n=== Checking I6: online order stock effect is zero until converted ==="
 run_query "select id from store_orders where status != 'converted' and id in (select reference_id from stock_history where type='store_order');"

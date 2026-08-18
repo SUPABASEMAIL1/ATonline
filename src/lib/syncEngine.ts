@@ -1,6 +1,7 @@
 import { supabase, enableFullAuthInit } from './supabase';
 import { localDb, queueOp, PendingOp, SETTINGS_ID } from './localDb';
 import { mapProduct, mapCustomer, salesService, reconcileAllStock, seedMissingBarcodes, commitSaleAuthoritative } from './services';
+import { signAction } from './actionToken';
 
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
 const BACKOFF_INITIAL = 5 * 1000; // 5s
@@ -488,7 +489,10 @@ async function executeOp(op: PendingOp): Promise<void> {
                     // soft-deletes (status='deleted', deleted_at) + records a
                     // tombstone for cross-device sync. Stock reversal for this
                     // path was queued separately at delete time (stock_history ops).
-                    const rpcRes = await supabase.rpc('delete_sale_atomic', { p_sale_id: entityId, p_history: [] });
+                    const token = await signAction('delete_sale');
+                    const delBase: any = { p_sale_id: entityId, p_history: [] };
+                    if (token) { delBase.p_user_id = token.p_user_id; delBase.p_role = token.p_role; delBase.p_sig = token.p_sig; }
+                    const rpcRes = await supabase.rpc('delete_sale_atomic', delBase);
                     error = rpcRes.error;
                 } else {
                     const result = await supabase.from(table as any).delete().eq('id', entityId);
