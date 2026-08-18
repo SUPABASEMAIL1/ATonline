@@ -48,16 +48,17 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   const [showStockIn, setShowStockIn] = useState(false);
   const [showAdjustment, setShowAdjustment] = useState(false);
   const [showRestock, setShowRestock] = useState(false);
+  const [adjustmentData, setAdjustmentData] = useState({
+    action: 'remove', // 'add' or 'remove'
+    quantity: '1',
+    reason: 'Correction',
+    notes: ''
+  });
   const [restockData, setRestockData] = useState({
     quantity: '1',
     supplier: product.supplier || '',
     cost: product.cost?.toString() || '',
     recordAsSupplierBill: true
-  });
-  const [adjustmentData, setAdjustmentData] = useState({
-    quantity: '1',
-    reason: 'Correction',
-    notes: ''
   });
   const [isCompressing, setIsCompressing] = useState(false);
   const [filterType, setFilterType] = useState<'ALL' | 'IN' | 'OUT' | 'RETURN'>('ALL');
@@ -218,8 +219,9 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
   const stockPct = Math.max(0, Math.min(100, maxStock > 0 ? (product.stock / maxStock) * 100 : 0));
 
   const handleAdjustment = async () => {
-    const qtyChange = parseInt(adjustmentData.quantity);
-    if (!qtyChange || qtyChange === 0) return;
+    const rawQty = Math.abs(parseInt(adjustmentData.quantity));
+    if (!rawQty || rawQty === 0) return;
+    const qtyChange = adjustmentData.action === 'remove' ? -rawQty : rawQty;
     const reason = adjustmentData.reason || 'Correction';
 
     const result = await sonner.confirm(
@@ -286,9 +288,12 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       await purchaseRecordsService.create(newRecord);
       dispatch({ type: 'ADD_PURCHASE_RECORD', payload: newRecord });
 
+      // INSTANT UI UPDATE: ensure form state updates immediately so no refresh is needed
+      setFormData(prev => ({ ...prev, stock: String(finalStock) }));
+
       sonner.success(t('stock_adjusted_success', 'Stock adjusted successfully'));
       setShowAdjustment(false);
-      setAdjustmentData({ quantity: '1', reason: 'Correction', notes: '' });
+      setAdjustmentData({ action: 'remove', quantity: '1', reason: 'Correction', notes: '' });
     } catch (error) {
       console.error('Adjustment failed:', error);
       sonner.error(t('stock_adjusted_error', 'Failed to adjust stock'));
@@ -342,8 +347,18 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         dispatch
       });
 
+      // INSTANT UI UPDATE: update form state so it reflects without refresh
+      const newStock = (product.stock || 0) + qty;
+      setFormData(prev => ({ ...prev, stock: String(newStock) }));
+
       sonner.success(t('restock_success', 'Stock added successfully'));
       setShowRestock(false);
+      setRestockData({
+        quantity: '1',
+        supplier: product.supplier || '',
+        cost: product.cost?.toString() || '',
+        recordAsSupplierBill: false
+      });
     } catch (error) {
       console.error('Quick restock failed:', error);
       sonner.error(t('restock_error', 'Failed to add stock'));
@@ -1643,15 +1658,28 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
           }
         >
           <div className="space-y-8">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest ml-1">{t('action', 'Action *')}</label>
+              <SegmentedControl
+                options={[
+                  { id: 'add', label: t('add_stock', 'Add Stock (+)') },
+                  { id: 'remove', label: t('remove_stock', 'Remove Stock (-)') }
+                ]}
+                value={adjustmentData.action}
+                onChange={(val) => setAdjustmentData({ ...adjustmentData, action: val })}
+                size="md"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest ml-1">{t('qty_change_req', 'Qty Change *')}</label>
+                <label className="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest ml-1">{t('qty_change_req', 'Qty (Absolute) *')}</label>
                 <input
                   type="number"
+                  min="1"
                   value={adjustmentData.quantity}
-                  onChange={(e) => setAdjustmentData({ ...adjustmentData, quantity: e.target.value })}
+                  onChange={(e) => setAdjustmentData({ ...adjustmentData, quantity: e.target.value.replace('-', '') })}
                   className="w-full bg-[#f8f9fa] dark:bg-black/75 border-none px-4 py-4 rounded-xl text-xl font-black outline-none focus:ring-2 focus:ring-amber-500 dark:text-white"
-                  placeholder="-5 or +10"
+                  placeholder="e.g. 5"
                 />
               </div>
               <div className="space-y-2 relative z-30">
