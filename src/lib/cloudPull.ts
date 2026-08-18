@@ -110,12 +110,12 @@ async function applyTombstones(since: Date): Promise<PullEntity[]> {
     // NOTE: row_tombstones has NO created_at column — only table_name, ref_id,
     // deleted_at. Filtering by created_at made this query fail silently every
     // time (error → early return), so cloud deletes NEVER reached local devices.
-    const { data: tombs, error } = await supabase
-      .from('row_tombstones')
-      .select('table_name, ref_id')
-      .gte('deleted_at', since.toISOString())
-      .limit(500);
-    if (error) return changed;
+    // Paginated via fetchAllPages so >500 tombstones can't get truncated.
+    const tombs = await fetchAllPages(() => {
+      let q = supabase.from('row_tombstones').select('table_name, ref_id');
+      if (since && since.getTime() > 0) q = q.gte('deleted_at', since.toISOString());
+      return q;
+    });
     if (!tombs || tombs.length === 0) return changed;
 
     const grouped = new Map<string, string[]>();
