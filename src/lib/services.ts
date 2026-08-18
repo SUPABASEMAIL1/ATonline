@@ -3049,6 +3049,15 @@ export const expensesService = {
     const newExp = { ...expense, id, createdAt: new Date() } as Expense;
     await localDb.expenses.add(newExp);
     await queueOp('expenses', 'create', id, toRemoteExpense(newExp));
+    // Wallet ledger: expense is money OUT (MASTER §6 — every movement leaves
+    // a trace in payment_movements, not just payment_modes.balance).
+    await adjustPaymentBalances([{
+      id,
+      modeId: normalizePaymentMethod(newExp.paymentMethod || 'cash'),
+      delta: -Number(newExp.amount || 0),
+      referenceId: id,
+      note: `Expense ${newExp.description || 'Expense'}`,
+    }], { batchId: `exp_${id}` });
     return newExp;
   },
 
@@ -3058,12 +3067,40 @@ export const expensesService = {
     const updated = { ...existing, ...updates, updatedAt: new Date() } as Expense;
     await localDb.expenses.put(updated);
     await queueOp('expenses', 'update', id, toRemoteExpense(updated));
+    // Reverse the old amount from the wallet, then apply the new amount.
+    await adjustPaymentBalances([
+      {
+        id: generateId(),
+        modeId: normalizePaymentMethod(existing.paymentMethod || 'cash'),
+        delta: Number(existing.amount || 0),
+        referenceId: id,
+        note: `Expense reverse (update) ${existing.description || ''}`,
+      },
+      {
+        id: generateId(),
+        modeId: normalizePaymentMethod(updated.paymentMethod || 'cash'),
+        delta: -Number(updated.amount || 0),
+        referenceId: id,
+        note: `Expense ${updated.description || 'Expense'}`,
+      },
+    ], { batchId: `exp_upd_${id}` });
     return updated;
   },
 
   async delete(id: string): Promise<void> {
+    const existing = await localDb.expenses.get(id);
     await localDb.expenses.delete(id);
     await queueOp('expenses', 'delete', id, {});
+    if (existing) {
+      // Reverse the expense from the wallet (money back IN).
+      await adjustPaymentBalances([{
+        id: generateId(),
+        modeId: normalizePaymentMethod(existing.paymentMethod || 'cash'),
+        delta: Number(existing.amount || 0),
+        referenceId: id,
+        note: `Expense reverse (delete) ${existing.description || ''}`,
+      }], { batchId: `exp_del_${id}` });
+    }
   },
 
   async fetchRemote(lastSyncTime?: Date): Promise<Expense[]> {

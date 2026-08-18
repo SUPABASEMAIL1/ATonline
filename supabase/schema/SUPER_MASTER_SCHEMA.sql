@@ -1395,6 +1395,39 @@ RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT role FROM public.users WHERE id = auth.uid();
 $$;
 
+-- ── Users RLS + role-escalation guard (MASTER §2, applied live 2026-08-18) ──
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users_select_all" ON users;
+DROP POLICY IF EXISTS "users_update_self_or_admin" ON users;
+DROP POLICY IF EXISTS "users_insert_open" ON users;
+DROP POLICY IF EXISTS "users_delete_admin" ON users;
+
+CREATE POLICY "users_select_all" ON users FOR SELECT USING (true);
+CREATE POLICY "users_update_self_or_admin" ON users FOR UPDATE
+  USING (auth.uid() = id OR current_user_role() IN ('admin', 'manager'))
+  WITH CHECK (auth.uid() = id OR current_user_role() IN ('admin', 'manager'));
+CREATE POLICY "users_insert_open" ON users FOR INSERT WITH CHECK (true);
+CREATE POLICY "users_delete_admin" ON users FOR DELETE
+  USING (current_user_role() = 'admin');
+
+CREATE OR REPLACE FUNCTION guard_user_role_change()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF OLD.role IS DISTINCT FROM NEW.role OR OLD.active IS DISTINCT FROM NEW.active THEN
+    IF current_user_role() NOT IN ('admin', 'manager') THEN
+      RAISE EXCEPTION 'FORBIDDEN: only admin/manager may change roles or active status' USING ERRCODE = '42501';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_user_role_change ON users;
+CREATE TRIGGER trg_guard_user_role_change
+  BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION guard_user_role_change();
+
 DO $$ BEGIN
   CREATE TRIGGER on_auth_user_created
       AFTER INSERT ON auth.users
@@ -1636,9 +1669,14 @@ GROUP BY sa.sale_date;
 -- ════════════════════════════════════════════════════════════════
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+-- MASTER §2: anon gets READ-ONLY access (catalog browsing + estore lookup).
+-- ALL writes require an authenticated user (JWT). Service role bypasses RLS.
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+-- estore customer self-registration inserts customers/orders without JWT
+GRANT INSERT ON customers, store_orders TO anon;
 
 
 -- ════════════════════════════════════════════════════════════════
@@ -2948,13 +2986,47 @@ END $$;
 -- variant_stock_history triggers.
 -- ============================================================================
 
+-- lock_product_stock (MASTER §12): transaction-scoped row lock helper.
+-- SECURITY DEFINER because inline "SELECT ... FOR UPDATE" inside an invoker
+-- function is silently filtered by RLS for non-owner roles (live-tested:
+-- returns 0 rows, so the oversell guard never fired). The lock is taken as
+-- table owner but held until the CALLER's transaction commits, which is what
+-- serializes concurrent commit_sale calls. Race test: two terminals selling
+-- the last unit -> exactly one succeeds, the other gets OVERSELL.
+CREATE OR REPLACE FUNCTION public.lock_product_stock(pid uuid)
+RETURNS numeric
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE s numeric;
+BEGIN
+  SELECT stock INTO s FROM products WHERE id = pid FOR UPDATE;
+  RETURN s;
+END $function$;
+
+REVOKE ALL ON FUNCTION public.lock_product_stock FROM anon;
+REVOKE ALL ON FUNCTION public.lock_product_stock FROM public;
+GRANT EXECUTE ON FUNCTION public.lock_product_stock TO authenticated;
+
 CREATE OR REPLACE FUNCTION commit_sale(p_sale jsonb, p_history jsonb)
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE
   v_id uuid;
   h jsonb;
   cur numeric;
+  _role text;
 BEGIN
+  -- MASTER §2.1.4: fail-closed. Never commit without an authenticated user
+  -- whose users row maps to a recognized role.
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'FORBIDDEN: authentication required to commit sale' USING ERRCODE = '42501';
+  END IF;
+  SELECT role INTO _role FROM public.users WHERE id = auth.uid();
+  IF _role IS NULL OR _role NOT IN ('admin', 'manager', 'cashier', 'salesman') THEN
+    RAISE EXCEPTION 'FORBIDDEN: not authorized to commit sale' USING ERRCODE = '42501';
+  END IF;
+
   -- Idempotent fulfilment: never bill the same online order twice.
   IF p_sale->>'source_order_id' IS NOT NULL AND p_sale->>'source_order_id' <> '' THEN
     IF EXISTS (SELECT 1 FROM sales WHERE source_order_id = (p_sale->>'source_order_id')::uuid) THEN
@@ -2962,11 +3034,20 @@ BEGIN
     END IF;
   END IF;
 
-  -- Oversell guard: block if net movement would drive a tracked product's cloud stock negative.
+  -- MASTER §5.2: client-generated idempotency key -> retry/replay is a no-op.
+  IF p_sale->>'idempotency_key' IS NOT NULL AND p_sale->>'idempotency_key' <> '' THEN
+    IF EXISTS (SELECT 1 FROM sales WHERE idempotency_key = (p_sale->>'idempotency_key')::uuid) THEN
+      RETURN jsonb_build_object('success', true, 'id', (SELECT id FROM sales WHERE idempotency_key = (p_sale->>'idempotency_key')::uuid), 'already_committed', true);
+    END IF;
+  END IF;
+
+  -- Oversell guard: lock the product row for THIS transaction and re-read the
+  -- committed stock (lock_product_stock, SECURITY DEFINER). A concurrent
+  -- second terminal blocks on the lock and then fails cleanly.
   FOR h IN SELECT * FROM jsonb_array_elements(p_history)
   LOOP
     IF (h->>'change_qty')::int < 0 AND (h->>'variant_id' IS NULL OR (h->>'variant_id') = '') THEN
-      SELECT stock INTO cur FROM products WHERE id = (h->>'product_id')::uuid;
+      cur := public.lock_product_stock((h->>'product_id')::uuid);
       IF cur IS NOT NULL AND cur >= 0 AND (cur + (h->>'change_qty')::int) < 0 THEN
         RAISE EXCEPTION 'OVERSELL: product % has stock % but this sale needs %', (h->>'product_id')::uuid, cur, abs((h->>'change_qty')::int) USING ERRCODE = 'P0003';
       END IF;
@@ -2981,7 +3062,7 @@ BEGIN
     applied_discounts, free_gifts, timestamp, sale_date, sale_type,
     extra_charges, split_payments, refunded_amount, estore_status,
     delivery_address, delivery_fee, delivery_location_lat, delivery_location_lng,
-    customer_notes, source_order_id, salesman_id, salesman_name, created_at, updated_at
+    customer_notes, source_order_id, salesman_id, salesman_name, idempotency_key, created_at, updated_at
   ) VALUES (
     (p_sale->>'id')::uuid,
     p_sale->>'invoice_number',
@@ -3021,9 +3102,16 @@ BEGIN
     NULLIF(p_sale->>'source_order_id','')::uuid,
     NULLIF(p_sale->>'salesman_id','')::uuid,
     p_sale->>'salesman_name',
+    NULLIF(p_sale->>'idempotency_key','')::uuid,
     COALESCE((p_sale->>'created_at')::timestamptz, now()),
     now()
   ) ON CONFLICT (id) DO NOTHING RETURNING id INTO v_id;
+
+  -- Fix latent bug: if the sale id already existed (ON CONFLICT no-op), reuse it
+  -- so the stock_history rows below get a valid (non-null) reference_id.
+  IF v_id IS NULL THEN
+    v_id := (p_sale->>'id')::uuid;
+  END IF;
 
   FOR h IN SELECT * FROM jsonb_array_elements(p_history)
   LOOP
@@ -3062,15 +3150,17 @@ $$;
 GRANT EXECUTE ON FUNCTION commit_sale(jsonb, jsonb) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION apply_stock_movements(jsonb) TO anon, authenticated, service_role;
 
--- ── 8. ATOMIC DELETE + REFUND (2026-08-16) ──
--- Sale delete / refund must reverse stock AND mutate the sale in ONE transaction
--- so cloud can never diverge. Idempotent via ON CONFLICT DO NOTHING + EXISTS guards.
+-- ── 8. ATOMIC DELETE + REFUND (2026-08-16 / soft-delete 2026-08-18) ──
+-- Sale delete must reverse stock AND mark the sale deleted in ONE transaction
+-- so cloud can never diverge. MASTER §0.6: the historical row is NEVER
+-- destroyed — delete_sale_atomic soft-deletes (status='deleted', deleted_at)
+-- and records a tombstone so every other device removes the row locally.
 CREATE OR REPLACE FUNCTION delete_sale_atomic(p_sale_id uuid, p_history jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   h jsonb;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id) THEN
+  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id AND deleted_at IS NULL) THEN
     RETURN jsonb_build_object('success', true, 'id', p_sale_id, 'note', 'already_deleted');
   END IF;
   FOR h IN SELECT * FROM jsonb_array_elements(p_history)
@@ -3085,7 +3175,10 @@ BEGIN
       ON CONFLICT (id) DO NOTHING;
     END IF;
   END LOOP;
-  DELETE FROM sales WHERE id = p_sale_id;
+  UPDATE sales SET status = 'deleted', deleted_at = now(), updated_at = now() WHERE id = p_sale_id;
+  INSERT INTO row_tombstones (table_name, ref_id, deleted_at)
+  VALUES ('sales', p_sale_id, now())
+  ON CONFLICT (table_name, ref_id) DO UPDATE SET deleted_at = EXCLUDED.deleted_at;
   RETURN jsonb_build_object('success', true, 'id', p_sale_id);
 END; $$;
 
@@ -3254,7 +3347,7 @@ BEGIN
     RAISE EXCEPTION 'FORBIDDEN: delete_sale requires admin or manager' USING ERRCODE = '42501';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id) THEN
+  IF NOT EXISTS (SELECT 1 FROM sales WHERE id = p_sale_id AND deleted_at IS NULL) THEN
     RETURN jsonb_build_object('success', true, 'id', p_sale_id, 'note', 'already_deleted');
   END IF;
 
@@ -3271,7 +3364,11 @@ BEGIN
     END IF;
   END LOOP;
 
-  DELETE FROM sales WHERE id = p_sale_id;
+  -- MASTER §0.6 soft delete: NEVER destroy the historical row.
+  UPDATE sales SET status = 'deleted', deleted_at = now(), updated_at = now() WHERE id = p_sale_id;
+  INSERT INTO row_tombstones (table_name, ref_id, deleted_at)
+  VALUES ('sales', p_sale_id, now())
+  ON CONFLICT (table_name, ref_id) DO UPDATE SET deleted_at = EXCLUDED.deleted_at;
   RETURN jsonb_build_object('success', true, 'id', p_sale_id);
 END; $$;
 
@@ -3484,3 +3581,114 @@ DROP TRIGGER IF EXISTS trg_guard_store_order_insert ON store_orders;
 CREATE TRIGGER trg_guard_store_order_insert
 BEFORE INSERT ON store_orders
 FOR EACH ROW EXECUTE FUNCTION guard_store_order_insert();
+
+-- ============================================================================
+-- RLS hardening (2026-08-18, MASTER §2.1.4) — server-side write guards.
+-- Derived-value triggers become SECURITY DEFINER so legitimate cashier flows
+-- (sale -> stock trigger, customer stats, invoice counter) keep working under
+-- RLS. sales has NO DELETE policy: deletion only via delete_sale_atomic RPC.
+-- ============================================================================
+
+ALTER FUNCTION public.trigger_update_product_stock() SECURITY DEFINER;
+ALTER FUNCTION public.trigger_update_variant_stock() SECURITY DEFINER;
+ALTER FUNCTION public.update_customer_stats() SECURITY DEFINER;
+ALTER FUNCTION public.generate_invoice_number() SECURITY DEFINER;
+ALTER FUNCTION public.get_next_invoice_number() SECURITY DEFINER;
+
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS products_select ON public.products;
+DROP POLICY IF EXISTS products_write ON public.products;
+CREATE POLICY products_select ON public.products FOR SELECT USING (true);
+CREATE POLICY products_write ON public.products FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+
+ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS sales_select ON public.sales;
+DROP POLICY IF EXISTS sales_insert ON public.sales;
+DROP POLICY IF EXISTS sales_update ON public.sales;
+DROP POLICY IF EXISTS sales_delete ON public.sales;
+CREATE POLICY sales_select ON public.sales FOR SELECT TO authenticated USING (true);
+CREATE POLICY sales_insert ON public.sales FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY sales_update ON public.sales FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS customers_select ON public.customers;
+DROP POLICY IF EXISTS customers_insert ON public.customers;
+DROP POLICY IF EXISTS customers_update ON public.customers;
+DROP POLICY IF EXISTS customers_delete ON public.customers;
+CREATE POLICY customers_select ON public.customers FOR SELECT USING (true);
+CREATE POLICY customers_insert ON public.customers FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY customers_update ON public.customers FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY customers_delete ON public.customers FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS settings_delete ON public.app_settings;
+DROP POLICY IF EXISTS settings_insert ON public.app_settings;
+DROP POLICY IF EXISTS settings_write ON public.app_settings;
+DROP POLICY IF EXISTS settings_select ON public.app_settings;
+CREATE POLICY settings_select ON public.app_settings FOR SELECT USING (true);
+CREATE POLICY settings_insert ON public.app_settings FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY settings_update ON public.app_settings FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY settings_delete ON public.app_settings FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS expenses_select ON public.expenses;
+DROP POLICY IF EXISTS expenses_insert ON public.expenses;
+DROP POLICY IF EXISTS expenses_update ON public.expenses;
+DROP POLICY IF EXISTS expenses_delete ON public.expenses;
+CREATE POLICY expenses_select ON public.expenses FOR SELECT TO authenticated USING (true);
+CREATE POLICY expenses_insert ON public.expenses FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY expenses_update ON public.expenses FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY expenses_delete ON public.expenses FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS suppliers_select ON public.suppliers;
+DROP POLICY IF EXISTS suppliers_insert ON public.suppliers;
+DROP POLICY IF EXISTS suppliers_update ON public.suppliers;
+DROP POLICY IF EXISTS suppliers_delete ON public.suppliers;
+CREATE POLICY suppliers_select ON public.suppliers FOR SELECT TO authenticated USING (true);
+CREATE POLICY suppliers_insert ON public.suppliers FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY suppliers_update ON public.suppliers FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY suppliers_delete ON public.suppliers FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+
+ALTER TABLE public.supplier_transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS supplier_transactions_select ON public.supplier_transactions;
+DROP POLICY IF EXISTS supplier_transactions_insert ON public.supplier_transactions;
+DROP POLICY IF EXISTS supplier_transactions_update ON public.supplier_transactions;
+DROP POLICY IF EXISTS supplier_transactions_delete ON public.supplier_transactions;
+CREATE POLICY supplier_transactions_select ON public.supplier_transactions FOR SELECT TO authenticated USING (true);
+CREATE POLICY supplier_transactions_insert ON public.supplier_transactions FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY supplier_transactions_update ON public.supplier_transactions FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+CREATE POLICY supplier_transactions_delete ON public.supplier_transactions FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin','manager')));
+
+-- anon grants (MASTER §2.1.4): SELECT-only + public-facing estore INSERTs.
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+GRANT INSERT ON public.customers, public.store_orders TO anon;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+
+DROP POLICY IF EXISTS "Allow anon ALL on row_tombstones" ON public.row_tombstones;
+CREATE POLICY "Allow anon SELECT on row_tombstones" ON public.row_tombstones
+  FOR SELECT TO anon USING (true);

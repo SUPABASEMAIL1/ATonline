@@ -80,30 +80,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isRecoveringPassword, setIsRecoveringPassword] = useState(false)
 
   useEffect(() => {
-    // ── Session Expiry: 7 days, ONLY at 5:00 AM ──────────────────────────
-    // Prevents mid-shift logout. Expires on the first 5 AM >= 7 days after login.
+    // ── Session Expiry: EXACTLY 24 hours (GEMINI.md rule) ─────────────────
+    // "Session expiry MUST be exactly 24 hours (pos_session_start)."
+    // Unnecessary logouts caused by network issues or temporary server
+    // unavailability are STRICTLY BANNED.
     const checkSessionExpiry = () => {
       const loginTimestamp = localStorage.getItem('pos_session_start');
       if (!loginTimestamp) return;
 
       const loginDate = new Date(loginTimestamp);
       const now = new Date();
-      const daysDiff = (now.getTime() - loginDate.getTime()) / (1000 * 60 * 60 * 24);
+      const hoursDiff = (now.getTime() - loginDate.getTime()) / (1000 * 60 * 60);
 
-      // Only expire if 7+ days have passed AND it is currently 5:00 AM or later
-      const sevenDaysPassed = daysDiff >= 7;
-      const past5AM = now.getHours() >= 5;
-
-      if (sevenDaysPassed && past5AM) {
+      // Exactly 24 hours — no 5 AM condition, no 7-day rule.
+      if (hoursDiff >= 24) {
         localStorage.removeItem('pos_session_start');
         localStorage.removeItem('pos_offline_profile');
         supabase.auth.signOut();
-        sonner.error('Your weekly session has expired. Please sign in again.');
+        sonner.error('Your session has expired (24 hours). Please sign in again.');
       }
     };
 
     checkSessionExpiry();
-    // Check every 60 seconds to catch the 5 AM boundary accurately
+    // Check every 60 seconds to catch the 24-hour boundary accurately
     const expiryTimer = setInterval(checkSessionExpiry, 60_000);
 
     // ── PREVENT RETRY STORM ────────────────────────────────────────────────
@@ -118,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Proper initialization happens reactively on first successful Supabase
     // response (loadProfile success, syncToCloud success).
     (supabase.auth as any)._initCalled = true;
-    supabase.auth.stopAutoRefresh?.().catch(() => {});
+    supabase.auth.stopAutoRefresh?.().catch(() => { });
 
     const AUTH_KEY = 'sb-zaynah-pos-auth-auth-token';
     function readStoredSession(): Session | null {
@@ -218,7 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     const handleOffline = () => {
       console.log('[Auth] Offline — stopping auto-refresh to prevent retry storm.');
-      supabase.auth.stopAutoRefresh?.().catch(() => {});
+      supabase.auth.stopAutoRefresh?.().catch(() => { });
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -474,10 +473,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Show success toast with our styled config
       sonner.success('Welcome back! You have successfully signed in.');
-      // Store session start time for monthly expiry check
-      if (!localStorage.getItem('pos_session_start')) {
-        localStorage.setItem('pos_session_start', new Date().toISOString());
-      }
+      // Store session start time for 24-hour expiry check (always fresh on login)
+      localStorage.setItem('pos_session_start', new Date().toISOString());
     } catch (error: any) {
       // OFFLINE LOGIN FALLBACK
       const errorStr = error?.toString() || '';
@@ -545,9 +542,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser({ id: matchedUser.id, email: matchedUser.email } as SupabaseUser);
 
             localStorage.setItem('pos_offline_profile', JSON.stringify(matchedUser));
-            if (!localStorage.getItem('pos_session_start')) {
-              localStorage.setItem('pos_session_start', new Date().toISOString());
-            }
+            localStorage.setItem('pos_session_start', new Date().toISOString());
 
             setLoading(false);
             sonner.success('Offline Welcome! Logged in using local cache.');
@@ -698,9 +693,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setLoading(false);
         sonner.success('Welcome! ✅ Account created successfully as Admin.');
-        if (!localStorage.getItem('pos_session_start')) {
-          localStorage.setItem('pos_session_start', new Date().toISOString());
-        }
+        localStorage.setItem('pos_session_start', new Date().toISOString());
       }
 
       setLoading(false);
@@ -747,7 +740,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setProfile(null);
       setLoading(false);
-      
+
       // Dismiss all previous notifications and show sign-out success
       sonner.dismissAll();
       sonner.success('Signed Out! You have been successfully signed out.');
@@ -822,7 +815,7 @@ export function useAuth() {
       profile: null,
       loading: false,
       isRecoveringPassword: false,
-      setIsRecoveringPassword: () => {},
+      setIsRecoveringPassword: () => { },
       signIn: async () => { throw new Error('Auth not ready'); },
       signOut: async () => { },
       updateProfile: async () => { },

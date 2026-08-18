@@ -477,8 +477,17 @@ async function executeOp(op: PendingOp): Promise<void> {
                 const result = await supabase.from(table as any).upsert({ ...payload, id: entityId }, { onConflict: 'id' });
                 error = result.error;
             } else if (opType === 'delete') {
-                const result = await supabase.from(table as any).delete().eq('id', entityId);
-                error = result.error;
+                if (op.entity === 'sales') {
+                    // MASTER §0.6: sale rows are NEVER destroyed — the atomic RPC
+                    // soft-deletes (status='deleted', deleted_at) + records a
+                    // tombstone for cross-device sync. Stock reversal for this
+                    // path was queued separately at delete time (stock_history ops).
+                    const rpcRes = await supabase.rpc('delete_sale_atomic', { p_sale_id: entityId, p_history: [] });
+                    error = rpcRes.error;
+                } else {
+                    const result = await supabase.from(table as any).delete().eq('id', entityId);
+                    error = result.error;
+                }
             }
 
             // Success handling

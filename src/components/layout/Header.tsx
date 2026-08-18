@@ -282,6 +282,12 @@ export function Header({
             variant="ghost"
             onClick={async () => {
               try {
+                // Offline guard: kabhi bhi fake "synced" message nahi —
+                // net nahi hai to local data hi dikhta hai, clearly bataya jata hai.
+                if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                  sonner.warning(t('offline_sync', 'Offline — local data dikhaya ja raha hai. Cloud sync ke liye internet connect karein.'));
+                  return;
+                }
                 // 1. Clear PWA Caches (only API ones to keep app shell)
                 if ('caches' in window) {
                   const keys = await caches.keys();
@@ -289,19 +295,31 @@ export function Header({
                 }
                 // 2. Clear Session
                 sessionStorage.clear();
-                
+
                 // 3. Force Sync if available (loads fresh from cloud without page reload)
                 if (forceSync) {
                   sonner.loading(t('clear_toast', 'Force pulling fresh data from cloud...'));
-                  await forceSync();
-                  sonner.success(t('sync_complete', 'Data synced successfully! All devices fresh.'));
+                  try {
+                    // Hard cap: agar pull 45s se zyada le to timeout — modal hamesha
+                    // band hoga, kabhi atka nahi rahega.
+                    await Promise.race([
+                      forceSync(),
+                      new Promise((_, reject) => setTimeout(() => reject(new Error('FORCE_SYNC_TIMEOUT')), 45000))
+                    ]);
+                    sonner.close();
+                    sonner.success(t('sync_complete', 'Data synced successfully! All devices fresh.'));
+                  } catch (err) {
+                    sonner.close();
+                    console.error('Force sync failed:', err);
+                    sonner.error(t('sync_failed', 'Sync incomplete — local data hi dikhaya ja raha hai. Dobara try karein.'));
+                  }
                 } else {
                   sonner.success(t('rebooting', 'Cache cleared! Rebooting...'));
                   setTimeout(() => window.location.reload(), 800);
                 }
               } catch (err) {
                 console.error('Force sync failed:', err);
-                window.location.reload();
+                sonner.close();
               }
             }}
             title="Force Fresh Cloud Sync & Clear Cache"

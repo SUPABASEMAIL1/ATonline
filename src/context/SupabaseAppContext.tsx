@@ -47,6 +47,14 @@ import { playOnlineOrderSound } from '../lib/sounds';
 import { sonner } from '../lib/sonner';
 import { supabase } from '../lib/supabase';
 import { isSyncEngineBusy } from '../lib/syncEngine';
+import {
+  startCloudPull,
+  stopCloudPull,
+  pullCloudChanges,
+  resetLastPullTime,
+  waitForPullIdle,
+  type PullEntity
+} from '../lib/cloudPull';
 
 interface AppState {
   products: Product[];
@@ -998,12 +1006,145 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.cart, state.editingSaleId, state.selectedCustomer, state.activeSalesTab, state.salesTabs]);
 
+  // Cloud pull changed entities → refresh React state from localDb so every
+  // device automatically reflects changes made on other devices (cross-device sync).
+  const handleCloudPullChanged = useCallback(async (entities: PullEntity[]) => {
+    if (!entities || entities.length === 0) return;
+    console.log('[CloudPull] Refreshing state for entities:', entities.join(', '));
+
+    for (const entity of entities) {
+      try {
+        switch (entity) {
+          case 'products': {
+            const all = await localDb.products.toArray();
+            dispatch({ type: 'SET_PRODUCTS', payload: all as any });
+            break;
+          }
+          case 'customers': {
+            const all = await localDb.customers.toArray();
+            dispatch({ type: 'SET_CUSTOMERS', payload: all as any });
+            break;
+          }
+          case 'sales': {
+            const all = await localDb.sales.toArray();
+            dispatch({ type: 'SET_SALES', payload: all as any });
+            break;
+          }
+          case 'store_orders': {
+            const all = await localDb.storeOrders.toArray();
+            dispatch({ type: 'SET_STORE_ORDERS', payload: all as any });
+            break;
+          }
+          case 'expenses': {
+            const all = await localDb.expenses.toArray();
+            dispatch({ type: 'SET_EXPENSES', payload: all as any });
+            break;
+          }
+          case 'suppliers': {
+            const all = await localDb.suppliers.toArray();
+            dispatch({ type: 'SET_SUPPLIERS', payload: all as any });
+            break;
+          }
+          case 'categories': {
+            const all = await localDb.categories.toArray();
+            dispatch({ type: 'SET_CATEGORIES', payload: all as any });
+            break;
+          }
+          case 'discounts': {
+            const all = await localDb.discounts.toArray();
+            dispatch({ type: 'SET_DISCOUNTS', payload: all as any });
+            break;
+          }
+          case 'purchase_records': {
+            const all = await localDb.purchaseRecords.toArray();
+            dispatch({ type: 'SET_PURCHASE_RECORDS', payload: all as any });
+            break;
+          }
+          case 'salesmen': {
+            const all = await localDb.salesmen.toArray();
+            dispatch({ type: 'SET_SALESMEN', payload: all as any });
+            break;
+          }
+          case 'users': {
+            const all = await localDb.users.toArray();
+            dispatch({ type: 'SET_USERS', payload: all as any });
+            break;
+          }
+          case 'app_settings': {
+            const s = await localDb.appSettings.get(SETTINGS_ID);
+            if (s) {
+              dispatch({ type: 'SET_SETTINGS', payload: { ...state.settings, ...s } });
+            }
+            break;
+          }
+          case 'payments': {
+            const all = await localDb.payments.toArray();
+            dispatch({ type: 'SET_PAYMENTS', payload: all as any });
+            break;
+          }
+          case 'supplier_transactions': {
+            const all = await localDb.supplierTransactions.toArray();
+            dispatch({ type: 'SET_SUPPLIER_TRANSACTIONS', payload: all as any });
+            break;
+          }
+          case 'stock_history': {
+            const all = await localDb.stockHistory.toArray();
+            dispatch({ type: 'SET_STOCK_HISTORY', payload: all as any });
+            break;
+          }
+          case 'variant_stock_history': {
+            const all = await localDb.variantStockHistory.toArray();
+            dispatch({ type: 'SET_VARIANT_STOCK_HISTORY', payload: all as any });
+            break;
+          }
+          case 'product_addons': {
+            const all = await localDb.productAddons.toArray();
+            dispatch({ type: 'SET_PRODUCT_ADDONS', payload: all as any });
+            break;
+          }
+          case 'bundles': {
+            const all = await localDb.bundles.toArray();
+            dispatch({ type: 'SET_BUNDLES', payload: all as any });
+            break;
+          }
+          default:
+            break;
+        }
+      } catch (err) {
+        console.warn(`[CloudPull] State refresh failed for ${entity}:`, err);
+      }
+    }
+  }, [dispatch, state.settings]);
+
+  // If the current user is blocked/deactivated on another device, force logout.
+  // SAFETY: yeh event SIRF tab fire hota hai jab server se CONFIRMED
+  // `active === false` response aata hai (checkUserStatus in cloudPull.ts).
+  // Network errors / offline / query failures kabhi logout trigger nahi karte.
+  useEffect(() => {
+    const handleUserBlocked = () => {
+      console.warn('[CloudPull] User blocked — signing out.');
+      sonner.error('Your account has been deactivated by the administrator.');
+      supabase.auth.signOut().catch(() => { });
+      localStorage.removeItem('pos_session_start');
+      localStorage.removeItem('pos_offline_profile');
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 1500);
+    };
+    window.addEventListener('user-blocked', handleUserBlocked);
+    return () => window.removeEventListener('user-blocked', handleUserBlocked);
+  }, []);
+
   // Load data from Supabase when user is authenticated
   useEffect(() => {
     if (user && profile && !initialized) {
       loadData().catch(err => console.error('[loadData] unhandled rejection on login:', err));
       setInitialized(true);
+      // Start the cross-device cloud pull engine (periodic incremental pulls
+      // + realtime notifications keep every device in sync automatically).
+      startCloudPull(handleCloudPullChanged);
     } else if (!user) {
+      stopCloudPull();
       // Reset state when user logs out
       dispatch({ type: 'SET_PRODUCTS', payload: [] });
       dispatch({ type: 'SET_CUSTOMERS', payload: [] });
@@ -2164,9 +2305,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       await localDb.syncHistory.clear();
-      await loadData(false, true);
+      // Don't collide with an in-flight 15s timer pull — a concurrent full pull
+      // would be skipped by the `_pullRunning` guard and the refresh would do
+      // nothing. Wait for the running cycle, then do the authoritative full pull.
+      await waitForPullIdle(30000);
+      resetLastPullTime();
+      const changed = await pullCloudChanges(true);
+      if (changed.length > 0) {
+        await handleCloudPullChanged(changed);
+      }
     } catch (err) {
       console.error('forceSync failed:', err);
+    } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }
