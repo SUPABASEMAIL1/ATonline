@@ -76,6 +76,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
     price: product.price?.toString() || '0',
     cost: product.cost?.toString() || '0',
     minStock: product.minStock?.toString() || '0',
+    stock: product.stock?.toString() || '0',
     targetStock: product.targetStock?.toString() || '',
     category: product.category,
     supplier: product.supplier || '',
@@ -107,6 +108,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
       price: product.price?.toString() || '0',
       cost: product.cost?.toString() || '0',
       minStock: product.minStock?.toString() || '0',
+      stock: product.stock?.toString() || '0',
       targetStock: product.targetStock?.toString() || '',
       category: product.category,
       supplier: product.supplier || '',
@@ -385,10 +387,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
         cost: newCost,
         minStock: parseInt(formData.minStock) || 0,
         targetStock: formData.targetStock ? parseInt(formData.targetStock) : null,
-        // Fixed: If turning tracking ON, and it was previously infinite (>= 990,000), reset baseline to 0.
-        // This prevents the '1,000,009' display bug where the infinity baseline was accidentally kept.
-        stock: isInfinity ? 0 : (wasInfinity && (product.stock || 0) >= 990000 ? 0 : (product.stock || 0)),
-        // batches removed
+        stock: isInfinity ? 0 : (parseFloat(formData.stock) || 0),
         trackInventory: formData.trackInventory,
         variants: variants.map((v: any) => ({ name: v.name, options: v.options })),
         variantData: variantData,
@@ -814,7 +813,22 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                   />
                 </div>
                 {isEditMode && (
-                  <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-in fade-in slide-in-from-top-2">
+                    <div>
+                      <div className="flex items-center justify-between mb-1 ml-1">
+                        <div className="flex items-center gap-1">
+                          <p className="text-[9px] text-gray-600 uppercase font-bold">{t('stock', 'Stock Qty')}</p>
+                        </div>
+                      </div>
+                      <input
+                        type="number"
+                        disabled={formData.trackInventory === false}
+                        value={formData.trackInventory === false ? '' : formData.stock}
+                        onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                        placeholder={formData.trackInventory === false ? '∞' : '0'}
+                        className="w-full bg-gray-50 dark:bg-black/30 border-none px-4 py-2.5 rounded-xl text-xs font-bold text-gray-900 dark:text-white outline-none ring-1 ring-transparent focus:ring-emerald-500/50 transition-all disabled:opacity-50"
+                      />
+                    </div>
                     <div>
                       <div className="flex items-center justify-between mb-1 ml-1">
                         <div className="flex items-center gap-1">
