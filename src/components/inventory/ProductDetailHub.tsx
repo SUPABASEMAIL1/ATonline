@@ -1903,7 +1903,9 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-lg ${h.bg} ${h.color}`}><h.icon className="w-3.5 h-3.5" /></div>
                           <div>
-                            <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase leading-tight">{new Date(h.date).toLocaleDateString()}</p>
+                            <p className="text-[10px] font-black text-gray-900 dark:text-white uppercase leading-tight">
+                              {new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
                             <p className="text-[8px] text-gray-600 font-bold uppercase">{new Date(h.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                         </div>
