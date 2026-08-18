@@ -5,7 +5,6 @@ dist/
 .DS_Store
 *.local
 tsconfig.tsbuildinfo
-env_backups/
 .vercel
 scratch/
 *.log
