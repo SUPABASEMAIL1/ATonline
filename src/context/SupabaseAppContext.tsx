@@ -50,7 +50,7 @@ import { isSyncEngineBusy } from '../lib/syncEngine';
 import {
   startCloudPull,
   stopCloudPull,
-  pullCloudChanges,
+  resetLastPullTime,
   type PullEntity
 } from '../lib/cloudPull';
 
@@ -2031,6 +2031,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // ── PRODUCTS (Most important, do this first!) ──
         const products = await productsService.fetchRemote();
         const mergedProducts = await smartMerge('products', products, localDb.products);
+
+        // ── STOCK LEDGER RECONCILIATION (MASTER §4 / §0) ──
+        // A local sale decrements product.stock immediately but does NOT queue a
+        // `products` sync op — the cloud stock is only reduced later when the
+        // queued stock_history op syncs (DB trigger). If loadData overwrites the
+        // local stock with the (not-yet-updated) cloud value, the deduction is
+        // lost and inventory appears to "reverse" on refresh / cache-clear.
+        // Fix: re-derive local stock = cloud stock + Σ(pending unsynced ledger
+        // movements). Once the op syncs it is removed from the queue, the cloud
+        // value already includes it, and the formula yields the same number.
+        try {
+          const pendingProductOpIds = new Set(
+            (await localDb.pendingOps.where('entity').equals('products').toArray())
+              .filter((o: any) => o.opType === 'update' || o.opType === 'create')
+              .map((o: any) => o.entityId)
+          );
+          const ledgerOps = await localDb.pendingOps
+            .where('entity').anyOf('stock_history', 'variant_stock_history').toArray();
+          const productDelta = new Map<string, number>();
+          const variantDelta = new Map<string, Map<string, number>>();
+          for (const op of ledgerOps) {
+            const p: any = op.payload || {};
+            const pid = p.product_id || p.productId;
+            if (!pid) continue;
+            const dq = Number(p.change_qty ?? p.changeQty) || 0;
+            const vid = p.variant_id || p.variantId;
+            if (vid) {
+              if (!variantDelta.has(pid)) variantDelta.set(pid, new Map());
+              const m = variantDelta.get(pid)!;
+              m.set(vid, (m.get(vid) || 0) + dq);
+            } else {
+              productDelta.set(pid, (productDelta.get(pid) || 0) + dq);
+            }
+          }
+          for (const prod of mergedProducts) {
+            // A pending `products` op already carries the absolute (correct) stock
+            // via smartMerge overlay — don't double-count by also adding the ledger delta.
+            if (pendingProductOpIds.has(prod.id)) continue;
+            const d = productDelta.get(prod.id);
+            if (d) prod.stock = (prod.stock || 0) + d;
+            const vMap = variantDelta.get(prod.id);
+            if (vMap && prod.variantData) {
+              prod.variantData = prod.variantData.map((v: any) => {
+                const vd = vMap.get(v.id);
+                return vd ? { ...v, stock: (v.stock || 0) + vd } : v;
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('[loadData] stock ledger reconcile failed (non-fatal):', e);
+        }
+
         dispatch({ type: 'SET_PRODUCTS', payload: mergedProducts });
         await saveProgressively('products', localDb.products, mergedProducts);
         updateStatus(`Fetched ${products.length} products...`, products.length);
@@ -2308,18 +2360,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function forceSync() {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
+      // MASTER §12: the global Refresh MUST guarantee 100% cloud parity across
+      // every device. An incremental cursor pull can silently skip another
+      // device's writes (the "1-2 min delay / missing data" bug), so we do a
+      // FULL pull: clear the local sync cursor + loadData(false, true) which
+      // fetches every table fully and holds the UI in a loading state until the
+      // remote cloud data has fully overwritten the local cache.
       await localDb.syncHistory.clear();
-      // FAST force sync: the 15s timer pull keeps the cursor continuously
-      // fresh, so an incremental pull IS the authoritative "fresh from cloud"
-      // refresh. It only downloads rows changed since the last cursor
-      // (usually a handful) instead of re-downloading every row of all 18
-      // tables (the old epoch-reset approach = the "much load" the modal
-      // showed for 30-45s). A full epoch pull still happens automatically on
-      // first run / after site-data clear (cursor = epoch).
-      const changed = await pullCloudChanges(false);
-      if (changed.length > 0) {
-        await handleCloudPullChanged(changed);
-      }
+      resetLastPullTime();
+      await loadData(false, true);
     } catch (err) {
       console.error('forceSync failed:', err);
     } finally {
