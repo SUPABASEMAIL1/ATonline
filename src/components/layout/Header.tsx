@@ -281,20 +281,26 @@ export function Header({
           <Button
             variant="ghost"
             onClick={async () => {
-              sonner.loading(t('clear_toast', 'Force cleaning system cache & syncing...'));
               try {
-                // 1. Clear PWA Caches
+                // 1. Clear PWA Caches (only API ones to keep app shell)
                 if ('caches' in window) {
                   const keys = await caches.keys();
-                  await Promise.all(keys.map(key => caches.delete(key)));
+                  await Promise.all(keys.filter(k => k.startsWith('supabase')).map(key => caches.delete(key)));
                 }
                 // 2. Clear Session
                 sessionStorage.clear();
                 
-                // 3. Force Reload
-                sonner.success(t('rebooting', 'Cache cleared! Rebooting...'));
-                setTimeout(() => window.location.reload(), 800);
+                // 3. Force Sync if available (loads fresh from cloud without page reload)
+                if (forceSync) {
+                  sonner.loading(t('clear_toast', 'Force pulling fresh data from cloud...'));
+                  await forceSync();
+                  sonner.success(t('sync_complete', 'Data synced successfully! All devices fresh.'));
+                } else {
+                  sonner.success(t('rebooting', 'Cache cleared! Rebooting...'));
+                  setTimeout(() => window.location.reload(), 800);
+                }
               } catch (err) {
+                console.error('Force sync failed:', err);
                 window.location.reload();
               }
             }}

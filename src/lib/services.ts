@@ -53,8 +53,12 @@ export async function commitSaleAuthoritative(
 ): Promise<any> {
   try {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return null;
+    // MASTER §5.2: reuse the sale id as the client-generated idempotency key so a
+    // retry / offline replay of the SAME local sale is a no-op server-side, not a
+    // second sale. Stable across retries because the local sale id never changes.
+    const salePayload = { ...remoteSale, idempotency_key: remoteSale?.id };
     const { data, error } = await (supabase as any).rpc('commit_sale', {
-      p_sale: remoteSale,
+      p_sale: salePayload,
       p_history: movements,
     });
     if (error) {

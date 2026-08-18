@@ -931,7 +931,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
 const AppContext = createContext<{
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
-  loadData: (silent?: boolean) => Promise<void>;
+  loadData: (silent?: boolean, forceCloudSync?: boolean) => Promise<void>;
+  forceSync: () => Promise<void>;
   loadMoreSales: (offset: number, limit?: number) => Promise<boolean>;
   searchSales: (term: string) => Promise<void>;
   loadMoreStoreOrders: (offset: number, limit?: number) => Promise<boolean>;
@@ -1545,7 +1546,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.cart, state.selectedCustomer, state.billDiscountValue, state.billDiscountType, state.activeSalesTab, user]);
 
-  async function loadData(silent: boolean = false) {
+  async function loadData(silent: boolean = false, forceCloudSync: boolean = false) {
     // BUG 2: Wait for sync engine to finish if busy
     let waitLoops = 0;
     while (isSyncEngineBusy() && waitLoops < 40) { // 40 * 200ms = 8 seconds
@@ -1690,14 +1691,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // when IndexedDB was empty (fresh install or cache clear).
       // Now the UI renders immediately — either with cached data or "No products found".
       // Cloud data will populate the UI progressively in the background.
-      dispatch({ type: 'SET_LOADING', payload: false });
+      if (!forceCloudSync) {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
     } catch (localErr) {
       console.warn('Local DB read failed:', localErr);
       // Even if local DB read fails, show the UI immediately
-      dispatch({ type: 'SET_LOADING', payload: false });
+      if (!forceCloudSync) {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
     }
 
     if (!navigator.onLine) {
+      if (forceCloudSync) dispatch({ type: 'SET_LOADING', payload: false });
       dispatch({ type: 'SET_SYNC_PROGRESS', payload: null });
       return;
     }
@@ -2154,8 +2160,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function forceSync() {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      await localDb.syncHistory.clear();
+      await loadData(false, true);
+    } catch (err) {
+      console.error('forceSync failed:', err);
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }
+
   return (
-    <AppContext.Provider value={{ state, dispatch, loadData, loadMoreSales, searchSales, loadMoreStoreOrders }}>
+    <AppContext.Provider value={{
+      state,
+      dispatch,
+      loadData,
+      forceSync,
+      loadMoreSales,
+      searchSales,
+      loadMoreStoreOrders
+    }}>
       {children}
     </AppContext.Provider>
   );
@@ -2178,7 +2203,8 @@ export function useApp() {
         currentUser: null,
       },
       dispatch: () => { },
-      loadData: async () => { }
+      loadData: async () => { },
+      forceSync: async () => { }
     };
   }
   return context;
