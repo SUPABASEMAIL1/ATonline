@@ -28,7 +28,7 @@ export function Header({
 }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { state, dispatch, loadData, forceSync } = useApp();
+  const { state, dispatch, loadData } = useApp();
   const { signOut } = useAuth();
   const { t, isRtl } = useTranslation();
 
@@ -280,48 +280,39 @@ export function Header({
           {/* Force Sync */}
           <Button
             variant="ghost"
-            onClick={async () => {
-              try {
-                // Offline guard: kabhi bhi fake "synced" message nahi —
-                // net nahi hai to local data hi dikhta hai, clearly bataya jata hai.
-                if (typeof navigator !== 'undefined' && !navigator.onLine) {
-                  sonner.warning(t('offline_sync', 'Offline — local data dikhaya ja raha hai. Cloud sync ke liye internet connect karein.'));
-                  return;
-                }
-                // 1. Clear PWA Caches (only API ones to keep app shell)
-                if ('caches' in window) {
-                  const keys = await caches.keys();
-                  await Promise.all(keys.filter(k => k.startsWith('supabase')).map(key => caches.delete(key)));
-                }
-                // 2. Clear Session
-                sessionStorage.clear();
+             onClick={async () => {
+               try {
+                 // Offline guard: kabhi bhi fake "synced" message nahi —
+                 // net nahi hai to local data hi dikhta hai, clearly bataya jata hai.
+                 if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                   sonner.warning(t('offline_sync', 'Offline — local data dikhaya ja raha hai. Cloud sync ke liye internet connect karein.'));
+                   return;
+                 }
+                 // 1. Clear PWA Caches (only API ones to keep app shell)
+                 if ('caches' in window) {
+                   const keys = await caches.keys();
+                   await Promise.all(keys.filter(k => k.startsWith('supabase')).map(key => caches.delete(key)));
+                 }
+                 // 2. Clear Session
+                 sessionStorage.clear();
 
-                // 3. Force Sync if available (loads fresh from cloud without page reload)
-                if (forceSync) {
-                  sonner.loading(t('clear_toast', 'Force pulling fresh data from cloud...'));
-                  try {
-                    // Hard cap: agar pull 45s se zyada le to timeout — modal hamesha
-                    // band hoga, kabhi atka nahi rahega.
-                    await Promise.race([
-                      forceSync(),
-                      new Promise((_, reject) => setTimeout(() => reject(new Error('FORCE_SYNC_TIMEOUT')), 45000))
-                    ]);
-                    sonner.close();
-                    sonner.success(t('sync_complete', 'Data synced successfully! All devices fresh.'));
-                  } catch (err) {
-                    sonner.close();
-                    console.error('Force sync failed:', err);
-                    sonner.error(t('sync_failed', 'Sync incomplete — local data hi dikhaya ja raha hai. Dobara try karein.'));
-                  }
-                } else {
-                  sonner.success(t('rebooting', 'Cache cleared! Rebooting...'));
-                  setTimeout(() => window.location.reload(), 800);
-                }
-              } catch (err) {
-                console.error('Force sync failed:', err);
-                sonner.close();
-              }
-            }}
+                 // 3. Unregister stale service workers so an OLD cached JS bundle
+                 // (the root cause of "fixes don't appear / deleted sales keep
+                 // coming back") can never be served again after a redeploy.
+                 if ('serviceWorker' in navigator) {
+                   const regs = await navigator.serviceWorker.getRegistrations();
+                   await Promise.all(regs.map((r) => r.unregister()));
+                 }
+
+                 // 4. Hard reload -> fetches the freshly-deployed bundle + data.
+                 sonner.success(t('rebooting', 'Cache & service worker cleared! Reloading fresh...'));
+                 setTimeout(() => window.location.reload(), 600);
+               } catch (err) {
+                 console.error('Clear cache failed:', err);
+                 sonner.close();
+                 window.location.reload();
+               }
+             }}
             title="Force Fresh Cloud Sync & Clear Cache"
             className="!min-h-0 !w-8 !h-8 sm:!w-9 sm:!h-9 !p-0 !rounded-full !text-blue-500 hover:!text-blue-700 dark:hover:!text-blue-300 hover:!bg-blue-500/10 dark:hover:!bg-blue-500/15"
           >

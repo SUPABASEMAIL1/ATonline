@@ -503,6 +503,19 @@ export async function pullCloudChanges(forceFull = false): Promise<PullEntity[]>
       if (r.didChange && !changed.includes(r.entity)) changed.push(r.entity);
     }
 
+    // Phase 2b: purge any locally-stored soft-deleted sales (status='deleted').
+    // These are audit-only rows that may linger from deletes done before the
+    // deleted_at filter existed. cloudPull never re-pulls them (filtered on the
+    // server), so removing them locally is safe and keeps the list clean.
+    try {
+      const all = await localDb.sales.toArray();
+      const stale = all.filter((s: any) => s.status === 'deleted');
+      for (const s of stale) await localDb.sales.delete(s.id);
+      if (stale.length) console.log(`[CloudPull] Purged ${stale.length} locally-soft-deleted sales.`);
+    } catch (e) {
+      console.warn('[CloudPull] Stale-deleted-sale purge skipped:', e);
+    }
+
     // Phase 3: check if the current user was blocked on another device
     if (!forceFull) {
       await checkUserStatus();

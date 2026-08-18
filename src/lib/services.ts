@@ -1718,13 +1718,17 @@ export const storeOrdersService = {
  */
 export const salesService = {
   async getAll(): Promise<Sale[]> {
-    const sales = await localDb.sales.toArray();
+    const sales = await localDb.sales.filter(s => s.status !== 'deleted').toArray();
     return sales.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   },
 
   async fetchRemote(lastSyncTime?: Date): Promise<Sale[]> {
     if (lastSyncTime) {
-      const queryFn = () => supabase.from('sales').select('*').gte('updated_at', lastSyncTime.toISOString());
+      const queryFn = () => supabase
+        .from('sales')
+        .select('*')
+        .is('deleted_at', null)
+        .gte('updated_at', lastSyncTime.toISOString());
       const data = await fetchAllPages(queryFn);
       return data.map(mapSale);
     } else {
@@ -1732,9 +1736,12 @@ export const salesService = {
       // paginate in SMALL pages (200): a 1000-row page = ~35MB single response
       // → PostgREST statement timeout (57014 "canceling statement due to
       // statement timeout", 8s Supabase default).
+      // Exclude soft-deleted sales (deleted_at set) — they are audit-only rows
+      // and must never re-surface locally (tombstones remove them too).
       const queryFn = () => supabase
         .from('sales')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
       const data = await fetchAllPages(queryFn, 200);
       return (data || []).map(mapSale);

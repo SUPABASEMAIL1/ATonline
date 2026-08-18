@@ -243,6 +243,9 @@ export function TransactionsManager() {
     return list.filter(sale => {
       if (isDraftSale(sale)) return false;
       if (sale.status === 'pending') return false;
+      // Soft-deleted sales (status='deleted', set by delete_sale_atomic) are
+      // audit-only rows — never show them in the transactions list.
+      if (sale.status === 'deleted') return false;
       // Filter out invalid phantom sales (including literal "undefined" or whitespace)
       const inv = sale.invoiceNumber ? String(sale.invoiceNumber).trim() : '';
       const rec = sale.receiptNumber ? String(sale.receiptNumber).trim() : '';
