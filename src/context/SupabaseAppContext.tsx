@@ -1670,6 +1670,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
       subscriptionRef.current = null;
+      // Reset the init guard too: without this, a re-run of the effect (new
+      // user/profile object, e.g. after app_settings refresh) returns early
+      // with NO channel and realtime only recovers via the CLOSED-retry hacky
+      // path — which is what produced the endless "CLOSED — will retry in 5s"
+      // churn while subscriptions flickered.
+      subscriptionsInitialized.current = false;
       if (retryTimer) clearTimeout(retryTimer);
       if (settingsDebounceTimer) clearTimeout(settingsDebounceTimer);
     };

@@ -3692,3 +3692,8 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 DROP POLICY IF EXISTS "Allow anon ALL on row_tombstones" ON public.row_tombstones;
 CREATE POLICY "Allow anon SELECT on row_tombstones" ON public.row_tombstones
   FOR SELECT TO anon USING (true);
+
+-- ============================================================
+-- [2026-08-18] sales(created_at) index — full-pull timeout fix
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales (created_at DESC);

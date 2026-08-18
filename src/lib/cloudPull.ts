@@ -206,11 +206,13 @@ const PULL_DEFS: PullDef[] = [
     fetch: async (since) => {
       // Soft-deleted sales (status='deleted', deleted_at set) are historical
       // audit rows — never re-surface them. Tombstones remove them locally.
+      // SMALL pages (200): sales rows carry big items jsonb (~35KB avg, 45MB
+      // table) — 1000-row pages hit the 8s PostgREST statement timeout.
       const rows = await fetchAllPages(() => {
         let q = supabase.from('sales').select('*').is('deleted_at', null);
         if (since && since.getTime() > 0) q = q.gte('updated_at', since.toISOString());
         return q;
-      });
+      }, 200);
       return rows.map(mapSale);
     },
     write: async (rows) => { if (rows.length) await localDb.sales.bulkPut(rows as any); },

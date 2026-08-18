@@ -1,5 +1,5 @@
 import { supabase, enableFullAuthInit } from './supabase';
-import { localDb, PendingOp, SETTINGS_ID } from './localDb';
+import { localDb, queueOp, PendingOp, SETTINGS_ID } from './localDb';
 import { mapProduct, mapCustomer, salesService, reconcileAllStock, seedMissingBarcodes, commitSaleAuthoritative } from './services';
 
 const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
@@ -1011,7 +1011,7 @@ async function pruneExpiredCancelledOrders() {
         if (pendingIds.has(order.id)) continue; // leave for the sync queue to finish
         await localDb.storeOrders.delete(order.id);
         // Permanent delete on the cloud (tombstone-guarded, F21)
-        await localDb.queueOp('store_orders', 'delete', order.id, {});
+        await queueOp('store_orders', 'delete', order.id, {});
         pruned++;
         console.log(`[POS MAINT] Cancelled order #${order.invoiceNumber} pruned (24h) + cloud delete queued.`);
     }

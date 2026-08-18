@@ -678,6 +678,13 @@ Whenever a database change is made, it MUST be recorded here.
 
 > ⚠️ **STRICT RULE:** Every new column MUST be added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the post-launch ALTER TABLE block. Adding only to `CREATE TABLE` is NOT enough — existing DBs skip CREATE TABLE and never get the column. This applies to EVERY schema change, every time.
 
+### [2026-08-18] sales(created_at) Index — Full-Pull Timeout Fix
+**Files:** `supabase/migrations/20260818150000_sales_created_at_index.sql` (NEW, applied live), `SUPER_MASTER_SCHEMA.sql`, `src/lib/services.ts`, `src/lib/cloudPull.ts`, `src/lib/syncEngine.ts`
+**Context (sync round-3):**
+1. **Full-pull statement timeout (57014):** sales = 45MB (items jsonb ~35KB/row, 1266 rows). Initial cache load (`salesService.fetchRemote`) + cloudPull epoch pull fetched 1000-row pages = ~35MB per single response → PostgREST `statement_timeout` (8s) → `canceling statement due to statement timeout` → "Sync Failed" + local cache never fully loads. Fix: sales pulls now paginate in **200-row pages** (both fetchRemote and cloudPull), plus `CREATE INDEX idx_sales_created_at ON sales (created_at DESC)` for the `order by created_at desc` sort.
+2. **`localDb.queueOp is not a function` (TypeError, delete broken):** syncEngine.ts:1014 called `localDb.queueOp(...)` on the Dexie instance — `queueOp` is a standalone export, so the canceled-order prune (24h) threw and the delete never queued. Now imports + calls `queueOp(...)` directly.
+**Applied live:** jeanzone 2026-08-18 (index created via Management API). Push to remaining clone projects on next deploy.
+
 ### [2026-08-18] Soft-Delete + Fail-Closed Commit + Grants Narrowing + RLS Hardening + Oversell Lock Fix
 **Files:** `supabase/migrations/20260818140000_soft_delete_and_hardening.sql` (NEW, applied live), `SUPER_MASTER_SCHEMA.sql`, `src/lib/cloudPull.ts`, `src/lib/syncEngine.ts`, `src/context/SupabaseAppContext.tsx`, `src/components/layout/Header.tsx`
 **Context (MASTER round 2):**

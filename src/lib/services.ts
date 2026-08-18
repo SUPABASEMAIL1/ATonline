@@ -1728,11 +1728,15 @@ export const salesService = {
       const data = await fetchAllPages(queryFn);
       return data.map(mapSale);
     } else {
+      // FULL pull. sales is the heavy table (45MB — items jsonb ~35KB/row), so
+      // paginate in SMALL pages (200): a 1000-row page = ~35MB single response
+      // → PostgREST statement timeout (57014 "canceling statement due to
+      // statement timeout", 8s Supabase default).
       const queryFn = () => supabase
         .from('sales')
         .select('*')
         .order('created_at', { ascending: false });
-      const data = await fetchAllPages(queryFn, 1000);
+      const data = await fetchAllPages(queryFn, 200);
       return (data || []).map(mapSale);
     }
   },
