@@ -444,7 +444,7 @@ export function InventoryManager() {
       }
 
       // Validate structure (check for version 2.0 or data.products array or direct array)
-      let products = importData.data?.products || importData.products || (Array.isArray(importData) ? importData : null);
+      const products = importData.data?.products || importData.products || (Array.isArray(importData) ? importData : null);
 
       if (!products || !Array.isArray(products)) {
         throw new Error('Invalid file format. Please use a standard Inventory export.');

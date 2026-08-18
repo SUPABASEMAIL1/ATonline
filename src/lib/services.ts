@@ -2872,7 +2872,7 @@ export const suppliersService = {
   },
 
   async getLedger(supplierId: string, limit: number = 50, offset: number = 0, manualOnly: boolean = false) {
-    let query = localDb.supplierTransactions.where('supplierId').equals(supplierId);
+    const query = localDb.supplierTransactions.where('supplierId').equals(supplierId);
 
     let txs = await query.toArray();
 

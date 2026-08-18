@@ -1092,7 +1092,7 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
       const bundleInstanceId = `${bundle.id}-${Math.abs(hash)}`;
 
       const cartItems = bundlesService.getBundleCartItems(effectiveBundle, state.products).map((item, idx) => {
-        let updatedItem = { ...item, bundleId: bundleInstanceId, bundle_id: bundleInstanceId };
+        const updatedItem = { ...item, bundleId: bundleInstanceId, bundle_id: bundleInstanceId };
 
         if (variantToSet) {
           updatedItem.selectedVariant = variantToSet;
@@ -1220,8 +1220,8 @@ function BundleGrid({ onAddToCart, currency, isTouchMode, isReturnMode, gridCols
       <div className={getGridClasses()}>
         {groupedBundles.map(item => {
           let visibleProducts: any[] = [];
-          let isGroup = item.isGroup;
-          let displayName = item.name;
+          const isGroup = item.isGroup;
+          const displayName = item.name;
           let minPrice = 0;
           let maxPrice = 0;
 

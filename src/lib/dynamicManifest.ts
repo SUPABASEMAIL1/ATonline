@@ -29,15 +29,15 @@ export function updateDynamicManifest(opts: {
   //    'POS' fallback. isStore only switches the storefront description/scope. ──
   const bizName = (opts.storeName || '').trim() || 'POS';
   let name = opts.isStore ? bizName : `POS - ${bizName}`;
-  let shortName = bizName.length > 12 ? bizName.substring(0, 10) + '\u2026' : bizName;
-  let description = opts.isStore
+  const shortName = bizName.length > 12 ? bizName.substring(0, 10) + '\u2026' : bizName;
+  const description = opts.isStore
     ? 'Browse and order items online from our digital storefront'
     : 'Fast, offline-first point-of-sale system';
   let iconSrc = origin + '/zaynahs-logo.svg';
   let mimeType = 'image/svg+xml';
-  let bgColor = opts.isStore ? '#f9fafb' : '#0a0a0a';
-  let orientation: OrientationLockType = opts.isStore ? 'portrait' : 'any';
-  let categories = opts.isStore ? ['shopping', 'food', 'lifestyle'] : ['business', 'finance', 'productivity'];
+  const bgColor = opts.isStore ? '#f9fafb' : '#0a0a0a';
+  const orientation: OrientationLockType = opts.isStore ? 'portrait' : 'any';
+  const categories = opts.isStore ? ['shopping', 'food', 'lifestyle'] : ['business', 'finance', 'productivity'];
 
   // ── STORE — use saved tenant settings ──
   if (opts.isStore) {

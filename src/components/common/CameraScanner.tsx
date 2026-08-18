@@ -151,7 +151,7 @@ export function CameraScanner({
         const onScanSuccess = (decodedText: string) => {
           console.log("RAW SCAN:", decodedText);
           if (!isMountedRef.current) return;
-          let cleanText = decodedText.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
+          const cleanText = decodedText.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
 
           const now = Date.now();
           if (cleanText === lastScannedText.current && now - lastScannedTime.current < 3000) return;

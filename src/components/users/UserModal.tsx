@@ -30,7 +30,7 @@ export function UserModal({ isOpen, onClose, user }: UserModalProps) {
     name: '',
     email: '',
     password: '',
-    role: 'cashier' as 'cashier',
+    role: 'cashier' as const,
     active: true,
     avatar: '',
     canEditPrice: false,

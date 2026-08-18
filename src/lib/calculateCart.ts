@@ -98,7 +98,7 @@ export function calculateCart(input: CartCalculationInput): CartCalculationResul
               eligibleItems.push({ index, price: unitPrice, qty: item.quantity });
             }
           });
-          let unrolled: { index: number; price: number }[] = [];
+          const unrolled: { index: number; price: number }[] = [];
           eligibleItems.forEach(item => {
             for (let i = 0; i < item.qty; i++) unrolled.push({ index: item.index, price: item.price });
           });

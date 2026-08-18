@@ -451,7 +451,7 @@ export function StoreFront({ settings, products, categories, bundles, cart, onAd
     const wraps = bundle.startTime && bundle.endTime ? timeWraps(bundle.startTime, bundle.endTime) : false;
     const todayIn = bundle.repeatDays?.length ? bundle.repeatDays.includes(todayKey) : true;
     const prevIn = bundle.repeatDays?.length ? bundle.repeatDays.includes(getPrevDayKey(todayKey)) : false;
-    let dayOk = todayIn || (wraps && prevIn && bundle.endTime && nowMin < (() => { const [eh, em] = bundle.endTime!.split(':').map(Number); return eh * 60 + em; })());
+    const dayOk = todayIn || (wraps && prevIn && bundle.endTime && nowMin < (() => { const [eh, em] = bundle.endTime!.split(':').map(Number); return eh * 60 + em; })());
     if (!todayIn && !dayOk) return false;
     if (bundle.startTime && bundle.endTime && !inTimeW(nowMin, bundle.startTime, bundle.endTime)) return false;
     return true;

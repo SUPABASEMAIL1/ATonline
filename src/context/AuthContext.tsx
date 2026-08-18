@@ -557,7 +557,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const pUsername = (parsed.username || '').toLowerCase();
                 if (pEmail === lowerIdentifier || pUsername === lowerIdentifier) {
                   const enteredHash = await hashPasswordString(password);
-                  let sHash = parsed.offlineHash || localStorage.getItem(`offline_hash_${parsed.email}`);
+                  const sHash = parsed.offlineHash || localStorage.getItem(`offline_hash_${parsed.email}`);
                   if (sHash && sHash === enteredHash) {
                     if (parsed.lastLogin) parsed.lastLogin = new Date(parsed.lastLogin);
                     setProfile(parsed as User);

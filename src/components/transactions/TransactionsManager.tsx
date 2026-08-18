@@ -238,7 +238,7 @@ export function TransactionsManager() {
 
   const filteredTransactions = useMemo(() => {
     // Use local data as fallback while cloud search is loading to prevent stats flash to 0
-    let list = isCloudSearch ? (cloudResults.length > 0 ? cloudResults : dateFiltered) : dateFiltered;
+    const list = isCloudSearch ? (cloudResults.length > 0 ? cloudResults : dateFiltered) : dateFiltered;
 
     return list.filter(sale => {
       if (isDraftSale(sale)) return false;

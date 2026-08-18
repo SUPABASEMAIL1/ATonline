@@ -383,7 +383,7 @@ export const TouchKeyboard = React.memo(function TouchKeyboard({ isOpen, onClose
       return;
     }
 
-    let cleaned = val
+    const cleaned = val
       .replace(/×/g, '*')
       .replace(/÷/g, '/')
       .replace(/−/g, '-')

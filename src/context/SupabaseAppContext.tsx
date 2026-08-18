@@ -456,7 +456,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
     }
     case 'MERGE_BUNDLE_CART_ITEMS': {
       const itemsToDispatch = action.payload;
-      let updatedCart = [...state.cart];
+      const updatedCart = [...state.cart];
 
       for (const item of itemsToDispatch) {
         const existingIndex = updatedCart.findIndex(
@@ -539,7 +539,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       }
       const sale = action.payload;
       let updatedCustomers = state.customers;
-      let updatedProducts = [...state.products];
+      const updatedProducts = [...state.products];
 
       // If it's a customer sale, update their stats locally in memory
       if (sale.customerId) {
@@ -623,7 +623,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       const saleId = action.payload;
       const saleToDelete = state.sales.find(s => s.id === saleId);
       let updatedCustomers = state.customers;
-      let updatedProducts = [...state.products];
+      const updatedProducts = [...state.products];
 
       if (saleToDelete && saleToDelete.customerId) {
         const remainingTotal = saleToDelete.total - (saleToDelete.refundedAmount || 0);
@@ -828,7 +828,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       if (state.purchaseRecords.some(r => r.id === action.payload.id)) {
         return state;
       }
-      let updatedProducts = [...state.products];
+      const updatedProducts = [...state.products];
       const productId = action.payload.productId;
       if (!productId) {
         console.warn('[Reducer] ADD_PURCHASE_RECORD missing productId, skipping stock update');

@@ -326,7 +326,7 @@ export function EStoreApp() {
 
   const addBundleToCart = (bundleCartItems: CartItem[]) => {
     setCart(prev => {
-      let updatedCart = [...prev];
+      const updatedCart = [...prev];
       for (const item of bundleCartItems) {
         const existingIndex = updatedCart.findIndex(
           x => (x.bundleId === item.bundleId) && x.product.id === item.product.id && x.selectedVariant === item.selectedVariant

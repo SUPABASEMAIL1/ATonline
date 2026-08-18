@@ -167,7 +167,7 @@ export function POSTerminal() {
 
     const shouldAddNewLine = product.isWeightBased || product.requireSerial || (options?.addonItems && options.addonItems.length > 0) || (options?.selectedModifiers && options.selectedModifiers.length > 0);
 
-    let quantityModifier = isReturnMode ? -1 : 1;
+    const quantityModifier = isReturnMode ? -1 : 1;
     let newQuantity = quantityModifier;
 
     if (existingItemIndex >= 0 && !shouldAddNewLine) {
