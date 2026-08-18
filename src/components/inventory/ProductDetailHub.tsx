@@ -1025,30 +1025,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                   </div>
                 </div>
 
-                {/* --- Product Image Section --- */}
-                <div className="pt-4 border-t border-gray-200 dark:border-white/5">
-                  <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-3 ml-1">{t('product_image', 'Product Image')}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="primary"
-                      onClick={() => setShowMediaLibrary(true)}
-                      className="!px-5 !py-2.5 !rounded-lg !text-[9px] !font-black !shadow-lg !shadow-emerald-500/20"
-                    >
-                      Choose / Upload Image
-                    </Button>
-                    {formData.image && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setFormData(prev => ({ ...prev, image: '' }))}
-                        className="!min-h-0 !px-4 !py-2.5 !rounded-lg !text-[9px] !font-black !bg-rose-500/10 !text-rose-500 hover:!bg-rose-500/20"
-                      >
-                        {t('remove', 'Remove')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
+
               </div>
             </div>
 
@@ -1594,7 +1571,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                                newAddons[index].maxQty = parseInt(e.target.value) || 1;
                                setProductAddons(newAddons);
                              }}
-                             className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-9 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                             className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-11 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs text-right sm:text-left"
                            />
                         </div>
                         <div className="relative flex-1 sm:flex-none w-full sm:w-28">
@@ -1608,7 +1585,7 @@ export function ProductDetailHub({ product, onBack, onEdit }: ProductDetailHubPr
                               newAddons[index].price = parseFloat(e.target.value) || 0;
                               setProductAddons(newAddons);
                             }}
-                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-12 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs text-right sm:text-left"
                           />
                         </div>
                         <Button type="button" variant="ghost" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="!min-h-0 !p-1.5 !rounded-lg !bg-transparent !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 shrink-0 mt-0.5" icon={<X className="w-4 h-4" />} />

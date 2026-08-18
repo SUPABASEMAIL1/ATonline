@@ -1089,7 +1089,12 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                 <div key={index} className="flex flex-col sm:flex-row gap-2.5 p-3 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5 items-center">
                   <div className="w-full sm:flex-1 min-w-0">
                     <SearchableSelect
-                      options={state.products.filter(p => p.id !== product?.id).map(p => ({ id: p.id, label: `${p.name} (Stock: ${p.stock})` }))}
+                      options={state.products.filter(p => p.id !== product?.id).map(p => ({ 
+                        id: p.id, 
+                        label: `${p.name} (Stock: ${p.stock})`,
+                        image: p.image,
+                        sublabel: p.category
+                      }))}
                       value={addon.addonProductId}
                       onChange={(val) => {
                         const selProd = state.products.find(p => p.id === val);
@@ -1117,7 +1122,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                           newAddons[index].maxQty = parseInt(e.target.value) || 1;
                           setProductAddons(newAddons);
                         }}
-                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-9 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-11 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs text-right sm:text-left"
                       />
                     </div>
                     <div className="relative flex-1 sm:flex-none w-full sm:w-28">
@@ -1131,7 +1136,7 @@ export function ProductModal({ isOpen, onClose, product }: ProductModalProps) {
                           newAddons[index].price = parseFloat(e.target.value) || 0;
                           setProductAddons(newAddons);
                         }}
-                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-10 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs"
+                        className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg pl-12 pr-2 py-1.5 focus:ring-1 focus:ring-blue-500 font-bold text-gray-900 dark:text-white text-xs text-right sm:text-left"
                       />
                     </div>
                     <Button type="button" variant="ghost" onClick={() => setProductAddons(productAddons.filter((_, i) => i !== index))} className="!min-h-0 !p-1.5 !rounded-lg !bg-transparent !text-rose-500 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 shrink-0 mt-0.5" icon={<X className="w-4 h-4" />} />
